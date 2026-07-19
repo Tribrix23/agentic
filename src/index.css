@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .region-drag {
+    -webkit-app-region: drag;
+  }
+  .region-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
+
+body {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  background-color: #08080c;
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+}
