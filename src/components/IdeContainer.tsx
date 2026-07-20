@@ -9,6 +9,40 @@ import { ContextMenu, ContextMenuItem } from './ide/ContextMenu';
 import { cn } from '../App';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
+const BlurText = ({ text, className, delay = 0 }: { text: string, className?: string, delay?: number }) => {
+  const letters = text.split("");
+  const container = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: { staggerChildren: 0.04, delayChildren: delay },
+    },
+  };
+  const child = {
+    visible: {
+      opacity: 1,
+      filter: "blur(0px)",
+      y: 0,
+      transition: { type: "spring", damping: 12, stiffness: 100 },
+    },
+    hidden: {
+      opacity: 0,
+      filter: "blur(10px)",
+      y: 10,
+      transition: { type: "spring", damping: 12, stiffness: 100 },
+    },
+  };
+  return (
+    <motion.div className={cn("flex flex-wrap justify-center", className)} variants={container} initial="hidden" animate="visible">
+      {letters.map((letter, index) => (
+        <motion.span variants={child} key={index}>
+          {letter === " " ? "\u00A0" : letter}
+        </motion.span>
+      ))}
+    </motion.div>
+  );
+};
+
 const orb1Variants: Variants = {
   animate: {
     x: ['-20%', '20%', '-10%', '-20%'],
@@ -120,6 +154,12 @@ const getFileLanguage = (filename: string | null) => {
   }
 };
 
+export interface OpenFile {
+  path: string;
+  name: string;
+  originalContent: string;
+}
+
 export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [activeProject, setActiveProject] = useState<ProjectFolder | null>(() => {
@@ -133,9 +173,8 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   });
 
   const [projectFiles, setProjectFiles] = useState<FileNode[]>([]);
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [originalFileContent, setOriginalFileContent] = useState<string>('');
+  const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
   // Dropdown & Wizard States
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
@@ -148,6 +187,10 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
 
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectFolder | null>(null);
+
+  const [nodeToRename, setNodeToRename] = useState<FileNode | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [nodeToDelete, setNodeToDelete] = useState<FileNode | null>(null);
 
   // Editor Menu & Live Server States
   const [showEditorMenu, setShowEditorMenu] = useState<boolean>(false);
@@ -201,6 +244,21 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Check live server status on mount
+  useEffect(() => {
+    const checkServer = async () => {
+      try {
+        const res = await (window as any).electron.checkLiveServer();
+        if (res && res.isRunning) {
+          setIsLiveServerRunning(true);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    checkServer();
+  }, []);
+
   const fetchProjectFiles = async () => {
     if (activeProject && activeProject.path) {
       const data = await (window as any).electron.readProjectFiles(activeProject.path);
@@ -218,8 +276,8 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Shift + Alt + R -> Reveal in File Explorer
       if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'r') {
-        if (selectedFilePath) {
-          (window as any).electron.showItemInFolder(selectedFilePath);
+        if (activeFilePath) {
+          (window as any).electron.showItemInFolder(activeFilePath);
         } else if (activeProject?.path) {
           (window as any).electron.showItemInFolder(activeProject.path);
         }
@@ -227,15 +285,25 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFilePath, activeProject]);
+  }, [activeFilePath, activeProject]);
 
   const handleFileClick = async (node: FileNode) => {
     if (node.type === 'file') {
-      setSelectedFilePath(node.path);
-      setSelectedFileName(node.name);
-      setOriginalFileContent('Loading...');
+      const existing = openFiles.find(f => f.path === node.path);
+      if (existing) {
+        setActiveFilePath(node.path);
+        return;
+      }
+      
       const content = await (window as any).electron.readFileContent(node.path);
-      setOriginalFileContent(content);
+      if (content !== undefined) {
+        setOpenFiles(prev => [...prev, {
+          path: node.path,
+          name: node.name,
+          originalContent: content
+        }]);
+        setActiveFilePath(node.path);
+      }
     }
   };
 
@@ -329,23 +397,12 @@ const handleSkip = () => {
         }
       } },
       { divider: true, label: '', onClick: () => {} },
-      { label: 'Rename...', shortcut: 'F2', onClick: async () => {
-        const newName = window.prompt('Enter new name:', node.name);
-        if (newName && newName !== node.name) {
-          const newPath = node.path.replace(new RegExp(`${node.name}$`), newName);
-          await (window as any).electron.renameFile(node.path, newPath);
-          fetchProjectFiles();
-        }
+      { label: 'Rename...', shortcut: 'F2', onClick: () => {
+        setNodeToRename(node);
+        setRenameValue(node.name);
       } },
-      { label: 'Delete', shortcut: 'Delete', onClick: async () => {
-        if (window.confirm(`Are you sure you want to delete ${node.name}?`)) {
-          await (window as any).electron.deleteFile(node.path);
-          fetchProjectFiles();
-          if (selectedFilePath === node.path) {
-            setSelectedFilePath(null);
-            setSelectedFileName(null);
-          }
-        }
+      { label: 'Delete', shortcut: 'Delete', onClick: () => {
+        setNodeToDelete(node);
       } }
     );
     return items;
@@ -534,7 +591,7 @@ const handleSkip = () => {
                 }}
                 onFileClick={handleFileClick} 
                 onContextMenu={handleContextMenu}
-                selectedPath={selectedFilePath} 
+                selectedPath={activeFilePath} 
                 depth={0}
                 defaultOpen={true}
               />
@@ -544,31 +601,42 @@ const handleSkip = () => {
           </div>
         </div>
 
-        <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", selectedFileName ? "bg-[#08080c]" : "bg-transparent")}>
-          {selectedFileName ? (
+        <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", activeFilePath ? "bg-[#08080c]" : "bg-transparent")}>
+          {activeFilePath ? (
             <>
               <EditorArea 
-                selectedFilePath={selectedFilePath}
-                selectedFileName={selectedFileName}
-                originalFileContent={originalFileContent}
+                openFiles={openFiles}
+                activeFilePath={activeFilePath}
                 isLiveServerRunning={isLiveServerRunning}
-                onCloseFile={() => {
-                  setSelectedFilePath(null);
-                  setSelectedFileName(null);
+                onTabClose={(path) => {
+                  setOpenFiles(prev => {
+                    const filtered = prev.filter(f => f.path !== path);
+                    if (activeFilePath === path) {
+                      setActiveFilePath(filtered.length > 0 ? filtered[filtered.length - 1].path : null);
+                    }
+                    return filtered;
+                  });
                 }}
+                onTabClick={(path) => setActiveFilePath(path)}
                 handleRunLive={handleRunLive}
                 handleStopLive={handleStopLive}
+                onFileSaved={(path, newContent) => {
+                  setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                }}
               />
             </>
           ) : (
             <div className="flex-1 flex flex-col justify-center items-center text-[#8b8b93] select-none">
-              <img 
+              <motion.img 
+                initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
+                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
                 src="/icon.png" 
                 alt="QUANTIX Logo" 
                 className="w-20 h-20 object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] mb-4"
               />
-              <h2 className="text-xl font-bold text-white tracking-wider">QUANTIX IDE</h2>
-              <p className="text-xs text-[#6b6b73] mt-1 mb-4">Your intelligent code environment</p>
+              <BlurText text="QUANTIX IDE" className="text-xl font-bold text-white tracking-wider" delay={0.2} />
+              <BlurText text="Your intelligent code environment" className="text-xs text-[#6b6b73] mt-1 mb-4" delay={0.6} />
               
               <motion.button
                 variants={buttonVariants}
@@ -906,6 +974,103 @@ const handleSkip = () => {
                   </div>
                 </>
               )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {nodeToDelete && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#18181f] border border-white/10 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+            >
+              <div className="p-6 pb-4">
+                <h3 className="text-lg font-bold text-white mb-2">Delete {nodeToDelete.type === 'file' ? 'File' : 'Folder'}</h3>
+                <p className="text-sm text-[#8b8b93]">
+                  Are you sure you want to delete <span className="text-white font-medium">{nodeToDelete.name}</span>? This action cannot be undone.
+                </p>
+              </div>
+              <div className="px-6 py-4 bg-white/5 border-t border-white/10 flex justify-end gap-3">
+                <button
+                  onClick={() => setNodeToDelete(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    await (window as any).electron.deleteFile(nodeToDelete.path);
+                    fetchProjectFiles();
+                    setOpenFiles(prev => prev.filter(f => !f.path.startsWith(nodeToDelete.path)));
+                    if (activeFilePath && activeFilePath.startsWith(nodeToDelete.path)) {
+                      setActiveFilePath(null);
+                    }
+                    setNodeToDelete(null);
+                  }}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {nodeToRename && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#18181f] border border-white/10 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+            >
+              <div className="p-6 pb-4">
+                <h3 className="text-lg font-bold text-white mb-4">Rename {nodeToRename.type === 'file' ? 'File' : 'Folder'}</h3>
+                <input 
+                  type="text" 
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter' && renameValue && renameValue !== nodeToRename.name) {
+                      const newPath = nodeToRename.path.substring(0, nodeToRename.path.lastIndexOf(nodeToRename.name)) + renameValue;
+                      await (window as any).electron.renameFile(nodeToRename.path, newPath);
+                      fetchProjectFiles();
+                      setNodeToRename(null);
+                    } else if (e.key === 'Escape') {
+                      setNodeToRename(null);
+                    }
+                  }}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500 transition-colors"
+                />
+              </div>
+              <div className="px-6 py-4 bg-white/5 border-t border-white/10 flex justify-end gap-3">
+                <button
+                  onClick={() => setNodeToRename(null)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (renameValue && renameValue !== nodeToRename.name) {
+                      const newPath = nodeToRename.path.substring(0, nodeToRename.path.lastIndexOf(nodeToRename.name)) + renameValue;
+                      await (window as any).electron.renameFile(nodeToRename.path, newPath);
+                      fetchProjectFiles();
+                      setNodeToRename(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#007acc] hover:bg-[#0088dd] text-white transition-colors"
+                >
+                  Rename
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

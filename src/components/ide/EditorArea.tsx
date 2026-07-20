@@ -1,7 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Editor, { loader } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 
-loader.config({ paths: { vs: '/monaco/vs' } });
+import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+
+self.MonacoEnvironment = {
+  getWorker(_, label) {
+    if (label === 'json') {
+      return new jsonWorker();
+    }
+    if (label === 'css' || label === 'scss' || label === 'less') {
+      return new cssWorker();
+    }
+    if (label === 'html' || label === 'handlebars' || label === 'razor') {
+      return new htmlWorker();
+    }
+    if (label === 'typescript' || label === 'javascript') {
+      return new tsWorker();
+    }
+    return new editorWorker();
+  },
+};
+
+loader.config({ monaco });
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -50,40 +75,58 @@ const getFileLanguage = (filename: string | null) => {
   }
 };
 
+import { OpenFile } from '../IdeContainer';
+
 interface EditorAreaProps {
-  selectedFilePath: string | null;
-  selectedFileName: string | null;
-  originalFileContent: string;
+  openFiles: OpenFile[];
+  activeFilePath: string | null;
   isLiveServerRunning: boolean;
-  onCloseFile: () => void;
+  onTabClose: (path: string) => void;
+  onTabClick: (path: string) => void;
   handleRunLive: () => void;
   handleStopLive: () => void;
+  onFileSaved: (path: string, newContent: string) => void;
 }
 
 export const EditorArea: React.FC<EditorAreaProps> = ({
-  selectedFilePath,
-  selectedFileName,
-  originalFileContent,
+  openFiles,
+  activeFilePath,
   isLiveServerRunning,
-  onCloseFile,
+  onTabClose,
+  onTabClick,
   handleRunLive,
-  handleStopLive
+  handleStopLive,
+  onFileSaved
 }) => {
-  const [localContent, setLocalContent] = useState(originalFileContent);
+  const [localContents, setLocalContents] = useState<Record<string, string>>({});
   const [showEditorMenu, setShowEditorMenu] = useState(false);
   const editorMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setLocalContent(originalFileContent);
-  }, [selectedFilePath, originalFileContent]);
+    setLocalContents(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const f of openFiles) {
+        if (next[f.path] === undefined) {
+          next[f.path] = f.originalContent;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [openFiles]);
 
-  const isDirty = localContent !== originalFileContent;
+  const activeFile = openFiles.find(f => f.path === activeFilePath);
+  const selectedFileName = activeFile?.name;
+  
+  const currentLocalContent = activeFilePath ? (localContents[activeFilePath] ?? activeFile?.originalContent ?? '') : '';
+  const isDirty = activeFilePath ? currentLocalContent !== activeFile?.originalContent : false;
 
   const handleSaveFile = async () => {
-    if (selectedFilePath && isDirty) {
-      const res = await (window as any).electron.saveFileContent(selectedFilePath, localContent);
+    if (activeFilePath && isDirty) {
+      const res = await (window as any).electron.saveFileContent(activeFilePath, currentLocalContent);
       if (res.success) {
-        // success
+        onFileSaved(activeFilePath, currentLocalContent);
       } else {
         console.error('Failed to save file:', res.error);
       }
@@ -109,57 +152,51 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFilePath, isDirty, localContent]);
+  }, [activeFilePath, isDirty, currentLocalContent]);
 
-  if (!selectedFileName) return null;
+  if (!activeFilePath || openFiles.length === 0) return null;
 
   return (
     <>
       <div className="h-9 border-b border-white/5 bg-[#0f0f13] flex items-center justify-between px-2">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#08080c] border-b-2 border-blue-500 rounded-t-md text-xs font-medium text-white group relative">
-          {getFileIcon(selectedFileName, "w-3 h-3 shrink-0")}
-          <span>{selectedFileName}</span>
-          {isDirty && <div className="w-2 h-2 rounded-full bg-blue-500 ml-1" title="Unsaved changes" />}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              onCloseFile();
-            }}
-            className="ml-2 opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/10 rounded transition-all"
-          >
-            <X size={12} />
-          </button>
+        <div className="flex items-center overflow-x-auto no-scrollbar flex-1 h-full pt-1.5">
+          {openFiles.map(file => {
+            const isTabActive = file.path === activeFilePath;
+            const tabLocalContent = localContents[file.path] ?? file.originalContent;
+            const tabIsDirty = tabLocalContent !== file.originalContent;
+
+            return (
+              <div 
+                key={file.path}
+                onClick={() => onTabClick(file.path)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 h-full min-w-[120px] max-w-[200px] border-r border-white/5 cursor-pointer group relative transition-colors rounded-t-md",
+                  isTabActive 
+                    ? "bg-[#1e1e1e] border-t-2 border-t-blue-500 text-white" 
+                    : "bg-[#0f0f13] hover:bg-[#18181f] text-[#8b8b93] border-t-2 border-t-transparent"
+                )}
+              >
+                {getFileIcon(file.name, "w-3 h-3 shrink-0")}
+                <span className="truncate flex-1 text-xs">{file.name}</span>
+                {tabIsDirty && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 ml-1" title="Unsaved changes" />}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTabClose(file.path);
+                  }}
+                  className={cn(
+                    "p-0.5 rounded transition-all shrink-0",
+                    isTabActive ? "opacity-100 hover:bg-white/10" : "opacity-0 group-hover:opacity-100 hover:bg-white/10"
+                  )}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            );
+          })}
         </div>
         <div className="flex items-center gap-2 pr-2">
-          <AnimatePresence>
-            {isLiveServerRunning && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.5 }}
-                className="relative group mr-1"
-              >
-                <div className="flex items-center justify-center p-1.5 rounded-full bg-purple-500/20 text-purple-400 relative cursor-pointer">
-                  <motion.div
-                    animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
-                    transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                  >
-                    <Radio size={14} />
-                  </motion.div>
-                  <motion.div
-                    animate={{ scale: [1, 2], opacity: [0.8, 0] }}
-                    transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-                    className="absolute inset-0 rounded-full border border-purple-500/50"
-                  />
-                </div>
-                
-                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black/90 text-white text-[10px] font-semibold px-2 py-1 rounded whitespace-nowrap z-50 border border-white/10 shadow-xl">
-                  Live server is on
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
+
           <button
             onClick={handleSaveFile}
             disabled={!isDirty}
@@ -207,9 +244,15 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                   ) : (
                     <button
                       onClick={handleRunLive}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                      disabled={!selectedFileName?.toLowerCase().endsWith('.html')}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors",
+                        selectedFileName?.toLowerCase().endsWith('.html') 
+                          ? "text-white hover:bg-white/10" 
+                          : "text-[#5b5b63] cursor-not-allowed opacity-50"
+                      )}
                     >
-                      <Play size={14} className="text-green-500" />
+                      <Play size={14} className={selectedFileName?.toLowerCase().endsWith('.html') ? "text-green-500" : "text-[#5b5b63]"} />
                       Run Live
                     </button>
                   )}
@@ -223,10 +266,17 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       <div className="flex-1 overflow-hidden bg-[#1e1e1e] relative">
         <Editor
           height="100%"
-          language={getFileLanguage(selectedFileName)}
+          language={getFileLanguage(selectedFileName || null)}
           theme="vs-dark"
-          value={localContent}
-          onChange={(value) => setLocalContent(value || '')}
+          value={currentLocalContent}
+          onChange={(value) => {
+            if (activeFilePath) {
+              setLocalContents(prev => ({
+                ...prev,
+                [activeFilePath]: value || ''
+              }));
+            }
+          }}
           loading={<EditorSkeleton />}
           options={{
             minimap: { enabled: false },

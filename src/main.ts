@@ -86,6 +86,7 @@ function createWindow() {
     height: 900,
     frame: false,
     autoHideMenuBar: true,
+    backgroundColor: '#050505',
     icon: path.join(__dirname, '../../public/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -298,23 +299,28 @@ function createWindow() {
         activeLiveServer = null;
       }
 
-      // Spawn python http.server
-      activeLiveServer = spawn('python', ['-m', 'http.server', port.toString()], { cwd: projectPath });
+      // Spawn npx live-server
+      const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+      activeLiveServer = spawn(npxCmd, ['-y', 'live-server', `--port=${port}`, '--no-browser'], { cwd: projectPath, shell: true });
       
       activeLiveServer.on('error', (err: any) => {
-        console.error('[IPC] Failed to start python server:', err);
+        console.error('[IPC] Failed to start live-server:', err);
       });
       
-      // Wait 500ms for server to bind port before opening
+      // Manually open the browser after a short delay
       setTimeout(() => {
-        shell.openExternal(`http://localhost:${port}`);
-      }, 500);
+        shell.openExternal(`http://127.0.0.1:${port}`);
+      }, 1000);
       
       return { success: true, port };
     } catch (e: any) {
       console.error('[IPC] Exception starting server:', e);
       return { success: false, error: e.message };
     }
+  });
+
+  ipcMain.handle('check-live-server', async () => {
+    return { isRunning: !!activeLiveServer };
   });
 
   ipcMain.handle('stop-live-server', async () => {

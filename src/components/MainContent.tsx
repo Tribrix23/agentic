@@ -9,6 +9,7 @@ interface ProjectFolder {
   branch: string | null;
 }
 
+
 export const MainContent = ({ 
   user,
   toggleLeftSidebar,
