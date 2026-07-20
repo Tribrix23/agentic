@@ -31,7 +31,7 @@ loader.config({ monaco });
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileJson, FileType2, FileCode2, Code, FileImage, FileText, File, 
-  X, Save, Menu, Play, StopCircle, Radio 
+  X, Save, Menu, Play, StopCircle, Radio, Check
 } from 'lucide-react';
 import { cn } from '../../App';
 
@@ -102,6 +102,17 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   const [showEditorMenu, setShowEditorMenu] = useState(false);
   const editorMenuRef = useRef<HTMLDivElement>(null);
 
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('quantix_autosave');
+    return saved === 'true';
+  });
+
+  const toggleAutoSave = () => {
+    const newValue = !autoSaveEnabled;
+    setAutoSaveEnabled(newValue);
+    localStorage.setItem('quantix_autosave', String(newValue));
+  };
+
   useEffect(() => {
     setLocalContents(prev => {
       const next = { ...prev };
@@ -132,6 +143,15 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       }
     }
   };
+
+  useEffect(() => {
+    if (autoSaveEnabled && isDirty && activeFilePath) {
+      const timeoutId = setTimeout(() => {
+        handleSaveFile();
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentLocalContent, autoSaveEnabled, isDirty, activeFilePath]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -256,6 +276,22 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                       Run Live
                     </button>
                   )}
+                  
+                  <div className="border-t border-white/5 my-1" />
+                  
+                  <button
+                    onClick={() => {
+                      toggleAutoSave();
+                      setShowEditorMenu(false);
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors group"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Save size={14} className={autoSaveEnabled ? "text-blue-400" : "text-white"} />
+                      <span className="text-white">Auto Save</span>
+                    </div>
+                    {autoSaveEnabled && <Check size={14} className="text-blue-400" />}
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>

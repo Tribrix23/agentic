@@ -333,7 +333,7 @@ function createWindow() {
 
       // Spawn npx live-server
       const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-      activeLiveServer = spawn(npxCmd, ['-y', 'live-server', `--port=${port}`, '--no-browser'], { cwd: projectPath, shell: true });
+      activeLiveServer = spawn(npxCmd, ['-y', 'live-server', `--port=${port}`, '--host=localhost', '--no-browser'], { cwd: projectPath, shell: true });
       
       activeLiveServer.on('error', (err: any) => {
         console.error('[IPC] Failed to start live-server:', err);
@@ -341,8 +341,8 @@ function createWindow() {
       
       // Manually open the browser after a short delay
       setTimeout(() => {
-        shell.openExternal(`http://127.0.0.1:${port}`);
-      }, 1000);
+        shell.openExternal(`http://localhost:${port}`);
+      }, 2000);
       
       return { success: true, port };
     } catch (e: any) {
