@@ -16,5 +16,8 @@ contextBridge.exposeInMainWorld('electron', {
   readFileContent: (path: string) => ipcRenderer.invoke('read-file-content', path),
   saveFileContent: (path: string, content: string) => ipcRenderer.invoke('save-file-content', path, content),
   startLiveServer: (path: string) => ipcRenderer.invoke('start-live-server', path),
-  stopLiveServer: () => ipcRenderer.invoke('stop-live-server')
+  stopLiveServer: () => ipcRenderer.invoke('stop-live-server'),
+  showItemInFolder: (path: string) => ipcRenderer.send('show-item-in-folder', path),
+  renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('rename-file', oldPath, newPath),
+  deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path)
 });

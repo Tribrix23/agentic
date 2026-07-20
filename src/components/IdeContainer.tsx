@@ -3,6 +3,9 @@ import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLef
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { TitleBar } from './TitleBar';
+import { EditorArea } from './ide/EditorArea';
+import { ActivityBar } from './ide/ActivityBar';
+import { ContextMenu, ContextMenuItem } from './ide/ContextMenu';
 import { cn } from '../App';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
@@ -132,16 +135,17 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   const [projectFiles, setProjectFiles] = useState<FileNode[]>([]);
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [fileContent, setFileContent] = useState<string>('');
   const [originalFileContent, setOriginalFileContent] = useState<string>('');
-  const [isDirty, setIsDirty] = useState<boolean>(false);
 
   // Dropdown & Wizard States
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
-  const [showWizard, setShowWizard] = useState<boolean>(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<'create' | 'security'>('create');
-  const [wizardFolders, setWizardFolders] = useState<ProjectFolder[]>([]);
-  const [selectedSecurity, setSelectedSecurity] = useState<'full' | 'user' | 'semi'>('user');
+  const [wizardFolders, setWizardFolders] = useState<any[]>([]);
+  const [selectedSecurity, setSelectedSecurity] = useState<'full' | 'user' | 'semi'>('full');
+
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, node: FileNode } | null>(null);
+
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectFolder | null>(null);
 
@@ -197,51 +201,43 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
+  const fetchProjectFiles = async () => {
     if (activeProject && activeProject.path) {
-      (window as any).electron.readProjectFiles(activeProject.path).then((data: FileNode[]) => {
-        setProjectFiles(data || []);
-      });
+      const data = await (window as any).electron.readProjectFiles(activeProject.path);
+      setProjectFiles(data || []);
     } else {
       setProjectFiles([]);
     }
+  };
+
+  useEffect(() => {
+    fetchProjectFiles();
   }, [activeProject]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Shift + Alt + R -> Reveal in File Explorer
+      if (e.shiftKey && e.altKey && e.key.toLowerCase() === 'r') {
+        if (selectedFilePath) {
+          (window as any).electron.showItemInFolder(selectedFilePath);
+        } else if (activeProject?.path) {
+          (window as any).electron.showItemInFolder(activeProject.path);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedFilePath, activeProject]);
 
   const handleFileClick = async (node: FileNode) => {
     if (node.type === 'file') {
       setSelectedFilePath(node.path);
       setSelectedFileName(node.name);
-      setIsDirty(false);
-      setFileContent('Loading...');
       setOriginalFileContent('Loading...');
       const content = await (window as any).electron.readFileContent(node.path);
-      setFileContent(content);
       setOriginalFileContent(content);
     }
   };
-
-  const handleSaveFile = async () => {
-    if (selectedFilePath && isDirty) {
-      const res = await (window as any).electron.saveFileContent(selectedFilePath, fileContent);
-      if (res.success) {
-        setIsDirty(false);
-        setOriginalFileContent(fileContent);
-      } else {
-        console.error('Failed to save file:', res.error);
-      }
-    }
-  };
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        handleSaveFile();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedFilePath, isDirty, fileContent]);
 
   const handleAddFolder = async () => {
     try {
@@ -291,7 +287,6 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
       setActiveProject(nextActive);
       setSelectedFilePath(null);
       setSelectedFileName(null);
-      setFileContent('');
       if (nextActive) {
         localStorage.setItem('quantix_active_project', JSON.stringify(nextActive));
       } else {
@@ -300,13 +295,80 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     }
   };
 
-  const handleSkip = () => {
+const handleSkip = () => {
     setShowWizard(false);
     setWizardFolders([]);
   };
 
+  const getContextMenuItems = (node: FileNode) => {
+    const isFile = node.type === 'file';
+    const items: ContextMenuItem[] = [
+      { label: 'Reveal in File Explorer', shortcut: 'Shift+Alt+R', onClick: () => {
+        (window as any).electron.showItemInFolder(node.path);
+      } },
+      { label: 'Open in Integrated Terminal', onClick: () => console.log('Terminal', node.path) },
+      { divider: true, label: '', onClick: () => {} }
+    ];
+  
+    if (isFile) {
+      items.push({ label: 'Find File References', onClick: () => console.log('Find References', node.path) });
+      items.push({ divider: true, label: '', onClick: () => {} });
+    }
+  
+    items.push(
+      { label: 'Cut', shortcut: 'Ctrl+X', onClick: () => console.log('Cut', node.path) },
+      { label: 'Copy', shortcut: 'Ctrl+C', onClick: () => console.log('Copy', node.path) },
+      { divider: true, label: '', onClick: () => {} },
+      { label: 'Copy Path', shortcut: 'Shift+Alt+C', onClick: () => {
+        navigator.clipboard.writeText(node.path);
+      } },
+      { label: 'Copy Relative Path', shortcut: 'Ctrl+K Ctrl+Shift+C', onClick: () => {
+        if (activeProject) {
+          const relative = node.path.replace(activeProject.path, '').replace(/^[\\\/]/, '');
+          navigator.clipboard.writeText(relative);
+        }
+      } },
+      { divider: true, label: '', onClick: () => {} },
+      { label: 'Rename...', shortcut: 'F2', onClick: async () => {
+        const newName = window.prompt('Enter new name:', node.name);
+        if (newName && newName !== node.name) {
+          const newPath = node.path.replace(new RegExp(`${node.name}$`), newName);
+          await (window as any).electron.renameFile(node.path, newPath);
+          fetchProjectFiles();
+        }
+      } },
+      { label: 'Delete', shortcut: 'Delete', onClick: async () => {
+        if (window.confirm(`Are you sure you want to delete ${node.name}?`)) {
+          await (window as any).electron.deleteFile(node.path);
+          fetchProjectFiles();
+          if (selectedFilePath === node.path) {
+            setSelectedFilePath(null);
+            setSelectedFileName(null);
+          }
+        }
+      } }
+    );
+    return items;
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, node: FileNode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, node });
+  };
+
   return (
     <div className="w-full h-screen flex flex-col bg-[#08080c] text-[#e2e2e3] select-none relative z-50 overflow-hidden">
+      <AnimatePresence>
+        {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={getContextMenuItems(contextMenu.node)}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+      </AnimatePresence>
       {/* Live Animated Background Orbs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <motion.div 
@@ -404,7 +466,6 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
                               localStorage.setItem('quantix_active_project', JSON.stringify(proj));
                               setSelectedFilePath(null);
                               setSelectedFileName(null);
-                              setFileContent('');
                               setShowDropdown(false);
                             }}
                             className={cn(
@@ -472,6 +533,7 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
                   children: projectFiles
                 }}
                 onFileClick={handleFileClick} 
+                onContextMenu={handleContextMenu}
                 selectedPath={selectedFilePath} 
                 depth={0}
                 defaultOpen={true}
@@ -485,124 +547,18 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
         <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", selectedFileName ? "bg-[#08080c]" : "bg-transparent")}>
           {selectedFileName ? (
             <>
-              {/* Editor Tabs */}
-              <div className="h-9 border-b border-white/5 bg-[#0f0f13] flex items-center justify-between px-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#08080c] border-b-2 border-blue-500 rounded-t-md text-xs font-medium text-white group relative">
-                  {getFileIcon(selectedFileName, "w-3 h-3 shrink-0")}
-                  <span>{selectedFileName}</span>
-                  {isDirty && <div className="w-2 h-2 rounded-full bg-blue-500 ml-1" title="Unsaved changes" />}
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFilePath(null);
-                      setSelectedFileName(null);
-                    }}
-                    className="ml-2 opacity-0 group-hover:opacity-100 p-0.5 hover:bg-white/10 rounded transition-all"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 pr-2">
-                  <button
-                    onClick={handleSaveFile}
-                    disabled={!isDirty}
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all shadow-sm border",
-                      isDirty 
-                        ? "bg-[#25252d] hover:bg-[#2f2f38] border-white/5 text-white shadow-md" 
-                        : "bg-transparent border-transparent text-[#5b5b63] cursor-not-allowed shadow-none"
-                    )}
-                  >
-                    <Save size={13} className={cn(isDirty ? "text-white" : "text-[#5b5b63]")} />
-                    Save
-                    <div className={cn(
-                      "flex items-center ml-1.5 px-2 py-0.5 rounded backdrop-blur-md shadow-inner text-[10px] tracking-wider font-bold transition-all",
-                      isDirty ? "bg-white/10 text-white border border-white/5" : "bg-black/20 text-[#5b5b63]"
-                    )}>
-                      CTRL + S
-                    </div>
-                  </button>
-                  
-                  {/* Editor Menu */}
-                  <div className="relative" ref={editorMenuRef}>
-                    <button
-                      onClick={() => setShowEditorMenu(!showEditorMenu)}
-                      className="p-1.5 rounded-md hover:bg-white/5 text-[#8b8b93] hover:text-white transition-colors ml-1"
-                    >
-                      <Menu size={16} />
-                    </button>
-                    <AnimatePresence>
-                      {showEditorMenu && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute right-0 top-full mt-2 w-40 bg-[#18181f] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 py-1"
-                        >
-                          {isLiveServerRunning ? (
-                            <button
-                              onClick={handleStopLive}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-                            >
-                              <StopCircle size={14} className="text-red-500" />
-                              Stop Live
-                            </button>
-                          ) : (
-                            <button
-                              onClick={handleRunLive}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-                            >
-                              <Play size={14} className="text-green-500" />
-                              Run Live
-                            </button>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
-
-              {/* Code Editor */}
-              <div className="flex-1 overflow-auto bg-[#08080c] select-text relative flex" style={{ fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace' }}>
-                <div className="flex flex-col text-[#5b5b63] text-right bg-[#08080c] select-none border-r border-white/5 py-4 w-[3.5rem] px-3 z-20 sticky left-0 text-[13px] leading-[1.5]">
-                  {fileContent.split('\n').map((_, i) => (
-                    <span key={i} className="block">{i + 1}</span>
-                  ))}
-                </div>
-                <div className="flex-1 min-w-[800px] grid">
-                  <textarea
-                    value={fileContent}
-                    onChange={(e) => {
-                      setFileContent(e.target.value);
-                      setIsDirty(e.target.value !== originalFileContent);
-                    }}
-                    spellCheck={false}
-                    className="col-start-1 row-start-1 w-full h-full p-4 bg-transparent text-transparent caret-white resize-none outline-none z-10 text-[13px] leading-[1.5] whitespace-pre"
-                    style={{ WebkitTextFillColor: 'transparent', border: 'none', margin: 0, overflow: 'hidden', fontFamily: 'inherit', tabSize: 4 }}
-                  />
-                  <div className="col-start-1 row-start-1 w-full h-full pointer-events-none">
-                    <SyntaxHighlighter
-                      language={getFileLanguage(selectedFileName)}
-                      style={vscDarkPlus}
-                      customStyle={{
-                        margin: 0,
-                        padding: '1rem',
-                        background: 'transparent',
-                        fontSize: '13px',
-                        lineHeight: '1.5',
-                        overflow: 'hidden',
-                        fontFamily: 'inherit',
-                        tabSize: 4
-                      }}
-                      codeTagProps={{ style: { fontFamily: 'inherit', lineHeight: '1.5' } }}
-                    >
-                      {fileContent || ' '}
-                    </SyntaxHighlighter>
-                  </div>
-                </div>
-              </div>
+              <EditorArea 
+                selectedFilePath={selectedFilePath}
+                selectedFileName={selectedFileName}
+                originalFileContent={originalFileContent}
+                isLiveServerRunning={isLiveServerRunning}
+                onCloseFile={() => {
+                  setSelectedFilePath(null);
+                  setSelectedFileName(null);
+                }}
+                handleRunLive={handleRunLive}
+                handleStopLive={handleStopLive}
+              />
             </>
           ) : (
             <div className="flex-1 flex flex-col justify-center items-center text-[#8b8b93] select-none">
@@ -961,12 +917,14 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
 const FileTreeItem = ({ 
   node, 
   onFileClick, 
+  onContextMenu,
   selectedPath, 
   depth = 0,
   defaultOpen = false
 }: { 
   node: FileNode; 
   onFileClick: (n: FileNode) => void; 
+  onContextMenu?: (e: React.MouseEvent, n: FileNode) => void;
   selectedPath: string | null; 
   depth?: number;
   defaultOpen?: boolean;
@@ -980,6 +938,7 @@ const FileTreeItem = ({
       <div>
         <div 
           onClick={() => setIsOpen(!isOpen)}
+          onContextMenu={(e) => onContextMenu && onContextMenu(e, node)}
           style={{ paddingLeft: `${paddingLeft}px` }}
           className="flex items-center gap-1.5 py-1.5 hover:bg-white/5 rounded-md cursor-pointer text-[#a8a8b1] relative z-10"
         >
@@ -1023,6 +982,7 @@ const FileTreeItem = ({
                   <FileTreeItem 
                     node={child} 
                     onFileClick={onFileClick} 
+                    onContextMenu={onContextMenu}
                     selectedPath={selectedPath} 
                     depth={depth + 1} 
                   />
@@ -1040,6 +1000,7 @@ const FileTreeItem = ({
   return (
     <div 
       onClick={() => onFileClick(node)}
+      onContextMenu={(e) => onContextMenu && onContextMenu(e, node)}
       style={{ paddingLeft: `${paddingLeft}px` }}
       className={cn(
         "flex items-center gap-2 py-1.5 rounded-md cursor-pointer transition-colors relative z-10",

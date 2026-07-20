@@ -247,6 +247,35 @@ function createWindow() {
     }
   });
 
+  ipcMain.on('show-item-in-folder', (_event, itemPath: string) => {
+    shell.showItemInFolder(itemPath);
+  });
+
+  ipcMain.handle('rename-file', async (_event, oldPath: string, newPath: string) => {
+    const fs = require('fs');
+    try {
+      fs.renameSync(oldPath, newPath);
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Failed to rename file:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('delete-file', async (_event, pathToDelete: string) => {
+    const fs = require('fs');
+    try {
+      if (fs.existsSync(pathToDelete)) {
+        fs.rmSync(pathToDelete, { recursive: true, force: true });
+        return { success: true };
+      }
+      return { success: false, error: 'File not found' };
+    } catch (e: any) {
+      console.error('[IPC] Failed to delete file:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   let activeLiveServer: any = null;
 
   ipcMain.handle('start-live-server', async (event, projectPath: string) => {
