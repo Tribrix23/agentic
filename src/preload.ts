@@ -20,5 +20,7 @@ contextBridge.exposeInMainWorld('electron', {
   checkLiveServer: () => ipcRenderer.invoke('check-live-server'),
   showItemInFolder: (path: string) => ipcRenderer.send('show-item-in-folder', path),
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('rename-file', oldPath, newPath),
-  deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path)
+  deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path),
+  createFile: (parentPath: string, fileName: string) => ipcRenderer.invoke('create-file', parentPath, fileName),
+  createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('create-folder', parentPath, folderName)
 });

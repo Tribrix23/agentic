@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLeft, PanelLeftClose, FolderPlus, Trash2, Plus, X, Shield, HardDrive, Monitor, Lock, GitBranch, FileJson, FileType2, FileImage, FileText, FileCode2, Database, Save, Menu, Play, StopCircle, Radio, Files } from 'lucide-react';
+import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLeft, PanelLeftClose, FolderPlus, Trash2, Plus, X, Shield, HardDrive, Monitor, Lock, GitBranch, FileJson, FileType2, FileImage, FileText, FileCode2, Database, Save, Menu, Play, StopCircle, Radio, Files, Undo2, Redo2 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { TitleBar } from './TitleBar';
@@ -35,7 +35,7 @@ const BlurText = ({ text, className, delay = 0 }: { text: string, className?: st
   return (
     <motion.div className={cn("flex flex-wrap justify-center", className)} variants={container} initial="hidden" animate="visible">
       {letters.map((letter, index) => (
-        <motion.span variants={child} key={index}>
+        <motion.span variants={child as any} key={index}>
           {letter === " " ? "\u00A0" : letter}
         </motion.span>
       ))}
@@ -191,6 +191,12 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   const [nodeToRename, setNodeToRename] = useState<FileNode | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [nodeToDelete, setNodeToDelete] = useState<FileNode | null>(null);
+  const [nodeToCreate, setNodeToCreate] = useState<{ parentNode: FileNode, type: 'file' | 'folder' } | null>(null);
+  const [createValue, setCreateValue] = useState('');
+
+  // Undo/Redo States
+  const [undoStack, setUndoStack] = useState<{ type: 'move', sourcePath: string, targetPath: string }[]>([]);
+  const [redoStack, setRedoStack] = useState<{ type: 'move', sourcePath: string, targetPath: string }[]>([]);
 
   // Editor Menu & Live Server States
   const [showEditorMenu, setShowEditorMenu] = useState<boolean>(false);
@@ -272,6 +278,48 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     fetchProjectFiles();
   }, [activeProject]);
 
+  const handleMoveFile = async (sourcePath: string, targetDirPath: string, isUndoRedo = false) => {
+    if (!sourcePath || !targetDirPath) return;
+    const separator = sourcePath.includes('\\') ? '\\' : '/';
+    if (targetDirPath.startsWith(sourcePath + separator) || sourcePath === targetDirPath) return;
+    
+    const fileName = sourcePath.split(/[\\/]/).pop();
+    if (!fileName) return;
+    const newPath = targetDirPath + separator + fileName;
+    if (sourcePath === newPath) return;
+
+    const res = await (window as any).electron.renameFile(sourcePath, newPath);
+    if (res.success) {
+      if (!isUndoRedo) {
+        setUndoStack(prev => [...prev, { type: 'move', sourcePath, targetPath: newPath }]);
+        setRedoStack([]);
+      }
+      fetchProjectFiles();
+    }
+  };
+
+  const handleUndo = async () => {
+    if (undoStack.length === 0) return;
+    const action = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    if (action.type === 'move') {
+      await (window as any).electron.renameFile(action.targetPath, action.sourcePath);
+      setRedoStack(prev => [...prev, action]);
+      fetchProjectFiles();
+    }
+  };
+
+  const handleRedo = async () => {
+    if (redoStack.length === 0) return;
+    const action = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    if (action.type === 'move') {
+      await (window as any).electron.renameFile(action.sourcePath, action.targetPath);
+      setUndoStack(prev => [...prev, action]);
+      fetchProjectFiles();
+    }
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Shift + Alt + R -> Reveal in File Explorer
@@ -282,10 +330,27 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
           (window as any).electron.showItemInFolder(activeProject.path);
         }
       }
+      // Undo/Redo shortcuts (global if no input field is active)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea') {
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+        }
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        const activeTag = document.activeElement?.tagName.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea') {
+          handleRedo();
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeFilePath, activeProject]);
+  }, [activeFilePath, activeProject, undoStack, redoStack]);
 
   const handleFileClick = async (node: FileNode) => {
     if (node.type === 'file') {
@@ -353,8 +418,8 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     if (activeProject?.path === pathToDelete) {
       const nextActive = updatedProjects.length > 0 ? updatedProjects[0] : null;
       setActiveProject(nextActive);
-      setSelectedFilePath(null);
-      setSelectedFileName(null);
+      setOpenFiles([]);
+      setActiveFilePath(null);
       if (nextActive) {
         localStorage.setItem('quantix_active_project', JSON.stringify(nextActive));
       } else {
@@ -370,13 +435,29 @@ const handleSkip = () => {
 
   const getContextMenuItems = (node: FileNode) => {
     const isFile = node.type === 'file';
-    const items: ContextMenuItem[] = [
+    const items: ContextMenuItem[] = [];
+    
+    if (!isFile) {
+      items.push(
+        { label: 'Create New File', onClick: () => {
+          setNodeToCreate({ parentNode: node, type: 'file' });
+          setCreateValue('');
+        } },
+        { label: 'Create New Folder', onClick: () => {
+          setNodeToCreate({ parentNode: node, type: 'folder' });
+          setCreateValue('');
+        } },
+        { divider: true, label: '', onClick: () => {} }
+      );
+    }
+    
+    items.push(
       { label: 'Reveal in File Explorer', shortcut: 'Shift+Alt+R', onClick: () => {
         (window as any).electron.showItemInFolder(node.path);
       } },
       { label: 'Open in Integrated Terminal', onClick: () => console.log('Terminal', node.path) },
       { divider: true, label: '', onClick: () => {} }
-    ];
+    );
   
     if (isFile) {
       items.push({ label: 'Find File References', onClick: () => console.log('Find References', node.path) });
@@ -490,12 +571,30 @@ const handleSkip = () => {
             <span className="text-[11px] font-bold tracking-wider text-[#8b8b93] uppercase">
               Project Files
             </span>
-            <button 
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors"
-            >
-              <FolderPlus size={14} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={handleUndo}
+                disabled={undoStack.length === 0}
+                title="Undo (Ctrl+Z)"
+                className={cn("p-1 rounded transition-colors", undoStack.length > 0 ? "text-[#8b8b93] hover:text-white hover:bg-white/5" : "text-[#8b8b93]/30 cursor-not-allowed")}
+              >
+                <Undo2 size={14} />
+              </button>
+              <button 
+                onClick={handleRedo}
+                disabled={redoStack.length === 0}
+                title="Redo (Ctrl+Y)"
+                className={cn("p-1 rounded transition-colors", redoStack.length > 0 ? "text-[#8b8b93] hover:text-white hover:bg-white/5" : "text-[#8b8b93]/30 cursor-not-allowed")}
+              >
+                <Redo2 size={14} />
+              </button>
+              <button 
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors"
+              >
+                <FolderPlus size={14} />
+              </button>
+            </div>
 
             {/* Dropdown menu */}
             <AnimatePresence>
@@ -521,8 +620,8 @@ const handleSkip = () => {
                             onClick={() => {
                               setActiveProject(proj);
                               localStorage.setItem('quantix_active_project', JSON.stringify(proj));
-                              setSelectedFilePath(null);
-                              setSelectedFileName(null);
+                              setOpenFiles([]);
+                              setActiveFilePath(null);
                               setShowDropdown(false);
                             }}
                             className={cn(
@@ -594,6 +693,7 @@ const handleSkip = () => {
                 selectedPath={activeFilePath} 
                 depth={0}
                 defaultOpen={true}
+                onMoveFile={handleMoveFile}
               />
             ) : (
               <div className="px-4 py-2 text-[#8b8b93] italic">No project loaded</div>
@@ -979,45 +1079,139 @@ const handleSkip = () => {
         )}
       </AnimatePresence>
 
+      {/* Delete Modal */}
       <AnimatePresence>
         {nodeToDelete && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#18181f] border border-white/10 rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-[400px] bg-[#18181f] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
             >
-              <div className="p-6 pb-4">
-                <h3 className="text-lg font-bold text-white mb-2">Delete {nodeToDelete.type === 'file' ? 'File' : 'Folder'}</h3>
-                <p className="text-sm text-[#8b8b93]">
-                  Are you sure you want to delete <span className="text-white font-medium">{nodeToDelete.name}</span>? This action cannot be undone.
-                </p>
+              <div className="px-5 py-4 border-b border-white/5 bg-[#14141a]">
+                <h3 className="text-sm font-semibold text-white">Delete {nodeToDelete.type === 'file' ? 'File' : 'Folder'}</h3>
               </div>
-              <div className="px-6 py-4 bg-white/5 border-t border-white/10 flex justify-end gap-3">
-                <button
-                  onClick={() => setNodeToDelete(null)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    await (window as any).electron.deleteFile(nodeToDelete.path);
-                    fetchProjectFiles();
-                    setOpenFiles(prev => prev.filter(f => !f.path.startsWith(nodeToDelete.path)));
-                    if (activeFilePath && activeFilePath.startsWith(nodeToDelete.path)) {
-                      setActiveFilePath(null);
-                    }
-                    setNodeToDelete(null);
-                  }}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors"
-                >
-                  Delete
-                </button>
+              <div className="p-5">
+                <p className="text-sm text-[#8b8b93] leading-relaxed">
+                  Are you sure you want to delete <span className="text-white font-medium break-all">{nodeToDelete.path}</span>?
+                  <br />
+                  <span className="text-red-400 mt-2 block font-medium">This action cannot be undone.</span>
+                </p>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    onClick={() => setNodeToDelete(null)}
+                    className="px-4 py-2 rounded-md text-xs font-semibold text-[#8b8b93] hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const res = await (window as any).electron.deleteFile(nodeToDelete.path);
+                      if (res.success) {
+                        fetchProjectFiles();
+                        setOpenFiles(prev => prev.filter(f => !f.path.startsWith(nodeToDelete.path)));
+                        if (activeFilePath && activeFilePath.startsWith(nodeToDelete.path)) {
+                          setActiveFilePath(null);
+                        }
+                        setNodeToDelete(null);
+                      } else {
+                        console.error('Failed to delete:', res.error);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-md text-xs font-semibold bg-red-600 hover:bg-red-500 text-white transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Modal */}
+      <AnimatePresence>
+        {nodeToCreate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-[400px] bg-[#18181f] border border-white/10 rounded-xl shadow-2xl overflow-hidden"
+            >
+              <div className="px-5 py-4 border-b border-white/5 bg-[#14141a]">
+                <h3 className="text-sm font-semibold text-white">Create New {nodeToCreate.type === 'file' ? 'File' : 'Folder'}</h3>
+                <p className="text-xs text-[#8b8b93] mt-1 break-all">
+                  In: {nodeToCreate.parentNode.path}
+                </p>
+              </div>
+              <div className="p-5">
+                <input
+                  autoFocus
+                  type="text"
+                  value={createValue}
+                  onChange={e => setCreateValue(e.target.value)}
+                  placeholder={`Enter ${nodeToCreate.type} name...`}
+                  className="w-full bg-[#08080c] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      if (!createValue.trim()) return;
+                      const res = nodeToCreate.type === 'file'
+                        ? await (window as any).electron.createFile(nodeToCreate.parentNode.path, createValue.trim())
+                        : await (window as any).electron.createFolder(nodeToCreate.parentNode.path, createValue.trim());
+                      
+                      if (res.success) {
+                        fetchProjectFiles();
+                        setNodeToCreate(null);
+                      } else {
+                        console.error('Failed to create:', res.error);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setNodeToCreate(null);
+                    }
+                  }}
+                />
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    onClick={() => setNodeToCreate(null)}
+                    className="px-4 py-2 rounded-md text-xs font-semibold text-[#8b8b93] hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!createValue.trim()}
+                    onClick={async () => {
+                      if (!createValue.trim()) return;
+                      const res = nodeToCreate.type === 'file'
+                        ? await (window as any).electron.createFile(nodeToCreate.parentNode.path, createValue.trim())
+                        : await (window as any).electron.createFolder(nodeToCreate.parentNode.path, createValue.trim());
+                      
+                      if (res.success) {
+                        fetchProjectFiles();
+                        setNodeToCreate(null);
+                      } else {
+                        console.error('Failed to create:', res.error);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-md text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -1085,7 +1279,8 @@ const FileTreeItem = ({
   onContextMenu,
   selectedPath, 
   depth = 0,
-  defaultOpen = false
+  defaultOpen = false,
+  onMoveFile
 }: { 
   node: FileNode; 
   onFileClick: (n: FileNode) => void; 
@@ -1093,10 +1288,37 @@ const FileTreeItem = ({
   selectedPath: string | null; 
   depth?: number;
   defaultOpen?: boolean;
+  onMoveFile?: (sourcePath: string, targetPath: string) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const paddingLeft = depth * 14 + 8;
   const iconCenter = paddingLeft + 7;
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation();
+    e.dataTransfer.setData('application/x-file-path', node.path);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourcePath = e.dataTransfer.getData('application/x-file-path');
+    if (sourcePath && onMoveFile) {
+      const targetDir = node.type === 'folder' 
+        ? node.path 
+        : node.path.substring(0, Math.max(node.path.lastIndexOf('/'), node.path.lastIndexOf('\\')));
+      if (targetDir) {
+        onMoveFile(sourcePath, targetDir);
+      }
+    }
+  };
 
   if (node.type === 'folder') {
     return (
@@ -1104,6 +1326,10 @@ const FileTreeItem = ({
         <div 
           onClick={() => setIsOpen(!isOpen)}
           onContextMenu={(e) => onContextMenu && onContextMenu(e, node)}
+          draggable={true}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           style={{ paddingLeft: `${paddingLeft}px` }}
           className="flex items-center gap-1.5 py-1.5 hover:bg-white/5 rounded-md cursor-pointer text-[#a8a8b1] relative z-10"
         >
@@ -1149,7 +1375,8 @@ const FileTreeItem = ({
                     onFileClick={onFileClick} 
                     onContextMenu={onContextMenu}
                     selectedPath={selectedPath} 
-                    depth={depth + 1} 
+                    depth={depth + 1}
+                    onMoveFile={onMoveFile}
                   />
                 </motion.div>
               ))
@@ -1166,6 +1393,10 @@ const FileTreeItem = ({
     <div 
       onClick={() => onFileClick(node)}
       onContextMenu={(e) => onContextMenu && onContextMenu(e, node)}
+      draggable={true}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       style={{ paddingLeft: `${paddingLeft}px` }}
       className={cn(
         "flex items-center gap-2 py-1.5 rounded-md cursor-pointer transition-colors relative z-10",

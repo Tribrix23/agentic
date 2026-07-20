@@ -277,6 +277,38 @@ function createWindow() {
     }
   });
 
+  ipcMain.handle('create-file', async (_event, parentPath: string, fileName: string) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const fullPath = path.join(parentPath, fileName);
+      if (fs.existsSync(fullPath)) {
+        return { success: false, error: 'File already exists' };
+      }
+      fs.writeFileSync(fullPath, '', 'utf8');
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Failed to create file:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('create-folder', async (_event, parentPath: string, folderName: string) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const fullPath = path.join(parentPath, folderName);
+      if (fs.existsSync(fullPath)) {
+        return { success: false, error: 'Folder already exists' };
+      }
+      fs.mkdirSync(fullPath, { recursive: true });
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Failed to create folder:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   let activeLiveServer: any = null;
 
   ipcMain.handle('start-live-server', async (event, projectPath: string) => {
