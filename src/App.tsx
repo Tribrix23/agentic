@@ -10,6 +10,7 @@ import { Sidebar } from './components/Sidebar';
 import { RightSidebar } from './components/RightSidebar';
 import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
+import { IdeContainer } from './components/IdeContainer';
 
 export function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -100,6 +101,7 @@ const App = () => {
   const [leftSidebarOpen, setLeftSidebarOpen] = React.useState(false);
   const [rightSidebarOpen, setRightSidebarOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [showFullIde, setShowFullIde] = React.useState(false);
 
   React.useEffect(() => {
     // Listen for deep link authentication success
@@ -133,8 +135,12 @@ const App = () => {
     setSettingsOpen(false);
   };
 
-  // If user is logged in, show the full IDE three-pane dashboard
+  // If user is logged in, show the full IDE three-pane dashboard or full IDE container
   if (user) {
+    if (showFullIde) {
+      return <IdeContainer onBack={() => setShowFullIde(false)} />;
+    }
+
     return (
       <div className="w-full h-screen flex text-white overflow-hidden bg-[#08080c] relative">
         {/* Live Animated Background Orbs (Behind everything) */}
@@ -159,6 +165,7 @@ const App = () => {
           rightOpen={rightSidebarOpen}
           toggleLeftSidebar={() => setLeftSidebarOpen(!leftSidebarOpen)}
           toggleRightSidebar={() => setRightSidebarOpen(!rightSidebarOpen)}
+          onOpenIde={() => setShowFullIde(true)}
         />
         <RightSidebar 
           isOpen={rightSidebarOpen} 

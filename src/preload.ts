@@ -11,5 +11,10 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('auth-success', (_event, data) => callback(data));
   },
   fetchSupabaseEmail: (token: string) => ipcRenderer.invoke('fetch-supabase-email', token),
-  selectFolder: () => ipcRenderer.invoke('select-folder')
+  selectFolder: () => ipcRenderer.invoke('select-folder'),
+  readProjectFiles: (path: string) => ipcRenderer.invoke('read-project-files', path),
+  readFileContent: (path: string) => ipcRenderer.invoke('read-file-content', path),
+  saveFileContent: (path: string, content: string) => ipcRenderer.invoke('save-file-content', path, content),
+  startLiveServer: (path: string) => ipcRenderer.invoke('start-live-server', path),
+  stopLiveServer: () => ipcRenderer.invoke('stop-live-server')
 });

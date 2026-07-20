@@ -179,6 +179,138 @@ function createWindow() {
     };
   });
 
+  ipcMain.handle('read-project-files', async (_event, projectPath: string) => {
+    const fs = require('fs');
+    const path = require('path');
+    console.log('[IPC] Reading project files for path:', projectPath);
+    
+    function getFiles(dir: string, depth = 0): any[] {
+      if (depth > 5) return [];
+      try {
+        const items = fs.readdirSync(dir);
+        const result: any[] = [];
+        for (const item of items) {
+          if (item === 'node_modules' || item === '.git' || item === 'dist' || item === 'build' || item === '.out' || item === '.next') {
+            continue;
+          }
+          try {
+            const fullPath = path.join(dir, item);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              result.push({
+                name: item,
+                path: fullPath,
+                type: 'folder',
+                children: getFiles(fullPath, depth + 1)
+              });
+            } else {
+              result.push({
+                name: item,
+                path: fullPath,
+                type: 'file'
+              });
+            }
+          } catch (e) {
+            // skip individual item errors
+          }
+        }
+        return result.sort((a, b) => {
+          if (a.type === b.type) return a.name.localeCompare(b.name);
+          return a.type === 'folder' ? -1 : 1;
+        });
+      } catch (e) {
+        console.error('[IPC] Failed to read dir:', dir, e);
+        return [];
+      }
+    }
+    
+    return getFiles(projectPath);
+  });
+
+  ipcMain.handle('read-file-content', async (_event, filePath: string) => {
+    const fs = require('fs');
+    try {
+      return fs.readFileSync(filePath, 'utf8');
+    } catch (e: any) {
+      return `Error reading file: ${e.message}`;
+    }
+  });
+
+  ipcMain.handle('save-file-content', async (_event, filePath: string, content: string) => {
+    const fs = require('fs');
+    try {
+      fs.writeFileSync(filePath, content, 'utf8');
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Failed to save file:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  let activeLiveServer: any = null;
+
+  ipcMain.handle('start-live-server', async (event, projectPath: string) => {
+    const { spawn } = require('child_process');
+    const { shell } = require('electron');
+    const port = Math.floor(Math.random() * (9000 - 3000) + 3000);
+    
+    try {
+      if (activeLiveServer) {
+        if (process.platform === 'win32') {
+          const { execSync } = require('child_process');
+          try {
+            execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`);
+          } catch (e) {
+            // ignore
+          }
+        } else {
+          activeLiveServer.kill();
+        }
+        activeLiveServer = null;
+      }
+
+      // Spawn python http.server
+      activeLiveServer = spawn('python', ['-m', 'http.server', port.toString()], { cwd: projectPath });
+      
+      activeLiveServer.on('error', (err: any) => {
+        console.error('[IPC] Failed to start python server:', err);
+      });
+      
+      // Wait 500ms for server to bind port before opening
+      setTimeout(() => {
+        shell.openExternal(`http://localhost:${port}`);
+      }, 500);
+      
+      return { success: true, port };
+    } catch (e: any) {
+      console.error('[IPC] Exception starting server:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('stop-live-server', async () => {
+    try {
+      if (activeLiveServer) {
+        if (process.platform === 'win32') {
+          const { execSync } = require('child_process');
+          try {
+            execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`);
+          } catch (e) {
+            // ignore
+          }
+        } else {
+          activeLiveServer.kill();
+        }
+        activeLiveServer = null;
+        return { success: true };
+      }
+      return { success: true }; // Already stopped
+    } catch (e: any) {
+      console.error('[IPC] Exception stopping server:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   ipcMain.handle('fetch-supabase-email', async (event, token) => {
     try {
       const fs = require('fs');

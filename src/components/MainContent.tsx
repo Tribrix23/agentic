@@ -14,13 +14,15 @@ export const MainContent = ({
   toggleLeftSidebar,
   toggleRightSidebar,
   leftOpen,
-  rightOpen
+  rightOpen,
+  onOpenIde
 }: { 
   user: { name: string, avatar: string },
   toggleLeftSidebar: () => void,
   toggleRightSidebar: () => void,
   leftOpen: boolean,
-  rightOpen: boolean
+  rightOpen: boolean,
+  onOpenIde?: () => void
 }) => {
   const [projects, setProjects] = useState<ProjectFolder[]>(() => {
     const saved = localStorage.getItem('quantix_projects');
@@ -122,15 +124,15 @@ export const MainContent = ({
       
       {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center justify-between z-10 pointer-events-none">
-        <div className="flex items-center gap-2 pointer-events-auto region-no-drag mt-6">
+        <div className="flex items-center gap-2 pointer-events-auto region-no-drag mt-12">
           <button onClick={toggleLeftSidebar} className={cn("p-1.5 rounded-md transition-colors", leftOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}>
             {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
           </button>
         </div>
 
-        <div className="pointer-events-auto region-no-drag mt-6 flex items-center gap-2">
+        <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2">
             <button 
-              onClick={() => {}}
+              onClick={onOpenIde}
               className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
             >
               <img src="/icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
@@ -291,10 +293,10 @@ export const MainContent = ({
               {/* Step 1: Create Project / Select Folders */}
               {wizardStep === 'create' && (
                 <>
-                  <div className="flex items-start justify-between p-6 pb-4">
+                  <div className="flex items-start justify-between p-6 pb-2">
                     <div>
-                      <h2 className="text-lg font-semibold text-white">Create Project</h2>
-                      <p className="text-[#8b8b93] text-xs mt-1">Select Folder(s)</p>
+                      <h2 className="text-lg font-bold text-white leading-none">Add Project</h2>
+                      <p className="text-xs text-[#8b8b93] mt-1.5 font-medium">Select Folder(s)</p>
                     </div>
                     <button 
                       onClick={() => setShowWizard(false)}
@@ -304,52 +306,60 @@ export const MainContent = ({
                     </button>
                   </div>
 
-                  <div className="px-6 py-2 flex flex-col gap-3">
+                  <div className="p-6 flex flex-col gap-4 flex-1">
                     {/* Chosen folders list */}
-                    {wizardFolders.map((folder) => (
-                      <div 
-                        key={folder.path}
-                        className="flex items-center justify-between p-3 rounded-lg bg-[#141419] border border-white/5"
-                      >
-                        <div className="flex items-center gap-2 text-xs font-medium text-white truncate max-w-[85%]">
-                          <Folder size={14} className="text-[#8b8b93] shrink-0" />
-                          <span className="truncate">{folder.name}/</span>
-                          {folder.branch && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-[#6b6b73] bg-white/5 px-1.5 py-0.5 rounded ml-1 shrink-0">
-                              <GitBranch size={10} />
-                              {folder.branch}
-                            </span>
-                          )}
+                    {wizardFolders.length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <div className="text-[10px] text-[#6b6b73] uppercase font-bold tracking-wider">
+                          Selected Folders
                         </div>
-                        <button
-                          onClick={() => handleRemoveFolder(folder.path)}
-                          className="text-[#8b8b93] hover:text-white transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
+                        <div className="flex flex-col gap-1.5">
+                          {wizardFolders.map((folder) => (
+                            <div 
+                              key={folder.path}
+                              className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5"
+                            >
+                              <div className="flex items-center gap-2 text-xs font-medium text-white truncate max-w-[85%]">
+                                <Folder size={14} className="text-[#8b8b93] shrink-0" />
+                                <span className="truncate">{folder.name}/</span>
+                                {folder.branch && (
+                                  <span className="flex items-center gap-0.5 text-[9px] text-[#6b6b73] bg-white/5 px-1.5 py-0.5 rounded ml-1 shrink-0">
+                                    <GitBranch size={9} />
+                                    {folder.branch}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleRemoveFolder(folder.path)}
+                                className="text-red-500 hover:text-red-400 p-1 hover:bg-red-500/10 rounded transition-colors"
+                              >
+                                <X size={14} className="text-red-500" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
+                    )}
 
                     {/* Add Folder Trigger */}
                     <button
                       onClick={handleAddFolder}
-                      className="w-full flex items-center justify-center gap-2 p-3 border border-dashed border-white/10 hover:border-white/20 rounded-lg text-xs font-medium text-[#a8a8b1] hover:text-white transition-all bg-white/5 hover:bg-white/10"
+                      className="w-full py-3.5 border border-dashed border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold text-[#8b8b93] hover:text-white transition-all"
                     >
                       <Plus size={14} />
-                      Add Folder
+                      <span>Add Folder</span>
                     </button>
                   </div>
 
                   {/* Actions */}
-                  <div className="p-6 flex justify-end gap-3 mt-2">
-                    {wizardFolders.length === 0 ? (
-                      <button
-                        onClick={handleSkip}
-                        className="px-4 py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 text-white transition-colors"
-                      >
-                        Skip
-                      </button>
-                    ) : (
+                  <div className="px-6 pb-6 pt-2 flex justify-end gap-3">
+                    <button
+                      onClick={handleSkip}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                    >
+                      Skip
+                    </button>
+                    {wizardFolders.length > 0 && (
                       <button
                         onClick={handleNextStep}
                         className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#007acc] hover:bg-[#0088dd] text-white transition-colors"
