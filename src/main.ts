@@ -114,6 +114,7 @@ function createWindow() {
     icon: path.join(__dirname, '../../public/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      webSecurity: false
     },
   });
 
@@ -603,4 +604,6 @@ function createWindow() {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`),
     );
   }
+  
+  mainWindow.webContents.openDevTools();
 }

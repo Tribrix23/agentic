@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bot, User, Paperclip, Mic, Send, PanelLeft, ArrowLeft, ArrowRight, PanelRight, Folder, ChevronDown, Plus, HardDrive, Shield, ShieldAlert, ShieldCheck, X, GitBranch, Monitor, Lock, Trash2, PanelRightClose, PanelLeftClose, Cloud, Zap, Plug2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
+import { callDispatcherAPI } from '../api';
 
 interface ProjectFolder {
   path: string;
@@ -41,9 +42,171 @@ export const MainContent = ({
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectFolder | null>(null);
   
-  // Folders selected in the current wizard run
   const [wizardFolders, setWizardFolders] = useState<ProjectFolder[]>([]);
   const [selectedSecurity, setSelectedSecurity] = useState<'default' | 'full' | 'turbo'>('default');
+
+  const [messages, setMessages] = useState<{role: 'user' | 'assistant' | 'system', content: string}[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const isStreamingRef = useRef(false);
+  const [chatTitle, setChatTitle] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  // Save messages whenever they change, if we have an active conversation
+  useEffect(() => {
+    if (activeConversationId) {
+      localStorage.setItem('quantix_active_chat_id', activeConversationId);
+      if (messages.length > 0) {
+        localStorage.setItem(`quantix_messages_${activeConversationId}`, JSON.stringify(messages));
+      }
+    } else {
+      localStorage.removeItem('quantix_active_chat_id');
+    }
+  }, [messages, activeConversationId]);
+
+  // Listen for chat switching and deletion
+  useEffect(() => {
+    const handleLoadChat = (e: any) => {
+      const { id, title } = e.detail;
+      setActiveConversationId(id);
+      setChatTitle(title);
+      const savedMessages = localStorage.getItem(`quantix_messages_${id}`);
+      if (savedMessages) {
+        setMessages(JSON.parse(savedMessages));
+      } else {
+        setMessages([]);
+      }
+    };
+
+    const handleDeleteChat = (e: any) => {
+      const { id, projPath } = e.detail;
+      if (id === activeConversationId) {
+        const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+        const projConvos = savedConvos[projPath] || [];
+        const remaining = projConvos.filter((c: any) => c.id !== id);
+        
+        if (remaining.length > 0) {
+          const nextChat = remaining[0];
+          setActiveConversationId(nextChat.id);
+          setChatTitle(nextChat.title);
+          const savedMsgs = localStorage.getItem(`quantix_messages_${nextChat.id}`);
+          setMessages(savedMsgs ? JSON.parse(savedMsgs) : []);
+        } else {
+          setActiveConversationId(null);
+          setChatTitle(null);
+          setMessages([]);
+        }
+      }
+      localStorage.removeItem(`quantix_messages_${id}`);
+    };
+
+    const handleNewChat = () => {
+      setActiveConversationId(null);
+      setChatTitle(null);
+      setMessages([]);
+    };
+
+    window.addEventListener('load-conversation', handleLoadChat);
+    window.addEventListener('delete-conversation', handleDeleteChat);
+    window.addEventListener('new-conversation', handleNewChat);
+    return () => {
+      window.removeEventListener('load-conversation', handleLoadChat);
+      window.removeEventListener('delete-conversation', handleDeleteChat);
+      window.removeEventListener('new-conversation', handleNewChat);
+    };
+  }, [activeConversationId]);
+
+  const [inputValue, setInputValue] = useState("");
+
+  const handleSend = () => {
+    if (!inputValue.trim() || isStreamingRef.current) return;
+    
+    let isFirstMessage = false;
+    let convId = activeConversationId;
+    if (messages.length === 0) {
+      convId = Date.now().toString();
+      setActiveConversationId(convId);
+      setChatTitle("New Conversation");
+      isFirstMessage = true;
+    }
+    
+    const userMessage = { role: 'user' as const, content: inputValue };
+    const allMessages = [...messages, userMessage];
+    setMessages([...allMessages, { role: 'assistant', content: '' }]);
+    setInputValue("");
+    setIsStreaming(true);
+    isStreamingRef.current = true;
+
+    // Background Title Generation
+    if (isFirstMessage && convId) {
+      callDispatcherAPI({
+        model: "Dispatcher v1", // Use fastest model for title
+        messages: [{ role: 'user', content: `Summarize this prompt into a very short 3-5 word title, no quotes, no extra text: "${inputValue}"` }],
+        checkIsStreaming: () => true,
+        onChunk: () => {},
+        onError: () => {},
+        onSuccess: (fullText) => {
+          const cleanTitle = fullText.replace(/['"]/g, '').trim();
+          setChatTitle(cleanTitle);
+          // Save the new title to local storage so Sidebar picks it up
+          const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+          const projPath = selectedProject ? selectedProject.path : 'default';
+          const projConvos = savedConvos[projPath] || [];
+          
+          const existing = projConvos.find((c: any) => c.id === convId);
+          if (existing) {
+            existing.title = cleanTitle;
+          } else {
+            projConvos.unshift({ id: convId, title: cleanTitle });
+          }
+          savedConvos[projPath] = projConvos;
+          localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+        }
+      });
+    } else if (messages.length === 0 && convId) {
+       // Just save it immediately if we couldn't do background (fallback)
+       const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+       const projPath = selectedProject ? selectedProject.path : 'default';
+       const projConvos = savedConvos[projPath] || [];
+       if (!projConvos.some((c: any) => c.id === convId)) {
+         projConvos.unshift({ id: convId, title: "New Conversation" });
+         savedConvos[projPath] = projConvos;
+         localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+       }
+    }
+
+    // Actual chat response stream
+    callDispatcherAPI({
+      model: selectedModel,
+      messages: allMessages,
+      checkIsStreaming: () => isStreamingRef.current,
+      onChunk: (chunk) => {
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          const last = newMsgs[newMsgs.length - 1];
+          if (last.role === 'assistant') {
+            last.content += chunk;
+          }
+          return newMsgs;
+        });
+      },
+      onError: (err) => {
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          const last = newMsgs[newMsgs.length - 1];
+          if (last.role === 'assistant') {
+            last.content += `\n\n**Error:** ${err}`;
+          }
+          return newMsgs;
+        });
+        isStreamingRef.current = false;
+        setIsStreaming(false);
+      },
+      onSuccess: () => {
+        isStreamingRef.current = false;
+        setIsStreaming(false);
+      }
+    });
+  };
 
   const [showPlusDropdown, setShowPlusDropdown] = useState<boolean>(false);
   const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
@@ -149,9 +312,15 @@ export const MainContent = ({
       {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center justify-between z-10 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto region-no-drag mt-12">
-          <button onClick={toggleLeftSidebar} className={cn("p-1.5 rounded-md transition-colors", leftOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}>
+          <button onClick={toggleLeftSidebar} className={cn("p-1.5 rounded-md transition-colors shrink-0", leftOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}>
             {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
           </button>
+          
+          {chatTitle && messages.length > 0 && (
+            <div className="text-[13px] font-medium text-white/90 truncate max-w-[400px]">
+              {chatTitle}
+            </div>
+          )}
         </div>
 
         <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2">
@@ -171,12 +340,34 @@ export const MainContent = ({
         </div>
       </div>
 
-      {/* Empty State Centered Content */}
-      <div className="flex-1 flex flex-col justify-center items-center px-6">
+      {/* Main Content Area */}
+      <motion.div layout className={cn("flex-1 flex flex-col px-6", messages.length === 0 ? "justify-center items-center" : "overflow-hidden")}>
         
-        <div className="w-full max-w-[700px] flex flex-col items-center">
+        {messages.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex-1 w-full max-w-[700px] mx-auto overflow-y-auto custom-scrollbar pt-32 pb-4 flex flex-col gap-6"
+          >
+            {messages.map((msg, i) => (
+              <div key={i} className={cn("flex flex-col", msg.role === 'user' ? "items-end" : "items-start")}>
+                <div className={cn(
+                  "max-w-[85%] text-[14px] leading-relaxed whitespace-pre-wrap font-sans",
+                  msg.role === 'user' ? "bg-white/10 text-white px-4 py-2.5 rounded-2xl" : "bg-transparent text-[#e2e2e3]"
+                )}>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        )}
+
+        <motion.div layout className={cn(
+          "w-full max-w-[700px] flex flex-col items-center",
+          messages.length > 0 ? "mx-auto pb-6" : ""
+        )}>
           
-          <div className="w-full flex justify-start mb-2 pl-4 relative" ref={dropdownRef}>
+          <div className="w-full flex justify-start mb-2 pointer-events-auto relative" ref={dropdownRef}>
             <div 
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center gap-2 text-[#8b8b93] text-[13px] font-medium px-2 py-1 hover:bg-white/5 rounded-md cursor-pointer transition-colors"
@@ -274,8 +465,16 @@ export const MainContent = ({
             </AnimatePresence>
           </div>
 
-          <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors">
+          <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
             <textarea 
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder="Ask anything, @ to mention, / for actions" 
               className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] h-10 custom-scrollbar"
             />
@@ -382,14 +581,22 @@ export const MainContent = ({
                   </AnimatePresence>
                 </div>
               </div>
-              <button className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#8b8b93] hover:text-white transition-colors">
-                <Mic size={14} />
+              <button 
+                onClick={handleSend}
+                disabled={isStreaming}
+                className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                  inputValue.trim().length > 0
+                    ? "bg-[#007acc] hover:bg-[#0088dd] text-white"
+                    : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+                )}
+              >
+                {inputValue.trim().length > 0 ? <Send size={14} /> : <Mic size={14} />}
               </button>
             </div>
           </div>
-        </div>
-
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Multi-Step Creation Wizard Modal */}
       <AnimatePresence>
