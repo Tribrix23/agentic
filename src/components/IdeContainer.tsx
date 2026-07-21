@@ -7,6 +7,7 @@ import { EditorArea } from './ide/EditorArea';
 import { ActivityBar } from './ide/ActivityBar';
 import { ContextMenu, ContextMenuItem } from './ide/ContextMenu';
 import { TerminalWidget } from './ide/TerminalWidget';
+import { SourceControl } from './ide/SourceControl';
 import { cn } from '../App';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
@@ -102,29 +103,46 @@ interface ProjectFolder {
   branch: string | null;
 }
 
+import { SiReact, SiTypescript, SiJavascript, SiHtml5, SiCss, SiJson, SiMarkdown, SiTailwindcss, SiVite } from 'react-icons/si';
+import { VscFileMedia, VscFile } from 'react-icons/vsc';
+import { DiNpm } from 'react-icons/di';
+import { FaGitAlt } from 'react-icons/fa';
+
 const getFileIcon = (filename: string, className?: string) => {
   const ext = filename.split('.').pop()?.toLowerCase();
   
   if (filename.startsWith('.env')) {
     return <Settings size={14} className={className || "text-[#2dd4bf] shrink-0"} />;
   }
-  if (filename === '.gitignore') {
-    return <Shield size={14} className={className || "text-[#f87171] shrink-0"} />;
+  if (filename === '.gitignore' || filename === '.gitattributes') {
+    return <FaGitAlt size={14} className={className || "text-[#f34f29] shrink-0"} />;
+  }
+  if (filename === 'package.json' || filename === 'package-lock.json') {
+    return <DiNpm size={14} className={className || "text-[#cb3837] shrink-0"} />;
+  }
+  if (filename === 'tailwind.config.js' || filename === 'tailwind.config.ts') {
+    return <SiTailwindcss size={14} className={className || "text-[#38bdf8] shrink-0"} />;
+  }
+  if (filename === 'vite.config.js' || filename === 'vite.config.ts') {
+    return <SiVite size={14} className={className || "text-[#646cff] shrink-0"} />;
   }
 
   switch (ext) {
     case 'json':
-      return <FileJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
+    case 'tsbuildinfo':
+      return <SiJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
     case 'ts':
+      return <SiTypescript size={14} className={className || "text-[#3178c6] shrink-0"} />;
     case 'tsx':
-      return <FileType2 size={14} className={className || "text-[#3178c6] shrink-0"} />;
+      return <SiReact size={14} className={className || "text-[#61dafb] shrink-0"} />;
     case 'js':
+      return <SiJavascript size={14} className={className || "text-[#f7df1e] shrink-0"} />;
     case 'jsx':
-      return <FileCode2 size={14} className={className || "text-[#f7df1e] shrink-0"} />;
+      return <SiReact size={14} className={className || "text-[#61dafb] shrink-0"} />;
     case 'html':
-      return <Code size={14} className={className || "text-[#e34c26] shrink-0"} />;
+      return <SiHtml5 size={14} className={className || "text-[#e34c26] shrink-0"} />;
     case 'css':
-      return <FileCode2 size={14} className={className || "text-[#264de4] shrink-0"} />;
+      return <SiCss size={14} className={className || "text-[#264de4] shrink-0"} />;
     case 'png':
     case 'jpg':
     case 'jpeg':
@@ -132,35 +150,28 @@ const getFileIcon = (filename: string, className?: string) => {
     case 'gif':
     case 'ico':
     case 'webp':
-      return <FileImage size={14} className={className || "text-[#4caf50] shrink-0"} />;
+      return <VscFileMedia size={14} className={className || "text-[#4caf50] shrink-0"} />;
     case 'md':
     case 'txt':
-      return <FileText size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
+      return <SiMarkdown size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
     default:
-      return <File size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
+      return <VscFile size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
   }
 };
 
 const getFileLanguage = (filename: string | null) => {
-  if (!filename) return 'javascript';
+  if (!filename) return 'plaintext';
+  if (filename === '.gitignore' || filename.startsWith('.env')) return 'plaintext';
+  
   const ext = filename.split('.').pop()?.toLowerCase();
   switch (ext) {
-    case 'js':
-    case 'jsx':
-      return 'javascript';
-    case 'ts':
-    case 'tsx':
-      return 'typescript';
-    case 'json':
-      return 'json';
-    case 'html':
-      return 'html';
-    case 'css':
-      return 'css';
-    case 'md':
-      return 'markdown';
-    default:
-      return 'javascript';
+    case 'js': case 'jsx': return 'javascript';
+    case 'ts': case 'tsx': return 'typescript';
+    case 'json': case 'tsbuildinfo': return 'json';
+    case 'html': return 'html';
+    case 'css': return 'css';
+    case 'md': return 'markdown';
+    default: return 'plaintext';
   }
 };
 
@@ -252,6 +263,7 @@ const BottomPanel: React.FC<{ projectPath?: string }> = ({ projectPath }) => {
 
 export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'source-control'>('explorer');
   const [activeProject, setActiveProject] = useState<ProjectFolder | null>(() => {
     const saved = localStorage.getItem('quantix_active_project');
     return saved ? JSON.parse(saved) : null;
@@ -263,6 +275,7 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   });
 
   const [projectFiles, setProjectFiles] = useState<FileNode[]>([]);
+  const [gitStatusMap, setGitStatusMap] = useState<Record<string, string>>({});
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
@@ -359,8 +372,26 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
     if (activeProject && activeProject.path) {
       const data = await (window as any).electron.readProjectFiles(activeProject.path);
       setProjectFiles(data || []);
+      
+      try {
+        const res = await (window as any).electron.gitStatus(activeProject.path);
+        if (res && res.data) {
+          const map: Record<string, string> = {};
+          res.data.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
+            const status = line.substring(0, 2).trim();
+            const path = line.substring(3).trim();
+            map[path] = status;
+          });
+          setGitStatusMap(map);
+        } else {
+          setGitStatusMap({});
+        }
+      } catch(e) {
+        setGitStatusMap({});
+      }
     } else {
       setProjectFiles([]);
+      setGitStatusMap({});
     }
   };
 
@@ -642,22 +673,16 @@ const handleSkip = () => {
       {/* Main Panel Content */}
       <div className="flex-1 flex overflow-hidden pt-[88px]">
         {/* Activity Bar */}
-        <div className="w-[52px] bg-[#08080c] flex flex-col items-center py-4 gap-6 border-r border-white/5 z-20 flex-shrink-0">
-          <button className="text-white hover:text-white transition-colors relative group w-full flex justify-center cursor-pointer">
-            <Files size={22} strokeWidth={1.5} />
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-[22px] bg-blue-500 rounded-r-full" />
-          </button>
-          <button className="text-[#5b5b63] hover:text-white transition-colors relative group w-full flex justify-center cursor-pointer">
-            <GitBranch size={22} strokeWidth={1.5} />
-          </button>
-        </div>
+        <ActivityBar activeView={activeSidebarView} onViewChange={setActiveSidebarView} />
 
         {/* Left File Explorer Panel */}
         <div className={cn(
           "border-r border-white/5 bg-[#0f0f13] flex flex-col py-3 select-none transition-all duration-300 ease-in-out overflow-hidden relative",
           explorerOpen ? "w-60" : "w-0 border-r-0"
         )}>
-          <div className="px-4 mb-2 flex items-center justify-between relative" ref={dropdownRef}>
+          {activeSidebarView === 'explorer' ? (
+            <>
+              <div className="px-4 mb-2 flex items-center justify-between relative" ref={dropdownRef}>
             <span className="text-[11px] font-bold tracking-wider text-[#8b8b93] uppercase">
               Project Files
             </span>
@@ -784,13 +809,34 @@ const handleSkip = () => {
                 depth={0}
                 defaultOpen={true}
                 onMoveFile={handleMoveFile}
+                gitStatusMap={gitStatusMap}
               />
             ) : (
               <div className="px-4 py-2 text-[#8b8b93] italic">No project loaded</div>
             )}
           </div>
+            </>
+          ) : (
+            <SourceControl 
+              projectPath={activeProject?.path} 
+              gitStatusMap={gitStatusMap}
+              onGitAction={async () => {
+                await fetchProjectFiles();
+                
+                // Refresh all open files from disk to drop unsaved discarded changes
+                const newOpenFiles = await Promise.all(openFiles.map(async file => {
+                  try {
+                    const content = await (window as any).electron.readFileContent(file.path);
+                    return { ...file, originalContent: content };
+                  } catch (e) {
+                    return file;
+                  }
+                }));
+                setOpenFiles(newOpenFiles);
+              }}
+            />
+          )}
         </div>
-
         <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", activeFilePath ? "bg-[#08080c]" : "bg-transparent")}>
           {activeFilePath ? (
             <>
@@ -813,7 +859,9 @@ const handleSkip = () => {
                   handleStopLive={handleStopLive}
                   onFileSaved={(path, newContent) => {
                     setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                    fetchProjectFiles();
                   }}
+                  gitStatusMap={gitStatusMap}
                 />
               </div>
               <BottomPanel projectPath={activeProject?.path} />
@@ -1373,7 +1421,8 @@ const FileTreeItem = ({
   selectedPath, 
   depth = 0,
   defaultOpen = false,
-  onMoveFile
+  onMoveFile,
+  gitStatusMap
 }: { 
   node: FileNode; 
   onFileClick: (n: FileNode) => void; 
@@ -1382,6 +1431,7 @@ const FileTreeItem = ({
   depth?: number;
   defaultOpen?: boolean;
   onMoveFile?: (sourcePath: string, targetPath: string) => void;
+  gitStatusMap?: Record<string, string>;
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const paddingLeft = depth * 14 + 8;
@@ -1446,7 +1496,7 @@ const FileTreeItem = ({
                   transition={{ delay: index * 0.05, duration: 0.2 }}
                 >
                   <div 
-                    className="absolute bg-[#60a5fa]"
+                    className="absolute bg-[#3a71c1]"
                     style={{ 
                       left: `${iconCenter}px`, 
                       top: 0,
@@ -1455,7 +1505,7 @@ const FileTreeItem = ({
                     }}
                   />
                   <div 
-                    className="absolute bg-[#60a5fa]"
+                    className="absolute bg-[#3a71c1]"
                     style={{ 
                       left: `${iconCenter}px`, 
                       top: '13px',
@@ -1470,6 +1520,7 @@ const FileTreeItem = ({
                     selectedPath={selectedPath} 
                     depth={depth + 1}
                     onMoveFile={onMoveFile}
+                    gitStatusMap={gitStatusMap}
                   />
                 </motion.div>
               ))
@@ -1482,6 +1533,18 @@ const FileTreeItem = ({
 
   const isSelected = selectedPath === node.path;
   
+  const normalizedPath = node.path.replace(/\\/g, '/');
+  const gitStatusKey = gitStatusMap ? Object.keys(gitStatusMap).find(k => normalizedPath.endsWith(k)) : undefined;
+  const gitStatus = gitStatusKey ? gitStatusMap[gitStatusKey] : undefined;
+
+  const isModified = gitStatus?.includes('M');
+  const isUntracked = gitStatus?.includes('?') || gitStatus?.includes('A');
+  
+  const textColorClass = isModified ? "text-[#e2c08d]" 
+                       : isUntracked ? "text-[#73c991]" 
+                       : isSelected ? "text-white" 
+                       : "text-[#a8a8b1]";
+
   return (
     <div 
       onClick={() => onFileClick(node)}
@@ -1492,12 +1555,21 @@ const FileTreeItem = ({
       onDrop={handleDrop}
       style={{ paddingLeft: `${paddingLeft}px` }}
       className={cn(
-        "flex items-center gap-2 py-1.5 rounded-md cursor-pointer transition-colors relative z-10",
-        isSelected ? "bg-white/10 text-white font-medium" : "text-[#a8a8b1] hover:bg-white/5 hover:text-white"
+        "flex items-center gap-2 py-1.5 rounded-md cursor-pointer transition-colors relative z-10 group",
+        isSelected ? "bg-white/10 font-medium" : "hover:bg-white/5",
+        textColorClass
       )}
     >
       {getFileIcon(node.name)}
-      <span className="truncate">{node.name}</span>
+      <span className="truncate flex-1">{node.name}</span>
+      {gitStatus && (
+        <span className={cn(
+          "text-[9.5px] font-bold px-1 rounded ml-2 shrink-0 flex items-center justify-center opacity-80",
+          isModified ? "text-[#e2c08d]" : isUntracked ? "text-[#73c991]" : "text-[#f48771]"
+        )}>
+          {gitStatus.includes('?') ? 'U' : gitStatus.trim()[0]}
+        </span>
+      )}
     </div>
   );
 };

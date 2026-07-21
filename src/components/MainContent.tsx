@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, User, Paperclip, Mic, Send, PanelLeft, ArrowLeft, ArrowRight, PanelRight, Folder, ChevronDown, Plus, HardDrive, Shield, ShieldAlert, ShieldCheck, X, GitBranch, Monitor, Lock, Trash2, PanelRightClose, PanelLeftClose } from 'lucide-react';
+import { Bot, User, Paperclip, Mic, Send, PanelLeft, ArrowLeft, ArrowRight, PanelRight, Folder, ChevronDown, Plus, HardDrive, Shield, ShieldAlert, ShieldCheck, X, GitBranch, Monitor, Lock, Trash2, PanelRightClose, PanelLeftClose, Cloud, Zap, Plug2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 
@@ -45,17 +45,40 @@ export const MainContent = ({
   const [wizardFolders, setWizardFolders] = useState<ProjectFolder[]>([]);
   const [selectedSecurity, setSelectedSecurity] = useState<'default' | 'full' | 'turbo'>('default');
 
+  const [showPlusDropdown, setShowPlusDropdown] = useState<boolean>(false);
+  const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
+  const [showModeDropdown, setShowModeDropdown] = useState<boolean>(false);
+
+  const [selectedModel, setSelectedModel] = useState<string>("Dispatcher v1");
+  const [selectedMode, setSelectedMode] = useState<string>("Local");
+
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const plusDropdownRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const modeDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
+      const target = event.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) setShowDropdown(false);
+      if (plusDropdownRef.current && !plusDropdownRef.current.contains(target)) setShowPlusDropdown(false);
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(target)) setShowModelDropdown(false);
+      if (modeDropdownRef.current && !modeDropdownRef.current.contains(target)) setShowModeDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    
+    const handleOpenWizard = () => {
+      setWizardStep('create');
+      setWizardFolders([]);
+      setShowWizard(true);
+    };
+    window.addEventListener('open-add-project-wizard', handleOpenWizard);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('open-add-project-wizard', handleOpenWizard);
+    };
   }, []);
 
   const handleAddFolder = async () => {
@@ -259,18 +282,105 @@ export const MainContent = ({
             
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-3">
-                <button className="text-[#8b8b93] hover:text-white transition-colors p-1">
-                  <Plus size={16} />
-                </button>
-                <button className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md">
-                  Quantix Agentic Pro
-                  <ChevronDown size={12} />
-                </button>
-                <button className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md">
-                  <HardDrive size={12} />
-                  Local
-                  <ChevronDown size={12} />
-                </button>
+                <div className="relative" ref={plusDropdownRef}>
+                  <button 
+                    onClick={() => setShowPlusDropdown(!showPlusDropdown)}
+                    className="text-[#8b8b93] hover:text-white transition-colors p-1"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <AnimatePresence>
+                    {showPlusDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full left-0 mb-2 w-40 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                      >
+                        <button className="w-full px-3 py-2 text-left text-xs text-[#a8a8b1] hover:text-white hover:bg-white/5 flex items-center gap-2 transition-colors">
+                          <Paperclip size={14} /> Attachments
+                        </button>
+                        <button className="w-full px-3 py-2 text-left text-xs text-[#a8a8b1] hover:text-white hover:bg-white/5 flex items-center gap-2 transition-colors">
+                          <Zap size={14} /> Actions
+                        </button>
+                        <button className="w-full px-3 py-2 text-left text-xs text-[#a8a8b1] hover:text-white hover:bg-white/5 flex items-center gap-2 transition-colors">
+                          <Plug2 size={14} /> Connections
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="relative" ref={modelDropdownRef}>
+                  <button 
+                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                    className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
+                  >
+                    {selectedModel}
+                    <ChevronDown size={12} />
+                  </button>
+                  <AnimatePresence>
+                    {showModelDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-full left-0 mt-2 w-40 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                      >
+                        {['Dispatcher v1', 'Dispatcher v1.2', 'Dispatcher v2'].map(model => (
+                          <button 
+                            key={model}
+                            onClick={() => { setSelectedModel(model); setShowModelDropdown(false); }}
+                            className={cn(
+                              "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
+                              selectedModel === model ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                            )}
+                          >
+                            {model}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="relative" ref={modeDropdownRef}>
+                  <button 
+                    onClick={() => setShowModeDropdown(!showModeDropdown)}
+                    className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
+                  >
+                    {selectedMode === 'Local' ? <HardDrive size={12} /> : <Cloud size={12} />}
+                    {selectedMode}
+                    <ChevronDown size={12} />
+                  </button>
+                  <AnimatePresence>
+                    {showModeDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute top-full left-0 mt-2 w-32 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                      >
+                        {['Local', 'Cloud'].map(mode => (
+                          <button 
+                            key={mode}
+                            onClick={() => { setSelectedMode(mode); setShowModeDropdown(false); }}
+                            className={cn(
+                              "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
+                              selectedMode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                            )}
+                          >
+                            {mode === 'Local' ? <HardDrive size={14} /> : <Cloud size={14} />}
+                            {mode}
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
               <button className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#8b8b93] hover:text-white transition-colors">
                 <Mic size={14} />

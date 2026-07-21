@@ -98,7 +98,7 @@ const App = () => {
     return null;
   });
 
-  const [leftSidebarOpen, setLeftSidebarOpen] = React.useState(false);
+  const [leftSidebarOpen, setLeftSidebarOpen] = React.useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [showFullIde, setShowFullIde] = React.useState(false);

@@ -47,39 +47,57 @@ const EditorSkeleton = () => (
   </div>
 );
 
+import { SiReact, SiTypescript, SiJavascript, SiHtml5, SiCss, SiJson, SiMarkdown, SiTailwindcss, SiVite } from 'react-icons/si';
+import { VscFileMedia, VscFile } from 'react-icons/vsc';
+import { DiNpm } from 'react-icons/di';
+import { FaGitAlt } from 'react-icons/fa';
+
 const getFileIcon = (filename: string, className?: string) => {
   const ext = filename.split('.').pop()?.toLowerCase();
   
   if (filename.startsWith('.env')) {
     return <Settings size={14} className={className || "text-[#2dd4bf] shrink-0"} />;
   }
-  if (filename === '.gitignore') {
-    return <Shield size={14} className={className || "text-[#f87171] shrink-0"} />;
+  if (filename === '.gitignore' || filename === '.gitattributes') {
+    return <FaGitAlt size={14} className={className || "text-[#f34f29] shrink-0"} />;
+  }
+  if (filename === 'package.json' || filename === 'package-lock.json') {
+    return <DiNpm size={14} className={className || "text-[#cb3837] shrink-0"} />;
+  }
+  if (filename === 'tailwind.config.js' || filename === 'tailwind.config.ts') {
+    return <SiTailwindcss size={14} className={className || "text-[#38bdf8] shrink-0"} />;
+  }
+  if (filename === 'vite.config.js' || filename === 'vite.config.ts') {
+    return <SiVite size={14} className={className || "text-[#646cff] shrink-0"} />;
   }
 
   switch (ext) {
-    case 'json': return <FileJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
-    case 'ts': case 'tsx': return <FileType2 size={14} className={className || "text-[#3178c6] shrink-0"} />;
-    case 'js': case 'jsx': return <FileCode2 size={14} className={className || "text-[#f7df1e] shrink-0"} />;
-    case 'html': return <Code size={14} className={className || "text-[#e34c26] shrink-0"} />;
-    case 'css': return <FileCode2 size={14} className={className || "text-[#264de4] shrink-0"} />;
-    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': case 'ico': case 'webp': return <FileImage size={14} className={className || "text-[#4caf50] shrink-0"} />;
-    case 'md': case 'txt': return <FileText size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
-    default: return <File size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
+    case 'json': case 'tsbuildinfo': return <SiJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
+    case 'ts': return <SiTypescript size={14} className={className || "text-[#3178c6] shrink-0"} />;
+    case 'tsx': return <SiReact size={14} className={className || "text-[#61dafb] shrink-0"} />;
+    case 'js': return <SiJavascript size={14} className={className || "text-[#f7df1e] shrink-0"} />;
+    case 'jsx': return <SiReact size={14} className={className || "text-[#61dafb] shrink-0"} />;
+    case 'html': return <SiHtml5 size={14} className={className || "text-[#e34c26] shrink-0"} />;
+    case 'css': return <SiCss size={14} className={className || "text-[#264de4] shrink-0"} />;
+    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': case 'ico': case 'webp': return <VscFileMedia size={14} className={className || "text-[#4caf50] shrink-0"} />;
+    case 'md': case 'txt': return <SiMarkdown size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
+    default: return <VscFile size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
   }
 };
 
 const getFileLanguage = (filename: string | null) => {
-  if (!filename) return 'javascript';
+  if (!filename) return 'plaintext';
+  if (filename === '.gitignore' || filename.startsWith('.env')) return 'plaintext';
+  
   const ext = filename.split('.').pop()?.toLowerCase();
   switch (ext) {
     case 'js': case 'jsx': return 'javascript';
     case 'ts': case 'tsx': return 'typescript';
-    case 'json': return 'json';
+    case 'json': case 'tsbuildinfo': return 'json';
     case 'html': return 'html';
     case 'css': return 'css';
     case 'md': return 'markdown';
-    default: return 'javascript';
+    default: return 'plaintext';
   }
 };
 
@@ -94,6 +112,7 @@ interface EditorAreaProps {
   handleRunLive: () => void;
   handleStopLive: () => void;
   onFileSaved: (path: string, newContent: string) => void;
+  gitStatusMap?: Record<string, string>;
 }
 
 export const EditorArea: React.FC<EditorAreaProps> = ({
@@ -104,7 +123,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   onTabClick,
   handleRunLive,
   handleStopLive,
-  onFileSaved
+  onFileSaved,
+  gitStatusMap
 }) => {
   const [localContents, setLocalContents] = useState<Record<string, string>>({});
   const [showEditorMenu, setShowEditorMenu] = useState(false);
@@ -193,6 +213,17 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             const tabLocalContent = localContents[file.path] ?? file.originalContent;
             const tabIsDirty = tabLocalContent !== file.originalContent;
 
+            const normalizedPath = file.path.replace(/\\/g, '/');
+            const gitStatusKey = gitStatusMap ? Object.keys(gitStatusMap).find(k => normalizedPath.endsWith(k)) : undefined;
+            const gitStatus = gitStatusKey ? gitStatusMap[gitStatusKey] : undefined;
+              
+            const isModified = gitStatus?.includes('M');
+            const isUntracked = gitStatus?.includes('?') || gitStatus?.includes('A');
+            const textColorClass = isModified ? "text-[#e2c08d]" 
+                                 : isUntracked ? "text-[#73c991]" 
+                                 : isTabActive ? "text-white" 
+                                 : "text-[#8b8b93]";
+
             return (
               <div 
                 key={file.path}
@@ -200,13 +231,24 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                 className={cn(
                   "flex items-center gap-1.5 px-3 h-full min-w-[120px] max-w-[200px] border-r border-white/5 cursor-pointer group relative transition-colors rounded-t-md",
                   isTabActive 
-                    ? "bg-[#1e1e1e] border-t-2 border-t-blue-500 text-white" 
-                    : "bg-[#0f0f13] hover:bg-[#18181f] text-[#8b8b93] border-t-2 border-t-transparent"
+                    ? "bg-[#1e1e1e] border-t-2 border-t-blue-500" 
+                    : "bg-[#0f0f13] hover:bg-[#18181f] border-t-2 border-t-transparent",
+                  textColorClass
                 )}
               >
                 {getFileIcon(file.name, "w-3 h-3 shrink-0")}
                 <span className="truncate flex-1 text-xs">{file.name}</span>
                 {tabIsDirty && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 ml-1" title="Unsaved changes" />}
+                
+                {gitStatus && !tabIsDirty && (
+                  <span className={cn(
+                    "text-[9px] font-bold shrink-0 ml-1 opacity-80",
+                    isModified ? "text-[#e2c08d]" : isUntracked ? "text-[#73c991]" : "text-[#f48771]"
+                  )}>
+                    {gitStatus.includes('?') ? 'U' : gitStatus.trim()[0]}
+                  </span>
+                )}
+                
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -328,15 +370,16 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             }}
             loading={<EditorSkeleton />}
             beforeMount={(monaco) => {
-              monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-                jsx: monaco.languages.typescript.JsxEmit.React,
+              const ts = monaco.languages.typescript as any;
+              ts.typescriptDefaults.setCompilerOptions({
+                jsx: ts.JsxEmit.React,
                 jsxFactory: 'React.createElement',
                 reactNamespace: 'React',
                 allowNonTsExtensions: true,
                 allowJs: true,
-                target: monaco.languages.typescript.ScriptTarget.Latest,
+                target: ts.ScriptTarget.Latest,
               });
-              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+              ts.typescriptDefaults.setDiagnosticsOptions({
                 noSemanticValidation: true,
                 noSyntaxValidation: false,
               });

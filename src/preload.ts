@@ -30,5 +30,12 @@ contextBridge.exposeInMainWorld('electron', {
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('rename-file', oldPath, newPath),
   deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path),
   createFile: (parentPath: string, fileName: string) => ipcRenderer.invoke('create-file', parentPath, fileName),
-  createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('create-folder', parentPath, folderName)
+  createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('create-folder', parentPath, folderName),
+  gitStatus: (cwd: string) => ipcRenderer.invoke('git-status', cwd),
+  gitAdd: (cwd: string, file: string) => ipcRenderer.invoke('git-add', cwd, file),
+  gitCommit: (cwd: string, message: string) => ipcRenderer.invoke('git-commit', cwd, message),
+  gitLog: (cwd: string) => ipcRenderer.invoke('git-log', cwd),
+  gitLogStructured: (cwd: string) => ipcRenderer.invoke('git-log-structured', cwd),
+  gitCommitFiles: (cwd: string, hash: string) => ipcRenderer.invoke('git-commit-files', cwd, hash),
+  gitDiscard: (cwd: string, file: string) => ipcRenderer.invoke('git-discard', cwd, file)
 });

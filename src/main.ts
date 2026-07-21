@@ -463,6 +463,85 @@ function createWindow() {
     }
   });
 
+  ipcMain.handle('git-status', async (event, cwd: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      exec('git status -s', { cwd }, (error: any, stdout: string) => {
+        if (error) {
+          resolve({ error: error.message });
+          return;
+        }
+        resolve({ data: stdout });
+      });
+    });
+  });
+
+  ipcMain.handle('git-add', async (event, cwd: string, file: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      exec(`git add "${file}"`, { cwd }, (error: any) => {
+        if (error) {
+          resolve({ error: error.message });
+          return;
+        }
+        resolve({ success: true });
+      });
+    });
+  });
+
+  ipcMain.handle('git-commit', async (event, cwd: string, message: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      const safeMessage = message.replace(/"/g, '\\"');
+      exec(`git commit -m "${safeMessage}"`, { cwd }, (error: any, stdout: string) => {
+        if (error) {
+          resolve({ error: error.message });
+          return;
+        }
+        resolve({ success: true, data: stdout });
+      });
+    });
+  });
+
+  ipcMain.handle('git-log-structured', async (event, cwd: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      exec('git log --all --pretty=format:"%h|%p|%s|%an|%ar|%d" -n 50', { cwd }, (error: any, stdout: string) => {
+        if (error) {
+          resolve({ error: error.message });
+          return;
+        }
+        resolve({ data: stdout });
+      });
+    });
+  });
+
+  ipcMain.handle('git-commit-files', async (event, cwd: string, hash: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      // --name-status returns lines like "M\tfile.txt"
+      // --pretty=format:"" hides the commit message itself, leaving blank lines
+      exec(`git show --name-status --pretty=format:"" ${hash}`, { cwd }, (error: any, stdout: string) => {
+        if (error) {
+          resolve({ error: error.message });
+          return;
+        }
+        resolve({ data: stdout });
+      });
+    });
+  });
+
+  ipcMain.handle('git-discard', async (event, cwd: string, file: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      exec(`git checkout -- "${file}"`, { cwd }, (error1: any) => {
+        exec(`git clean -f "${file}"`, { cwd }, (error2: any) => {
+          resolve({ success: true });
+        });
+      });
+    });
+  });
+
   ipcMain.handle('fetch-supabase-email', async (event, token) => {
     try {
       const fs = require('fs');
