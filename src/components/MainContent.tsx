@@ -138,6 +138,16 @@ export const MainContent = ({
 
     // Background Title Generation
     if (isFirstMessage && convId) {
+      // Eagerly save the conversation as "New Conversation" so it appears instantly
+      const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+      const projPath = selectedProject ? selectedProject.path : 'default';
+      const projConvos = savedConvos[projPath] || [];
+      if (!projConvos.some((c: any) => c.id === convId)) {
+        projConvos.unshift({ id: convId, title: "New Conversation" });
+        savedConvos[projPath] = projConvos;
+        localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+      }
+
       callDispatcherAPI({
         model: "Dispatcher v1", // Use fastest model for title
         messages: [{ role: 'user', content: `Summarize this prompt into a very short 3-5 word title, no quotes, no extra text: "${inputValue}"` }],
@@ -145,33 +155,25 @@ export const MainContent = ({
         onChunk: () => {},
         onError: () => {},
         onSuccess: (fullText) => {
-          const cleanTitle = fullText.replace(/['"]/g, '').trim();
+          let cleanTitle = fullText.replace(/['"]/g, '').trim();
+          if (!cleanTitle) cleanTitle = "New Conversation"; // fallback
           setChatTitle(cleanTitle);
-          // Save the new title to local storage so Sidebar picks it up
-          const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-          const projPath = selectedProject ? selectedProject.path : 'default';
-          const projConvos = savedConvos[projPath] || [];
           
-          const existing = projConvos.find((c: any) => c.id === convId);
+          // Save the new title to local storage so Sidebar picks it up
+          const updatedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+          const pPath = selectedProject ? selectedProject.path : 'default';
+          const pConvos = updatedConvos[pPath] || [];
+          
+          const existing = pConvos.find((c: any) => c.id === convId);
           if (existing) {
             existing.title = cleanTitle;
           } else {
-            projConvos.unshift({ id: convId, title: cleanTitle });
+            pConvos.unshift({ id: convId, title: cleanTitle });
           }
-          savedConvos[projPath] = projConvos;
-          localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+          updatedConvos[pPath] = pConvos;
+          localStorage.setItem('quantix_conversations', JSON.stringify(updatedConvos));
         }
       });
-    } else if (messages.length === 0 && convId) {
-       // Just save it immediately if we couldn't do background (fallback)
-       const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-       const projPath = selectedProject ? selectedProject.path : 'default';
-       const projConvos = savedConvos[projPath] || [];
-       if (!projConvos.some((c: any) => c.id === convId)) {
-         projConvos.unshift({ id: convId, title: "New Conversation" });
-         savedConvos[projPath] = projConvos;
-         localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
-       }
     }
 
     // Actual chat response stream
@@ -182,9 +184,10 @@ export const MainContent = ({
       onChunk: (chunk) => {
         setMessages(prev => {
           const newMsgs = [...prev];
-          const last = newMsgs[newMsgs.length - 1];
+          const lastIndex = newMsgs.length - 1;
+          const last = newMsgs[lastIndex];
           if (last.role === 'assistant') {
-            last.content += chunk;
+            newMsgs[lastIndex] = { ...last, content: last.content + chunk };
           }
           return newMsgs;
         });

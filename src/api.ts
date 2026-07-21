@@ -23,8 +23,7 @@ export const callDispatcherAPI = async ({
   try {
     const endpoint = "https://quantix.api.devctr.com/api/dispatcher";
     // Use import.meta.env for Vite instead of process.env
-    // @ts-ignore: TS complains about import.meta in commonjs, but Vite handles it
-    const apiKey = (import.meta as any).env?.VITE_QUANTIX_API_KEY || "QUANTIX_API_KEY";
+    const apiKey = (import.meta as any).env?.VITE_QUANTIX_API_KEY;
 
     const payload = {
       model,
