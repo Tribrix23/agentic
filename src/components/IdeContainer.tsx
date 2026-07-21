@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLeft, PanelLeftClose, FolderPlus, Trash2, Plus, X, Shield, HardDrive, Monitor, Lock, GitBranch, FileJson, FileType2, FileImage, FileText, FileCode2, Database, Save, Menu, Play, StopCircle, Radio, Files, Undo2, Redo2 } from 'lucide-react';
+import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLeft, PanelLeftClose, FolderPlus, Trash2, Plus, X, Shield, HardDrive, Monitor, Lock, GitBranch, FileJson, FileType2, FileImage, FileText, FileCode2, Database, Save, Menu, Play, StopCircle, Radio, Files, Undo2, Redo2, TerminalSquare, AlertCircle, Activity, Maximize2, Minimize2 } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { TitleBar } from './TitleBar';
 import { EditorArea } from './ide/EditorArea';
 import { ActivityBar } from './ide/ActivityBar';
 import { ContextMenu, ContextMenuItem } from './ide/ContextMenu';
+import { TerminalWidget } from './ide/TerminalWidget';
 import { cn } from '../App';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
@@ -103,6 +104,14 @@ interface ProjectFolder {
 
 const getFileIcon = (filename: string, className?: string) => {
   const ext = filename.split('.').pop()?.toLowerCase();
+  
+  if (filename.startsWith('.env')) {
+    return <Settings size={14} className={className || "text-[#2dd4bf] shrink-0"} />;
+  }
+  if (filename === '.gitignore') {
+    return <Shield size={14} className={className || "text-[#f87171] shrink-0"} />;
+  }
+
   switch (ext) {
     case 'json':
       return <FileJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
@@ -122,6 +131,7 @@ const getFileIcon = (filename: string, className?: string) => {
     case 'svg':
     case 'gif':
     case 'ico':
+    case 'webp':
       return <FileImage size={14} className={className || "text-[#4caf50] shrink-0"} />;
     case 'md':
     case 'txt':
@@ -159,6 +169,86 @@ export interface OpenFile {
   name: string;
   originalContent: string;
 }
+
+const BottomPanel: React.FC<{ projectPath?: string }> = ({ projectPath }) => {
+  const [activeTab, setActiveTab] = useState<'problems' | 'output' | 'terminal'>('terminal');
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isVisible, setIsVisible] = useState(true);
+
+  if (!isVisible) return null;
+
+  if (!isExpanded) {
+    return (
+      <div className="h-8 bg-[#0f0f13] border-t border-white/5 flex items-center justify-between px-4 z-20 shrink-0">
+        <div className="flex items-center gap-4 text-xs text-[#8b8b93]">
+          <button onClick={() => { setIsExpanded(true); setActiveTab('problems'); }} className="hover:text-white flex items-center gap-1.5"><AlertCircle size={12}/> Problems (0)</button>
+          <button onClick={() => { setIsExpanded(true); setActiveTab('output'); }} className="hover:text-white flex items-center gap-1.5"><Activity size={12}/> Output</button>
+          <button onClick={() => { setIsExpanded(true); setActiveTab('terminal'); }} className="hover:text-white flex items-center gap-1.5"><TerminalSquare size={12}/> Terminal</button>
+        </div>
+        <button onClick={() => setIsExpanded(true)} className="text-[#5b5b63] hover:text-white transition-colors">
+          <Maximize2 size={12} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div 
+      initial={{ height: 40 }}
+      animate={{ height: 250 }}
+      className="bg-[#0f0f13]/95 backdrop-blur-xl border-t border-white/5 flex flex-col z-20 relative shadow-[0_-10px_40px_rgba(0,0,0,0.4)] shrink-0"
+    >
+      <div className="h-9 flex items-center justify-between px-3 border-b border-white/5 bg-black/20">
+        <div className="flex items-center gap-1 h-full pt-1">
+          {[
+            { id: 'problems', icon: AlertCircle, label: 'Problems' },
+            { id: 'output', icon: Activity, label: 'Output' },
+            { id: 'terminal', icon: TerminalSquare, label: 'Terminal' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={cn(
+                "px-4 h-full rounded-t-md text-[11px] font-semibold tracking-wide transition-all flex items-center gap-2 border-b-2",
+                activeTab === tab.id 
+                  ? "bg-white/5 text-white border-blue-500 shadow-inner" 
+                  : "text-[#8b8b93] hover:text-white hover:bg-white/5 border-transparent"
+              )}
+            >
+              <tab.icon size={13} className={activeTab === tab.id ? "text-blue-400" : ""} />
+              {tab.label.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 pr-2">
+          <button onClick={() => setIsExpanded(false)} className="p-1.5 rounded-md text-[#5b5b63] hover:text-white hover:bg-white/10 transition-colors">
+            <Minimize2 size={13} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 p-0 overflow-hidden font-mono text-xs text-[#a8a8b1] relative bg-[#08080c]">
+        {activeTab === 'terminal' && (
+          <TerminalWidget cwd={projectPath} />
+        )}
+        {activeTab === 'output' && (
+          <div className="space-y-1">
+            <div className="text-[#8b8b93]">[Info] Build started...</div>
+            <div className="text-blue-400">[Quantix] target built src/main.ts</div>
+            <div className="text-blue-400">[Quantix] target built src/preload.ts</div>
+            <div className="text-[#8b8b93]">[Info] Build completed successfully in 432ms.</div>
+            <div className="text-[#8b8b93] mt-2">[IPC] Reading project files...</div>
+          </div>
+        )}
+        {activeTab === 'problems' && (
+          <div className="flex flex-col items-center justify-center h-full text-[#5b5b63] gap-3">
+            <Shield size={32} className="opacity-40" />
+            <span className="font-sans text-sm">No problems have been detected in the workspace.</span>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+};
 
 export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
@@ -704,26 +794,29 @@ const handleSkip = () => {
         <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", activeFilePath ? "bg-[#08080c]" : "bg-transparent")}>
           {activeFilePath ? (
             <>
-              <EditorArea 
-                openFiles={openFiles}
-                activeFilePath={activeFilePath}
-                isLiveServerRunning={isLiveServerRunning}
-                onTabClose={(path) => {
-                  setOpenFiles(prev => {
-                    const filtered = prev.filter(f => f.path !== path);
-                    if (activeFilePath === path) {
-                      setActiveFilePath(filtered.length > 0 ? filtered[filtered.length - 1].path : null);
-                    }
-                    return filtered;
-                  });
-                }}
-                onTabClick={(path) => setActiveFilePath(path)}
-                handleRunLive={handleRunLive}
-                handleStopLive={handleStopLive}
-                onFileSaved={(path, newContent) => {
-                  setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
-                }}
-              />
+              <div className="flex-1 flex flex-col overflow-hidden relative">
+                <EditorArea 
+                  openFiles={openFiles}
+                  activeFilePath={activeFilePath}
+                  isLiveServerRunning={isLiveServerRunning}
+                  onTabClose={(path) => {
+                    setOpenFiles(prev => {
+                      const filtered = prev.filter(f => f.path !== path);
+                      if (activeFilePath === path) {
+                        setActiveFilePath(filtered.length > 0 ? filtered[filtered.length - 1].path : null);
+                      }
+                      return filtered;
+                    });
+                  }}
+                  onTabClick={(path) => setActiveFilePath(path)}
+                  handleRunLive={handleRunLive}
+                  handleStopLive={handleStopLive}
+                  onFileSaved={(path, newContent) => {
+                    setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                  }}
+                />
+              </div>
+              <BottomPanel projectPath={activeProject?.path} />
             </>
           ) : (
             <div className="flex-1 flex flex-col justify-center items-center text-[#8b8b93] select-none">

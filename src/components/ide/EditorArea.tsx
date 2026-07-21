@@ -31,7 +31,7 @@ loader.config({ monaco });
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileJson, FileType2, FileCode2, Code, FileImage, FileText, File, 
-  X, Save, Menu, Play, StopCircle, Radio, Check
+  X, Save, Menu, Play, StopCircle, Radio, Check, Settings, Shield
 } from 'lucide-react';
 import { cn } from '../../App';
 
@@ -49,13 +49,21 @@ const EditorSkeleton = () => (
 
 const getFileIcon = (filename: string, className?: string) => {
   const ext = filename.split('.').pop()?.toLowerCase();
+  
+  if (filename.startsWith('.env')) {
+    return <Settings size={14} className={className || "text-[#2dd4bf] shrink-0"} />;
+  }
+  if (filename === '.gitignore') {
+    return <Shield size={14} className={className || "text-[#f87171] shrink-0"} />;
+  }
+
   switch (ext) {
     case 'json': return <FileJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
     case 'ts': case 'tsx': return <FileType2 size={14} className={className || "text-[#3178c6] shrink-0"} />;
     case 'js': case 'jsx': return <FileCode2 size={14} className={className || "text-[#f7df1e] shrink-0"} />;
     case 'html': return <Code size={14} className={className || "text-[#e34c26] shrink-0"} />;
     case 'css': return <FileCode2 size={14} className={className || "text-[#264de4] shrink-0"} />;
-    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': case 'ico': return <FileImage size={14} className={className || "text-[#4caf50] shrink-0"} />;
+    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': case 'ico': case 'webp': return <FileImage size={14} className={className || "text-[#4caf50] shrink-0"} />;
     case 'md': case 'txt': return <FileText size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
     default: return <File size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
   }
@@ -300,32 +308,52 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       </div>
 
       <div className="flex-1 overflow-hidden bg-[#1e1e1e] relative">
-        <Editor
-          height="100%"
-          language={getFileLanguage(selectedFileName || null)}
-          theme="vs-dark"
-          value={currentLocalContent}
-          onChange={(value) => {
-            if (activeFilePath) {
-              setLocalContents(prev => ({
-                ...prev,
-                [activeFilePath]: value || ''
-              }));
-            }
-          }}
-          loading={<EditorSkeleton />}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-            padding: { top: 16 },
-            scrollBeyondLastLine: false,
-            smoothScrolling: true,
-            cursorBlinking: "smooth",
-            cursorSmoothCaretAnimation: "on",
-            formatOnPaste: true,
-          }}
-        />
+        {currentLocalContent.startsWith('data:image/') ? (
+          <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
+            <img src={currentLocalContent} alt={selectedFileName} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
+          </div>
+        ) : (
+          <Editor
+            height="100%"
+            language={getFileLanguage(selectedFileName || null)}
+            theme="vs-dark"
+            value={currentLocalContent}
+            onChange={(value) => {
+              if (activeFilePath) {
+                setLocalContents(prev => ({
+                  ...prev,
+                  [activeFilePath]: value || ''
+                }));
+              }
+            }}
+            loading={<EditorSkeleton />}
+            beforeMount={(monaco) => {
+              monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+                jsx: monaco.languages.typescript.JsxEmit.React,
+                jsxFactory: 'React.createElement',
+                reactNamespace: 'React',
+                allowNonTsExtensions: true,
+                allowJs: true,
+                target: monaco.languages.typescript.ScriptTarget.Latest,
+              });
+              monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+                noSemanticValidation: true,
+                noSyntaxValidation: false,
+              });
+            }}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+              padding: { top: 16 },
+              scrollBeyondLastLine: false,
+              smoothScrolling: true,
+              cursorBlinking: "smooth",
+              cursorSmoothCaretAnimation: "on",
+              formatOnPaste: true,
+            }}
+          />
+        )}
       </div>
     </>
   );

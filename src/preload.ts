@@ -11,6 +11,14 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('auth-success', (_event, data) => callback(data));
   },
   fetchSupabaseEmail: (token: string) => ipcRenderer.invoke('fetch-supabase-email', token),
+  getRecentProjects: () => ipcRenderer.invoke('get-recent-projects'),
+  startTerminal: (cwd: string) => ipcRenderer.invoke('start-terminal', cwd),
+  onTerminalData: (callback: (data: string) => void) => {
+    ipcRenderer.on('terminal-data', (_event, data) => callback(data));
+  },
+  sendTerminalData: (data: string) => ipcRenderer.invoke('send-terminal-data', data),
+  resizeTerminal: (cols: number, rows: number) => ipcRenderer.invoke('resize-terminal', { cols, rows }),
+  killTerminal: () => ipcRenderer.invoke('kill-terminal'),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   readProjectFiles: (path: string) => ipcRenderer.invoke('read-project-files', path),
   readFileContent: (path: string) => ipcRenderer.invoke('read-file-content', path),

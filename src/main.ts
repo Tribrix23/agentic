@@ -1,5 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'node:path';
+import fs from 'fs';
+import { spawn, ChildProcess } from 'child_process';
 import started from 'electron-squirrel-startup';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -17,6 +19,9 @@ if (process.defaultApp) {
 }
 
 let mainWindow: BrowserWindow | null = null;
+let ptyProcess: any = null;
+let pty: any = null;
+let activeLiveServer: any = null;
 
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -56,6 +61,25 @@ if (!gotTheLock) {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+    }
+  });
+
+  app.on('before-quit', () => {
+    // Kill the terminal process if it exists so we don't leave orphaned node processes
+    if (typeof ptyProcess !== 'undefined' && ptyProcess) {
+      try {
+        ptyProcess.kill();
+      } catch (e) {}
+    }
+    if (typeof activeLiveServer !== 'undefined' && activeLiveServer) {
+      try {
+        if (process.platform === 'win32') {
+          const { execSync } = require('child_process');
+          execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`);
+        } else {
+          activeLiveServer.kill();
+        }
+      } catch (e) {}
     }
   });
 }
@@ -231,6 +255,12 @@ function createWindow() {
   ipcMain.handle('read-file-content', async (_event, filePath: string) => {
     const fs = require('fs');
     try {
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      if (['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
+        const buffer = fs.readFileSync(filePath);
+        const mimeType = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
+      }
       return fs.readFileSync(filePath, 'utf8');
     } catch (e: any) {
       return `Error reading file: ${e.message}`;
@@ -263,17 +293,72 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('delete-file', async (_event, pathToDelete: string) => {
-    const fs = require('fs');
+  ipcMain.handle('delete-file', async (event, filePath) => {
     try {
-      if (fs.existsSync(pathToDelete)) {
-        fs.rmSync(pathToDelete, { recursive: true, force: true });
-        return { success: true };
+      const stats = await fs.promises.stat(filePath);
+      if (stats.isDirectory()) {
+        await fs.promises.rm(filePath, { recursive: true, force: true });
+      } else {
+        await fs.promises.unlink(filePath);
       }
-      return { success: false, error: 'File not found' };
-    } catch (e: any) {
-      console.error('[IPC] Failed to delete file:', e);
-      return { success: false, error: e.message };
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error deleting file:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Terminal Integration using node-pty
+  try {
+    pty = require('node-pty');
+  } catch (e) {
+    console.error('Failed to load node-pty', e);
+  }
+
+  ipcMain.handle('start-terminal', (event, cwd) => {
+    if (ptyProcess) {
+      ptyProcess.kill();
+    }
+    
+    const shellStr = process.env[process.platform === 'win32' ? 'COMSPEC' : 'SHELL'] || (process.platform === 'win32' ? 'cmd.exe' : 'bash');
+
+    if (pty) {
+      ptyProcess = pty.spawn(shellStr, [], {
+        name: 'xterm-color',
+        cols: 80,
+        rows: 30,
+        cwd: cwd || process.cwd(),
+        env: process.env as any
+      });
+
+      ptyProcess.onData((data: string) => {
+        event.sender.send('terminal-data', data);
+      });
+    }
+
+    return true;
+  });
+
+  ipcMain.handle('send-terminal-data', (event, data) => {
+    if (ptyProcess) {
+      ptyProcess.write(data);
+    }
+  });
+
+  ipcMain.handle('resize-terminal', (event, { cols, rows }) => {
+    if (ptyProcess && ptyProcess.resize) {
+      try {
+        ptyProcess.resize(cols, rows);
+      } catch (e) {
+        // ignore resize errors
+      }
+    }
+  });
+
+  ipcMain.handle('kill-terminal', () => {
+    if (ptyProcess) {
+      ptyProcess.kill();
+      ptyProcess = null;
     }
   });
 
@@ -309,7 +394,7 @@ function createWindow() {
     }
   });
 
-  let activeLiveServer: any = null;
+
 
   ipcMain.handle('start-live-server', async (event, projectPath: string) => {
     const { spawn } = require('child_process');
