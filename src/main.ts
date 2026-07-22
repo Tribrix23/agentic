@@ -532,6 +532,102 @@ function createWindow() {
     });
   });
 
+  // ── Agentic Tool System IPC Handlers ─────────────────────────────────────
+
+  ipcMain.handle('run-command-capture', async (_event, command: string, cwd: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      const options = {
+        cwd: cwd || process.cwd(),
+        timeout: 30000,
+        maxBuffer: 1024 * 1024 * 5, // 5MB
+        shell: true,
+        env: { ...process.env, FORCE_COLOR: '0' },
+      };
+      exec(command, options, (error: any, stdout: string, stderr: string) => {
+        resolve({
+          success: !error,
+          stdout: stdout || '',
+          stderr: stderr || '',
+          exitCode: error ? error.code || 1 : 0,
+          error: error ? error.message : null,
+        });
+      });
+    });
+  });
+
+  ipcMain.handle('git-diff', async (_event, cwd: string, file?: string) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      const cmd = file ? `git diff "${file}"` : 'git diff';
+      exec(cmd, { cwd, maxBuffer: 1024 * 1024 * 2 }, (error: any, stdout: string) => {
+        if (error) {
+          resolve({ error: error.message });
+          return;
+        }
+        resolve({ data: stdout });
+      });
+    });
+  });
+
+  ipcMain.handle('search-files', async (_event, projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => {
+    const fs = require('fs');
+    const path = require('path');
+    const maxResults = options?.maxResults || 50;
+    const results: Array<{ file: string; line: number; content: string }> = [];
+    const skipDirs = new Set(['node_modules', '.git', 'dist', 'build', '.out', '.next', '.vite', 'coverage']);
+
+    function searchDir(dir: string, depth: number = 0): void {
+      if (depth > 8 || results.length >= maxResults) return;
+      try {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          if (results.length >= maxResults) break;
+          if (skipDirs.has(item)) continue;
+          try {
+            const fullPath = path.join(dir, item);
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              searchDir(fullPath, depth + 1);
+            } else if (stat.isFile() && stat.size < 1024 * 512) {
+              // Only search text files under 512KB
+              if (options?.fileFilter) {
+                const ext = path.extname(item).toLowerCase();
+                if (!ext.includes(options.fileFilter.replace('*', '').replace('.', ''))) continue;
+              }
+              try {
+                const content = fs.readFileSync(fullPath, 'utf8');
+                const lines = content.split('\n');
+                for (let i = 0; i < lines.length; i++) {
+                  if (results.length >= maxResults) break;
+                  let matches = false;
+                  if (options?.regex) {
+                    try {
+                      const re = new RegExp(query, 'i');
+                      matches = re.test(lines[i]);
+                    } catch { matches = false; }
+                  } else {
+                    matches = lines[i].toLowerCase().includes(query.toLowerCase());
+                  }
+                  if (matches) {
+                    results.push({
+                      file: path.relative(projectPath, fullPath),
+                      line: i + 1,
+                      content: lines[i].trim().slice(0, 200),
+                    });
+                  }
+                }
+              } catch { /* skip binary/unreadable files */ }
+            }
+          } catch { /* skip inaccessible items */ }
+        }
+      } catch { /* skip inaccessible dirs */ }
+    }
+
+    searchDir(projectPath);
+    return { results, totalMatches: results.length, truncated: results.length >= maxResults };
+  });
+
   ipcMain.handle('git-discard', async (event, cwd: string, file: string) => {
     const { exec } = require('child_process');
     return new Promise((resolve) => {

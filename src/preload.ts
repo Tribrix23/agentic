@@ -37,5 +37,10 @@ contextBridge.exposeInMainWorld('electron', {
   gitLog: (cwd: string) => ipcRenderer.invoke('git-log', cwd),
   gitLogStructured: (cwd: string) => ipcRenderer.invoke('git-log-structured', cwd),
   gitCommitFiles: (cwd: string, hash: string) => ipcRenderer.invoke('git-commit-files', cwd, hash),
-  gitDiscard: (cwd: string, file: string) => ipcRenderer.invoke('git-discard', cwd, file)
+  gitDiscard: (cwd: string, file: string) => ipcRenderer.invoke('git-discard', cwd, file),
+
+  // ── Agentic Tool System ──────────────────────────────────────────────
+  runCommandCapture: (command: string, cwd: string) => ipcRenderer.invoke('run-command-capture', command, cwd),
+  gitDiff: (cwd: string, file?: string) => ipcRenderer.invoke('git-diff', cwd, file),
+  searchFiles: (projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => ipcRenderer.invoke('search-files', projectPath, query, options),
 });

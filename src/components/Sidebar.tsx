@@ -84,7 +84,7 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
 
   return (
     <div className={cn(
-      "h-full bg-[#0f0f13] border-white/5 flex flex-col flex-shrink-0 z-10 select-none transition-all duration-300 ease-in-out overflow-visible",
+      "h-full bg-[#0f0f13] border-white/5 flex flex-col flex-shrink-0 z-10 select-none transition-all duration-300 ease-in-out overflow-hidden",
       isOpen ? "w-[260px] border-r" : "w-0 border-r-0"
     )}>
       <div className="w-[260px] h-full flex flex-col pt-10 pb-4 relative">

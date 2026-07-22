@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil } from 'lucide-react';
+import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
+import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, getAvailableModels, AIConfig } from '../lib/aiConfig';
 
 interface ProjectFolder {
   path: string;
@@ -64,6 +65,43 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
   );
 };
 
+const SliderSetting = ({ 
+  label, description, min, max, step, value, onChange 
+}: { 
+  label: string; description?: string; min: number; max: number; step: number; value: number; onChange: (val: number) => void;
+}) => (
+  <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/[0.07] transition-colors">
+    <div className="flex flex-col">
+      <span className="text-white font-medium text-[14px]">{label}</span>
+      {description && <span className="text-[#8b8b93] text-[13px] mt-1">{description}</span>}
+    </div>
+    <div className="flex items-center gap-4">
+      <input 
+        type="range" min={min} max={max} step={step} value={value} 
+        onChange={e => onChange(parseFloat(e.target.value))}
+        className="flex-1 h-1.5 bg-black/40 rounded-full appearance-none outline-none accent-[#7C3AED]"
+      />
+      <input 
+        type="number" min={min} max={max} step={step} value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        className="w-20 bg-[#1c1c21] border border-white/10 text-white text-xs px-2 py-1 rounded outline-none"
+      />
+    </div>
+  </div>
+);
+
+const ToggleSetting = ({ label, description, checked, onChange }: { label: string; description?: string; checked: boolean; onChange: (val: boolean) => void }) => (
+  <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-center justify-between gap-4 hover:bg-white/[0.07] transition-colors cursor-pointer" onClick={() => onChange(!checked)}>
+    <div className="flex flex-col flex-1">
+      <span className="text-white font-medium text-[14px]">{label}</span>
+      {description && <span className="text-[#8b8b93] text-[13px] mt-1">{description}</span>}
+    </div>
+    <div className={cn("w-10 h-5 rounded-full flex items-center p-0.5 transition-colors", checked ? "bg-[#7C3AED]" : "bg-white/20")}>
+      <div className={cn("w-4 h-4 rounded-full transition-transform", checked ? "translate-x-5 bg-white" : "translate-x-0 bg-white/70")} />
+    </div>
+  </div>
+);
+
 export const SettingsModal = ({ 
   user, 
   onClose, 
@@ -84,6 +122,14 @@ export const SettingsModal = ({
   });
   const [marketingEmails, setMarketingEmails] = useState(false);
   const [projects, setProjects] = useState<ProjectFolder[]>([]);
+  
+  const [aiConfig, setLocalAIConfig] = useState<AIConfig>(() => getAIConfig());
+  const [stopSequenceInput, setStopSequenceInput] = useState("");
+  
+  const handleAIConfigChange = (partial: Partial<AIConfig>) => {
+    const newConfig = setAIConfig(partial);
+    setLocalAIConfig(newConfig);
+  };
   
   // Per-project states
   const [projectSettings, setProjectSettings] = useState<Record<string, any>>({});
@@ -165,6 +211,12 @@ export const SettingsModal = ({
     if (activeTab === 'shortcuts') {
       return { title: 'Shortcuts', subtitle: 'Keyboard shortcuts for quick navigation and control.' };
     }
+    if (activeTab === 'ai_settings') {
+      return { title: 'AI Settings', subtitle: 'Configure underlying model parameters and API settings.' };
+    }
+    if (activeTab === 'agent_settings') {
+      return { title: 'Agent Settings', subtitle: 'Manage agent behavior, limits, and review policies.' };
+    }
     if (selectedProject) {
       return { title: selectedProject.name, subtitle: 'Manage project folders, agent settings, and permissions.' };
     }
@@ -190,6 +242,20 @@ export const SettingsModal = ({
             className={cn("w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'account' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
           >
             Account
+          </button>
+          <button 
+            onClick={() => setActiveTab('ai_settings')}
+            className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'ai_settings' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
+          >
+            <Cpu size={14} className="shrink-0" />
+            AI Settings
+          </button>
+          <button 
+            onClick={() => setActiveTab('agent_settings')}
+            className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'agent_settings' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
+          >
+            <Bot size={14} className="shrink-0" />
+            Agent Settings
           </button>
           
           <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mt-6 mb-1 uppercase tracking-wider">Projects</div>
@@ -505,6 +571,162 @@ export const SettingsModal = ({
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {activeTab === 'ai_settings' && (
+              <div className="flex flex-col gap-6">
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Model</h3>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-start justify-between gap-4 hover:bg-white/[0.07] transition-colors">
+                    <div className="flex flex-col flex-1">
+                      <span className="text-white font-medium text-[14px]">Model Selection</span>
+                      <span className="text-[#8b8b93] text-[13px] mt-1">Choose the AI model for generations. Context window: {aiConfig.contextWindowSize}</span>
+                    </div>
+                    <CustomSelect 
+                      value={aiConfig.model}
+                      onChange={val => handleAIConfigChange({ model: val })}
+                      options={getAvailableModels()}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Parameters</h3>
+                  <div className="flex flex-col gap-4">
+                    <SliderSetting 
+                      label="Temperature" description={AI_PARAM_RANGES.temperature.description}
+                      min={AI_PARAM_RANGES.temperature.min} max={AI_PARAM_RANGES.temperature.max} step={AI_PARAM_RANGES.temperature.step}
+                      value={aiConfig.temperature} onChange={val => handleAIConfigChange({ temperature: val })}
+                    />
+                    <SliderSetting 
+                      label="Top P" description={AI_PARAM_RANGES.topP.description}
+                      min={AI_PARAM_RANGES.topP.min} max={AI_PARAM_RANGES.topP.max} step={AI_PARAM_RANGES.topP.step}
+                      value={aiConfig.topP} onChange={val => handleAIConfigChange({ topP: val })}
+                    />
+                    <SliderSetting 
+                      label="Top K" description={AI_PARAM_RANGES.topK.description}
+                      min={AI_PARAM_RANGES.topK.min} max={AI_PARAM_RANGES.topK.max} step={AI_PARAM_RANGES.topK.step}
+                      value={aiConfig.topK} onChange={val => handleAIConfigChange({ topK: val })}
+                    />
+                    <SliderSetting 
+                      label="Max Tokens" description={AI_PARAM_RANGES.maxTokens.description}
+                      min={AI_PARAM_RANGES.maxTokens.min} max={AI_PARAM_RANGES.maxTokens.max} step={AI_PARAM_RANGES.maxTokens.step}
+                      value={aiConfig.maxTokens} onChange={val => handleAIConfigChange({ maxTokens: val })}
+                    />
+                    <SliderSetting 
+                      label="Frequency Penalty" description={AI_PARAM_RANGES.frequencyPenalty.description}
+                      min={AI_PARAM_RANGES.frequencyPenalty.min} max={AI_PARAM_RANGES.frequencyPenalty.max} step={AI_PARAM_RANGES.frequencyPenalty.step}
+                      value={aiConfig.frequencyPenalty} onChange={val => handleAIConfigChange({ frequencyPenalty: val })}
+                    />
+                    <SliderSetting 
+                      label="Presence Penalty" description={AI_PARAM_RANGES.presencePenalty.description}
+                      min={AI_PARAM_RANGES.presencePenalty.min} max={AI_PARAM_RANGES.presencePenalty.max} step={AI_PARAM_RANGES.presencePenalty.step}
+                      value={aiConfig.presencePenalty} onChange={val => handleAIConfigChange({ presencePenalty: val })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Output</h3>
+                  <div className="flex flex-col gap-4">
+                    <ToggleSetting label="Streaming" description="Stream response chunks as they arrive." checked={aiConfig.stream} onChange={val => handleAIConfigChange({ stream: val })} />
+                    <SliderSetting label="Stream Chunk Delay" description={AI_PARAM_RANGES.streamChunkDelay.description} min={AI_PARAM_RANGES.streamChunkDelay.min} max={AI_PARAM_RANGES.streamChunkDelay.max} step={AI_PARAM_RANGES.streamChunkDelay.step} value={aiConfig.streamChunkDelay} onChange={val => handleAIConfigChange({ streamChunkDelay: val })} />
+                    
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-start justify-between gap-4 hover:bg-white/[0.07] transition-colors">
+                      <div className="flex flex-col flex-1">
+                        <span className="text-white font-medium text-[14px]">Response Format</span>
+                      </div>
+                      <CustomSelect value={aiConfig.responseFormat} onChange={val => handleAIConfigChange({ responseFormat: val as any })} options={['text', 'json']} />
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/[0.07] transition-colors">
+                      <div className="flex flex-col">
+                        <span className="text-white font-medium text-[14px]">Stop Sequences</span>
+                        <span className="text-[#8b8b93] text-[13px] mt-1">Press Enter to add.</span>
+                      </div>
+                      <input 
+                        type="text" value={stopSequenceInput} onChange={e => setStopSequenceInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && stopSequenceInput.trim()) {
+                            e.preventDefault();
+                            if (!aiConfig.stopSequences.includes(stopSequenceInput.trim())) {
+                              handleAIConfigChange({ stopSequences: [...aiConfig.stopSequences, stopSequenceInput.trim()] });
+                            }
+                            setStopSequenceInput("");
+                          }
+                        }}
+                        className="bg-[#1c1c21] border border-white/10 text-white text-sm px-3 py-2 rounded-lg outline-none"
+                        placeholder="Add stop sequence..."
+                      />
+                      {aiConfig.stopSequences.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {aiConfig.stopSequences.map(seq => (
+                            <div key={seq} className="flex items-center gap-1 bg-[#7C3AED]/20 text-[#7C3AED] px-2 py-1 rounded text-xs">
+                              <span>{seq}</span>
+                              <X size={12} className="cursor-pointer hover:text-white" onClick={() => handleAIConfigChange({ stopSequences: aiConfig.stopSequences.filter(s => s !== seq) })} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Limits & Retries</h3>
+                  <div className="flex flex-col gap-4">
+                    <SliderSetting label="Max Conversation Turns" description={AI_PARAM_RANGES.maxConversationTurns.description} min={AI_PARAM_RANGES.maxConversationTurns.min} max={AI_PARAM_RANGES.maxConversationTurns.max} step={AI_PARAM_RANGES.maxConversationTurns.step} value={aiConfig.maxConversationTurns} onChange={val => handleAIConfigChange({ maxConversationTurns: val })} />
+                    <SliderSetting label="Request Timeout (s)" description="Timeout in seconds." min={AI_PARAM_RANGES.timeoutMs.min/1000} max={AI_PARAM_RANGES.timeoutMs.max/1000} step={1} value={aiConfig.timeoutMs / 1000} onChange={val => handleAIConfigChange({ timeoutMs: val * 1000 })} />
+                    <SliderSetting label="Max Retries" description={AI_PARAM_RANGES.maxRetries.description} min={AI_PARAM_RANGES.maxRetries.min} max={AI_PARAM_RANGES.maxRetries.max} step={AI_PARAM_RANGES.maxRetries.step} value={aiConfig.maxRetries} onChange={val => handleAIConfigChange({ maxRetries: val })} />
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end">
+                  <button 
+                    onClick={() => setLocalAIConfig(resetAIConfig())}
+                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-sm transition-colors"
+                  >
+                    Reset to Defaults
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'agent_settings' && (
+              <div className="flex flex-col gap-6">
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Core</h3>
+                  <div className="flex flex-col gap-4">
+                    <ToggleSetting label="Agent Mode" description="Enable autonomous agent behavior." checked={aiConfig.agentMode} onChange={val => handleAIConfigChange({ agentMode: val })} />
+                    <SliderSetting label="Max Agent Iterations" description={AI_PARAM_RANGES.maxAgentIterations.description} min={AI_PARAM_RANGES.maxAgentIterations.min} max={AI_PARAM_RANGES.maxAgentIterations.max} step={AI_PARAM_RANGES.maxAgentIterations.step} value={aiConfig.maxAgentIterations} onChange={val => handleAIConfigChange({ maxAgentIterations: val })} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Permissions</h3>
+                  <div className="flex flex-col gap-4">
+                    <ToggleSetting label="Auto-Approve Reads" checked={aiConfig.autoApproveReads} onChange={val => handleAIConfigChange({ autoApproveReads: val })} />
+                    <ToggleSetting label="Auto-Approve Writes" checked={aiConfig.autoApproveWrites} onChange={val => handleAIConfigChange({ autoApproveWrites: val })} />
+                    <ToggleSetting label="Require Terminal Approval" checked={aiConfig.requireApprovalForTerminal} onChange={val => handleAIConfigChange({ requireApprovalForTerminal: val })} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">System Prompt</h3>
+                  <div className="flex flex-col gap-4">
+                    <ToggleSetting label="Use Default System Prompt" description="Include the default system prompt." checked={aiConfig.useDefaultSystemPrompt} onChange={val => handleAIConfigChange({ useDefaultSystemPrompt: val })} />
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/[0.07] transition-colors">
+                      <span className="text-white font-medium text-[14px]">Custom System Prompt</span>
+                      <textarea 
+                        value={aiConfig.systemPrompt}
+                        onChange={e => handleAIConfigChange({ systemPrompt: e.target.value })}
+                        className="w-full h-32 bg-[#1c1c21] border border-white/10 text-white text-sm px-3 py-2 rounded-lg outline-none font-mono resize-y"
+                        placeholder="Enter custom instructions..."
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
