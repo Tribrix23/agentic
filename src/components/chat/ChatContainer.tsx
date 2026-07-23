@@ -5,6 +5,8 @@ import { TokenBudget } from '../../lib/tokenCounter';
 import { MessageThread } from './MessageThread';
 import { AgentStatusBar } from './AgentStatusBar';
 import { PromptInput } from './PromptInput';
+import { ThinkingIndicator } from './ThinkingIndicator';
+import { AgentState } from '../../lib/types/AgentTypes';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -17,10 +19,12 @@ interface ChatContainerProps {
   isAgentRunning: boolean;
   agentStatus?: string;
   agentIteration?: number;
+  agentState?: AgentState;
   tokenBudget?: TokenBudget;
   config: AIConfig;
   projectFiles?: any[];
   projectSelector?: React.ReactNode;
+  onConfigChange?: (partial: Partial<AIConfig>) => void;
 }
 
 export function ChatContainer({
@@ -32,10 +36,12 @@ export function ChatContainer({
   isAgentRunning,
   agentStatus,
   agentIteration,
+  agentState = 'idle',
   tokenBudget,
   config,
   projectFiles,
-  projectSelector
+  projectSelector,
+  onConfigChange
 }: ChatContainerProps) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent text-white")}>
@@ -44,18 +50,24 @@ export function ChatContainer({
           messages={messages}
           onApproveToolCall={onApproveToolCall}
           onRejectToolCall={onRejectToolCall}
+          agentState={agentState}
+          agentStatus={agentStatus}
+          agentIteration={agentIteration}
+          onStopAgent={onStopAgent}
         />
       </div>
       <div className="px-4 pb-4 bg-transparent w-full">
         <div className="w-full max-w-[700px] mx-auto flex flex-col items-center">
           {projectSelector}
-          <div className="w-full">
+          <div className="w-full flex flex-col items-center gap-2">
+
             <PromptInput 
               onSend={onSendMessage}
               onStop={onStopAgent}
               isAgentRunning={isAgentRunning}
               config={config}
               projectFiles={projectFiles}
+              onConfigChange={onConfigChange}
             />
           </div>
         </div>

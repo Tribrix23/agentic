@@ -2,7 +2,7 @@
 // Context Builder — Assembles optimal context for each LLM call
 // ============================================================================
 
-import { AIConfig, buildSystemPrompt } from './aiConfig';
+import { AIConfig, buildSystemPrompt, MODEL_PRESETS } from './aiConfig';
 import { AgenticMessage, agenticMessageToChatMessage, ChatMessage } from './messageTypes';
 import {
   estimateTokens,
@@ -166,8 +166,10 @@ export function buildContext(
     }
 
     if (projectContext.fileTree) {
-      const treeSummary = truncateToTokens(projectContext.fileTree, 300);
-      projectLines.push(`\nProject Structure:\n${treeSummary}`);
+      // Cap to 200 tokens — this is a STRUCTURAL OVERVIEW, not ground truth for file contents.
+      // The AI must use listDirectory to get actual directory contents.
+      const treeSummary = truncateToTokens(projectContext.fileTree, 200);
+      projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
     }
 
     if (projectContext.activeFilePath) {
@@ -180,6 +182,11 @@ export function buildContext(
 
     projectLines.push('</project_context>');
     systemPromptParts.push(projectLines.join('\n'));
+  }
+
+  if (toolDefinitions && toolDefinitions.length > 0) {
+    const toolDefsStr = JSON.stringify(toolDefinitions, null, 2);
+    systemPromptParts.push(`\n<available_tools>\n${toolDefsStr}\n</available_tools>`);
   }
 
   const fullSystemPrompt = systemPromptParts.join('\n');
@@ -210,32 +217,63 @@ export function buildContext(
     const msg = nonSystemMessages[i];
     const chatMsg = agenticMessageToChatMessage(msg);
 
-    // For tool messages, include tool call context
+    // ALWAYS inject the tool results as plain text instead of native tool format.
+    // The quantix backend API appears to silently drop or reject native tool_calls in history,
+    // blinding the AI to its own past actions. By converting everything to plain text,
+    // the AI can perfectly read its history and the backend won't strip it!
+    
     if (msg.role === 'tool' && msg.toolName) {
-      chatMsg.content = `[Tool Result: ${msg.toolName}]\n${chatMsg.content}`;
+      chatMsg.role = 'user';
+      // Plain-text marker — no XML that the AI might mimic.
+      // 6000 chars ≈ 1500 tokens — enough for a full config file or directory listing.
+      const MAX_TOOL_RESULT = 6000;
+      const truncated = chatMsg.content.length > MAX_TOOL_RESULT
+        ? chatMsg.content.slice(0, MAX_TOOL_RESULT) + `\n... (output truncated at ${MAX_TOOL_RESULT} chars — use startLine/endLine args to read specific sections)`
+        : chatMsg.content;
+      chatMsg.content = `TOOL RESULT (${msg.toolName}):\n${truncated}`;
+      delete chatMsg.tool_call_id;
+      delete chatMsg.name;
     }
 
-    // For assistant messages with tool calls, include tool call descriptions
     if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
       const toolCallDesc = msg.toolCalls
         .map((tc) => {
-          let desc = `[Called tool: ${tc.name}(${JSON.stringify(tc.arguments).slice(0, 200)})]`;
+          // Plain text format — no XML, no brackets the AI will echo back.
+          const argsStr = JSON.stringify(tc.arguments).slice(0, 120);
+          let desc = `TOOL ACTION: ${tc.name}(${argsStr})`;
           if (tc.result) {
-            desc += `\n[Result: ${tc.result.success ? 'Success' : 'Error'} - ${tc.result.output.slice(0, 300)}]`;
+            const snippet = tc.result.output.slice(0, 600) + (tc.result.output.length > 600 ? '...' : '');
+            desc += ` → ${tc.result.success ? 'OK' : 'ERROR'}: ${snippet}`;
           }
           return desc;
         })
         .join('\n');
-      if (chatMsg.content) {
-        chatMsg.content = chatMsg.content + '\n\n' + toolCallDesc;
-      } else {
-        chatMsg.content = toolCallDesc;
-      }
+      // Prepend a brief note so the AI knows this is history
+      const historyNote = `[Actions taken in previous step]\n${toolCallDesc}`;
+      chatMsg.content = chatMsg.content ? chatMsg.content + '\n' + historyNote : historyNote;
+      delete chatMsg.tool_calls;
     }
 
     const msgTokens = estimateTokens(chatMsg.content) + 4;
 
     if (historyTokens + msgTokens > historyBudget) {
+      // If we are about to drop messages, AT LEAST preserve the very first user prompt!
+      // But for the current message, try to truncate it instead of outright dropping it.
+      const remainingBudget = historyBudget - historyTokens;
+      
+      if (remainingBudget > 100) {
+        // Truncate this message to fit the remaining budget
+        chatMsg.content = truncateToTokens(chatMsg.content, remainingBudget - 20) + '\n...[TRUNCATED]';
+        historyTokens += remainingBudget;
+        historyMessages.unshift(chatMsg);
+      }
+      
+      // Ensure the original user prompt is ALWAYS included
+      if (i > 0) {
+        const firstMsg = nonSystemMessages[0];
+        const firstChatMsg = agenticMessageToChatMessage(firstMsg);
+        historyMessages.unshift(firstChatMsg);
+      }
       break;
     }
 

@@ -16,16 +16,19 @@ import {
   createToolCall,
   createToolMessage,
 } from '../lib/messageTypes';
-import { AgentLoop, createAgentLoop, AgentEvent, AgentState } from '../lib/agentLoop';
+import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission } from '../lib/permissions';
 import { initializeTools, getToolsForLLM, getTool, getAllTools } from '../lib/tools';
-import { executeTool } from '../lib/tools/executor';
+import { executeTool, clearToolCache } from '../lib/tools/executor';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
+import { useAgentLoop } from '../hooks/useAgentLoop';
+import { AgentState } from '../lib/types/AgentTypes';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
+import { ToolApprovalCard } from './chat/ToolApprovalCard';
 
 interface ProjectFolder {
   path: string;
@@ -85,6 +88,8 @@ export const MainContent = ({
   const agentLoopRef = useRef<AgentLoop | null>(null);
   const isStreamingRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
+
+  const { agentState, setAgentState, pendingToolCall, submitPrompt, handleToolIntercepted, handleToolDecision } = useAgentLoop();
 
   // ── Initialize Tools ─────────────────────────────────────────────────
   useEffect(() => {
@@ -198,9 +203,11 @@ export const MainContent = ({
     switch (event.type) {
       case 'agent:thinking':
         setAgentStatus('Thinking...');
+        setAgentState('executing_parallel'); // AI is actively generating
         break;
       case 'agent:streaming':
         setAgentStatus('Generating response...');
+        setAgentState('executing_parallel');
         // Update the last assistant message with streaming content
         setMessages(prev => {
           const newMsgs = [...prev];
@@ -216,28 +223,53 @@ export const MainContent = ({
       case 'agent:tool-call':
         setAgentStatus(`Calling ${event.data.name}...`);
         break;
+      case 'agent:tool-approval-needed':
+        setAgentStatus(`Awaiting approval for ${event.data.name}...`);
+        handleToolIntercepted(event.data);
+        break;
       case 'agent:tool-executing':
         setAgentStatus(`Executing ${event.data.name}...`);
+        // Mark this specific tool call as actively running in the UI
+        setMessages(prev => prev.map(m => {
+          if (m.role === 'assistant' && m.toolCalls) {
+            const hasThis = m.toolCalls.some(t => t.id === event.data.id);
+            if (hasThis) {
+              return {
+                ...m,
+                toolCalls: m.toolCalls.map(t =>
+                  t.id === event.data.id ? { ...t, status: 'running' as const } : t
+                )
+              };
+            }
+          }
+          return m;
+        }));
         break;
       case 'agent:tool-result':
         setAgentStatus('Processing result...');
-        // Update the tool call in the assistant message
-        setMessages(prev => {
-          const newMsgs = [...prev];
-          for (let i = newMsgs.length - 1; i >= 0; i--) {
-            if (newMsgs[i].role === 'assistant' && newMsgs[i].toolCalls) {
-              const tc = newMsgs[i].toolCalls!.find(t => t.id === event.data.toolCall.id);
-              if (tc) {
-                tc.status = event.data.toolCall.status;
-                tc.result = event.data.result;
-                tc.durationMs = event.data.toolCall.durationMs;
-                newMsgs[i] = { ...newMsgs[i] };
-                break;
-              }
+        setMessages(prev => prev.map(m => {
+          if (m.role === 'assistant' && m.toolCalls) {
+            const hasThis = m.toolCalls.some(t => t.id === event.data.toolCall.id);
+            if (hasThis) {
+              return {
+                ...m,
+                toolCalls: m.toolCalls.map(t =>
+                  t.id === event.data.toolCall.id
+                    ? { ...t, status: event.data.toolCall.status, result: event.data.result, durationMs: event.data.toolCall.durationMs }
+                    : t
+                )
+              };
             }
           }
-          return newMsgs;
-        });
+          return m;
+        }));
+        break;
+      case 'agent:message-added':
+        setMessages(prev => [...prev, event.data]);
+        break;
+      case 'agent:message-updated':
+        // Replace the message in state with the updated version (now has toolCalls)
+        setMessages(prev => prev.map(m => m.id === event.data.id ? { ...event.data } : m));
         break;
       case 'agent:iteration':
         setAgentIteration(event.data.iteration);
@@ -252,6 +284,7 @@ export const MainContent = ({
         setIsAgentRunning(false);
         isStreamingRef.current = false;
         setAgentStatus('');
+        setAgentState('idle');
         // Mark all streaming messages as complete
         setMessages(prev => prev.map(m => 
           m.isStreaming ? { ...m, isStreaming: false } : m
@@ -291,6 +324,9 @@ export const MainContent = ({
       isFirstMessage = true;
     }
 
+    // Call the hook to trigger instant UI state (shimmer effect)
+    submitPrompt(content, aiConfig.agentMode);
+
     // Create user message
     const userMsg = createUserMessage(content, { attachments, mentionedFiles });
     const allMessages = [...messages, userMsg];
@@ -298,42 +334,56 @@ export const MainContent = ({
     setIsAgentRunning(true);
     isStreamingRef.current = true;
     setAgentIteration(0);
+    clearToolCache(); // Reset duplicate-call cache for this new run
 
     // Background title generation (preserved from original)
     if (isFirstMessage && convId) {
       const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
       const projPath = selectedProject ? selectedProject.path : 'default';
       const projConvos = savedConvos[projPath] || [];
+      let cleanTitle = content.trim().split(/\s+/).slice(0, 5).join(' ');
+      if (cleanTitle.length < content.trim().length) cleanTitle += '...';
+      if (!cleanTitle) cleanTitle = "New Conversation";
+      
+      setChatTitle(cleanTitle);
+      
       if (!projConvos.some((c: any) => c.id === convId)) {
-        projConvos.unshift({ id: convId, title: "New Conversation" });
-        savedConvos[projPath] = projConvos;
-        localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+        projConvos.unshift({ id: convId, title: cleanTitle });
+      } else {
+        const existing = projConvos.find((c: any) => c.id === convId);
+        if (existing) existing.title = cleanTitle;
       }
+      savedConvos[projPath] = projConvos;
+      localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
 
+      // Trigger AI to generate a better title in the background
       callDispatcherAPI({
-        model: "Dispatcher v1",
-        messages: [{ role: 'user', content: `Summarize this prompt into a very short 3-5 word title, no quotes, no extra text: "${content}"` }],
-        checkIsStreaming: () => true,
+        config: aiConfig,
+        messages: [{ role: 'user', content: `Summarize this user prompt into a short 3-5 word conversation title: "${content}"\nRespond ONLY with the title, no quotes or intro.` }],
         onChunk: () => {},
-        onError: () => {},
-        onSuccess: (fullText: string) => {
-          let cleanTitle = fullText.replace(/['"]/g, '').trim();
-          if (!cleanTitle) cleanTitle = "New Conversation";
-          setChatTitle(cleanTitle);
-          
-          const updatedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-          const pPath = selectedProject ? selectedProject.path : 'default';
-          const pConvos = updatedConvos[pPath] || [];
-          
-          const existing = pConvos.find((c: any) => c.id === convId);
-          if (existing) {
-            existing.title = cleanTitle;
-          } else {
-            pConvos.unshift({ id: convId, title: cleanTitle });
+        onError: () => {}, // Ignore errors, just keep the truncated title
+        onSuccess: (aiTitle: string) => {
+          const finalTitle = aiTitle
+            // Strip <think>...</think> and <thinking>...</thinking> blocks
+            .replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, '')
+            // Strip any orphaned think tags
+            .replace(/<\/?think(?:ing)?>/gi, '')
+            .trim()
+            .replace(/^[\"']|[\"']$/g, '');
+          if (finalTitle) {
+            setChatTitle(finalTitle);
+            const updatedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+            const currentProjConvos = updatedConvos[projPath] || [];
+            const existing = currentProjConvos.find((c: any) => c.id === convId);
+            if (existing) {
+              existing.title = finalTitle;
+              localStorage.setItem('quantix_conversations', JSON.stringify(updatedConvos));
+              // Dispatch event to force sidebar to update
+              window.dispatchEvent(new Event('conversationsUpdated'));
+            }
           }
-          updatedConvos[pPath] = pConvos;
-          localStorage.setItem('quantix_conversations', JSON.stringify(updatedConvos));
-        }
+        },
+        checkIsStreaming: () => true
       });
     }
 
@@ -342,7 +392,7 @@ export const MainContent = ({
       // Build project context
       let projectContext: ProjectContext | undefined;
       if (selectedProject?.path) {
-        const fileTreeStr = projectFiles.length > 0 ? buildFileTreeString(projectFiles, 3) : '';
+        const fileTreeStr = projectFiles.length > 0 ? buildFileTreeString(projectFiles, 2) : '';
         projectContext = {
           rootPath: selectedProject.path,
           fileTree: fileTreeStr,
@@ -693,9 +743,14 @@ export const MainContent = ({
               isAgentRunning={isAgentRunning}
               agentStatus={agentStatus}
               agentIteration={agentIteration}
+              agentState={agentState}
               tokenBudget={tokenBudget}
               config={aiConfig}
               projectFiles={projectFiles}
+              onConfigChange={(partial) => {
+                const updated = setAIConfig(partial, selectedProject?.path);
+                setAiConfigState(updated);
+              }}
             />
           </div>
         )}
@@ -1080,6 +1135,19 @@ export const MainContent = ({
                 </button>
               </div>
             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Tool Approval Modal */}
+      <AnimatePresence>
+        {agentState === 'awaiting_tool_approval' && pendingToolCall && (
+          <div className="absolute inset-0 z-[210] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+            <ToolApprovalCard 
+              toolCall={pendingToolCall} 
+              onApprove={(id) => handleToolDecision(true)} 
+              onReject={(id) => handleToolDecision(false)} 
+            />
           </div>
         )}
       </AnimatePresence>

@@ -70,8 +70,18 @@ export interface AgenticMessage {
 // ── Backward compatibility with existing ChatMessage ──────────────────────
 
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: {
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }[];
 }
 
 /** Convert a ChatMessage to an AgenticMessage */
@@ -84,12 +94,29 @@ export function chatMessageToAgenticMessage(msg: ChatMessage, index: number): Ag
   };
 }
 
-/** Convert an AgenticMessage to a ChatMessage (for API calls) */
 export function agenticMessageToChatMessage(msg: AgenticMessage): ChatMessage {
-  return {
-    role: msg.role === 'tool' ? 'assistant' : msg.role,
-    content: msg.content,
+  const chatMsg: ChatMessage = {
+    role: msg.role,
+    content: msg.content || '',
   };
+
+  if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+    chatMsg.tool_calls = msg.toolCalls.map(tc => ({
+      id: tc.id,
+      type: 'function',
+      function: {
+        name: tc.name,
+        arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
+      }
+    }));
+  }
+
+  if (msg.role === 'tool') {
+    chatMsg.tool_call_id = msg.toolCallId;
+    chatMsg.name = msg.toolName;
+  }
+
+  return chatMsg;
 }
 
 /** Create a new user message */
@@ -152,13 +179,14 @@ export function createToolMessage(
 /** Create a pending tool call */
 export function createToolCall(
   name: string,
-  args: Record<string, any>
+  args: Record<string, any>,
+  id?: string
 ): ToolCall {
   return {
-    id: generateId(),
+    id: id || generateId(),
     name,
     arguments: args,
-    status: 'pending',
+    status: 'running',
     timestamp: Date.now(),
   };
 }

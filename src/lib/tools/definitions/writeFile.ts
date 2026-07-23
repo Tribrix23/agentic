@@ -20,16 +20,20 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { path, content } = args;
-    const result = await (window as any).electron.saveFileContent(path, content);
+    const { path: relativeOrAbsPath, content } = args;
+    const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
+      ? relativeOrAbsPath 
+      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+      
+    const result = await (window as any).electron.saveFileContent(targetPath, content);
     
     if (result.success) {
       return { 
         success: true, 
-        output: `Successfully wrote to ${path}`,
+        output: `Successfully wrote to ${targetPath}`,
         artifacts: [{
           type: 'file_change',
-          path,
+          path: targetPath,
           content
         }]
       };

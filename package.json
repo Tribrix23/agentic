@@ -59,6 +59,7 @@
     "lucide-react": "^1.25.0",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
+    "p-limit": "^7.3.1",
     "prismjs": "^1.30.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

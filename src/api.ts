@@ -2,7 +2,7 @@
 // API Layer — Refactored for dynamic configuration & tool call support
 // ============================================================================
 
-import { AIConfig, DEFAULT_AI_CONFIG, buildSystemPrompt } from './lib/aiConfig';
+import { AIConfig, DEFAULT_AI_CONFIG, buildSystemPrompt, MODEL_PRESETS } from './lib/aiConfig';
 import { ToolCall, createToolCall } from './lib/messageTypes';
 
 // ── Legacy exports for backward compatibility ──────────────────────────────
@@ -80,13 +80,30 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     signal = p.signal;
   }
 
+  let dynamicTemp = config.temperature;
+  let dynamicTopP = config.topP;
+
+  if (config.dynamicParameters && messages) {
+    const totalLength = messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+    // Dynamic adjustment: Lower temperature and top_p for longer contexts to maintain focus
+    if (totalLength > 15000) {
+      dynamicTemp = Math.max(0.1, dynamicTemp - 0.25);
+      dynamicTopP = Math.max(0.1, dynamicTopP - 0.15);
+    } else if (totalLength > 5000) {
+      dynamicTemp = Math.max(0.1, dynamicTemp - 0.15);
+      dynamicTopP = Math.max(0.1, dynamicTopP - 0.05);
+    } else if (totalLength < 1000) {
+      dynamicTemp = Math.min(1.0, dynamicTemp + 0.1);
+    }
+  }
+
   // ── Build request payload ──────────────────────────────────────────
   const payload: Record<string, any> = {
     model: config.model,
     conversation_id: `conv_${Date.now()}`,
     messages,
-    temperature: config.temperature,
-    top_p: config.topP,
+    temperature: dynamicTemp,
+    top_p: dynamicTopP,
     max_tokens: config.maxTokens,
     stream: config.stream,
     imageUrl: [] as string[],
@@ -111,7 +128,8 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   }
 
   // ── Tool definitions ────────────────────────────────────────────────
-  if (tools && tools.length > 0) {
+  const supportsTools = MODEL_PRESETS[config.model]?.supportsTools ?? true;
+  if (supportsTools && tools && tools.length > 0) {
     payload.tools = tools;
     payload.tool_choice = toolChoice || 'auto';
   }
@@ -222,6 +240,11 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     }
   }
 
+  if (lastError && (lastError.message.includes('Stream Error:') || lastError.message.includes('API Error'))) {
+    onError(lastError);
+    return;
+  }
+
   // ── All retries exhausted — fall back to mock ───────────────────────
   console.warn('[API] All retries exhausted, falling back to mock response');
   await handleMockFallback(onChunk, onSuccess, checkIsStreaming);
@@ -240,7 +263,7 @@ async function handleStreamingResponse(
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
   let fullContent = '';
-  let pendingToolCalls: Record<number, { name: string; arguments: string }> = {};
+  let pendingToolCalls: Record<number, { id?: string; name: string; arguments: string }> = {};
 
   try {
     while (true) {
@@ -262,6 +285,12 @@ async function handleStreamingResponse(
 
           try {
             const data = JSON.parse(dataStr);
+            
+            if (data.error) {
+              const errMsg = typeof data.error === 'string' ? data.error : data.error.message || 'Unknown API Error';
+              throw new Error(`Stream Error: ${errMsg}`);
+            }
+
             const delta = data.choices?.[0]?.delta;
 
             if (delta) {
@@ -277,6 +306,9 @@ async function handleStreamingResponse(
                   const idx = tc.index ?? 0;
                   if (!pendingToolCalls[idx]) {
                     pendingToolCalls[idx] = { name: '', arguments: '' };
+                  }
+                  if (tc.id) {
+                    pendingToolCalls[idx].id = tc.id;
                   }
                   if (tc.function?.name) {
                     pendingToolCalls[idx].name = tc.function.name;
@@ -295,7 +327,7 @@ async function handleStreamingResponse(
                 if (tc.name && onToolCall) {
                   try {
                     const args = tc.arguments ? JSON.parse(tc.arguments) : {};
-                    onToolCall(createToolCall(tc.name, args));
+                    onToolCall(createToolCall(tc.name, args, tc.id));
                   } catch (e) {
                     console.warn('[API] Failed to parse streamed tool call args:', e);
                   }
@@ -303,7 +335,10 @@ async function handleStreamingResponse(
               }
               pendingToolCalls = {};
             }
-          } catch (e) {
+          } catch (e: any) {
+            if (e.message?.startsWith('Stream Error:')) {
+              throw e; // Propagate real API errors
+            }
             // Ignore JSON parse errors on partial chunks
           }
         }

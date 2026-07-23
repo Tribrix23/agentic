@@ -9,6 +9,7 @@ export interface AIConfig {
   mode: 'local' | 'cloud';
 
   // === Generation Parameters ===
+  dynamicParameters: boolean;
   temperature: number;
   topP: number;
   topK: number;
@@ -52,10 +53,11 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   model: 'Dispatcher v1',
   mode: 'local',
 
+  dynamicParameters: true,
   temperature: 0.7,
   topP: 0.95,
   topK: 40,
-  maxTokens: 4096,
+  maxTokens: 2048,
   frequencyPenalty: 0,
   presencePenalty: 0,
 
@@ -67,7 +69,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   systemPrompt: '',
   useDefaultSystemPrompt: true,
 
-  contextWindowSize: 128000,
+  contextWindowSize: 16384,
   maxConversationTurns: 50,
 
   responseFormat: 'text',
@@ -93,23 +95,29 @@ CAPABILITIES:
 - Execute terminal commands to install packages, run tests, build projects
 - Manage Git: check status, stage, commit, view diffs
 - Search across project files using text and regex patterns
-- Analyze code structure (imports, exports, symbols)
 
-GUIDELINES:
-- Always read relevant files before making changes to understand context
-- Make minimal, precise edits rather than rewriting entire files
-- Explain your reasoning before making changes
-- When writing code, follow the project's existing patterns and conventions
-- Handle errors gracefully and suggest fixes
-- Ask clarifying questions when the user's intent is ambiguous
-- After making changes, verify them by reading the result or running tests
-- When running terminal commands, explain what each command does
+STRICT RULES — ALWAYS FOLLOW THESE:
+1. ALWAYS USE TOOLS — NEVER answer questions about files, folders, or code from memory. You MUST call a tool and use the REAL result. If you have not called a tool yet, you do not know the answer.
+2. EMPTY IS A VALID ANSWER — If listDirectory returns an empty result, say "The directory is empty." NEVER invent or hallucinate file names or contents.
+3. ONE TOOL AT A TIME — Call exactly one tool per response, then STOP and wait for the result. Do not write anything after the tool call JSON.
+4. listDirectory FIRST — Before reading any file, always call listDirectory to confirm the file exists.
+5. No repeated calls — NEVER call the same tool with the exact same arguments twice. If you see "[Already called]", move on.
+6. Final Summary — Once all tasks are done, write a short paragraph summarizing what you found or did.
+7. PROJECT STRUCTURE IS NOT GROUND TRUTH — The "Project Structure" shown in your context is a high-level overview and may be outdated. NEVER answer questions about directory contents using it. You MUST call listDirectory and report ONLY what the tool actually returns.
 
-TOOL USAGE:
-- Use tools proactively to fulfill user requests
-- Chain multiple tool calls when needed (e.g., read a file, then edit it)
-- If a tool call fails, analyze the error and try an alternative approach
-- For file edits, always read the file first to ensure accurate targeting`;
+TOOL CALL FORMAT — you MUST use this exact JSON format to call a tool. No other format is accepted:
+\`\`\`json
+{
+  "tool_call": {
+    "name": "tool_name",
+    "arguments": { "arg_name": "value" }
+  }
+}
+\`\`\`
+
+CRITICAL: After outputting the JSON tool call block above, STOP. Do not write any more text. Wait for the tool result before continuing. Do NOT use XML tags like <listDirectory /> or any other format.
+
+RESPONSE AFTER TOOL RESULTS: When you receive a TOOL RESULT, respond with a natural language SUMMARY of what the tool found. Do NOT copy, repeat, or echo the raw tool output back in your answer. For example: if listDirectory returns a file tree, summarize it like "The directory contains 3 folders: app/, lib/, and components/, plus a package.json." Never reproduce the raw tree characters (├──, └──, │) in your answer.`;
 
 // ── Model Presets ──────────────────────────────────────────────────────────
 export interface ModelPreset {
@@ -124,15 +132,15 @@ export interface ModelPreset {
 export const MODEL_PRESETS: Record<string, ModelPreset> = {
   'Dispatcher v1': {
     name: 'Dispatcher v1',
-    contextWindow: 4096,
-    maxTokensDefault: 2048,
+    contextWindow: 32768,
+    maxTokensDefault: 4096,
     supportsTools: false,
     supportsStreaming: true,
     description: 'Fast responses, smaller context window',
   },
   'Dispatcher v1.2': {
     name: 'Dispatcher v1.2',
-    contextWindow: 16384,
+    contextWindow: 32768,
     maxTokensDefault: 4096,
     supportsTools: true,
     supportsStreaming: true,
@@ -140,7 +148,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'Dispatcher v2': {
     name: 'Dispatcher v2',
-    contextWindow: 128000,
+    contextWindow: 32768,
     maxTokensDefault: 4096,
     supportsTools: true,
     supportsStreaming: true,
@@ -150,18 +158,18 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
 
 // ── Parameter constraints ──────────────────────────────────────────────────
 export const AI_PARAM_RANGES = {
-  temperature:      { min: 0,   max: 2,      step: 0.01, label: 'Temperature',        description: 'Controls randomness. Lower = more deterministic, higher = more creative.' },
-  topP:             { min: 0,   max: 1,      step: 0.01, label: 'Top P',              description: 'Nucleus sampling. Considers tokens with top_p cumulative probability.' },
-  topK:             { min: 1,   max: 100,    step: 1,    label: 'Top K',              description: 'Limits sampling to the top K most likely tokens.' },
-  maxTokens:        { min: 256, max: 128000, step: 256,  label: 'Max Tokens',         description: 'Maximum number of tokens in the response.' },
-  frequencyPenalty: { min: -2,  max: 2,      step: 0.01, label: 'Frequency Penalty',  description: 'Penalizes tokens based on how often they appear in the text.' },
-  presencePenalty:  { min: -2,  max: 2,      step: 0.01, label: 'Presence Penalty',   description: 'Penalizes tokens based on whether they appear in the text at all.' },
-  maxAgentIterations: { min: 1, max: 100,    step: 1,    label: 'Max Agent Steps',    description: 'Maximum number of tool-call iterations per request.' },
-  maxConversationTurns: { min: 1, max: 200,  step: 1,    label: 'Max History Turns',  description: 'Maximum conversation turns to include in context.' },
-  maxRetries:       { min: 0,   max: 10,     step: 1,    label: 'Max Retries',        description: 'Number of retry attempts for failed API calls.' },
-  retryDelay:       { min: 100, max: 10000,  step: 100,  label: 'Retry Delay (ms)',   description: 'Base delay between retry attempts (exponential backoff).' },
-  timeoutMs:        { min: 10000, max: 600000, step: 1000, label: 'Timeout (ms)',     description: 'Maximum time to wait for an API response.' },
-  streamChunkDelay: { min: 0,   max: 100,    step: 5,    label: 'Stream Delay (ms)',  description: 'Delay between rendering stream chunks (0 = instant).' },
+  temperature: { min: 0, max: 1, step: 0.01, label: 'Temperature', description: 'Controls randomness. Lower = more deterministic, higher = more creative.' },
+  topP: { min: 0, max: 1, step: 0.01, label: 'Top P', description: 'Nucleus sampling. Considers tokens with top_p cumulative probability.' },
+  topK: { min: 1, max: 100, step: 1, label: 'Top K', description: 'Limits sampling to the top K most likely tokens.' },
+  maxTokens: { min: 256, max: 128000, step: 256, label: 'Max Tokens', description: 'Maximum number of tokens in the response.' },
+  frequencyPenalty: { min: -2, max: 2, step: 0.01, label: 'Frequency Penalty', description: 'Penalizes tokens based on how often they appear in the text.' },
+  presencePenalty: { min: -2, max: 2, step: 0.01, label: 'Presence Penalty', description: 'Penalizes tokens based on whether they appear in the text at all.' },
+  maxAgentIterations: { min: 1, max: 100, step: 1, label: 'Max Agent Steps', description: 'Maximum number of tool-call iterations per request.' },
+  maxConversationTurns: { min: 1, max: 200, step: 1, label: 'Max History Turns', description: 'Maximum conversation turns to include in context.' },
+  maxRetries: { min: 0, max: 10, step: 1, label: 'Max Retries', description: 'Number of retry attempts for failed API calls.' },
+  retryDelay: { min: 100, max: 10000, step: 100, label: 'Retry Delay (ms)', description: 'Base delay between retry attempts (exponential backoff).' },
+  timeoutMs: { min: 10000, max: 600000, step: 1000, label: 'Timeout (ms)', description: 'Maximum time to wait for an API response.' },
+  streamChunkDelay: { min: 0, max: 100, step: 5, label: 'Stream Delay (ms)', description: 'Delay between rendering stream chunks (0 = instant).' },
 } as const;
 
 // ── Config key for localStorage ────────────────────────────────────────────
@@ -175,16 +183,25 @@ function getConfigKey(projectId?: string): string {
 
 /** Get the current AI configuration, merged with defaults */
 export function getAIConfig(projectId?: string): AIConfig {
+  let config = { ...DEFAULT_AI_CONFIG };
   try {
     const raw = localStorage.getItem(getConfigKey(projectId));
     if (raw) {
       const saved = JSON.parse(raw) as Partial<AIConfig>;
-      return { ...DEFAULT_AI_CONFIG, ...saved };
+      config = { ...config, ...saved };
     }
   } catch (e) {
     console.warn('[AIConfig] Failed to load config, using defaults:', e);
   }
-  return { ...DEFAULT_AI_CONFIG };
+
+  // FORCE override the saved context window with the actual preset
+  // This prevents poisoned localStorage from locking users into old 4096 limits
+  const preset = MODEL_PRESETS[config.model];
+  if (preset) {
+    config.contextWindowSize = preset.contextWindow;
+  }
+
+  return config;
 }
 
 /** Update the AI configuration (partial update, merged with existing) */

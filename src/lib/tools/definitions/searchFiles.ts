@@ -22,8 +22,12 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { query, path, regex = false, fileFilter } = args;
-    const tree = await (window as any).electron.readProjectFiles(path);
+    const { query, path: relativeOrAbsPath = '.', regex = false, fileFilter } = args;
+    const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
+      ? relativeOrAbsPath 
+      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+
+    const tree = await (window as any).electron.readProjectFiles(targetPath);
     const searchRegex = regex ? new RegExp(query, 'g') : new RegExp(query.replace(/[.*+?^$\{()|[\]\\]/g, '\\$&'), 'g');
     
     const results: string[] = [];

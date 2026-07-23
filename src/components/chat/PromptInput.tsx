@@ -13,9 +13,10 @@ interface PromptInputProps {
   isAgentRunning: boolean;
   config: AIConfig;
   projectFiles?: any[];
+  onConfigChange?: (partial: Partial<AIConfig>) => void;
 }
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles }: PromptInputProps) {
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange }: PromptInputProps) {
   const [content, setContent] = useState('');
   const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -56,6 +57,9 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const updateConfig = (partial: Partial<AIConfig>) => {
     setAIConfig(partial, undefined);
+    if (onConfigChange) {
+      onConfigChange(partial);
+    }
   };
 
   return (

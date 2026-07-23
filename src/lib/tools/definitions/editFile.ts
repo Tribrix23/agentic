@@ -21,24 +21,28 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { path, search, replace } = args;
-    const content = await (window as any).electron.readFileContent(path);
+    const { path: relativeOrAbsPath, search, replace } = args;
+    const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
+      ? relativeOrAbsPath 
+      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+      
+    const content = await (window as any).electron.readFileContent(targetPath);
     
     if (!content.includes(search)) {
-      return { success: false, output: `Search string not found in ${path}` };
+      return { success: false, output: `Search string not found in ${targetPath}` };
     }
     
     const newContent = content.replace(search, replace);
-    const result = await (window as any).electron.saveFileContent(path, newContent);
+    const result = await (window as any).electron.saveFileContent(targetPath, newContent);
     
     if (result.success) {
       return { 
         success: true, 
-        output: `Successfully edited ${path}`,
+        output: `Successfully edited ${targetPath}`,
         artifacts: [{
           type: 'diff',
-          path,
-          diff: `--- ${path}\n+++ ${path}\n- ${search}\n+ ${replace}` // Simplified diff
+          path: targetPath,
+          diff: `--- ${targetPath}\n+++ ${targetPath}\n- ${search}\n+ ${replace}` // Simplified diff
         }]
       };
     } else {

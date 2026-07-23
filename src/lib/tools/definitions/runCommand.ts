@@ -48,9 +48,16 @@ export const handler: ToolHandler = async (args, context) => {
       
       window.addEventListener('agent-command-result', handleResult);
       
+      let targetCwd = context.projectRoot;
+      if (cwd && cwd !== '.') {
+        targetCwd = cwd.startsWith('/') || /^[a-zA-Z]:\\/.test(cwd) 
+          ? cwd 
+          : `${context.projectRoot}/${cwd}`.replace(/\/+/g, '/');
+      }
+
       // Tell UI to run it
       window.dispatchEvent(new CustomEvent('agent-run-command', { 
-        detail: { id: eventId, command, cwd: cwd || context.projectRoot } 
+        detail: { id: eventId, command, cwd: targetCwd } 
       }));
       
       // Cleanup on abort

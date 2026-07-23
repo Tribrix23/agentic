@@ -594,7 +594,15 @@ export const SettingsModal = ({
                 <div>
                   <h3 className="text-white font-semibold text-[15px] mb-3">Parameters</h3>
                   <div className="flex flex-col gap-4">
-                    <SliderSetting 
+                    <ToggleSetting 
+                      label="Dynamic Task Parameters" 
+                      description="Quantix will automatically tune temperature, top P, and top K based on the complexity and nature of your task." 
+                      checked={aiConfig.dynamicParameters ?? true} 
+                      onChange={val => handleAIConfigChange({ dynamicParameters: val })} 
+                    />
+                    
+                    <div className={cn("flex flex-col gap-4 transition-opacity", (aiConfig.dynamicParameters ?? true) ? "opacity-50 pointer-events-none" : "opacity-100")}>
+                      <SliderSetting 
                       label="Temperature" description={AI_PARAM_RANGES.temperature.description}
                       min={AI_PARAM_RANGES.temperature.min} max={AI_PARAM_RANGES.temperature.max} step={AI_PARAM_RANGES.temperature.step}
                       value={aiConfig.temperature} onChange={val => handleAIConfigChange({ temperature: val })}
@@ -624,6 +632,7 @@ export const SettingsModal = ({
                       min={AI_PARAM_RANGES.presencePenalty.min} max={AI_PARAM_RANGES.presencePenalty.max} step={AI_PARAM_RANGES.presencePenalty.step}
                       value={aiConfig.presencePenalty} onChange={val => handleAIConfigChange({ presencePenalty: val })}
                     />
+                    </div>
                   </div>
                 </div>
 

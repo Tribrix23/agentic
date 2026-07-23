@@ -4,17 +4,29 @@ import { motion } from 'framer-motion';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
+import { AgentState } from '../../lib/types/AgentTypes';
+
 interface ThinkingIndicatorProps {
   status?: string;
+  agentState?: AgentState;
   iteration?: number;
   maxIterations?: number;
   elapsed?: number;
   onStop?: () => void;
 }
 
-export function ThinkingIndicator({ status = 'Thinking...', iteration, maxIterations, elapsed, onStop }: ThinkingIndicatorProps) {
+export function ThinkingIndicator({ status = 'Thinking...', agentState = 'idle', iteration, maxIterations, elapsed, onStop }: ThinkingIndicatorProps) {
+  const isActive = agentState === 'understanding' || status?.toLowerCase().includes('thinking') || status?.toLowerCase().includes('generating');
+  const textClass = isActive 
+    ? 'shimmer-text font-bold tracking-wide' 
+    : agentState === 'awaiting_tool_approval' 
+      ? 'text-yellow-400 animate-pulse font-semibold'
+      : agentState === 'error'
+        ? 'text-red-500 font-bold'
+        : 'text-white/90 font-medium';
+
   return (
-    <div className="flex items-center gap-4 p-4 rounded-lg bg-[#141419] border border-white/5 max-w-sm">
+    <div className="flex items-center gap-4 p-4 rounded-lg max-w-sm">
       <div className="flex gap-1">
         {[0, 1, 2].map((i) => (
           <motion.div
@@ -30,8 +42,8 @@ export function ThinkingIndicator({ status = 'Thinking...', iteration, maxIterat
         ))}
       </div>
       
-      <div className="flex-1 flex flex-col">
-        <span className="text-sm font-medium text-white/90">{status}</span>
+      <div className="flex-1 flex flex-col transition-all duration-300">
+        <span className={`text-sm ${textClass}`}>{status}</span>
         <div className="flex gap-2 text-xs text-white/40 font-mono">
           {iteration !== undefined && (
             <span>Step {iteration}{maxIterations ? ` of ${maxIterations}` : ''}</span>

@@ -7,7 +7,7 @@ export const definition: ToolDefinition = {
   parameters: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Path to the file relative to project root or absolute' },
+      path: { type: 'string', description: 'Path to the file relative to project root (e.g. "next.config.ts" or "src/lib/utils.ts"). Do NOT add "./" prefix.' },
       startLine: { type: 'number', description: 'Optional start line (1-indexed)' },
       endLine: { type: 'number', description: 'Optional end line (1-indexed)' }
     },
@@ -19,19 +19,58 @@ export const definition: ToolDefinition = {
   icon: 'FileText'
 };
 
+/** Strip HTML tags and decode common HTML entities from syntax-highlighted content */
+function stripHtml(html: string): string {
+  return html
+    // Remove all HTML tags
+    .replace(/<[^>]+>/g, '')
+    // Decode common HTML entities
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { path, startLine, endLine } = args;
-    const content = await (window as any).electron.readFileContent(path);
-    
-    let output = content;
-    if (startLine !== undefined && endLine !== undefined) {
-      const lines = content.split('\n');
-      output = lines.slice(Math.max(0, startLine - 1), endLine).join('\n');
+    const { path: relPath, startLine, endLine } = args;
+
+    if (!relPath) {
+      return { success: false, output: 'Missing required argument: path. Provide the file path relative to the project root.' };
     }
-    
+
+    // ── Path resolution (same as listDirectory) ────────────────────────
+    const isAbsolute = relPath.startsWith('/') || /^[a-zA-Z]:[\\\/]/.test(relPath);
+    let targetPath: string;
+    if (isAbsolute) {
+      targetPath = relPath.replace(/\\/g, '/');
+    } else {
+      const cleaned = relPath.replace(/^\.\//, '').replace(/^\//, '');
+      const root = (context.projectRoot || '').replace(/\\/g, '/').replace(/\/$/, '');
+      targetPath = `${root}/${cleaned}`;
+    }
+
+    const raw = await (window as any).electron.readFileContent(targetPath);
+
+    // Strip HTML tags if the IPC returned syntax-highlighted content
+    const content = typeof raw === 'string' && raw.includes('<') ? stripHtml(raw) : (raw ?? '');
+
+    if (!content.trim()) {
+      return { success: true, output: '(File is empty)' };
+    }
+
+    let output = content;
+    if (startLine !== undefined || endLine !== undefined) {
+      const lines = content.split('\n');
+      const start = Math.max(0, (startLine ?? 1) - 1);
+      const end = endLine ?? lines.length;
+      output = lines.slice(start, end).join('\n');
+    }
+
     return { success: true, output };
   } catch (error: any) {
-    return { success: false, output: `Failed to read file: ${error.message || String(error)}` };
+    return { success: false, output: `Failed to read file: ${error?.message || String(error)}\nHINT: Make sure the path is relative to the project root (e.g. "next.config.ts" not "./next.config.ts").` };
   }
 };
