@@ -22,17 +22,22 @@ export const handler: ToolHandler = async (args, context) => {
   try {
     const { path, content } = args;
     
-    // Naive directory and filename extraction
+    // Resolve path relative to project root
     const normalizedPath = path.replace(/\\/g, '/');
-    const parts = normalizedPath.split('/');
+    const fullPath = normalizedPath.startsWith('/') 
+      ? normalizedPath 
+      : `${context.projectRoot}/${normalizedPath}`.replace(/\/+/g, '/');
+    
+    // Extract directory and filename
+    const parts = fullPath.split('/');
     const fileName = parts.pop() || '';
-    const parentPath = parts.join('/');
+    const parentPath = parts.join('/') || context.projectRoot;
     
     const result = await (window as any).electron.createFile(parentPath, fileName);
     
     if (result.success) {
       if (content) {
-        const writeResult = await (window as any).electron.saveFileContent(path, content);
+        const writeResult = await (window as any).electron.saveFileContent(fullPath, content);
         if (!writeResult.success) {
           return { success: false, output: `Created file but failed to write content: ${writeResult.error}` };
         }
@@ -42,7 +47,7 @@ export const handler: ToolHandler = async (args, context) => {
         output: `Successfully created ${path}`,
         artifacts: [{
           type: 'file_create',
-          path,
+          path: fullPath,
           content: content || ''
         }]
       };

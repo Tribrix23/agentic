@@ -128,11 +128,15 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   }
 
   // ── Tool definitions ────────────────────────────────────────────────
+  // Native tools are intentionally disabled. We enforce the JSON tool calling path
+  // for all models to ensure a single, consistent tool execution flow.
+  /*
   const supportsTools = MODEL_PRESETS[config.model]?.supportsTools ?? true;
   if (supportsTools && tools && tools.length > 0) {
     payload.tools = tools;
     payload.tool_choice = toolChoice || 'auto';
   }
+  */
 
   // ── Retry logic with exponential backoff ──────────────────────────
   let lastError: Error | null = null;

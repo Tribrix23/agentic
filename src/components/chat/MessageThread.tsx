@@ -37,6 +37,9 @@ export function MessageThread({
   for (const msg of messages) {
     // Skip internal [SYSTEM] anchor messages — these are injected for AI context only
     if (msg.role === 'user' && msg.content?.startsWith('[SYSTEM]:')) continue;
+    
+    // Skip messages that have been hidden (e.g. caught hallucinations and their system errors)
+    if (msg.isHidden) continue;
 
     if (msg.role === 'assistant') {
       if (displayGroups.length === 0 || displayGroups[displayGroups.length - 1].isUser) {

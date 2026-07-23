@@ -1,0 +1,1 @@
+const regex = /(?:I|I've|I have)\s+(?:created|wrote|generated|built|added)|(?:has been|was)\s+(?:created|wrote|generated|built|added|successfully)/i; console.log(regex.test("I've created the file honey"));

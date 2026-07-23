@@ -166,8 +166,6 @@ export function buildContext(
     }
 
     if (projectContext.fileTree) {
-      // Cap to 200 tokens — this is a STRUCTURAL OVERVIEW, not ground truth for file contents.
-      // The AI must use listDirectory to get actual directory contents.
       const treeSummary = truncateToTokens(projectContext.fileTree, 200);
       projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
     }
@@ -249,7 +247,7 @@ export function buildContext(
         })
         .join('\n');
       // Prepend a brief note so the AI knows this is history
-      const historyNote = `[Actions taken in previous step]\n${toolCallDesc}`;
+      const historyNote = `[Actions taken in previous step - DO NOT REPEAT THESE]\n${toolCallDesc}`;
       chatMsg.content = chatMsg.content ? chatMsg.content + '\n' + historyNote : historyNote;
       delete chatMsg.tool_calls;
     }

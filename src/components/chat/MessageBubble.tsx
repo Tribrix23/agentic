@@ -43,104 +43,72 @@ export function MessageBubble({
   const firstMessage = messages[0];
   const lastMessage = messages[messages.length - 1];
   
-  const isWorking = !isUser && isLatest && agentState && agentState !== 'idle';
+  const isWorking = !isUser && isLatest && agentState && !['idle', 'done', 'error', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
   
   let displayContent = '';
   const steps: AgentStep[] = [];
   
   if (!isUser) {
+    // Process assistant messages
     messages.forEach((msg, idx) => {
       const isLastMessage = idx === messages.length - 1;
       
-      // Tool messages are rendered as tool steps later in this loop — skip text processing
+      // Skip tool messages (their data is already embedded inside msg.toolCalls of the assistant message)
       if ((msg as any).role === 'tool') {
-        const toolName = (msg as any).toolName || 'unknown';
-        const content = msg.content || '';
-        steps.push({
-          id: msg.id,
-          type: 'tool',
-          status: 'completed',
-          toolCall: {
-            id: msg.id,
-            name: toolName,
-            arguments: {},
-            status: 'completed',
-            timestamp: msg.timestamp || Date.now(),
-            result: { success: !content.startsWith('Error'), output: content },
-          },
-        });
-        return; // Skip the rest of the forEach for this message
+        return;
       }
 
       let msgContent = msg.content || '';
       
-      // Parse thinking blocks — handle both <thinking> and <think> variants
-      const thinkingRegex = /<think(?:ing)?>(([\s\S]*?)(?:<\/think(?:ing)?>|$))/gi;
-      let match;
-      let lastIndex = 0;
-      let newContent = '';
-      let thoughtCount = 0;
+      let thinkingContent = msg.thinkingContent || '';
+      let displayContentLocal = msgContent;
       
-      while ((match = thinkingRegex.exec(msgContent)) !== null) {
-        newContent += msgContent.slice(lastIndex, match.index);
-        const isComplete = /<\/think(?:ing)?>/.test(match[0]);
-        
-        steps.push({
-          id: `think_${msg.id}_${thoughtCount++}`,
-          type: 'thinking',
-          status: (isComplete || !msg.isStreaming) ? 'completed' : 'running',
-          content: match[2].trim(),
-        });
-        lastIndex = match.index + match[0].length;
+      // Fallback: if no tags, but it looks exactly like the planning template, treat all as thinking
+      if (!thinkingContent && /^(?:\s*\d+\.\s+UNDERSTAND|UNDERSTAND THE REQUEST|PLAN THE APPROACH)/i.test(displayContentLocal)) {
+        thinkingContent = displayContentLocal;
+        displayContentLocal = '';
       }
-      newContent += msgContent.slice(lastIndex);
       
-      // Strip out <tool_call> blocks (they are shown via msg.toolCalls once executed)
-      const toolCallRegex = /<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi;
-      const tcIndex = (newContent.match(toolCallRegex) || []).length;
-      newContent = newContent.replace(toolCallRegex, '').trim();
-      
-      const hasTools = (msg.toolCalls && msg.toolCalls.length > 0) || tcIndex > 0;
-      
-      // ── Sanitize: strip any history-format artifacts the AI may have echoed back ──
-      // These formats come from contextBuilder's plain-text history injection.
-      // If the AI sees them in its context and mimics them, we strip them here.
-      newContent = newContent
-        // Old bracket formats
+      const sanitize = (text: string) => text
         .replace(/\[Called tool:[^\]]*\]/gi, '')
         .replace(/\[Result:[^\]]*\]/gi, '')
         .replace(/\[Tool Result:[^\]]*\]/gi, '')
         .replace(/\[Actions taken[^\]]*\]/gi, '')
-        // New plain-text history format echoes
         .replace(/^TOOL RESULT \([^)]+\):.*$/gim, '')
         .replace(/^TOOL ACTION: \w+\(.*$/gim, '')
         .replace(/^\[Actions taken in previous step\].*$/gim, '')
-        // XML past_action / past_tool_result — match even if malformed/unclosed
         .replace(/<past_action[\s\S]*?(?:<\/past_action>|$)/gi, '')
         .replace(/<past_tool_result[\s\S]*?(?:<\/past_tool_result>|$)/gi, '')
-        // Orphaned closing XML tags
         .replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call)>/gi, '')
-        // Strip raw JSON tool call objects that weren't fully parsed
         .replace(/\{[\s\S]*?"tool_call"[\s\S]*?\}/gi, '')
-        // Strip self-closing XML tool calls e.g. <listDirectory path="..." />
         .replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '')
-        // Strip think blocks and orphaned think tags
-        .replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, '')
+        .replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, '')
         .replace(/<\/?think(?:ing)?>/gi, '')
         .trim();
 
-      // Push the thinking/plan text FIRST (before tool calls) so it always appears above them
-      if (newContent) {
-        if (!isLastMessage || hasTools || isWorking) {
-          steps.push({
-            id: `plan_${msg.id}`,
-            type: 'thinking',
-            status: msg.isStreaming ? 'running' : 'completed',
-            content: newContent
-          });
-        } else {
-          displayContent = newContent;
-        }
+      thinkingContent = sanitize(thinkingContent);
+      displayContentLocal = sanitize(displayContentLocal);
+
+      if (thinkingContent) {
+        steps.push({
+          id: `plan_${msg.id}`,
+          type: 'thinking',
+          status: msg.isStreaming ? 'running' : 'completed',
+          content: thinkingContent
+        });
+      }
+      
+      // ── Phase 2: Core Isolation Engine - Reactive Stream Wiping ───────────
+      // If this message has tool calls, it is an intermediate step. 
+      // We must DISCARD all conversational text outside the thinking block.
+      // During live streaming, if the AI hallucinates outside the block, this will
+      // retroactively wipe it from the screen the millisecond a tool call is detected.
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        displayContentLocal = '';
+      }
+
+      if (displayContentLocal) {
+        displayContent += (displayContent ? '\n\n' : '') + displayContentLocal;
       }
       
       // Then add tool calls AFTER thinking so they appear below the thought that triggered them
@@ -197,14 +165,6 @@ export function MessageBubble({
                 : "text-white/90 mt-1"
             )}>
               <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} />
-            </div>
-          ) : !isWorking && stepsToRender.length > 0 && !isUser ? (
-            // Fallback: tools ran but no final summary was generated (e.g. all tools errored)
-            // Show which tools ran and their status so the user knows what happened
-            <div className="text-white/50 text-sm mt-1 italic">
-              {stepsToRender.filter(s => s.type === 'tool').every(s => s.status === 'error' || s.toolCall?.status === 'error')
-                ? 'All tools encountered errors. Check the results above for details.'
-                : 'Done.'}
             </div>
           ) : null}
 

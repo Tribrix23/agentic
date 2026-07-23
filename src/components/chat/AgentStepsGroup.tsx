@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AgentStep, AgentProgressCard } from './AgentProgressCard';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, CheckCircle2 } from 'lucide-react';
 
 interface AgentStepsGroupProps {
   steps: AgentStep[];
@@ -15,40 +15,43 @@ export function AgentStepsGroup({ steps, isStreaming, onApproveToolCall, onRejec
   if (!steps || steps.length === 0) return null;
 
   const isRunning = steps.some(s => s.status === 'running') || isStreaming;
-  const headerText = isRunning ? 'Working...' : 'Finished.';
+  const headerText = isRunning ? 'Working...' : 'Finished';
 
-  // Separate thinking and tool steps
-  const toolSteps = steps.filter(s => s.type === 'tool');
-
-  // Build a chronological list of "segments": thinking blocks interleaved with tool groups
-  // We walk steps in order and group adjacent tool calls together
+  // Build nested structure: Thinking -> Tools (siblings within an iteration)
   type Segment =
-    | { kind: 'thinking'; step: AgentStep }
-    | { kind: 'tools'; steps: AgentStep[]; key: string };
+    | { kind: 'iteration'; thinking: AgentStep; tools: AgentStep[] };
 
   const segments: Segment[] = [];
-  let currentToolGroup: AgentStep[] = [];
+  let currentThinking: AgentStep | null = null;
+  let currentTools: AgentStep[] = [];
 
   for (const step of steps) {
     if (step.type === 'thinking') {
-      // Flush any pending tool group first
-      if (currentToolGroup.length > 0) {
-        segments.push({ kind: 'tools', steps: [...currentToolGroup], key: currentToolGroup[0].id });
-        currentToolGroup = [];
+      // Flush previous thinking with its tools
+      if (currentThinking) {
+        segments.push({ kind: 'iteration', thinking: currentThinking, tools: [...currentTools] });
+        currentTools = [];
       }
-      segments.push({ kind: 'thinking', step });
-    } else {
-      currentToolGroup.push(step);
+      currentThinking = step;
+    } else if (step.type === 'tool') {
+      currentTools.push(step);
     }
   }
-  // Flush any remaining tools
-  if (currentToolGroup.length > 0) {
-    segments.push({ kind: 'tools', steps: [...currentToolGroup], key: currentToolGroup[0].id });
+  // Flush the last thinking with its tools
+  if (currentThinking) {
+    segments.push({ kind: 'iteration', thinking: currentThinking, tools: currentTools });
+  } else if (currentTools.length > 0) {
+    // Fallback: If tools were called without any prior thinking block
+    segments.push({ 
+      kind: 'iteration', 
+      thinking: { id: 'fallback-think', type: 'thinking', status: 'completed', content: '' }, 
+      tools: currentTools 
+    });
   }
 
   return (
     <div className="w-full max-w-2xl mt-2 mb-2 font-sans text-sm">
-      {/* Top Level Working... accordion */}
+      {/* Top Level Working... / Finished accordion */}
       <div
         className="flex items-center gap-2 py-1.5 px-3 rounded-md cursor-pointer hover:bg-white/5 transition-colors group text-white/70 hover:text-white"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -61,60 +64,111 @@ export function AgentStepsGroup({ steps, isStreaming, onApproveToolCall, onRejec
         </span>
       </div>
 
-      {/* Inner Content */}
+      {/* Inner Content - Array of Iterations */}
       {isExpanded && (
-        <div className="ml-5 mt-1 border-l border-white/10 pl-3 flex flex-col gap-1">
-          {segments.map((seg, segIdx) => {
-            if (seg.kind === 'thinking') {
-              return (
-                <AgentProgressCard
-                  key={seg.step.id}
-                  step={seg.step}
-                  onApprove={onApproveToolCall}
-                  onReject={onRejectToolCall}
-                />
-              );
-            }
-
-            // Tool group — rendered in a collapsible "Ran N tools" block
-            return (
-              <ToolGroupBlock
-                key={seg.key}
-                steps={seg.steps}
-                isStreaming={!!isStreaming}
-                onApproveToolCall={onApproveToolCall}
-                onRejectToolCall={onRejectToolCall}
-              />
-            );
-          })}
+        <div className="ml-5 mt-1 border-l border-white/10 pl-3 flex flex-col gap-2">
+          {segments.map((seg, segIdx) => (
+            <IterationBlock
+              key={seg.thinking.id}
+              thinkingStep={seg.thinking}
+              toolSteps={seg.tools}
+              isStreaming={!!isStreaming}
+              isLastSegment={segIdx === segments.length - 1}
+              onApproveToolCall={onApproveToolCall}
+              onRejectToolCall={onRejectToolCall}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ── Collapsible block for a group of sequential tool calls ─────────────────
+// ── Iteration block (Thought -> Tools -> Review) ──────────────────────────
 
-interface ToolGroupBlockProps {
-  steps: AgentStep[];
+interface IterationBlockProps {
+  thinkingStep: AgentStep;
+  toolSteps: AgentStep[];
   isStreaming: boolean;
+  isLastSegment: boolean;
   onApproveToolCall?: (id: string) => void;
   onRejectToolCall?: (id: string) => void;
 }
 
-function ToolGroupBlock({ steps, isStreaming, onApproveToolCall, onRejectToolCall }: ToolGroupBlockProps) {
-  const [expanded, setExpanded] = useState(true);
+function IterationBlock({ 
+  thinkingStep, 
+  toolSteps, 
+  isStreaming, 
+  isLastSegment,
+  onApproveToolCall, 
+  onRejectToolCall 
+}: IterationBlockProps) {
+  const [thoughtExpanded, setThoughtExpanded] = useState(false);
+  const [toolsExpanded, setToolsExpanded] = useState(true);
 
+  const isThinkingRunning = thinkingStep.status === 'running';
+  const hasTools = toolSteps.length > 0;
+  
+  return (
+    <div className="flex flex-col gap-1">
+      {/* Thought row */}
+      <div className="flex flex-col">
+        <div
+          className="flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors group text-white/70 hover:text-white"
+          onClick={() => setThoughtExpanded(!thoughtExpanded)}
+        >
+          <div className="text-white/40 group-hover:text-white/70 transition-colors">
+            {thoughtExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </div>
+          <span className={isThinkingRunning ? 'shimmer-text' : ''}>
+            Thought
+          </span>
+        </div>
+        {thoughtExpanded && (
+          <div className="ml-5 mt-1 border-l border-white/10 pl-3 py-1 text-white/60 whitespace-pre-wrap">
+             {thinkingStep.content || 'Thinking...'}
+          </div>
+        )}
+      </div>
+
+      {/* Tools row */}
+      {hasTools && (
+        <ToolGroupBlock
+          steps={toolSteps}
+          isStreaming={isStreaming && isLastSegment}
+          expanded={toolsExpanded}
+          onToggle={() => setToolsExpanded(!toolsExpanded)}
+          onApproveToolCall={onApproveToolCall}
+          onRejectToolCall={onRejectToolCall}
+        />
+      )}
+
+
+    </div>
+  );
+}
+
+// ── Collapsible block for a group of tool calls ───────────────────────────
+
+interface ToolGroupBlockProps {
+  steps: AgentStep[];
+  isStreaming: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  onApproveToolCall?: (id: string) => void;
+  onRejectToolCall?: (id: string) => void;
+}
+
+function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolCall, onRejectToolCall }: ToolGroupBlockProps) {
   const isRunning = steps.some(s => s.status === 'running') || isStreaming;
   const count = steps.length;
-  const label = count === 1 ? 'Ran 1 tool' : `Ran ${count} tools`;
+  const label = isRunning ? 'Tool call...' : (count === 1 ? 'Ran 1 tool' : `Ran ${count} tools`);
 
   return (
     <div className="flex flex-col">
-      {/* Summary row */}
       <div
         className="flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors group text-white/70 hover:text-white"
-        onClick={() => setExpanded(!expanded)}
+        onClick={onToggle}
       >
         <div className="text-white/40 group-hover:text-white/70 transition-colors">
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -122,7 +176,6 @@ function ToolGroupBlock({ steps, isStreaming, onApproveToolCall, onRejectToolCal
         <span className={isRunning ? 'shimmer-text' : ''}>{label}</span>
       </div>
 
-      {/* Tool steps */}
       {expanded && (
         <div className="ml-5 mt-1 border-l border-white/10 pl-3 flex flex-col gap-1">
           {steps.map(step => (

@@ -59,6 +59,7 @@ export function ChatContainer({
       <div className="px-4 pb-4 bg-transparent w-full">
         <div className="w-full max-w-[700px] mx-auto flex flex-col items-center">
           {projectSelector}
+          
           <div className="w-full flex flex-col items-center gap-2">
 
             <PromptInput 

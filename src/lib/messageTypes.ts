@@ -56,6 +56,7 @@ export interface AgenticMessage {
   thinkingContent?: string;
   isStreaming?: boolean;
   agentIteration?: number;
+  isHidden?: boolean;
 
   // ── Tool message extensions ──
   toolCallId?: string;

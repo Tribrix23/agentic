@@ -28,7 +28,6 @@ import { AgentState } from '../lib/types/AgentTypes';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
-import { ToolApprovalCard } from './chat/ToolApprovalCard';
 
 interface ProjectFolder {
   path: string;
@@ -37,14 +36,14 @@ interface ProjectFolder {
 }
 
 
-export const MainContent = ({ 
+export const MainContent = ({
   user,
   toggleLeftSidebar,
   toggleRightSidebar,
   leftOpen,
   rightOpen,
   onOpenIde
-}: { 
+}: {
   user: { name: string, avatar: string },
   toggleLeftSidebar: () => void,
   toggleRightSidebar: () => void,
@@ -66,11 +65,11 @@ export const MainContent = ({
   const [showModeDropdown, setShowModeDropdown] = useState<boolean>(false);
   const [showWizard, setShowWizard] = useState<boolean>(false);
   const [wizardStep, setWizardStep] = useState<'create' | 'security'>('create');
-  
+
   // Confirmation state for deleting project
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
   const [projectToDelete, setProjectToDelete] = useState<ProjectFolder | null>(null);
-  
+
   const [wizardFolders, setWizardFolders] = useState<ProjectFolder[]>([]);
   const [selectedSecurity, setSelectedSecurity] = useState<'default' | 'full' | 'turbo'>('default');
 
@@ -106,7 +105,7 @@ export const MainContent = ({
       (window as any).electron?.readProjectFiles?.(selectedProject.path)
         .then((files: any[]) => setProjectFiles(files || []))
         .catch(() => setProjectFiles([]));
-      
+
       // Reload AI config for this project
       setAiConfigState(getAIConfig(selectedProject.path));
     }
@@ -166,7 +165,7 @@ export const MainContent = ({
         const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
         const projConvos = savedConvos[projPath] || [];
         const remaining = projConvos.filter((c: any) => c.id !== id);
-        
+
         if (remaining.length > 0) {
           const nextChat = remaining[0];
           setActiveConversationId(nextChat.id);
@@ -213,7 +212,11 @@ export const MainContent = ({
           const newMsgs = [...prev];
           for (let i = newMsgs.length - 1; i >= 0; i--) {
             if (newMsgs[i].role === 'assistant' && newMsgs[i].isStreaming) {
-              newMsgs[i] = { ...newMsgs[i], content: event.data.fullText };
+              newMsgs[i] = { 
+                ...newMsgs[i], 
+                content: event.data.parsedContent ?? event.data.fullText,
+                thinkingContent: event.data.thinkingContent
+              };
               break;
             }
           }
@@ -286,7 +289,7 @@ export const MainContent = ({
         setAgentStatus('');
         setAgentState('idle');
         // Mark all streaming messages as complete
-        setMessages(prev => prev.map(m => 
+        setMessages(prev => prev.map(m =>
           m.isStreaming ? { ...m, isStreaming: false } : m
         ));
         break;
@@ -303,7 +306,7 @@ export const MainContent = ({
       projectRoot: selectedProject?.path || '',
       signal: new AbortController().signal,
     };
-    
+
     return executeTool(toolCall, context, permConfig);
   }, [selectedProject?.path]);
 
@@ -344,9 +347,9 @@ export const MainContent = ({
       let cleanTitle = content.trim().split(/\s+/).slice(0, 5).join(' ');
       if (cleanTitle.length < content.trim().length) cleanTitle += '...';
       if (!cleanTitle) cleanTitle = "New Conversation";
-      
+
       setChatTitle(cleanTitle);
-      
+
       if (!projConvos.some((c: any) => c.id === convId)) {
         projConvos.unshift({ id: convId, title: cleanTitle });
       } else {
@@ -360,8 +363,8 @@ export const MainContent = ({
       callDispatcherAPI({
         config: aiConfig,
         messages: [{ role: 'user', content: `Summarize this user prompt into a short 3-5 word conversation title: "${content}"\nRespond ONLY with the title, no quotes or intro.` }],
-        onChunk: () => {},
-        onError: () => {}, // Ignore errors, just keep the truncated title
+        onChunk: () => { },
+        onError: () => { }, // Ignore errors, just keep the truncated title
         onSuccess: (aiTitle: string) => {
           const finalTitle = aiTitle
             // Strip <think>...</think> and <thinking>...</thinking> blocks
@@ -391,8 +394,9 @@ export const MainContent = ({
     if (aiConfig.agentMode) {
       // Build project context
       let projectContext: ProjectContext | undefined;
+      let fileTreeStr = '';
       if (selectedProject?.path) {
-        const fileTreeStr = projectFiles.length > 0 ? buildFileTreeString(projectFiles, 2) : '';
+        fileTreeStr = projectFiles.length > 0 ? buildFileTreeString(projectFiles, 2) : '';
         projectContext = {
           rootPath: selectedProject.path,
           fileTree: fileTreeStr,
@@ -400,28 +404,23 @@ export const MainContent = ({
         };
       }
 
-      // Get tool definitions for LLM
-      let toolDefs: any[] = [];
-      try {
-        toolDefs = getToolsForLLM();
-      } catch (e) {
-        // Tools may not be initialized
-      }
-
-      // Create and run agent loop
-      const loop = createAgentLoop(handleAgentEvent, {
+      // Instantiate AgentLoop directly for the main chat
+      agentLoopRef.current = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
-        toolExecutor,
-        toolDefinitions: toolDefs,
+        toolDefinitions: getToolsForLLM(),
+        toolExecutor
       });
-      agentLoopRef.current = loop;
+
+      agentLoopRef.current.updateConfig(aiConfig);
 
       try {
-        const resultMessages = await loop.run(allMessages);
-        setMessages(resultMessages);
-      } catch (error: any) {
-        console.error('[MainContent] Agent loop error:', error);
+        await agentLoopRef.current.run(allMessages.map(m => ({
+          ...m,
+          role: m.role as any, // agentLoop expects standard roles
+        })));
+      } catch (e) {
+        console.error('Agent loop failed:', e);
       }
     } else {
       // ── Simple Chat Mode (no tools) ──────────────────────────────────
@@ -488,6 +487,8 @@ export const MainContent = ({
     }));
   }, []);
 
+
+
   // ── Stop Agent ───────────────────────────────────────────────────────
   const handleStopAgent = useCallback(() => {
     if (agentLoopRef.current) {
@@ -514,14 +515,14 @@ export const MainContent = ({
       if (modeDropdownRef.current && !modeDropdownRef.current.contains(target)) setShowModeDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
-    
+
     const handleOpenWizard = () => {
       setWizardStep('create');
       setWizardFolders([]);
       setShowWizard(true);
     };
     window.addEventListener('open-add-project-wizard', handleOpenWizard);
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('open-add-project-wizard', handleOpenWizard);
@@ -571,7 +572,7 @@ export const MainContent = ({
     const updatedProjects = projects.filter(p => p.path !== pathToDelete);
     setProjects(updatedProjects);
     localStorage.setItem('quantix_projects', JSON.stringify(updatedProjects));
-    
+
     if (selectedProject?.path === pathToDelete) {
       const nextActive = updatedProjects.length > 0 ? updatedProjects[0] : null;
       setSelectedProject(nextActive);
@@ -590,7 +591,7 @@ export const MainContent = ({
 
   const projectSelectorNode = (
     <div className="w-full flex justify-start mb-2 pointer-events-auto relative" ref={dropdownRef}>
-      <div 
+      <div
         onClick={() => setShowDropdown(!showDropdown)}
         className="flex items-center gap-2 text-[#8b8b93] text-[13px] font-medium px-2 py-1 hover:bg-white/5 rounded-md cursor-pointer transition-colors"
       >
@@ -620,7 +621,7 @@ export const MainContent = ({
                   Projects
                 </div>
                 {projects.map((proj) => (
-                  <div 
+                  <div
                     key={proj.path}
                     className="w-full flex items-center justify-between hover:bg-white/5 group relative"
                   >
@@ -632,8 +633,8 @@ export const MainContent = ({
                       }}
                       className={cn(
                         "flex-1 px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors truncate",
-                        selectedProject?.path === proj.path 
-                          ? "text-white font-medium" 
+                        selectedProject?.path === proj.path
+                          ? "text-white font-medium"
                           : "text-[#a8a8b1]"
                       )}
                     >
@@ -667,7 +668,7 @@ export const MainContent = ({
                 <div className="border-t border-white/5 my-1" />
               </>
             )}
-            
+
             <button
               onClick={() => {
                 setShowDropdown(false);
@@ -688,14 +689,14 @@ export const MainContent = ({
 
   return (
     <div className="flex-1 h-full bg-transparent flex flex-col relative z-0">
-      
+
       {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center justify-between z-10 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto region-no-drag mt-12">
           <button onClick={toggleLeftSidebar} className={cn("p-1.5 rounded-md transition-colors shrink-0", leftOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}>
             {leftOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
           </button>
-          
+
           <div className="flex items-center gap-1">
             {chatTitle && messages.length > 0 && (
               <div className="text-[13px] font-medium text-white/90 truncate max-w-[400px] ml-1">
@@ -712,14 +713,14 @@ export const MainContent = ({
         </div>
 
         <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2">
-            <button 
-              onClick={onOpenIde}
-              className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
-            >
-              <img src="/icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
-              Open QUANTIX IDE
-            </button>
-          <button 
+          <button
+            onClick={onOpenIde}
+            className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
+          >
+            <img src="/icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
+            Open QUANTIX IDE
+          </button>
+          <button
             onClick={toggleRightSidebar}
             className={cn("p-1.5 rounded-md transition-colors", rightOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}
           >
@@ -730,7 +731,7 @@ export const MainContent = ({
 
       {/* Main Content Area */}
       <motion.div layout className={cn("flex-1 flex flex-col px-6", messages.length === 0 ? "justify-center items-center" : "overflow-hidden")}>
-        
+
         {/* ── Agentic Chat Interface ─────────────────────────────────── */}
         {messages.length > 0 && (
           <div className="flex-1 w-full max-w-[750px] mx-auto overflow-hidden flex flex-col pt-28">
@@ -760,12 +761,12 @@ export const MainContent = ({
           "w-full max-w-[700px] flex flex-col items-center",
           messages.length > 0 ? "mx-auto pb-6" : ""
         )}>
-          
+
           {messages.length === 0 && projectSelectorNode}
           {/* ── Input Area (only shown when no messages OR always at bottom) ── */}
           {messages.length === 0 && (
             <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
-              <textarea 
+              <textarea
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {
@@ -775,10 +776,10 @@ export const MainContent = ({
                     setInputValue('');
                   }
                 }}
-                placeholder="Ask anything, @ to mention, / for actions" 
+                placeholder="Ask anything, @ to mention, / for actions"
                 className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] h-10 custom-scrollbar"
               />
-              
+
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-3">
                   {/* Agent mode indicator */}
@@ -800,7 +801,7 @@ export const MainContent = ({
 
                   {/* Model selector */}
                   <div className="relative" ref={modelDropdownRef}>
-                    <button 
+                    <button
                       onClick={() => setShowModelDropdown(!showModelDropdown)}
                       className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
                     >
@@ -817,12 +818,12 @@ export const MainContent = ({
                           className="absolute top-full left-0 mt-2 w-40 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
                         >
                           {['Dispatcher v1', 'Dispatcher v1.2', 'Dispatcher v2'].map(model => (
-                            <button 
+                            <button
                               key={model}
-                              onClick={() => { 
+                              onClick={() => {
                                 const updated = setAIConfig({ model }, selectedProject?.path);
                                 setAiConfigState(updated);
-                                setShowModelDropdown(false); 
+                                setShowModelDropdown(false);
                               }}
                               className={cn(
                                 "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
@@ -839,7 +840,7 @@ export const MainContent = ({
 
                   {/* Mode indicator */}
                   <div className="relative" ref={modeDropdownRef}>
-                    <button 
+                    <button
                       onClick={() => setShowModeDropdown(!showModeDropdown)}
                       className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
                     >
@@ -857,12 +858,12 @@ export const MainContent = ({
                           className="absolute top-full left-0 mt-2 w-32 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
                         >
                           {['local', 'cloud'].map(mode => (
-                            <button 
+                            <button
                               key={mode}
-                              onClick={() => { 
-                                const updated = setAIConfig({ mode: mode as 'local'|'cloud' }, selectedProject?.path);
+                              onClick={() => {
+                                const updated = setAIConfig({ mode: mode as 'local' | 'cloud' }, selectedProject?.path);
                                 setAiConfigState(updated);
-                                setShowModeDropdown(false); 
+                                setShowModeDropdown(false);
                               }}
                               className={cn(
                                 "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
@@ -878,7 +879,7 @@ export const MainContent = ({
                     </AnimatePresence>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     handleSendMessage(inputValue);
                     setInputValue('');
@@ -902,7 +903,7 @@ export const MainContent = ({
       <AnimatePresence>
         {showWizard && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -916,7 +917,7 @@ export const MainContent = ({
                       <h2 className="text-lg font-bold text-white leading-none">Add Project</h2>
                       <p className="text-xs text-[#8b8b93] mt-1.5 font-medium">Select Folder(s)</p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setShowWizard(false)}
                       className="p-1 text-[#8b8b93] hover:text-white rounded-md transition-colors"
                     >
@@ -932,7 +933,7 @@ export const MainContent = ({
                         </div>
                         <div className="flex flex-col gap-1.5">
                           {wizardFolders.map((folder) => (
-                            <div 
+                            <div
                               key={folder.path}
                               className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5"
                             >
@@ -993,7 +994,7 @@ export const MainContent = ({
                     <div>
                       <h2 className="text-lg font-semibold text-white">Agent Security Settings</h2>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setShowWizard(false)}
                       className="p-1 text-[#8b8b93] hover:text-white rounded-md transition-colors"
                     >
@@ -1088,7 +1089,7 @@ export const MainContent = ({
       <AnimatePresence>
         {showConfirmDelete && projectToDelete && (
           <div className="fixed inset-0 z-[210] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -1096,7 +1097,7 @@ export const MainContent = ({
             >
               <div className="flex items-start justify-between p-6 pb-4">
                 <h2 className="text-lg font-semibold text-white">Delete Project</h2>
-                <button 
+                <button
                   onClick={() => {
                     setShowConfirmDelete(false);
                     setProjectToDelete(null);
@@ -1143,11 +1144,6 @@ export const MainContent = ({
       <AnimatePresence>
         {agentState === 'awaiting_tool_approval' && pendingToolCall && (
           <div className="absolute inset-0 z-[210] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-            <ToolApprovalCard 
-              toolCall={pendingToolCall} 
-              onApprove={(id) => handleToolDecision(true)} 
-              onReject={(id) => handleToolDecision(false)} 
-            />
           </div>
         )}
       </AnimatePresence>

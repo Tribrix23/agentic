@@ -35,6 +35,23 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
   // Map internal tools to human-readable strings and icons
   const getStepDetails = () => {
     if (step.type === 'thinking') {
+      const content = step.content || '';
+      // Extract the main action from thinking content
+      if (content.includes('UNDERSTAND')) {
+        return { icon: <Brain size={14} />, text: 'Analyzing the request...', color: 'text-purple-400' };
+      }
+      if (content.includes('ANALYZE')) {
+        return { icon: <Search size={14} />, text: 'Analyzing codebase context...', color: 'text-blue-400' };
+      }
+      if (content.includes('PLAN')) {
+        return { icon: <Brain size={14} />, text: 'Planning the approach...', color: 'text-purple-400' };
+      }
+      if (content.includes('IDENTIFY')) {
+        return { icon: <AlertCircle size={14} />, text: 'Identifying potential risks...', color: 'text-yellow-400' };
+      }
+      if (content.includes('EXECUTE')) {
+        return { icon: <Wrench size={14} />, text: 'Preparing to execute...', color: 'text-green-400' };
+      }
       return { icon: <Brain size={14} />, text: 'Thinking through the approach...', color: 'text-purple-400' };
     }
     
@@ -45,26 +62,32 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
       if (name.includes('read_file') || name.includes('view_file') || name.includes('list_dir')) {
         const file = args.AbsolutePath || args.DirectoryPath || 'files';
         const filename = typeof file === 'string' ? file.split(/[/\\]/).pop() : 'files';
-        return { icon: <FileCode size={14} />, text: `Explored ${filename}`, color: 'text-blue-400' };
+        return { icon: <FileCode size={14} />, text: `Reading ${filename}`, color: 'text-blue-400' };
       }
       if (name.includes('grep_search')) {
-        return { icon: <Search size={14} />, text: `Searched codebase for "${args.Query || '...'}"`, color: 'text-teal-400' };
+        const query = args.Query || args.query || '...';
+        const shortQuery = typeof query === 'string' ? query.slice(0, 30) + (query.length > 30 ? '...' : '') : '...';
+        return { icon: <Search size={14} />, text: `Searching for "${shortQuery}"`, color: 'text-teal-400' };
       }
       if (name.includes('write_to_file') || name.includes('replace_file_content') || name.includes('multi_replace_file_content')) {
         const file = args.TargetFile || args.AbsolutePath || 'file';
         const filename = typeof file === 'string' ? file.split(/[/\\]/).pop() : 'file';
-        return { icon: <FileEdit size={14} />, text: `Edited ${filename}`, color: 'text-orange-400' };
+        return { icon: <FileEdit size={14} />, text: `Editing ${filename}`, color: 'text-orange-400' };
       }
       if (name.includes('run_command')) {
-        return { icon: <Terminal size={14} />, text: `Ran \`${args.CommandLine || 'command'}\``, color: 'text-green-400' };
+        const cmd = args.CommandLine || args.command || 'command';
+        const shortCmd = typeof cmd === 'string' ? cmd.slice(0, 20) + (cmd.length > 20 ? '...' : '') : 'command';
+        return { icon: <Terminal size={14} />, text: `Running ${shortCmd}`, color: 'text-green-400' };
       }
       if (name.includes('search_web') || name.includes('read_url')) {
-        return { icon: <Globe size={14} />, text: `Web search: ${args.query || '...'}`, color: 'text-indigo-400' };
+        const query = args.query || args.url || '...';
+        const shortQuery = typeof query === 'string' ? query.slice(0, 25) + (query.length > 25 ? '...' : '') : '...';
+        return { icon: <Globe size={14} />, text: `Web: ${shortQuery}`, color: 'text-indigo-400' };
       }
       if (name === 'ask_question') {
-        return { icon: <Brain size={14} />, text: 'Asked user a question', color: 'text-purple-400' };
+        return { icon: <Brain size={14} />, text: 'Asking for clarification', color: 'text-purple-400' };
       }
-      return { icon: <Wrench size={14} />, text: `Using tool: ${name}`, color: 'text-gray-400' };
+      return { icon: <Wrench size={14} />, text: `Using ${name}`, color: 'text-gray-400' };
     }
     
     return { icon: <Wrench size={14} />, text: 'Working...', color: 'text-gray-400' };

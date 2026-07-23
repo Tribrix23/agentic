@@ -1,22 +1,19 @@
 import { ToolCall } from './messageTypes';
 
 export class SecurityInterceptor {
-  // Blacklist of destructive commands that require manual UI approval
-  private static DANGEROUS_TERMINAL_REGEX = /\b(rm|del|rd|rmdir|format|mkfs|chmod|chown|kill|taskkill)\b/i;
+  private static READ_ONLY_TOOLS = new Set([
+    'read_file', 'view_file', 'list_dir', 'listDirectory', 'readFile', 'grepSearch', 'grep_search', 'findByName', 'search_web', 'read_url'
+  ]);
 
   /**
    * Evaluates a tool call to determine if it requires explicit user approval
    * before execution can proceed.
    */
   static requiresApproval(toolCall: ToolCall): boolean {
-    if (toolCall.name === 'delete_file') return true;
-    
-    if (toolCall.name === 'run_terminal_command' && toolCall.arguments.command) {
-      if (this.DANGEROUS_TERMINAL_REGEX.test(toolCall.arguments.command)) {
-        return true; 
-      }
+    // Auto accept all requests except deletion as per user request
+    if (toolCall.name === 'deleteFile') {
+      return true;
     }
-    
     return false;
   }
 }
