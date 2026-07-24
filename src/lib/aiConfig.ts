@@ -37,6 +37,7 @@ export interface AIConfig {
 
   // === Agent Behavior ===
   agentMode: boolean;
+  architecture: 'low' | 'high';
   maxAgentIterations: number;
   autoApproveReads: boolean;
   autoApproveWrites: boolean;
@@ -75,6 +76,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   responseFormat: 'text',
 
   agentMode: true,
+  architecture: 'low',
   maxAgentIterations: 25,
   autoApproveReads: true,
   autoApproveWrites: false,
@@ -103,11 +105,11 @@ CRITICAL: NEVER write code, file contents, HTML, or JSON inside the <thinking> b
 
 EXAMPLE OF CORRECT FORMAT:
 <thinking>
-1. UNDERSTAND THE REQUEST: The user wants me to read a file
-2. ANALYZE THE CONTEXT: I need to check if the file exists first
-3. PLAN THE APPROACH: Use listDirectory to verify, then readFile
-4. IDENTIFY RISKS: File might not exist
-5. EXECUTE: Call listDirectory first
+1. RECALL PREVIOUS ACTIONS: I have already listed the directory. I am now diving into the core of the problem. I need to closely examine how messages are stored.
+2. UNDERSTAND THE REQUEST: The user wants me to read a file
+3. ANALYZE THE CONTEXT: I must verify if I have already read this file to avoid infinite loops.
+4. PRIORITIZE TOOLS: I will prioritize specific tools over generic ones. I need to use readFile instead of cat in a shell.
+5. EXECUTE: Call readFile
 </thinking>
 
 \`\`\`json
@@ -120,13 +122,14 @@ EXAMPLE OF CORRECT FORMAT:
 \`\`\`
 
 === YOUR RESPONSE STRUCTURE ===
-1. Start with <thinking> block showing your 5-step reasoning
+1. Start with <thinking> block showing your 5-step reasoning. You MUST explicitly recall your past actions, state your current context, and prioritize specific tools.
 2. Then make your tool call(s) - NEVER answer without tools if tools are needed
 3. After receiving tool results, provide a summary
 4. After completing all tasks, provide a final summary paragraph
 
 === CORE PRINCIPLES ===
 - Think before acting: Always show your reasoning in <thinking> tags
+- Prioritize Tool Usage: Always evaluate your tools. Choose the most specific, targeted tool over broad or generic commands. Avoid repeating identical tool calls.
 - Be precise: Make minimal, targeted changes
 - Verify your work: Test when possible
 - Explain clearly: Help the user understand your process
@@ -162,7 +165,16 @@ For READ-ONLY operations (listDirectory, readFile, grepSearch), you can call mul
 
 IMPORTANT: Only call DIFFERENT tools or tools with DIFFERENT arguments. Never call readFile on the same file twice.
 
-For WRITE operations, make ONE tool call at a time.
+For WRITE operations, make ONE tool call at a time. Here is an example of using editFile:
+
+\`\`\`json
+{
+  "tool_call": {
+    "name": "editFile",
+    "arguments": { "path": "src/index.ts", "search": "old_text", "replace": "new_text" }
+  }
+}
+\`\`\`
 
 === STRICT RULES ===
 1. ALWAYS use <thinking> tags before tools - MANDATORY
@@ -178,6 +190,7 @@ For WRITE operations, make ONE tool call at a time.
 11. CRITICAL: NO DIRECT ANSWERS - If the user asks you to read, modify, or list files, you MUST output a tool call. You cannot fulfill the request through text alone.
 12. CRITICAL: NO CODE IN THOUGHTS - NEVER write fabricated code, HTML, or large text blocks inside the <thinking> tags.
 13. CRITICAL: NO NARRATION BETWEEN BLOCKS - Do NOT output any conversational text between the <thinking> block and the \`\`\`json block. Jump straight from </thinking> to \`\`\`json.
+14. CRITICAL: REQUIRE DIRECTORY LISTING - You MUST use \`listDirectory\` or \`searchFiles\` BEFORE you are allowed to use \`readFile\`. You cannot read a file blindly without first confirming it exists in the directory structure.
 
 === TOOL CALL FORMAT ===
 \`\`\`json

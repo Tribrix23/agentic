@@ -838,6 +838,23 @@ export const MainContent = ({
                     </AnimatePresence>
                   </div>
 
+                  {/* Architecture toggle */}
+                  <button
+                    onClick={() => {
+                      const updated = setAIConfig({ architecture: aiConfig.architecture === 'low' ? 'high' : 'low' }, selectedProject?.path);
+                      setAiConfigState(updated);
+                    }}
+                    title="Toggle between Low latency (ReAct) and High latency (Multi-Agent Supervisor) architecture"
+                    className={cn(
+                      "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
+                      aiConfig.architecture === 'high'
+                        ? "text-orange-300 bg-orange-500/15 border border-orange-500/30"
+                        : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
+                    )}
+                  >
+                    {aiConfig.architecture === 'high' ? 'High' : 'Low'}
+                  </button>
+
                   {/* Mode indicator */}
                   <div className="relative" ref={modeDropdownRef}>
                     <button

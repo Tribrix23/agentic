@@ -7,6 +7,7 @@ import { checkPermission, PermissionConfig } from '../permissions';
 // occurs (create/delete/write file/folder) since the filesystem has changed.
 
 const executedSignatures = new Set<string>();
+let hasListedDirectory = false;
 
 /** Tools that mutate the filesystem — reset the dedup store when called */
 const WRITE_TOOLS = new Set([
@@ -17,9 +18,16 @@ const WRITE_TOOLS = new Set([
 /** Call at the start of each new agent run */
 export function clearToolCache(): void {
   executedSignatures.clear();
+  hasListedDirectory = false;
 }
 
 export async function executeTool(toolCall: ToolCall, context: ToolContext, permissionConfig: PermissionConfig): Promise<ToolResult> {
+  if (toolCall.name === 'listDirectory' || toolCall.name === 'searchFiles') {
+    hasListedDirectory = true;
+  } else if (toolCall.name === 'readFile' && !hasListedDirectory) {
+    return { success: false, output: '[SYSTEM ERROR] You MUST call listDirectory or searchFiles first to verify the file exists before attempting to read it. Do not attempt to read files blindly.' };
+  }
+
   const tool = getTool(toolCall.name);
   if (!tool) {
     return { success: false, output: `Tool not found: ${toolCall.name}` };

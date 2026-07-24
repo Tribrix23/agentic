@@ -57,6 +57,11 @@ export function MessageBubble({
       if ((msg as any).role === 'tool') {
         return;
       }
+      
+      // Skip hidden messages (like system error corrections and their associated hallucinated replies)
+      if (msg.isHidden) {
+        return;
+      }
 
       let msgContent = msg.content || '';
       

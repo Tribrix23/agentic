@@ -32,7 +32,8 @@ export const handler: ToolHandler = async (args, context) => {
       return { success: false, output: `Search string not found in ${targetPath}` };
     }
     
-    const newContent = content.replace(search, replace);
+    // Use split and join to globally replace all occurrences of the search string
+    const newContent = content.split(search).join(replace);
     const result = await (window as any).electron.saveFileContent(targetPath, newContent);
     
     if (result.success) {

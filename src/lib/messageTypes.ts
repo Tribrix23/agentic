@@ -96,9 +96,14 @@ export function chatMessageToAgenticMessage(msg: ChatMessage, index: number): Ag
 }
 
 export function agenticMessageToChatMessage(msg: AgenticMessage): ChatMessage {
+  let combinedContent = msg.content || '';
+  if (msg.thinkingContent) {
+    combinedContent = `${msg.thinkingContent}\n\n${combinedContent}`.trim();
+  }
+
   const chatMsg: ChatMessage = {
     role: msg.role,
-    content: msg.content || '',
+    content: combinedContent,
   };
 
   if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {

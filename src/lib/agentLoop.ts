@@ -77,6 +77,7 @@ export interface AgentState {
   elapsedMs?: number;
   consecutiveDuplicates?: number;
   consecutiveErrors?: number;
+  lastToolSignature?: string;
 }
 
 // ── Tool Call Parsing ──────────────────────────────────────────────────────
@@ -389,23 +390,6 @@ export class AgentLoop {
       this.emit({ type: 'agent:thinking' });
       this.state.status = 'Analyzing user prompt...';
 
-      // ── Context-aware initial exploration ───────────────────────────────
-      // If this is the first message in agent mode and we have project context,
-      // do a quick exploration to understand the structure before planning
-      if (this.config.agentMode && this.projectContext && this.state.currentIteration === 0) {
-        this.state.status = 'Exploring project structure...';
-        
-        // Add a system message to guide the AI to explore first
-        const explorationHint = createUserMessage(
-          `[SYSTEM]: You are starting a new task. Before making any changes, ` +
-          `explore the project structure to understand the codebase. ` +
-          `Start by listing the main directories, then read key files to understand the architecture. ` +
-          `This context will help you plan the most effective approach.`
-        );
-        updatedMessages.push(explorationHint);
-        this.emit({ type: 'agent:message-added', data: explorationHint });
-      }
-
       // ── Auto-summarize if needed ───────────────────────────────────────
       const contextBudget = this.config.contextWindowSize - this.config.maxTokens;
       if (needsSummarization(updatedMessages, contextBudget * 0.7)) {
@@ -447,6 +431,82 @@ export class AgentLoop {
           type: 'agent:iteration',
           data: { iteration: this.state.currentIteration, maxIterations: this.state.maxIterations },
         });
+
+        if (this.state.currentIteration > 1) {
+          this.state.status = 'Waiting 2s (API rate limit)...';
+          this.emit({ type: 'agent:thinking' });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+
+        // ── Review Phase (High Architecture Only) ──────────────────────
+        const latestMsg = updatedMessages[updatedMessages.length - 1];
+        if (this.config.architecture === 'high' && latestMsg && latestMsg.role === 'tool') {
+          this.state.status = 'Reviewing tool execution...';
+          this.emit({ type: 'agent:thinking' });
+
+          const reviewContext = buildContext(
+            this.config,
+            updatedMessages,
+            this.projectContext,
+            undefined // No tools for reviewer
+          );
+          
+          reviewContext.messages.push({
+            role: 'user',
+            content: '[SYSTEM - REVIEW PHASE]: You are the Reviewer AI. Review the results of the recent tool executions. Output a brief text summary of whether the tool succeeded, what data was found, and what the logical next step should be. Do NOT output any JSON tool calls. You MUST conclude your review by printing exactly "[CONTINUE]" if the main AI needs to take further action, or "[DONE]" if the user\'s request is fully satisfied.'
+          });
+
+          const reviewMsg = createAssistantMessage(this.config.model);
+          reviewMsg.agentIteration = this.state.currentIteration;
+          reviewMsg.isHidden = true; // Completely hide this from the user's chat!
+          updatedMessages.push(reviewMsg);
+          this.emit({ type: 'agent:message-added', data: reviewMsg });
+
+          let reviewText = '';
+          await new Promise<void>((resolve) => {
+            if (!this.state.isRunning) return resolve();
+            
+            callDispatcherAPI({
+              config: this.config,
+              messages: reviewContext.messages.map(m => ({
+                ...m,
+                role: (m.role === 'tool' ? 'user' : m.role) as 'user' | 'assistant' | 'system',
+              })),
+              tools: undefined,
+              onChunk: (chunk: string) => {
+                reviewText += chunk;
+                reviewMsg.isStreaming = true;
+                reviewMsg.content = reviewText;
+                
+                this.emit({ 
+                  type: 'agent:streaming', 
+                  data: { 
+                    text: chunk, 
+                    fullText: reviewText,
+                    parsedContent: reviewText,
+                    thinkingContent: ''
+                  } 
+                });
+              },
+              onError: () => resolve(),
+              onSuccess: () => {
+                reviewMsg.isStreaming = false;
+                reviewMsg.content = reviewText.trim();
+                this.emit({ type: 'agent:message-updated', data: { ...reviewMsg } });
+                resolve();
+              },
+              checkIsStreaming: () => this.state.isRunning,
+              signal: this.abortController?.signal,
+            });
+          });
+
+          // Wait before starting the decision phase
+          if (this.state.isRunning) {
+            this.state.status = 'Waiting 2s (API rate limit)...';
+            this.emit({ type: 'agent:thinking' });
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
 
         // ── Build context ──────────────────────────────────────────────
         // Always provide tool definitions in the system prompt so the AI knows
@@ -547,12 +607,26 @@ export class AgentLoop {
               // whether it's going to start a <think> block or a ```json block.
               // This completely prevents split-second text bubbles from flashing on screen.
               let hideText = false;
-              if (!assistantMsg.thinkingContent && textToDisplay.length < 300) {
+              if (!assistantMsg.thinkingContent) {
                 // Buffering startup text to see if a <think> tag arrives
-                hideText = true;
-              } else if (assistantMsg.thinkingContent && textToDisplay.length < 300) {
-                // Buffering post-thinking text to see if a ```json tool call arrives
-                hideText = true;
+                if (textToDisplay.length < 50 && !textToDisplay.includes('<')) {
+                  hideText = true;
+                }
+              } else {
+                // We have thinking content. Now we check the text AFTER the thinking block.
+                const trimmed = textToDisplay.trimStart();
+                if (trimmed.length === 0 && textToDisplay.length < 20) {
+                  // Buffer whitespace immediately following </thinking>
+                  hideText = true;
+                } else if (trimmed.startsWith('`')) {
+                  // It's starting a markdown block (```json), definitely a tool call. Hide it!
+                  hideText = true;
+                } else if (trimmed.startsWith('T') && trimmed.includes('OOL')) {
+                  // Just in case it tries to write "TOOL ACTION"
+                  hideText = true;
+                }
+                // If it starts with anything else (like 'The contents...'), hideText remains false 
+                // and it streams instantly!
               }
               
               assistantMsg.content = hideText ? '' : textToDisplay.trim();
@@ -640,8 +714,8 @@ export class AgentLoop {
             // Deduplicate tool calls to prevent redundant executions
             const deduplicatedCalls = deduplicateToolCalls(parsedCalls);
             assistantMsg.toolCalls = deduplicatedCalls.map((pc) => createToolCall(pc.name, pc.arguments));
-            // Strip the raw JSON/XML from the displayed text so it doesn't leak
-            assistantMsg.content = stripToolCallBlocks(fullResponseText, deduplicatedCalls);
+            // Completely hide any conversational text leaked outside the <think> block if a tool call was made
+            assistantMsg.content = '';
           }
         }
 
@@ -655,11 +729,11 @@ export class AgentLoop {
           // Inject a synthetic thinking block BEFORE parsing tool calls
           // This ensures it appears in the correct order in the UI
           const syntheticThinking = `<thinking>
-1. UNDERSTAND THE REQUEST: Processing the user's request
-2. ANALYZE THE CONTEXT: Analyzing the codebase and available information
-3. PLAN THE APPROACH: Determining the best approach using available tools
-4. IDENTIFY RISKS: Considering potential issues and edge cases
-5. EXECUTE: Calling tools to gather information and make changes
+1. RECALL PREVIOUS ACTIONS: I have analyzed the context and am proceeding with my strategy.
+2. UNDERSTAND THE REQUEST: Processing the user's request.
+3. ANALYZE THE CONTEXT: Verifying state to avoid infinite loops and duplicate actions.
+4. PRIORITIZE TOOLS: I will prioritize specific tools over generic ones.
+5. EXECUTE: Calling targeted tools to gather information and make changes.
 </thinking>`;
           
           // Prepend to fullResponseText BEFORE parsing tool calls
@@ -673,7 +747,8 @@ export class AgentLoop {
           if (parsedCalls.length > 0) {
             const deduplicatedCalls = deduplicateToolCalls(parsedCalls);
             assistantMsg.toolCalls = deduplicatedCalls.map((pc) => createToolCall(pc.name, pc.arguments));
-            assistantMsg.content = stripToolCallBlocks(fullResponseText.substring(syntheticThinking.length), deduplicatedCalls);
+            // Completely hide any conversational text leaked outside the <think> block if a tool call was made
+            assistantMsg.content = '';
           }
         }
 
@@ -689,18 +764,45 @@ export class AgentLoop {
 
         let forceRetry = false;
         
+        // ── Detect duplicate tool call loops ───────────────────────────────────
+        if (hasToolCalls) {
+          const currentSignature = JSON.stringify(assistantMsg.toolCalls!.map(tc => ({ name: tc.name, args: tc.arguments })));
+          
+          if (currentSignature === this.state.lastToolSignature) {
+            this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
+            
+            if (this.state.consecutiveDuplicates >= 1) {
+              console.warn('[AgentLoop] Detected duplicate tool call loop. Intercepting.');
+              
+              assistantMsg.isHidden = true; // Hide the repeating tool call
+              
+              const errorMsg = createUserMessage(
+                `[SYSTEM ERROR] You just repeated the exact same tool call. Do not repeat identical tool calls. You are stuck in a loop. Re-evaluate your strategy and try a DIFFERENT approach or tool.`
+              );
+              errorMsg.isHidden = true;
+              updatedMessages.push(errorMsg);
+              this.emit({ type: 'agent:message-added', data: errorMsg });
+              
+              forceRetry = true;
+            }
+          } else {
+            this.state.consecutiveDuplicates = 0;
+          }
+          this.state.lastToolSignature = currentSignature;
+        }
+
         // ── Detect AI answering without tools when tools are needed ─────────
         const explicitlyClaimsToolCall = /EXECUTE:\s*Call|calling.*tool|use.*tool|let me use/i.test(fullResponseText);
         const lastMsg = updatedMessages[updatedMessages.length - 1];
         const wasJustScolded = lastMsg && lastMsg.role === 'user' && lastMsg.content.includes('[SYSTEM ERROR]');
         
         // Track if it claims to have performed a write action but hasn't actually used a write tool
-        const claimsWriteAction = /(?:I|I've|I have)\s+(?:created|wrote|generated|built|added)|(?:has been|was)\s+(?:created|wrote|generated|built|added|successfully)/i.test(fullResponseText);
-        const hasWriteToolsExecuted = executedToolNames.has('createFile') || executedToolNames.has('writeFile') || executedToolNames.has('editFile') || executedToolNames.has('runCommand');
+        const claimsWriteAction = /(?:I|I've|I have)\s+(?:created|wrote|generated|built|added|replaced|changed|modified|updated|edited|fixed)|(?:has been|was)\s+(?:created|wrote|generated|built|added|replaced|changed|modified|updated|edited|fixed|successfully)/i.test(fullResponseText);
+        const hasWriteToolsExecuted = executedToolNames.has('createFile') || executedToolNames.has('writeFile') || executedToolNames.has('editFile') || executedToolNames.has('runCommand') || executedToolNames.has('replaceFileContent') || executedToolNames.has('multiReplaceFileContent');
         const isHallucinatingWrite = claimsWriteAction && !hasWriteToolsExecuted;
 
         // Track if it promises to do something but fails to output a tool call
-        const claimsFutureAction = /(?:Let me|I will|I'll|I am going to)\s+(?:also\s+)?(?:read|check|examine|look at|create|write|make|build|generate)/i.test(fullResponseText);
+        const claimsFutureAction = /(?:Let me|I will|I'll|I am going to)\s+(?:also\s+)?(?:read|check|examine|look at|create|write|make|build|generate|replace|change|modify|update|edit|fix)/i.test(fullResponseText);
         const isFailedAction = claimsFutureAction && !hasToolCalls;
 
         // General heuristic for first iteration
@@ -720,6 +822,7 @@ export class AgentLoop {
             
             // Hide the 3rd hallucination as well
             assistantMsg.isHidden = true;
+            this.emit({ type: 'agent:message-updated', data: assistantMsg });
             
             const errorMsg = createAssistantMessage(this.config.model);
             errorMsg.content = 'I encountered a critical error formatting my tool calls and could not complete the action. Please try rephrasing your request.';
@@ -729,10 +832,17 @@ export class AgentLoop {
           } else {
             // Hide the offending hallucination from the UI so it doesn't clutter the chat
             assistantMsg.isHidden = true;
+            this.emit({ type: 'agent:message-updated', data: assistantMsg });
+            
+            // REMOVE the hallucination from the context entirely so the LLM doesn't get stuck in a loop
+            const idx = updatedMessages.indexOf(assistantMsg);
+            if (idx !== -1) {
+              updatedMessages.splice(idx, 1);
+            }
             
             const correctionMsg = createUserMessage(
               `[SYSTEM ERROR]: You provided a direct answer without using tools, or your tool call was malformed. ` +
-              `CRITICAL: If you are claiming to read, create, or modify a file, you MUST actually output the JSON tool call (e.g. readFile, createFile) to do so! ` +
+              `CRITICAL: If you are claiming to read, create, or modify a file, you MUST actually output the JSON tool call (e.g. editFile, runCommand, readFile) to do so! ` +
               `Do NOT generate or guess the file contents yourself. You CANNOT do anything without a tool call. ` +
               `Ensure your tool call is in valid JSON or XML format as instructed. ` +
               `Retry this request using the appropriate tools. DO NOT APOLOGIZE. DO NOT EXPLAIN. Output ONLY the tool call.`
@@ -748,6 +858,12 @@ export class AgentLoop {
         } else if (hasToolCalls) {
           // Reset consecutive errors if it successfully made a tool call
           this.state.consecutiveErrors = 0;
+        }
+
+        // ── Check if we need to force a retry without executing tools ───
+        if (forceRetry) {
+          // Note: updatedMessages is already mutated and used by the next iteration's buildContext
+          continue;
         }
 
         // Notify UI immediately that this message now has tool calls (real-time display)

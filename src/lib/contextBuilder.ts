@@ -248,7 +248,7 @@ export function buildContext(
         .join('\n');
       // Prepend a brief note so the AI knows this is history
       const historyNote = `[Actions taken in previous step - DO NOT REPEAT THESE]\n${toolCallDesc}`;
-      chatMsg.content = chatMsg.content ? chatMsg.content + '\n' + historyNote : historyNote;
+      chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + historyNote : historyNote;
       delete chatMsg.tool_calls;
     }
 
