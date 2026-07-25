@@ -109,6 +109,13 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     imageUrl: [] as string[],
     videoUrl: [] as string[],
   };
+  
+  if (config.enableThinking) {
+    payload.chat_template_kwargs = { enable_thinking: true };
+    if (config.reasoningBudget) {
+        payload.reasoning_budget = config.reasoningBudget;
+    }
+  }
 
   // ── Optional parameters (only include if non-default) ───────────────
   if (config.topK !== 40) {
@@ -268,6 +275,7 @@ async function handleStreamingResponse(
   const decoder = new TextDecoder('utf-8');
   let fullContent = '';
   let pendingToolCalls: Record<number, { id?: string; name: string; arguments: string }> = {};
+  let isReasoning = false;
 
   try {
     while (true) {
@@ -298,8 +306,24 @@ async function handleStreamingResponse(
             const delta = data.choices?.[0]?.delta;
 
             if (delta) {
+              // ── Handle reasoning content (e.g. Nemotron/DeepSeek) ─────────
+              if (delta.reasoning_content) {
+                if (!isReasoning) {
+                  isReasoning = true;
+                  fullContent += '<think>\n';
+                  onChunk('<think>\n');
+                }
+                fullContent += delta.reasoning_content;
+                onChunk(delta.reasoning_content);
+              }
+
               // ── Handle text content ────────────────────────────────
-              if (delta.content) {
+              if (delta.content !== undefined && delta.content !== null) {
+                if (isReasoning) {
+                  isReasoning = false;
+                  fullContent += '\n</think>\n';
+                  onChunk('\n</think>\n');
+                }
                 fullContent += delta.content;
                 onChunk(delta.content);
               }
@@ -355,6 +379,11 @@ async function handleStreamingResponse(
     }
   } finally {
     reader.releaseLock();
+  }
+
+  if (isReasoning) {
+    fullContent += '\n</think>\n';
+    onChunk('\n</think>\n');
   }
 
   onSuccess(fullContent);

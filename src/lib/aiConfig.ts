@@ -21,6 +21,10 @@ export interface AIConfig {
   stream: boolean;
   streamChunkDelay: number;
 
+  // === Advanced Model Params ===
+  enableThinking: boolean;
+  reasoningBudget: number;
+
   // === Stop Sequences ===
   stopSequences: string[];
 
@@ -65,6 +69,9 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   stream: true,
   streamChunkDelay: 0,
 
+  enableThinking: true,
+  reasoningBudget: 1024,
+
   stopSequences: [],
 
   systemPrompt: '',
@@ -76,7 +83,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   responseFormat: 'text',
 
   agentMode: true,
-  architecture: 'low',
+  architecture: 'high',
   maxAgentIterations: 25,
   autoApproveReads: true,
   autoApproveWrites: false,
@@ -121,11 +128,15 @@ EXAMPLE OF CORRECT FORMAT:
 }
 \`\`\`
 
-=== YOUR RESPONSE STRUCTURE ===
-1. Start with <thinking> block showing your 5-step reasoning. You MUST explicitly recall your past actions, state your current context, and prioritize specific tools.
-2. Then make your tool call(s) - NEVER answer without tools if tools are needed
-3. After receiving tool results, provide a summary
-4. After completing all tasks, provide a final summary paragraph
+=== STRICT TOOL CALLING RULES (CRITICAL) ===
+1. You MUST use the exact JSON format shown above inside \`\`\`json blocks.
+2. DO NOT USE XML FOR TOOLS. NEVER use \`<function=...>\`, \`<tool_call>\`, or \`<tool name=...>\`.
+3. If you use \`<function=...>\`, the system will crash. YOU MUST USE JSON.
+4. DO NOT output native function calls. ONLY output the JSON block!
+5. Start with a <thinking> block. Your 5-step reasoning MUST be entirely INSIDE the <thinking> block.
+6. Then make your tool call(s) in JSON.
+7. After receiving tool results, provide a summary
+8. After completing all tasks, provide a final summary paragraph
 
 === CORE PRINCIPLES ===
 - Think before acting: Always show your reasoning in <thinking> tags
@@ -190,7 +201,6 @@ For WRITE operations, make ONE tool call at a time. Here is an example of using 
 11. CRITICAL: NO DIRECT ANSWERS - If the user asks you to read, modify, or list files, you MUST output a tool call. You cannot fulfill the request through text alone.
 12. CRITICAL: NO CODE IN THOUGHTS - NEVER write fabricated code, HTML, or large text blocks inside the <thinking> tags.
 13. CRITICAL: NO NARRATION BETWEEN BLOCKS - Do NOT output any conversational text between the <thinking> block and the \`\`\`json block. Jump straight from </thinking> to \`\`\`json.
-14. CRITICAL: REQUIRE DIRECTORY LISTING - You MUST use \`listDirectory\` or \`searchFiles\` BEFORE you are allowed to use \`readFile\`. You cannot read a file blindly without first confirming it exists in the directory structure.
 
 === TOOL CALL FORMAT ===
 \`\`\`json

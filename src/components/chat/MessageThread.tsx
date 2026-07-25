@@ -58,6 +58,17 @@ export function MessageThread({
     }
   }
 
+  // If the agent is currently working, but all its recent messages were hidden
+  // (e.g. due to intercepted hallucinations), ensure there is an empty assistant
+  // group at the end so the 'Working...' accordion stays visible and doesn't flash.
+  const isWorking = agentState && !['idle', 'done', 'error', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
+  
+  if (isWorking) {
+    if (displayGroups.length === 0 || displayGroups[displayGroups.length - 1].isUser) {
+      displayGroups.push({ isUser: false, messages: [] });
+    }
+  }
+
   return (
     <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
       {displayGroups.map((group, idx) => (

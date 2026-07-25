@@ -141,7 +141,20 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
                 name: tc.name,
                 arguments: tc.arguments || tc.params || tc.args || {},
               });
-              break; // Only parse the first outer valid tool call we find
+              startIndex = text.indexOf('{', endIndex + 1);
+              continue;
+            }
+          } else if (Object.keys(parsed).length === 1) {
+            // Support raw format: {"readFile": {"path": "..."}}
+            const possibleName = Object.keys(parsed)[0];
+            const possibleArgs = parsed[possibleName];
+            if (typeof possibleArgs === 'object' && possibleArgs !== null && !Array.isArray(possibleArgs)) {
+              toolCalls.push({
+                name: possibleName,
+                arguments: possibleArgs,
+              });
+              startIndex = text.indexOf('{', endIndex + 1);
+              continue;
             }
           }
         } catch (e) {
@@ -181,6 +194,28 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
         else if (val === 'false') val = false as any;
         else if (!isNaN(Number(val))) val = Number(val) as any;
         args[argMatch[1].trim()] = val;
+      }
+      
+      toolCalls.push({ name, arguments: args });
+    }
+  }
+
+  // ── Format 6: Native <function=name> format ──────────────────────────────
+  if (toolCalls.length === 0) {
+    const fnRegex = /<function=([a-zA-Z0-9_-]+)>\s*([\s\S]*?)<\/function>/gi;
+    while ((match = fnRegex.exec(text)) !== null) {
+      const name = match[1].trim();
+      const argsStr = match[2];
+      const args: Record<string, any> = {};
+      
+      const paramRegex = /<parameter=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/parameter>/gi;
+      let paramMatch;
+      while ((paramMatch = paramRegex.exec(argsStr)) !== null) {
+        let val: any = paramMatch[2].trim();
+        if (val === 'true') val = true;
+        else if (val === 'false') val = false;
+        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+        args[paramMatch[1].trim()] = val;
       }
       
       toolCalls.push({ name, arguments: args });
@@ -300,6 +335,8 @@ function stripToolCallBlocks(text: string, parsedToolCalls?: ParsedToolCall[]): 
   cleaned = cleaned.replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call)>/gi, '');
   // Format 6: Self-closing XML tool calls (e.g. <listDirectory path="..." />)
   cleaned = cleaned.replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '');
+  // Format 7: Native <function=name> format
+  cleaned = cleaned.replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, '');
   // Do NOT strip <think> blocks here. Let MessageBubble.tsx handle extracting and stripping them
   // so that the UI can actually render the thinking steps.
   return cleaned.trim();
@@ -567,69 +604,56 @@ export class AgentLoop {
               
               // 1. Extract thinking block and discard any text before it
               const thinkStart = textToDisplay.indexOf('<think');
+              let afterThink = textToDisplay;
+              
               if (thinkStart !== -1) {
                 const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
                 if (thinkEnd !== -1) {
                   const closeBracket = textToDisplay.indexOf('>', thinkEnd);
                   if (closeBracket !== -1) {
                     assistantMsg.thinkingContent = textToDisplay.substring(thinkStart, closeBracket + 1);
-                    textToDisplay = textToDisplay.substring(closeBracket + 1); // Discard everything before!
+                    afterThink = textToDisplay.substring(closeBracket + 1); // Extract everything after!
                   } else {
                     assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
-                    textToDisplay = ''; // Discard everything before!
+                    afterThink = '';
                   }
                 } else {
                   assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
-                  textToDisplay = ''; // Discard everything before!
+                  afterThink = '';
                 }
               } else if (textToDisplay.trim().startsWith('<') && textToDisplay.length < 20) {
                 assistantMsg.thinkingContent = textToDisplay;
-                textToDisplay = '';
+                afterThink = '';
               }
               
-              // 2. Hide tool call blocks (```json) during streaming
-              const lowerText = textToDisplay.toLowerCase();
-              const jsonStart = lowerText.indexOf('```json');
-              
-              if (jsonStart !== -1) {
-                // Once a tool call starts, we know this is an intermediate step.
-                // ALL text outside the thinking block is hallucinated narration and MUST be wiped.
-                textToDisplay = '';
-              } else {
-                const backtickStart = textToDisplay.lastIndexOf('```');
-                if (backtickStart !== -1) {
-                  textToDisplay = textToDisplay.substring(0, backtickStart);
-                }
-              }
-              
-              // 3. Anti-Jumping Buffer
-              // We hide textToDisplay if it's short, to give the stream time to reveal 
-              // whether it's going to start a <think> block or a ```json block.
-              // This completely prevents split-second text bubbles from flashing on screen.
+              // 2. Put text outside of thinking into the thought block until a tool call marker is seen
               let hideText = false;
-              if (!assistantMsg.thinkingContent) {
+              if (assistantMsg.thinkingContent && afterThink.trim().length > 0) {
+                const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|\{/i);
+                if (toolMatch && toolMatch.index !== undefined) {
+                  // Tool call found! Stop putting text into thought block.
+                  const leaked = afterThink.substring(0, toolMatch.index).trim();
+                  if (leaked) {
+                    assistantMsg.thinkingContent += '\n\n' + leaked;
+                  }
+                  afterThink = afterThink.substring(toolMatch.index);
+                  hideText = true; // Hide the actual tool call
+                } else {
+                  // No tool call yet. Put it all into the thought block temporarily.
+                  const leaked = afterThink.trim();
+                  if (leaked) {
+                    assistantMsg.thinkingContent += '\n\n' + leaked;
+                  }
+                  afterThink = ''; // Clear it so it doesn't leak as content
+                }
+              } else if (!assistantMsg.thinkingContent) {
                 // Buffering startup text to see if a <think> tag arrives
                 if (textToDisplay.length < 50 && !textToDisplay.includes('<')) {
                   hideText = true;
                 }
-              } else {
-                // We have thinking content. Now we check the text AFTER the thinking block.
-                const trimmed = textToDisplay.trimStart();
-                if (trimmed.length === 0 && textToDisplay.length < 20) {
-                  // Buffer whitespace immediately following </thinking>
-                  hideText = true;
-                } else if (trimmed.startsWith('`')) {
-                  // It's starting a markdown block (```json), definitely a tool call. Hide it!
-                  hideText = true;
-                } else if (trimmed.startsWith('T') && trimmed.includes('OOL')) {
-                  // Just in case it tries to write "TOOL ACTION"
-                  hideText = true;
-                }
-                // If it starts with anything else (like 'The contents...'), hideText remains false 
-                // and it streams instantly!
               }
               
-              assistantMsg.content = hideText ? '' : textToDisplay.trim();
+              assistantMsg.content = hideText ? '' : afterThink.trim();
               
               this.emit({ 
                 type: 'agent:streaming', 
@@ -658,39 +682,49 @@ export class AgentLoop {
               
               // 1. Extract thinking block
               const thinkStart = textToDisplay.indexOf('<think');
+              let afterThink = textToDisplay;
+              
               if (thinkStart !== -1) {
                 const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
                 if (thinkEnd !== -1) {
                   const closeBracket = textToDisplay.indexOf('>', thinkEnd);
                   if (closeBracket !== -1) {
                     assistantMsg.thinkingContent = textToDisplay.substring(thinkStart, closeBracket + 1);
-                    textToDisplay = textToDisplay.substring(closeBracket + 1); // Discard everything before!
+                    afterThink = textToDisplay.substring(closeBracket + 1);
                   } else {
                     assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
-                    textToDisplay = ''; // Discard everything before!
+                    afterThink = '';
                   }
                 } else {
                   assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
-                  textToDisplay = ''; // Discard everything before!
+                  afterThink = '';
                 }
               } else if (textToDisplay.trim().startsWith('<') && textToDisplay.length < 20) {
                 assistantMsg.thinkingContent = textToDisplay;
-                textToDisplay = '';
+                afterThink = '';
               }
               
-              const lowerText = textToDisplay.toLowerCase();
-              const jsonStart = lowerText.indexOf('```json');
-              if (jsonStart !== -1) {
-                // If there's a tool call, all other text is wiped
-                textToDisplay = '';
-              } else {
-                const backtickStart = textToDisplay.lastIndexOf('```');
-                if (backtickStart !== -1) {
-                  textToDisplay = textToDisplay.substring(0, backtickStart);
+              // Only push leaked text into thought bubble if there's actually a tool call!
+              const parsedCalls = parseToolCallsFromText(fullResponseText);
+              if (parsedCalls.length > 0) {
+                const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|\{/i);
+                if (toolMatch && toolMatch.index !== undefined) {
+                  const leaked = afterThink.substring(0, toolMatch.index).trim();
+                  if (leaked) {
+                    assistantMsg.thinkingContent += '\n\n' + leaked;
+                  }
+                  afterThink = afterThink.substring(toolMatch.index);
+                } else {
+                  // Fallback: Just put it all in
+                  const leaked = afterThink.trim();
+                  if (leaked) {
+                    assistantMsg.thinkingContent += '\n\n' + leaked;
+                  }
+                  afterThink = '';
                 }
               }
               
-              assistantMsg.content = textToDisplay.trim();
+              assistantMsg.content = afterThink.trim();
               assistantMsg.isStreaming = false;
               assistantMsg.durationMs = Date.now() - startTime;
               assistantMsg.tokensUsed = estimateTokens(fullText);
@@ -719,38 +753,6 @@ export class AgentLoop {
           }
         }
 
-        // ── Force thinking injection if AI didn't emit it ─────────────────
-        // If the AI made tool calls but didn't emit <thinking> tags, inject a synthetic
-        // thinking step to ensure the UI shows the reasoning process
-        const hasThinking = /<think(?:ing)?>/.test(fullResponseText);
-        const hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
-        
-        if (hasToolCalls && !hasThinking) {
-          // Inject a synthetic thinking block BEFORE parsing tool calls
-          // This ensures it appears in the correct order in the UI
-          const syntheticThinking = `<thinking>
-1. RECALL PREVIOUS ACTIONS: I have analyzed the context and am proceeding with my strategy.
-2. UNDERSTAND THE REQUEST: Processing the user's request.
-3. ANALYZE THE CONTEXT: Verifying state to avoid infinite loops and duplicate actions.
-4. PRIORITIZE TOOLS: I will prioritize specific tools over generic ones.
-5. EXECUTE: Calling targeted tools to gather information and make changes.
-</thinking>`;
-          
-          // Prepend to fullResponseText BEFORE parsing tool calls
-          fullResponseText = syntheticThinking + '\n\n' + fullResponseText;
-          
-          // Manually extract it to thinkingContent
-          assistantMsg.thinkingContent = syntheticThinking;
-          
-          // Re-parse tool calls with the thinking block included
-          const parsedCalls = parseToolCallsFromText(fullResponseText);
-          if (parsedCalls.length > 0) {
-            const deduplicatedCalls = deduplicateToolCalls(parsedCalls);
-            assistantMsg.toolCalls = deduplicatedCalls.map((pc) => createToolCall(pc.name, pc.arguments));
-            // Completely hide any conversational text leaked outside the <think> block if a tool call was made
-            assistantMsg.content = '';
-          }
-        }
 
         // ── Phase 1: Core Isolation Engine - Aggressive Text Stripping ────────
         // If this iteration contains tool calls, it is an intermediate step.
@@ -758,6 +760,7 @@ export class AgentLoop {
         // to prevent hallucinated code or unnecessary narration from leaking into the UI.
         // Since our streaming parser already separates <thinking> into thinkingContent,
         // we can simply clear the remaining conversational content!
+        const hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
         if (hasToolCalls) {
           assistantMsg.content = '';
         }
@@ -889,6 +892,9 @@ export class AgentLoop {
           
           for (const toolCall of allToolCalls) {
             if (!this.state.isRunning) break;
+
+            toolCall.status = 'running';
+            this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
 
             this.state.status = `Executing ${toolCall.name}...`;
             this.state.currentToolCall = toolCall;

@@ -124,9 +124,6 @@ export const MainContent = ({
       localStorage.setItem('quantix_active_chat_id', activeConversationId);
       if (messages.length > 0) {
         saveMessages(activeConversationId, messages);
-        // Also save in legacy format for sidebar compatibility
-        const legacyMsgs = messages.map(m => ({ role: m.role === 'tool' ? 'assistant' : m.role, content: m.content }));
-        localStorage.setItem(`quantix_messages_${activeConversationId}`, JSON.stringify(legacyMsgs));
       }
     } else {
       localStorage.removeItem('quantix_active_chat_id');
@@ -162,7 +159,11 @@ export const MainContent = ({
     const handleDeleteChat = (e: any) => {
       const { id, projPath } = e.detail;
       if (id === activeConversationId) {
-        const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+        let savedConvos: Record<string, any> = {};
+        try {
+          const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+          if (!Array.isArray(parsed)) savedConvos = parsed;
+        } catch (e) {}
         const projConvos = savedConvos[projPath] || [];
         const remaining = projConvos.filter((c: any) => c.id !== id);
 
@@ -341,7 +342,11 @@ export const MainContent = ({
 
     // Background title generation (preserved from original)
     if (isFirstMessage && convId) {
-      const savedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+      let savedConvos: any = {};
+      try {
+        const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+        if (!Array.isArray(parsed)) savedConvos = parsed;
+      } catch (e) {}
       const projPath = selectedProject ? selectedProject.path : 'default';
       const projConvos = savedConvos[projPath] || [];
       let cleanTitle = content.trim().split(/\s+/).slice(0, 5).join(' ');
@@ -375,7 +380,11 @@ export const MainContent = ({
             .replace(/^[\"']|[\"']$/g, '');
           if (finalTitle) {
             setChatTitle(finalTitle);
-            const updatedConvos = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+            let updatedConvos: any = {};
+            try {
+              const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+              if (!Array.isArray(parsed)) updatedConvos = parsed;
+            } catch (e) {}
             const currentProjConvos = updatedConvos[projPath] || [];
             const existing = currentProjConvos.find((c: any) => c.id === convId);
             if (existing) {
@@ -838,22 +847,6 @@ export const MainContent = ({
                     </AnimatePresence>
                   </div>
 
-                  {/* Architecture toggle */}
-                  <button
-                    onClick={() => {
-                      const updated = setAIConfig({ architecture: aiConfig.architecture === 'low' ? 'high' : 'low' }, selectedProject?.path);
-                      setAiConfigState(updated);
-                    }}
-                    title="Toggle between Low latency (ReAct) and High latency (Multi-Agent Supervisor) architecture"
-                    className={cn(
-                      "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
-                      aiConfig.architecture === 'high'
-                        ? "text-orange-300 bg-orange-500/15 border border-orange-500/30"
-                        : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
-                    )}
-                  >
-                    {aiConfig.architecture === 'high' ? 'High' : 'Low'}
-                  </button>
 
                   {/* Mode indicator */}
                   <div className="relative" ref={modeDropdownRef}>

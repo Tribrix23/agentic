@@ -10,7 +10,7 @@ import {
   chatMessageToAgenticMessage,
 } from './messageTypes';
 
-const CONVERSATIONS_KEY = 'quantix_conversations';
+const CONVERSATIONS_KEY = 'quantix_conversations_meta';
 const MESSAGES_KEY_PREFIX = 'quantix_messages_';
 
 // ── Conversation List ──────────────────────────────────────────────────────

@@ -24,7 +24,16 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
 
   const [conversations, setConversations] = useState<Record<string, { id: string, title: string }[]>>(() => {
     const saved = localStorage.getItem('quantix_conversations');
-    return saved ? JSON.parse(saved) : {};
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return {}; // Recover from corrupted array state
+        return parsed;
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
   });
 
   const [activeChatId, setActiveChatId] = useState<string | null>(() => {
@@ -44,7 +53,12 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
       }
       const savedConvos = localStorage.getItem('quantix_conversations');
       if (savedConvos) {
-        setConversations(JSON.parse(savedConvos));
+        try {
+          const parsed = JSON.parse(savedConvos);
+          if (!Array.isArray(parsed)) {
+            setConversations(parsed);
+          }
+        } catch (e) {}
       }
       const savedActiveChat = localStorage.getItem('quantix_active_chat_id');
       setActiveChatId(savedActiveChat);

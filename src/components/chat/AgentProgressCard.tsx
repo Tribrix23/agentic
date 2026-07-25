@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
-import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench } from 'lucide-react';
+import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
@@ -26,8 +26,16 @@ interface AgentProgressCardProps {
 }
 
 export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(step.status === 'running' || step.status === 'pending');
   
+  React.useEffect(() => {
+    if (step.status === 'running' || step.status === 'pending') {
+      setExpanded(true);
+    } else {
+      setExpanded(false);
+    }
+  }, [step.status]);
+
   if (step.type === 'tool' && step.toolCall && step.status === 'pending' && onApprove && onReject) {
     return <ToolApprovalCard toolCall={step.toolCall} onApprove={onApprove} onReject={onReject} />;
   }
@@ -57,37 +65,8 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
     
     if (step.toolCall) {
       const name = step.toolCall.name;
-      const args = step.toolCall.arguments || {};
-      
-      if (name.includes('read_file') || name.includes('view_file') || name.includes('list_dir')) {
-        const file = args.AbsolutePath || args.DirectoryPath || 'files';
-        const filename = typeof file === 'string' ? file.split(/[/\\]/).pop() : 'files';
-        return { icon: <FileCode size={14} />, text: `Reading ${filename}`, color: 'text-blue-400' };
-      }
-      if (name.includes('grep_search')) {
-        const query = args.Query || args.query || '...';
-        const shortQuery = typeof query === 'string' ? query.slice(0, 30) + (query.length > 30 ? '...' : '') : '...';
-        return { icon: <Search size={14} />, text: `Searching for "${shortQuery}"`, color: 'text-teal-400' };
-      }
-      if (name.includes('write_to_file') || name.includes('replace_file_content') || name.includes('multi_replace_file_content')) {
-        const file = args.TargetFile || args.AbsolutePath || 'file';
-        const filename = typeof file === 'string' ? file.split(/[/\\]/).pop() : 'file';
-        return { icon: <FileEdit size={14} />, text: `Editing ${filename}`, color: 'text-orange-400' };
-      }
-      if (name.includes('run_command')) {
-        const cmd = args.CommandLine || args.command || 'command';
-        const shortCmd = typeof cmd === 'string' ? cmd.slice(0, 20) + (cmd.length > 20 ? '...' : '') : 'command';
-        return { icon: <Terminal size={14} />, text: `Running ${shortCmd}`, color: 'text-green-400' };
-      }
-      if (name.includes('search_web') || name.includes('read_url')) {
-        const query = args.query || args.url || '...';
-        const shortQuery = typeof query === 'string' ? query.slice(0, 25) + (query.length > 25 ? '...' : '') : '...';
-        return { icon: <Globe size={14} />, text: `Web: ${shortQuery}`, color: 'text-indigo-400' };
-      }
-      if (name === 'ask_question') {
-        return { icon: <Brain size={14} />, text: 'Asking for clarification', color: 'text-purple-400' };
-      }
-      return { icon: <Wrench size={14} />, text: `Using ${name}`, color: 'text-gray-400' };
+      const actionWord = (step.status === 'running' || step.status === 'pending') ? 'Using' : 'Used';
+      return { icon: <SquareTerminal size={14} />, text: `${actionWord} ${name}`, color: 'text-gray-400' };
     }
     
     return { icon: <Wrench size={14} />, text: 'Working...', color: 'text-gray-400' };
@@ -106,7 +85,7 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
   };
 
   const isRunning = step.status === 'running';
-  const hasDetails = step.content || (step.toolCall && (Object.keys(step.toolCall.arguments).length > 0 || step.toolCall.result));
+  const hasDetails = step.content || (step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
 
   return (
     <div className="w-full font-sans text-sm">
@@ -153,23 +132,20 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
               )}
               
               {step.type === 'tool' && step.toolCall && (
-                <>
-                  <div>
-                    <div className="text-xs text-white/40 mb-1.5 uppercase tracking-wider font-semibold">Arguments</div>
-                    <CodeBlock 
-                      code={JSON.stringify(step.toolCall.arguments, null, 2)} 
-                      language="json" 
-                    />
+                <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden">
+                  <div className="p-3 border-b border-white/5 bg-white/[0.02]">
+                    <span className="text-white/40 mr-2">$</span>
+                    <span className="text-blue-400 font-medium">{step.toolCall.name}</span>
+                    <span className="text-white/60 ml-2 break-all">
+                      {JSON.stringify(step.toolCall.arguments)}
+                    </span>
                   </div>
                   {step.toolCall.result && (
-                    <div className="mt-3">
-                      <div className="text-xs text-white/40 mb-1.5 uppercase tracking-wider font-semibold">Result</div>
-                      <CodeBlock 
-                        code={step.toolCall.result.output} 
-                      />
+                    <div className="p-3 text-gray-300 overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                      {typeof step.toolCall.result.output === 'string' ? step.toolCall.result.output : JSON.stringify(step.toolCall.result.output, null, 2)}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           </motion.div>

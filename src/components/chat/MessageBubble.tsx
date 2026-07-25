@@ -29,6 +29,26 @@ export function MessageBubble({
   agentIteration,
   onStopAgent
 }: MessageBubbleProps) {
+  if (!messages || messages.length === 0) {
+    // If there are no messages (e.g. dummy group to keep Working accordion visible)
+    // we still want to render the bubble if it's working.
+    const isWorking = isLatest && agentState && !['idle', 'done', 'error', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
+    if (!isWorking) return null;
+    
+    return (
+      <div className="flex w-full justify-start">
+        <div className="max-w-[85%] flex gap-3 flex-row">
+          <div className="flex flex-col gap-2 min-w-0 max-w-full mt-2">
+            <AgentStepsGroup 
+              steps={[]}
+              isWorking={true}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (messages[0].role === 'system') {
     return (
       <div className="flex justify-center my-4">
@@ -94,22 +114,22 @@ export function MessageBubble({
       thinkingContent = sanitize(thinkingContent);
       displayContentLocal = sanitize(displayContentLocal);
 
-      if (thinkingContent) {
-        steps.push({
-          id: `plan_${msg.id}`,
-          type: 'thinking',
-          status: msg.isStreaming ? 'running' : 'completed',
-          content: thinkingContent
-        });
-      }
-      
+      let actualThinkingContent = thinkingContent;
+
       // ── Phase 2: Core Isolation Engine - Reactive Stream Wiping ───────────
       // If this message has tool calls, it is an intermediate step. 
       // We must DISCARD all conversational text outside the thinking block.
-      // During live streaming, if the AI hallucinates outside the block, this will
-      // retroactively wipe it from the screen the millisecond a tool call is detected.
       if (msg.toolCalls && msg.toolCalls.length > 0) {
         displayContentLocal = '';
+      }
+
+      if (actualThinkingContent) {
+        steps.push({
+          id: `think_${msg.id}`,
+          type: 'thinking',
+          status: msg.isStreaming ? 'running' : 'completed',
+          content: actualThinkingContent
+        });
       }
 
       if (displayContentLocal) {
@@ -150,13 +170,14 @@ export function MessageBubble({
         isUser ? "flex-row-reverse" : "flex-row"
       )}>
         <div className={cn(
-          "flex flex-col gap-2 relative group",
+          "flex flex-col gap-2 relative group/bubble",
           isUser ? "items-end" : "items-start"
         )}>
           {stepsToRender.length > 0 && (
             <AgentStepsGroup 
               steps={stepsToRender}
               isStreaming={lastMessage.isStreaming}
+              isWorking={isWorking}
               onApproveToolCall={onApproveToolCall}
               onRejectToolCall={onRejectToolCall}
             />
@@ -176,7 +197,7 @@ export function MessageBubble({
 
 
           <div className={cn(
-            "flex items-center gap-2 text-[10px] text-white/40 opacity-0 group-hover:opacity-100 transition-opacity absolute -bottom-6 whitespace-nowrap",
+            "flex items-center gap-2 text-[10px] text-white/40 opacity-0 group-hover/bubble:opacity-100 transition-opacity absolute -bottom-6 whitespace-nowrap",
             isUser ? "right-1" : "left-1"
           )}>
             <span>{new Date(firstMessage.timestamp).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}</span>

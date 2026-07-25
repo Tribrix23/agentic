@@ -209,7 +209,7 @@ export function buildContext(
   let historyTokens = 0;
 
   // Process from newest to oldest, keeping as many as fit
-  const nonSystemMessages = messages.filter((m) => m.role !== 'system');
+  const nonSystemMessages = messages.filter((m) => m.role !== 'system' && !m.isHidden);
 
   for (let i = nonSystemMessages.length - 1; i >= 0; i--) {
     const msg = nonSystemMessages[i];
@@ -249,7 +249,6 @@ export function buildContext(
       // Prepend a brief note so the AI knows this is history
       const historyNote = `[Actions taken in previous step - DO NOT REPEAT THESE]\n${toolCallDesc}`;
       chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + historyNote : historyNote;
-      delete chatMsg.tool_calls;
     }
 
     const msgTokens = estimateTokens(chatMsg.content) + 4;

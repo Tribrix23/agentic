@@ -20,6 +20,8 @@ export function CodeBlock({ code, language, filename, showLineNumbers = false }:
   };
 
   const renderCode = (text: string) => {
+    if (typeof text !== 'string') text = String(text || '');
+    
     // Very basic regex highlighter for standard stuff
     // This is a naive implementation per the prompt's request to avoid heavy libs
     let html = text
