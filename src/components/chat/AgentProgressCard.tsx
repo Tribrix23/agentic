@@ -25,6 +25,56 @@ interface AgentProgressCardProps {
   onReject?: (id: string) => void;
 }
 
+function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: string; argsStr: string } {
+  switch (name) {
+    case 'listDirectory':
+    case 'list_dir':
+      return { cmd: 'ls', argsStr: args.path || args.DirectoryPath || '.' };
+    case 'readFile':
+    case 'view_file':
+      return { cmd: 'cat', argsStr: args.path || args.AbsolutePath || '' };
+    case 'writeFile':
+    case 'createFile':
+      return { cmd: 'echo', argsStr: `... > ${args.path || args.TargetFile || ''}` };
+    case 'editFile':
+    case 'replace_file_content':
+    case 'multi_replace_file_content':
+      return { cmd: 'sed', argsStr: `-i ... ${args.path || args.TargetFile || ''}` };
+    case 'deleteFile':
+      return { cmd: 'rm', argsStr: args.path || '' };
+    case 'renameFile':
+      return { cmd: 'mv', argsStr: `${args.path || ''} ${args.newPath || ''}` };
+    case 'searchFiles':
+    case 'grep_search':
+      return { cmd: 'grep', argsStr: `-rn "${args.query || args.Query || ''}" ${args.path || args.SearchPath || '.'}` };
+    case 'runCommand':
+    case 'run_command': {
+      const fullCmd = args.command || args.CommandLine || 'sh';
+      const parts = fullCmd.split(' ');
+      return { cmd: parts[0], argsStr: parts.slice(1).join(' ') };
+    }
+    case 'webSearch':
+    case 'search_web':
+      return { cmd: 'search', argsStr: args.query || '' };
+    case 'readUrl':
+    case 'read_url':
+      return { cmd: 'curl', argsStr: args.url || args.Url || '' };
+    case 'gitStatus':
+      return { cmd: 'git', argsStr: 'status' };
+    case 'gitAdd':
+      return { cmd: 'git', argsStr: `add ${args.paths ? (Array.isArray(args.paths) ? args.paths.join(' ') : args.paths) : '.'}` };
+    case 'gitCommit':
+      return { cmd: 'git', argsStr: `commit -m "..."` };
+    case 'gitDiff':
+      return { cmd: 'git', argsStr: 'diff' };
+    case 'ask_question':
+    case 'askUser':
+      return { cmd: 'ask', argsStr: 'user' };
+    default:
+      return { cmd: name, argsStr: JSON.stringify(args) };
+  }
+}
+
 export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCardProps) {
   const [expanded, setExpanded] = useState(step.status === 'running' || step.status === 'pending');
   
@@ -64,9 +114,14 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
     }
     
     if (step.toolCall) {
-      const name = step.toolCall.name;
-      const actionWord = (step.status === 'running' || step.status === 'pending') ? 'Using' : 'Used';
-      return { icon: <SquareTerminal size={14} />, text: `${actionWord} ${name}`, color: 'text-gray-400' };
+      const args = step.toolCall.arguments || {};
+      const { cmd, argsStr } = getBashLikeCommand(step.toolCall.name, args);
+      const actionWord = (step.status === 'running' || step.status === 'pending') ? 'Running' : 'Ran';
+      
+      let displayStr = `${cmd} ${argsStr}`.trim();
+      if (displayStr.length > 50) displayStr = displayStr.slice(0, 47) + '...';
+
+      return { icon: <SquareTerminal size={14} />, text: `${actionWord} ${displayStr}`, color: 'text-gray-400' };
     }
     
     return { icon: <Wrench size={14} />, text: 'Working...', color: 'text-gray-400' };
@@ -135,9 +190,9 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
                 <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden">
                   <div className="p-3 border-b border-white/5 bg-white/[0.02]">
                     <span className="text-white/40 mr-2">$</span>
-                    <span className="text-blue-400 font-medium">{step.toolCall.name}</span>
+                    <span className="text-blue-400 font-medium">{getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).cmd}</span>
                     <span className="text-white/60 ml-2 break-all">
-                      {JSON.stringify(step.toolCall.arguments)}
+                      {getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).argsStr}
                     </span>
                   </div>
                   {step.toolCall.result && (
