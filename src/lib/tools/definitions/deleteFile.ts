@@ -20,7 +20,19 @@ export const definition: ToolDefinition = {
 export const handler: ToolHandler = async (args, context) => {
   try {
     const { path } = args;
-    const result = await (window as any).electron.deleteFile(path);
+    
+    // Path resolution
+    let targetPath = path;
+    const isAbsolute = path.startsWith('/') || /^[a-zA-Z]:[\\\/]/.test(path);
+    if (isAbsolute) {
+      targetPath = path.replace(/\\/g, '/');
+    } else {
+      const cleaned = path.replace(/^\.\//, '').replace(/^\//, '');
+      const root = (context.projectRoot || '').replace(/\\/g, '/').replace(/\/$/, '');
+      targetPath = `${root}/${cleaned}`;
+    }
+
+    const result = await (window as any).electron.deleteFile(targetPath);
     
     if (result.success) {
       return { 

@@ -23,21 +23,46 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
   const [selectedChoice, setSelectedChoice] = useState<ApprovalChoice>('allow_once');
   const [feedback, setFeedback] = useState('');
 
-  // Format arguments for display
+  // Format arguments for display as a sentence
   let argsDisplay = '';
   try {
+    let parsed: any = {};
     if (typeof toolCall.arguments === 'string') {
-      const parsed = JSON.parse(toolCall.arguments);
-      if (parsed.command) argsDisplay = parsed.command;
-      else argsDisplay = JSON.stringify(parsed, null, 2);
+      parsed = JSON.parse(toolCall.arguments);
     } else if (typeof toolCall.arguments === 'object') {
-      if (toolCall.arguments.command) argsDisplay = toolCall.arguments.command;
-      else argsDisplay = JSON.stringify(toolCall.arguments, null, 2);
+      parsed = toolCall.arguments;
+    }
+
+    const name = toolCall.name || '';
+    
+    if (name === 'renameFile' || name === 'rename_file') {
+      argsDisplay = `Rename ${parsed.path || parsed.source} to ${parsed.newPath || parsed.destination}.`;
+    } else if (name === 'deleteFile' || name === 'delete_file') {
+      argsDisplay = `Delete file at ${parsed.path || parsed.targetFile}.`;
+    } else if (name === 'runCommand' || name === 'run_command') {
+      argsDisplay = `Execute command: \`${parsed.command || parsed.commandLine}\`.`;
+    } else if (name === 'writeFile' || name === 'write_file' || name === 'write_to_file') {
+      argsDisplay = `Write content to file at ${parsed.targetFile || parsed.path}.`;
+    } else if (name === 'editFile' || name === 'edit_file' || name === 'replace_file_content' || name === 'multi_replace_file_content') {
+      argsDisplay = `Edit file at ${parsed.targetFile || parsed.path}.`;
+    } else if (parsed.command || parsed.commandLine) {
+      argsDisplay = `Execute command: \`${parsed.command || parsed.commandLine}\`.`;
     } else {
-      argsDisplay = String(toolCall.arguments || '');
+      // Fallback generic sentence
+      const keys = Object.keys(parsed);
+      if (keys.length > 0) {
+        const details = keys.map(k => {
+          let val = parsed[k];
+          if (typeof val === 'string' && val.length > 50) val = val.substring(0, 47) + '...';
+          return `${k} = ${JSON.stringify(val)}`;
+        }).join(', ');
+        argsDisplay = `Execute ${name} with ${details}.`;
+      } else {
+        argsDisplay = `Execute ${name} with no arguments.`;
+      }
     }
   } catch (e) {
-    argsDisplay = String(toolCall.arguments || '');
+    argsDisplay = `Execute ${toolCall.name || 'tool'} with raw arguments: ${toolCall.arguments}`;
   }
 
   const handleSubmit = () => {
