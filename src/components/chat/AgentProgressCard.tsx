@@ -147,6 +147,37 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   // Extract artifacts if any
   const artifacts = step.toolCall?.result?.artifacts || [];
 
+  // Compute diff stats from file-edit artifacts
+  const getDiffStats = (): { added: number; removed: number } | null => {
+    if (step.status !== 'completed' || !step.toolCall) return null;
+    const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'];
+    if (!editTools.includes(step.toolCall.name)) return null;
+    
+    const diffArtifact = artifacts.find((a: any) => a.type === 'diff' && a.diff);
+    if (diffArtifact?.diff) {
+      const lines = String(diffArtifact.diff).split('\n');
+      const added = lines.filter((l: string) => l.startsWith('+') && !l.startsWith('+++')).length;
+      const removed = lines.filter((l: string) => l.startsWith('-') && !l.startsWith('---')).length;
+      return { added, removed };
+    }
+    
+    // Fallback: try parsing the output text for diff info
+    const output = step.toolCall.result?.output || '';
+    const addMatch = String(output).match(/(\d+) insertion/);
+    const delMatch = String(output).match(/(\d+) deletion/);
+    if (addMatch || delMatch) {
+      return {
+        added: addMatch ? parseInt(addMatch[1]) : 0,
+        removed: delMatch ? parseInt(delMatch[1]) : 0,
+      };
+    }
+    
+    // Show +1 -1 as a minimum indicator when a file was edited
+    return { added: 1, removed: 1 };
+  };
+
+  const diffStats = getDiffStats();
+
   return (
     <div className="w-full font-sans text-sm">
       <div 
@@ -167,6 +198,12 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
           )}>
             {step.title || text}
           </span>
+          {diffStats && (
+            <span className="flex items-center gap-1 text-[11px] font-mono font-semibold">
+              <span className="text-emerald-400">+{diffStats.added}</span>
+              <span className="text-red-400">-{diffStats.removed}</span>
+            </span>
+          )}
         </div>
         
         <div className="flex items-center gap-3 relative z-10 text-white/40">

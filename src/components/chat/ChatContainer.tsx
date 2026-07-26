@@ -28,6 +28,7 @@ interface ChatContainerProps {
   onConfigChange?: (partial: Partial<AIConfig>) => void;
   pendingToolCall?: any;
   onToolDecision?: (approved: boolean, feedback?: string) => void;
+  onUndoToMessage?: (msgId: string) => void;
 }
 
 export function ChatContainer({
@@ -47,7 +48,8 @@ export function ChatContainer({
   onConfigChange,
   onArtifactClick,
   pendingToolCall,
-  onToolDecision
+  onToolDecision,
+  onUndoToMessage
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent text-white")}>
@@ -61,10 +63,11 @@ export function ChatContainer({
           agentIteration={agentIteration}
           onStopAgent={onStopAgent}
           onArtifactClick={onArtifactClick}
+          onUndoToMessage={onUndoToMessage}
         />
       </div>
       <div className="px-4 pb-4 bg-transparent w-full">
-        <div className="w-full max-w-[700px] mx-auto flex flex-col items-center">
+        <div className="w-full max-w-[900px] mx-auto flex flex-col items-center">
           {projectSelector}
           
           <div className="w-full flex flex-col items-center gap-2">

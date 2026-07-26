@@ -14,6 +14,7 @@ interface MessageThreadProps {
   agentIteration?: number;
   onStopAgent?: () => void;
   onArtifactClick?: (path: string) => void;
+  onUndoToMessage?: (msgId: string) => void;
 }
 
 export function MessageThread({ 
@@ -24,7 +25,8 @@ export function MessageThread({
   agentStatus,
   agentIteration,
   onStopAgent,
-  onArtifactClick
+  onArtifactClick,
+  onUndoToMessage
 }: MessageThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -72,21 +74,25 @@ export function MessageThread({
   }
 
   return (
-    <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
-      {displayGroups.map((group, idx) => (
-        <MessageBubble 
-          key={group.messages[0]?.id || `working-group-${idx}`} 
-          messages={group.messages} 
-          onApproveToolCall={onApproveToolCall}
-          onRejectToolCall={onRejectToolCall}
-          isLatest={idx === displayGroups.length - 1}
-          agentState={agentState}
-          agentStatus={agentStatus}
-          agentIteration={agentIteration}
-          onStopAgent={onStopAgent}
-          onArtifactClick={onArtifactClick}
-        />
-      ))}
+    <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
+      <div className="w-full max-w-[900px] mx-auto flex flex-col gap-6">
+        {displayGroups.map((group, idx) => (
+          <MessageBubble 
+            key={group.messages[0]?.id || `working-group-${idx}`} 
+            messages={group.messages} 
+            allMessages={messages}
+            onApproveToolCall={onApproveToolCall}
+            onRejectToolCall={onRejectToolCall}
+            isLatest={idx === displayGroups.length - 1}
+            agentState={agentState}
+            agentStatus={agentStatus}
+            agentIteration={agentIteration}
+            onStopAgent={onStopAgent}
+            onArtifactClick={onArtifactClick}
+            onUndoToMessage={onUndoToMessage}
+          />
+        ))}
+      </div>
     </div>
   );
 }

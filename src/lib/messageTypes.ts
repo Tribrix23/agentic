@@ -17,6 +17,7 @@ export interface Artifact {
   path?: string;
   content?: string;
   diff?: string;
+  original?: string;   // original file content before edit, used for undo
   language?: string;
   metadata?: any;
 }

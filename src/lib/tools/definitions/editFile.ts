@@ -43,6 +43,7 @@ export const handler: ToolHandler = async (args, context) => {
         artifacts: [{
           type: 'diff',
           path: targetPath,
+          original: content,       // Store original so undo can restore it
           diff: `--- ${targetPath}\n+++ ${targetPath}\n- ${search}\n+ ${replace}` // Simplified diff
         }]
       };

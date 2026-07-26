@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AgenticMessage } from '../../lib/messageTypes';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { Copy, Undo2 } from 'lucide-react';
 import { AgentProgressCard, AgentStep } from './AgentProgressCard';
-import { AgentState } from '../../lib/types/AgentTypes';
 import { AgentStepsGroup } from './AgentStepsGroup';
+import { UndoConfirmModal, UndoFileChange } from './UndoConfirmModal';
+import { getSnapshot, getSnapshotsFrom } from '../../lib/snapshotStore';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -18,6 +19,9 @@ interface MessageBubbleProps {
   agentIteration?: number;
   onStopAgent?: () => void;
   onArtifactClick?: (path: string) => void;
+  // All messages in the thread so undo can look at subsequent assistant messages
+  allMessages?: AgenticMessage[];
+  onUndoToMessage?: (msgId: string) => void;
 }
 
 export function MessageBubble({ 
@@ -29,8 +33,11 @@ export function MessageBubble({
   agentStatus,
   agentIteration,
   onStopAgent,
-  onArtifactClick
+  onArtifactClick,
+  allMessages,
+  onUndoToMessage
 }: MessageBubbleProps) {
+  const [showUndoModal, setShowUndoModal] = useState(false);
   if (!messages || messages.length === 0) {
     // If there are no messages (e.g. dummy group to keep Working accordion visible)
     // we still want to render the bubble if it's working.
@@ -166,13 +173,13 @@ export function MessageBubble({
   }
 
   return (
-    <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
+    <div className={cn("flex w-full", isUser ? "justify-center" : "justify-start")}>
       <div className={cn(
-        "max-w-[85%] flex gap-3",
+        "flex gap-3 w-full",
         isUser ? "flex-row-reverse" : "flex-row"
       )}>
         <div className={cn(
-          "flex flex-col gap-2 relative group/bubble",
+          "flex flex-col gap-2 relative group/bubble w-full",
           isUser ? "items-end" : "items-start"
         )}>
           {stepsToRender.length > 0 && (
@@ -190,7 +197,7 @@ export function MessageBubble({
             <div className={cn(
               "px-4 py-3 rounded-2xl",
               isUser 
-                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm" 
+                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full" 
                 : "text-white/90 mt-1"
             )}>
               <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} onArtifactClick={onArtifactClick} />
@@ -209,7 +216,11 @@ export function MessageBubble({
                 <button onClick={() => navigator.clipboard.writeText(firstMessage.content || '')} className="hover:text-white transition-colors" title="Copy">
                   <Copy size={11} />
                 </button>
-                <button className="hover:text-white transition-colors" title="Undo changes up to this point">
+                <button
+                  onClick={() => setShowUndoModal(true)}
+                  className="hover:text-white transition-colors"
+                  title="Undo changes up to this point"
+                >
                   <Undo2 size={12} />
                 </button>
               </>
@@ -217,6 +228,37 @@ export function MessageBubble({
           </div>
         </div>
       </div>
+
+      {/* Undo Confirmation Modal */}
+      {isUser && (() => {
+        // Pull file changes from the persistent snapshot store for this and all subsequent turns
+        let fileChanges: UndoFileChange[] = [];
+        const initialSnapshot = getSnapshot(firstMessage.id);
+        if (initialSnapshot?.conversationId) {
+          const snapshots = getSnapshotsFrom(initialSnapshot.conversationId, firstMessage.id);
+          snapshots.forEach(s => {
+            s.files.forEach(f => {
+              if (!fileChanges.find(c => c.path === f.path)) {
+                fileChanges.push({ path: f.path, added: 1, removed: 1 });
+              }
+            });
+          });
+        }
+
+        return (
+          <UndoConfirmModal
+            isOpen={showUndoModal}
+            changes={fileChanges}
+            onCancel={() => setShowUndoModal(false)}
+            onConfirm={async () => {
+              setShowUndoModal(false);
+              // Delegate everything (file restore + UI reset) to parent
+              onUndoToMessage?.(firstMessage.id);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
+

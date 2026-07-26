@@ -74,11 +74,11 @@ export const RightSidebar = ({
   return (
     <div className={cn(
       "h-full bg-[#0f0f13] border-white/5 flex flex-col flex-shrink-0 z-10 transition-all duration-300 ease-in-out overflow-hidden font-mono text-sm",
-      isOpen ? "w-[380px] border-l" : "w-0 border-l-0"
+      isOpen ? "w-[480px] border-l" : "w-0 border-l-0"
     )}>
-      <div className="w-[380px] h-full flex flex-col">
+      <div className="w-[480px] h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5 shrink-0">
+        <div className="flex items-center justify-between px-4 pt-14 pb-4 border-b border-white/5 shrink-0">
           <div className="flex space-x-6">
             <button 
               onClick={() => setActiveTab('activity')}
@@ -102,9 +102,6 @@ export const RightSidebar = ({
               <span>Context</span>
             </button>
           </div>
-          <button onClick={toggle} className="text-white/40 hover:text-white p-1 rounded-md hover:bg-white/5 transition-colors">
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* Content */}

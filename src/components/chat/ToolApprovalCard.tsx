@@ -78,7 +78,7 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
   const toolName = toolCall.name || 'tool';
 
   return (
-    <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
+    <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[900px]">
       <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-4 flex flex-col shadow-2xl pointer-events-auto">
         {/* Header */}
         <div className="flex items-center gap-2 text-[#e2e2e3] font-semibold text-[14px] mb-3">

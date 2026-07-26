@@ -25,6 +25,8 @@ import { executeTool, clearToolCache } from '../lib/tools/executor';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
 import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
+import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
+import { setCurrentUserMessageId } from '../lib/tools/executor';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
@@ -453,6 +455,18 @@ export const MainContent = ({
     setAgentIteration(0);
     clearToolCache(); // Reset duplicate-call cache for this new run
 
+    // ── Snapshot: register this turn so the executor can capture files pre-edit
+    if (convId) {
+      saveSnapshot({
+        userMessageId: userMsg.id,
+        conversationId: convId,
+        timestamp: Date.now(),
+        projectPath: selectedProject?.path || '',
+        files: [],   // files are populated lazily by executor.ts before each write
+      });
+      setCurrentUserMessageId(userMsg.id);
+    }
+
     // Background title generation (preserved from original)
     if (isFirstMessage && convId) {
       let savedConvos: any = {};
@@ -878,6 +892,72 @@ export const MainContent = ({
                 onArtifactClick={(path: string) => setActiveArtifact(path)}
                 pendingToolCall={pendingToolCall}
                 onToolDecision={handleToolDecision}
+                onUndoToMessage={async (msgId: string) => {
+                  // ── 1. Find the user message
+                  const idx = messages.findIndex(m => m.id === msgId);
+                  if (idx === -1) return;
+                  const userMsg = messages[idx];
+                  const convId = activeConversationId;
+
+                  // ── 2. Restore files from snapshot log
+                  // We need to restore all snapshots from this message onward, in reverse order.
+                  if (convId) {
+                    const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
+                    for (const snapshot of snapshotsToUndo) {
+                      for (const file of snapshot.files) {
+                        try {
+                          await (window as any).electron?.saveFileContent(file.path, file.content);
+                        } catch (e) {
+                          console.error('[undo] Failed to restore file:', file.path, e);
+                        }
+                      }
+                    }
+                  }
+
+                  // ── 3. Delete snapshots from this turn onward
+                  if (convId) {
+                    deleteSnapshotsFrom(convId, msgId);
+                  }
+
+                  // ── 4. Update messages - use functional update to ensure we have latest state
+                  setMessages(prevMessages => {
+                    const currentIdx = prevMessages.findIndex(m => m.id === msgId);
+                    if (currentIdx === -1) return prevMessages;
+                    
+                    const currentUserMsg = prevMessages[currentIdx];
+                    
+                    // Restore user text to input
+                    setInputValue(currentUserMsg.content || '');
+                    
+                    if (currentIdx === 0) {
+                      // ── 4a. Undoing the first message -> delete the entire conversation
+                      if (convId && selectedProject?.path) {
+                        const projPath = selectedProject.path;
+                        localStorage.removeItem(`quantix_messages_${convId}`);
+                        let savedConvos: any = {};
+                        try {
+                          const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+                          if (!Array.isArray(parsed)) savedConvos = parsed;
+                        } catch {}
+                        if (savedConvos[projPath]) {
+                          savedConvos[projPath] = savedConvos[projPath].filter((c: any) => c.id !== convId);
+                          localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+                        }
+                        window.dispatchEvent(new Event('conversationsUpdated'));
+                      }
+                      setActiveConversationId(null);
+                      setChatTitle(null);
+                      return [];
+                    } else {
+                      // ── 4b. Undoing a subsequent message -> trim the messages array to remove this user message and all subsequent messages
+                      const newMessages = prevMessages.slice(0, currentIdx);
+                      if (convId) {
+                        saveMessages(convId, newMessages);
+                      }
+                      return newMessages;
+                    }
+                  });
+                }}
               />
             </div>
             <AnimatePresence>

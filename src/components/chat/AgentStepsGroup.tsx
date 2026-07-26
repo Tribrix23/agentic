@@ -75,7 +75,7 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
   }
 
   return (
-    <div className="w-full max-w-2xl mt-2 mb-2 font-sans text-sm">
+    <div className="w-full mt-2 mb-2 font-sans text-sm">
       {!isRunning ? (
         <>
           <div
@@ -116,7 +116,7 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
             />
           ))}
           {/* Append Working... if needed */}
-          {isWorking && !steps.some(s => s.status === 'running') && !isStreaming && (
+          {isWorking && (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2 py-1.5 px-2 rounded-md text-white/60">
                 <div className="w-4 h-4 flex items-center justify-center">

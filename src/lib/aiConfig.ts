@@ -62,7 +62,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   temperature: 0.2, // Lower temperature for better instruction following
   topP: 0.9,
   topK: 40,
-  maxTokens: 2048,
+  maxTokens: 32768,
   frequencyPenalty: 0,
   presencePenalty: 0,
 

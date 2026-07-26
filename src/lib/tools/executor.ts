@@ -1,6 +1,7 @@
 import { ToolCall, ToolResult, ToolContext } from './types';
 import { getTool } from './registry';
 import { checkPermission, PermissionConfig } from '../permissions';
+import { addFileToSnapshot } from '../snapshotStore';
 
 // ── Deduplication store ────────────────────────────────────────────────────
 // Tracks tool signatures executed this session. Resets when a write operation
@@ -17,6 +18,12 @@ const WRITE_TOOLS = new Set([
 /** Call at the start of each new agent run */
 export function clearToolCache(): void {
   executedSignatures.clear();
+}
+
+/** The current user message ID — set by MainContent before each agent run */
+export let currentUserMessageId: string = '';
+export function setCurrentUserMessageId(id: string): void {
+  currentUserMessageId = id;
 }
 
 export async function executeTool(toolCall: ToolCall, context: ToolContext, permissionConfig: PermissionConfig): Promise<ToolResult> {
@@ -64,6 +71,24 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   context.signal.addEventListener('abort', onContextAbort);
 
   try {
+    // ── Snapshot: capture file content BEFORE any write ───────────────────
+    const FILE_WRITE_TOOLS = new Set(['writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content']);
+    if (FILE_WRITE_TOOLS.has(toolCall.name) && currentUserMessageId) {
+      let filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
+      if (filePath) {
+        // Resolve to absolute path if relative
+        if (!filePath.startsWith('/') && !/^[a-zA-Z]:(\\|\/)/.test(filePath) && context.projectRoot) {
+          filePath = `${context.projectRoot}/${filePath}`.replace(/\/+/g, '/');
+        }
+        try {
+          const existing = await (window as any).electron?.readFileContent(filePath);
+          if (existing !== undefined && existing !== null) {
+            addFileToSnapshot(currentUserMessageId, { path: filePath, content: existing });
+          }
+        } catch { /* file may not exist yet (createFile case) — that's fine */ }
+      }
+    }
+
     const combinedContext = { ...context, signal: controller.signal };
     const result = await tool.handler(toolCall.arguments, combinedContext);
     if (result) {
