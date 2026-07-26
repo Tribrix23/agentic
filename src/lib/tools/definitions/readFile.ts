@@ -19,19 +19,7 @@ export const definition: ToolDefinition = {
   icon: 'FileText'
 };
 
-/** Strip HTML tags and decode common HTML entities from syntax-highlighted content */
-function stripHtml(html: string): string {
-  return html
-    // Remove all HTML tags
-    .replace(/<[^>]+>/g, '')
-    // Decode common HTML entities
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-}
+
 
 export const handler: ToolHandler = async (args, context) => {
   try {
@@ -54,8 +42,8 @@ export const handler: ToolHandler = async (args, context) => {
 
     const raw = await (window as any).electron.readFileContent(targetPath);
 
-    // Strip HTML tags if the IPC returned syntax-highlighted content
-    const content = typeof raw === 'string' && raw.includes('<') ? stripHtml(raw) : (raw ?? '');
+    // Keep raw content verbatim, do not strip HTML tags
+    const content = typeof raw === 'string' ? raw : (raw ?? '');
 
     if (!content.trim()) {
       return { success: true, output: '(File is empty)' };

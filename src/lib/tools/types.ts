@@ -5,7 +5,7 @@ export type { ToolCall, ToolResult, Artifact };
 export interface ToolDefinition {
   name: string;
   description: string;
-  category: 'filesystem' | 'terminal' | 'git' | 'search' | 'browser' | 'user';
+  category: 'filesystem' | 'terminal' | 'git' | 'search' | 'browser' | 'user' | 'system';
   parameters: Record<string, any>;
   requiresApproval: boolean;
   dangerLevel: 'safe' | 'moderate' | 'dangerous';
@@ -16,6 +16,7 @@ export interface ToolDefinition {
 export interface ToolContext {
   projectRoot: string;
   signal: AbortSignal;
+  conversationId?: string;
 }
 
 export type ToolHandler = (args: Record<string, any>, context: ToolContext) => Promise<ToolResult>;

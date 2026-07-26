@@ -17,6 +17,7 @@ interface MessageBubbleProps {
   agentStatus?: string;
   agentIteration?: number;
   onStopAgent?: () => void;
+  onArtifactClick?: (path: string) => void;
 }
 
 export function MessageBubble({ 
@@ -27,7 +28,8 @@ export function MessageBubble({
   agentState,
   agentStatus,
   agentIteration,
-  onStopAgent
+  onStopAgent,
+  onArtifactClick
 }: MessageBubbleProps) {
   if (!messages || messages.length === 0) {
     // If there are no messages (e.g. dummy group to keep Working accordion visible)
@@ -105,7 +107,7 @@ export function MessageBubble({
         .replace(/<past_action[\s\S]*?(?:<\/past_action>|$)/gi, '')
         .replace(/<past_tool_result[\s\S]*?(?:<\/past_tool_result>|$)/gi, '')
         .replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call)>/gi, '')
-        .replace(/\{[\s\S]*?"tool_call"[\s\S]*?\}/gi, '')
+        .replace(/```(?:json)?\s*\{[\s\S]*?"tool_call"[\s\S]*?\}\s*```/gi, '')
         .replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '')
         .replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, '')
         .replace(/<\/?think(?:ing)?>/gi, '')
@@ -180,6 +182,7 @@ export function MessageBubble({
               isWorking={isWorking}
               onApproveToolCall={onApproveToolCall}
               onRejectToolCall={onRejectToolCall}
+              onArtifactClick={onArtifactClick}
             />
           )}
 
@@ -190,7 +193,7 @@ export function MessageBubble({
                 ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm" 
                 : "text-white/90 mt-1"
             )}>
-              <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} />
+              <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} onArtifactClick={onArtifactClick} />
             </div>
           ) : null}
 

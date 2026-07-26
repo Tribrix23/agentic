@@ -13,11 +13,12 @@ export interface FileAttachment {
 
 /** Artifact produced by a tool call (file change, diff, terminal output) */
 export interface Artifact {
-  type: 'file_change' | 'file_create' | 'file_delete' | 'terminal_output' | 'diff';
+  type: 'file_change' | 'file_create' | 'file_delete' | 'terminal_output' | 'diff' | 'artifact_created';
   path?: string;
   content?: string;
   diff?: string;
   language?: string;
+  metadata?: any;
 }
 
 /** Result of a tool execution */

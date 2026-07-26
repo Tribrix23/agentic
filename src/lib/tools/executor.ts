@@ -54,22 +54,7 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   // (via the tool-approval-needed event). The executor does NOT show its own
   // approval UI — that caused duplicate approval cards.
   // Only dangerLevel:'dangerous' tools with explicit requiresApproval flag use this path.
-  if (tool.definition.requiresApproval && permission !== 'allow') {
-    const approved = await new Promise<boolean>((resolve) => {
-      const handleResponse = (e: any) => {
-        if (e.detail.id === toolCall.id) {
-          window.removeEventListener('tool-approval-response', handleResponse);
-          resolve(e.detail.approved);
-        }
-      };
-      window.addEventListener('tool-approval-response', handleResponse);
-      window.dispatchEvent(new CustomEvent('tool-approval-request', { detail: { toolCall } }));
-    });
 
-    if (!approved) {
-      return { success: false, output: `User rejected tool execution: ${toolCall.name}` };
-    }
-  }
 
   const startTime = Date.now();
   

@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import started from 'electron-squirrel-startup';
+import { TaskManager } from './lib/TaskManager';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -82,6 +83,13 @@ if (!gotTheLock) {
       } catch (e) {}
     }
   });
+
+  // Wire background task completion to frontend
+  TaskManager.getInstance().onTaskComplete = (taskId, status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('background-task-complete', { taskId, status });
+    }
+  };
 }
 
 function handleAuthDeepLink(url: string) {
@@ -268,9 +276,13 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('save-file-content', async (_event, filePath: string, content: string) => {
+  ipcMain.handle('save-file-content', async (_event, filePath: string, content: string, options?: { createDirs?: boolean }) => {
     const fs = require('fs');
+    const path = require('path');
     try {
+      if (options?.createDirs) {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      }
       fs.writeFileSync(filePath, content, 'utf8');
       return { success: true };
     } catch (e: any) {
@@ -554,6 +566,41 @@ function createWindow() {
         });
       });
     });
+  });
+
+  // ── Async Task Manager IPC Handlers ──────────────────────────────────────
+  ipcMain.handle('task-spawn', (_event, command: string, cwd: string) => {
+    try {
+      const taskId = TaskManager.getInstance().spawnTask(command, cwd || process.cwd());
+      return { success: true, taskId };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('task-status', (_event, taskId: string, maxBytes: number) => {
+    try {
+      const status = TaskManager.getInstance().getTaskStatus(taskId);
+      if (!status) return { success: false, error: 'Task not found' };
+      const output = TaskManager.getInstance().getTaskOutput(taskId, maxBytes);
+      return { success: true, status, output };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('task-kill', (_event, taskId: string) => {
+    const success = TaskManager.getInstance().killTask(taskId);
+    return { success };
+  });
+
+  ipcMain.handle('task-send-input', (_event, taskId: string, input: string) => {
+    const success = TaskManager.getInstance().sendInput(taskId, input);
+    return { success };
+  });
+
+  ipcMain.handle('task-list', (_event) => {
+    return TaskManager.getInstance().listTasks();
   });
 
   ipcMain.handle('git-diff', async (_event, cwd: string, file?: string) => {

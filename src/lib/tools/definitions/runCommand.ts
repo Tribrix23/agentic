@@ -2,71 +2,59 @@ import { ToolDefinition, ToolHandler, ToolResult } from '../types';
 
 export const definition: ToolDefinition = {
   name: 'runCommand',
-  description: 'Run a shell command in the terminal.',
+  description: 'Run a shell command asynchronously. Returns a Task ID immediately. Use manageTask or commandStatus to interact with or check on it.',
   category: 'terminal',
   parameters: {
     type: 'object',
     properties: {
       command: { type: 'string', description: 'The shell command to run' },
-      cwd: { type: 'string', description: 'Optional working directory' }
+      cwd: { type: 'string', description: 'Optional working directory' },
+      waitMsBeforeAsync: { type: 'number', description: 'Optional: milliseconds to wait to see if it finishes quickly before returning the taskId (default 500ms).' }
     },
     required: ['command']
   },
-  requiresApproval: false, // In practice, depends on config
+  requiresApproval: false,
   dangerLevel: 'dangerous',
-  timeout: 60000,
+  timeout: 30000,
   icon: 'Terminal'
 };
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { command, cwd } = args;
+    const { command, cwd, waitMsBeforeAsync = 500 } = args;
     
-    return await new Promise<ToolResult>((resolve) => {
-      // Simulate by dispatching custom event and waiting for result
-      // This bridges to a higher level component that manages the terminal IPC
-      const eventId = Math.random().toString(36).substring(7);
-      
-      const handleResult = (e: any) => {
-        if (e.detail.id === eventId) {
-          window.removeEventListener('agent-command-result', handleResult);
-          
-          if (e.detail.success) {
-            resolve({ 
-              success: true, 
-              output: e.detail.output || 'Command executed successfully',
-              artifacts: [{
-                type: 'terminal_output',
-                content: e.detail.output
-              }]
-            });
-          } else {
-            resolve({ success: false, output: `Command failed: ${e.detail.error || e.detail.output}` });
-          }
-        }
-      };
-      
-      window.addEventListener('agent-command-result', handleResult);
-      
-      let targetCwd = context.projectRoot;
-      if (cwd && cwd !== '.') {
-        targetCwd = cwd.startsWith('/') || /^[a-zA-Z]:\\/.test(cwd) 
-          ? cwd 
-          : `${context.projectRoot}/${cwd}`.replace(/\/+/g, '/');
-      }
+    let targetCwd = context.projectRoot;
+    if (cwd && cwd !== '.') {
+      targetCwd = cwd.startsWith('/') || /^[a-zA-Z]:\\/.test(cwd) 
+        ? cwd 
+        : `${context.projectRoot}/${cwd}`.replace(/\/+/g, '/');
+    }
 
-      // Tell UI to run it
-      window.dispatchEvent(new CustomEvent('agent-run-command', { 
-        detail: { id: eventId, command, cwd: targetCwd } 
-      }));
-      
-      // Cleanup on abort
-      context.signal.addEventListener('abort', () => {
-        window.removeEventListener('agent-command-result', handleResult);
-        resolve({ success: false, output: 'Command execution aborted' });
-      });
-    });
+    // Call the Electron backend to spawn the task
+    const res = await (window as any).electron.taskSpawn(command, targetCwd);
+    if (!res.success) {
+      return { success: false, output: `Failed to spawn task: ${res.error}` };
+    }
+
+    const taskId = res.taskId;
+
+    // Optional wait to see if it completes synchronously (for quick commands like 'ls' or 'echo')
+    if (waitMsBeforeAsync > 0) {
+      await new Promise(resolve => setTimeout(resolve, waitMsBeforeAsync));
+      const statusRes = await (window as any).electron.taskStatus(taskId, 50000);
+      if (statusRes.success && (statusRes.status.status === 'done' || statusRes.status.status === 'error')) {
+        return {
+          success: statusRes.status.status === 'done',
+          output: statusRes.output || '(No output)'
+        };
+      }
+    }
+
+    return { 
+      success: true, 
+      output: `Command spawned in background. Task ID: ${taskId}.\nThe command is still running. Use the manageTask or commandStatus tools to check output or kill it later.` 
+    };
   } catch (error: any) {
-    return { success: false, output: `Failed to run command: ${error.message || String(error)}` };
+    return { success: false, output: `Error dispatching command: ${error.message || String(error)}` };
   }
 };

@@ -8,6 +8,7 @@ interface AgentStepsGroupProps {
   isWorking?: boolean;
   onApproveToolCall?: (id: string) => void;
   onRejectToolCall?: (id: string) => void;
+  onArtifactClick?: (path: string) => void;
 }
 
 function AccordionIcon({ isExpanded, icon: Icon, colorClass = "text-white" }: { isExpanded: boolean, icon: React.ElementType, colorClass?: string }) {
@@ -23,7 +24,7 @@ function AccordionIcon({ isExpanded, icon: Icon, colorClass = "text-white" }: { 
   );
 }
 
-export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCall, onRejectToolCall }: AgentStepsGroupProps) {
+export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCall, onRejectToolCall, onArtifactClick }: AgentStepsGroupProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   const isRunning = isWorking || steps.some(s => s.status === 'running') || isStreaming;
@@ -95,6 +96,7 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
                   isLastSegment={segIdx === segments.length - 1}
                   onApproveToolCall={onApproveToolCall}
                   onRejectToolCall={onRejectToolCall}
+                  onArtifactClick={onArtifactClick}
                 />
               ))}
             </div>
@@ -139,6 +141,7 @@ interface IterationBlockProps {
   isLastSegment: boolean;
   onApproveToolCall?: (id: string) => void;
   onRejectToolCall?: (id: string) => void;
+  onArtifactClick?: (path: string) => void;
 }
 
 function IterationBlock({ 
@@ -147,7 +150,8 @@ function IterationBlock({
   isStreaming, 
   isLastSegment,
   onApproveToolCall, 
-  onRejectToolCall 
+  onRejectToolCall,
+  onArtifactClick 
 }: IterationBlockProps) {
   const isThinkingRunning = thinkingStep.status === 'running';
   const hasTools = toolSteps.length > 0;
@@ -196,6 +200,7 @@ function IterationBlock({
               step={toolSteps[0]}
               onApprove={onApproveToolCall}
               onReject={onRejectToolCall}
+              onArtifactClick={onArtifactClick}
             />
           </div>
         ) : (
@@ -206,6 +211,7 @@ function IterationBlock({
             onToggle={() => setToolsExpanded(!toolsExpanded)}
             onApproveToolCall={onApproveToolCall}
             onRejectToolCall={onRejectToolCall}
+            onArtifactClick={onArtifactClick}
           />
         )
       )}
@@ -222,9 +228,10 @@ interface ToolGroupBlockProps {
   onToggle: () => void;
   onApproveToolCall?: (id: string) => void;
   onRejectToolCall?: (id: string) => void;
+  onArtifactClick?: (path: string) => void;
 }
 
-function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolCall, onRejectToolCall }: ToolGroupBlockProps) {
+function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolCall, onRejectToolCall, onArtifactClick }: ToolGroupBlockProps) {
   const isRunning = steps.some(s => s.status === 'running') || isStreaming;
   const count = steps.length;
   const label = isRunning ? 'Tool call...' : `Ran ${count} tools`;
@@ -247,6 +254,7 @@ function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolC
               step={step}
               onApprove={onApproveToolCall}
               onReject={onRejectToolCall}
+              onArtifactClick={onArtifactClick}
             />
           ))}
         </div>

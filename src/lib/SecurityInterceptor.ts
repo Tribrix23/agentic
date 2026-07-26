@@ -10,10 +10,8 @@ export class SecurityInterceptor {
    * before execution can proceed.
    */
   static requiresApproval(toolCall: ToolCall): boolean {
-    // Auto accept all requests except deletion as per user request
-    if (toolCall.name === 'deleteFile') {
-      return true;
-    }
+    const dangerousTools = ['deleteFile', 'renameFile', 'runCommand', 'editFile', 'writeFile'];
+    return dangerousTools.includes(toolCall.name);
     return false;
   }
 }

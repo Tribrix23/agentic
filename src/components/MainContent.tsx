@@ -28,6 +28,9 @@ import { AgentState } from '../lib/types/AgentTypes';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
+import { ArtifactViewer } from './chat/ArtifactViewer';
+import { ToolApprovalCard } from './chat/ToolApprovalCard';
+import { FileContextBadge } from './chat/FileContextBadge';
 
 interface ProjectFolder {
   path: string;
@@ -83,6 +86,7 @@ export const MainContent = ({
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
   const [aiConfig, setAiConfigState] = useState<AIConfig>(() => getAIConfig(selectedProject?.path));
+  const [activeArtifact, setActiveArtifact] = useState<string | null>(null);
 
   const agentLoopRef = useRef<AgentLoop | null>(null);
   const isStreamingRef = useRef(false);
@@ -191,12 +195,115 @@ export const MainContent = ({
     window.addEventListener('load-conversation', handleLoadChat);
     window.addEventListener('delete-conversation', handleDeleteChat);
     window.addEventListener('new-conversation', handleNewChat);
+
+    let removeBackgroundTaskListener: any = null;
+    if ((window as any).electron?.onBackgroundTaskComplete) {
+      (window as any).electron.onBackgroundTaskComplete((data: { taskId: string; status: any }) => {
+        // Emit an event to wake up the agent loop
+        window.dispatchEvent(new CustomEvent('background-task-complete', { detail: data }));
+      });
+    }
+
+    const handleBackgroundTaskComplete = async (e: any) => {
+      const { taskId, status } = e.detail;
+      
+      if (!isAgentRunning && aiConfig.agentMode && activeConversationId) {
+        // Build the system message
+        const taskMsg = createUserMessage(`[SYSTEM]: Background task ${taskId} completed with status ${status.status}.\nWait to see if there is any output from manageTask or commandStatus.`);
+        
+        setMessages(prev => {
+          const newMsgs = [...prev, taskMsg];
+          
+          // Re-run agent loop
+          if (agentLoopRef.current) {
+            setIsAgentRunning(true);
+            isStreamingRef.current = true;
+            agentLoopRef.current.run(newMsgs.map(m => ({
+              ...m,
+              role: m.role as any,
+            }))).catch(err => console.error('Agent loop failed:', err));
+          }
+          return newMsgs;
+        });
+      }
+    };
+
+    const handleSpawnSubagent = async (e: any) => {
+      const { conversationId, role, task, projectRoot } = e.detail;
+      
+      const subagentLoop = createAgentLoop((event) => {
+        if (event.type === 'agent:message-added' && event.data.role === 'assistant' && !event.data.toolCalls) {
+          // Send message back to main thread
+          const taskMsg = createUserMessage(`[Subagent ${role} (${conversationId})]: ${event.data.content}`);
+          setMessages(prev => {
+            const newMsgs = [...prev, taskMsg];
+            // Wake up main agent if idle
+            if (!isAgentRunning && aiConfig.agentMode && activeConversationId && agentLoopRef.current) {
+              setIsAgentRunning(true);
+              isStreamingRef.current = true;
+              agentLoopRef.current.run(newMsgs.map(m => ({
+                ...m,
+                role: m.role as any,
+              }))).catch(err => console.error('Agent loop failed:', err));
+            }
+            return newMsgs;
+          });
+        }
+      }, {
+        projectId: projectRoot,
+        projectContext: undefined, // Subagents share same root but let's keep it simple
+        toolDefinitions: getToolsForLLM(),
+        toolExecutor: toolExecutor
+      });
+      
+      subagentLoop.updateConfig(aiConfig);
+      
+      // Store it (you could add a ref for this: subagentsRef.current.set(conversationId, subagentLoop))
+      // For now we just run it directly.
+      try {
+        const initialMessages = [
+          createUserMessage(`You are a subagent with the role: ${role}. Your task is: ${task}. Use tools to accomplish this and respond when done.`)
+        ];
+        // Ensure standard roles
+        const formatted = initialMessages.map(m => ({ ...m, role: m.role as any }));
+        subagentLoop.run(formatted).catch(e => console.error('Subagent failed', e));
+      } catch(e) {
+        console.error('Failed to run subagent', e);
+      }
+    };
+
+    const handleSendSubagentMessage = (e: any) => {
+       // Ideally we would look up the subagent and call run() again.
+       // For this MVP true-mirror implementation, we just mock the received event
+       // since full subagent message routing requires a more complex UI state.
+       const { conversationId, message } = e.detail;
+       setTimeout(() => {
+          const taskMsg = createUserMessage(`[Subagent (${conversationId})]: Received your message: "${message}". I am processing it.`);
+          setMessages(prev => {
+            const newMsgs = [...prev, taskMsg];
+            if (!isAgentRunning && aiConfig.agentMode && activeConversationId && agentLoopRef.current) {
+              setIsAgentRunning(true);
+              isStreamingRef.current = true;
+              agentLoopRef.current.run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
+            }
+            return newMsgs;
+          });
+       }, 1000);
+    };
+
+    window.addEventListener('background-task-complete', handleBackgroundTaskComplete);
+    window.addEventListener('spawn-subagent', handleSpawnSubagent);
+    window.addEventListener('send-subagent-message', handleSendSubagentMessage);
+
     return () => {
       window.removeEventListener('load-conversation', handleLoadChat);
       window.removeEventListener('delete-conversation', handleDeleteChat);
       window.removeEventListener('new-conversation', handleNewChat);
+      window.removeEventListener('background-task-complete', handleBackgroundTaskComplete);
+      window.removeEventListener('spawn-subagent', handleSpawnSubagent);
+      window.removeEventListener('send-subagent-message', handleSendSubagentMessage);
     };
-  }, [activeConversationId]);
+  }, [activeConversationId, isAgentRunning, aiConfig]);
 
   // ── Agent Event Handler ──────────────────────────────────────────────
   const handleAgentEvent = useCallback((event: AgentEvent) => {
@@ -295,7 +402,13 @@ export const MainContent = ({
         ));
         break;
       case 'agent:error':
+        setIsAgentRunning(false);
+        isStreamingRef.current = false;
         setAgentStatus(`Error: ${event.data?.message || 'Unknown error'}`);
+        setAgentState('error');
+        setMessages(prev => prev.map(m =>
+          m.isStreaming ? { ...m, isStreaming: false } : m
+        ));
         break;
     }
   }, []);
@@ -743,25 +856,50 @@ export const MainContent = ({
 
         {/* ── Agentic Chat Interface ─────────────────────────────────── */}
         {messages.length > 0 && (
-          <div className="flex-1 w-full max-w-[750px] mx-auto overflow-hidden flex flex-col pt-28">
-            <ChatContainer
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              onApproveToolCall={handleApproveToolCall}
-              onRejectToolCall={handleRejectToolCall}
-              onStopAgent={handleStopAgent}
-              isAgentRunning={isAgentRunning}
-              agentStatus={agentStatus}
-              agentIteration={agentIteration}
-              agentState={agentState}
-              tokenBudget={tokenBudget}
-              config={aiConfig}
-              projectFiles={projectFiles}
-              onConfigChange={(partial) => {
-                const updated = setAIConfig(partial, selectedProject?.path);
-                setAiConfigState(updated);
-              }}
-            />
+          <div className={cn("flex-1 w-full mx-auto overflow-hidden flex pt-28 gap-4 transition-all duration-300", activeArtifact ? "max-w-[1400px]" : "max-w-[750px]")}>
+            <div className="flex-1 min-w-0 flex flex-col h-full">
+              <ChatContainer
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                onApproveToolCall={handleApproveToolCall}
+                onRejectToolCall={handleRejectToolCall}
+                onStopAgent={handleStopAgent}
+                isAgentRunning={isAgentRunning}
+                agentStatus={agentStatus}
+                agentIteration={agentIteration}
+                agentState={agentState}
+                tokenBudget={tokenBudget}
+                config={aiConfig}
+                projectFiles={projectFiles}
+                onConfigChange={(partial) => {
+                  const updated = setAIConfig(partial, selectedProject?.path);
+                  setAiConfigState(updated);
+                }}
+                onArtifactClick={(path: string) => setActiveArtifact(path)}
+                pendingToolCall={pendingToolCall}
+                onToolDecision={handleToolDecision}
+              />
+            </div>
+            <AnimatePresence>
+              {activeArtifact && (
+                <motion.div
+                  initial={{ opacity: 0, width: 0, x: 20 }}
+                  animate={{ opacity: 1, width: 600, x: 0 }}
+                  exit={{ opacity: 0, width: 0, x: 20 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="shrink-0 h-full overflow-hidden"
+                >
+                  <ArtifactViewer
+                    artifactPath={activeArtifact}
+                    onClose={() => setActiveArtifact(null)}
+                    onProceed={(msg: string) => {
+                      setActiveArtifact(null);
+                      submitPrompt(msg);
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -774,10 +912,17 @@ export const MainContent = ({
           {messages.length === 0 && projectSelectorNode}
           {/* ── Input Area (only shown when no messages OR always at bottom) ── */}
           {messages.length === 0 && (
-            <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+            agentState === 'awaiting_tool_approval' && pendingToolCall ? (
+              <ToolApprovalCard 
+                toolCall={pendingToolCall} 
+                onDecision={handleToolDecision} 
+                onSkip={() => handleToolDecision(false)}
+              />
+            ) : (
+              <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
+                <textarea
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -905,6 +1050,7 @@ export const MainContent = ({
                 </button>
               </div>
             </div>
+            )
           )}
         </motion.div>
       </motion.div>
@@ -1150,13 +1296,6 @@ export const MainContent = ({
         )}
       </AnimatePresence>
 
-      {/* Tool Approval Modal */}
-      <AnimatePresence>
-        {agentState === 'awaiting_tool_approval' && pendingToolCall && (
-          <div className="absolute inset-0 z-[210] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
-          </div>
-        )}
-      </AnimatePresence>
 
     </div>
   );

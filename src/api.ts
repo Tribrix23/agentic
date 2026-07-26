@@ -18,10 +18,11 @@ export interface DispatcherAPIParams {
   messages: ChatMessage[];
   tools?: any[];
   toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+  passType?: 'thought' | 'action' | 'verify';
   onChunk: (chunk: string) => void;
   onToolCall?: (toolCall: ToolCall) => void;
   onError: (error: Error) => void;
-  onSuccess: (fullText: string) => void;
+  onSuccess: (fullText: string, finishReason?: string) => void;
   checkIsStreaming: () => boolean;
   signal?: AbortSignal;
 }
@@ -33,7 +34,7 @@ interface LegacyDispatcherParams {
   messages: ChatMessage[];
   onChunk: (chunk: string) => void;
   onError: (error: string) => void;
-  onSuccess?: (fullText: string) => void;
+  onSuccess?: (fullText: string, finishReason?: string) => void;
   checkIsStreaming: () => boolean;
 }
 
@@ -51,10 +52,11 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   let messages: ChatMessage[];
   let tools: any[] | undefined;
   let toolChoice: any;
+  let passType: 'thought' | 'action' | 'verify' | undefined;
   let onChunk: (chunk: string) => void;
   let onToolCall: ((toolCall: ToolCall) => void) | undefined;
   let onError: (error: Error) => void;
-  let onSuccess: (fullText: string) => void;
+  let onSuccess: (fullText: string, finishReason?: string) => void;
   let checkIsStreaming: () => boolean;
   let signal: AbortSignal | undefined;
 
@@ -72,6 +74,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     messages = p.messages;
     tools = p.tools;
     toolChoice = p.toolChoice;
+    passType = p.passType;
     onChunk = p.onChunk;
     onToolCall = p.onToolCall;
     onError = p.onError;
@@ -82,10 +85,11 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
 
   let dynamicTemp = config.temperature;
   let dynamicTopP = config.topP;
+  let dynamicMaxTokens = config.maxTokens;
 
+  // Apply legacy dynamic fallback parameter adjustments
   if (config.dynamicParameters && messages) {
     const totalLength = messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
-    // Dynamic adjustment: Lower temperature and top_p for longer contexts to maintain focus
     if (totalLength > 15000) {
       dynamicTemp = Math.max(0.1, dynamicTemp - 0.25);
       dynamicTopP = Math.max(0.1, dynamicTopP - 0.15);
@@ -104,7 +108,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     messages,
     temperature: dynamicTemp,
     top_p: dynamicTopP,
-    max_tokens: config.maxTokens,
+    max_tokens: dynamicMaxTokens,
     stream: config.stream,
     imageUrl: [] as string[],
     videoUrl: [] as string[],
@@ -135,15 +139,12 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   }
 
   // ── Tool definitions ────────────────────────────────────────────────
-  // Native tools are intentionally disabled. We enforce the JSON tool calling path
-  // for all models to ensure a single, consistent tool execution flow.
-  /*
+  // Native tools enabled for true MCP-style function calling.
   const supportsTools = MODEL_PRESETS[config.model]?.supportsTools ?? true;
   if (supportsTools && tools && tools.length > 0) {
     payload.tools = tools;
     payload.tool_choice = toolChoice || 'auto';
   }
-  */
 
   // ── Retry logic with exponential backoff ──────────────────────────
   let lastError: Error | null = null;

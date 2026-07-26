@@ -16,6 +16,10 @@ import { definition as webSearchDef, handler as webSearchHandler } from './defin
 import { definition as readUrlDef, handler as readUrlHandler } from './definitions/readUrl';
 import { definition as askUserDef, handler as askUserHandler } from './definitions/askUser';
 import { definition as codeAnalysisDef, handler as codeAnalysisHandler } from './definitions/codeAnalysis';
+import { definition as invokeSubagentDef, handler as invokeSubagentHandler } from './definitions/invokeSubagent';
+import { definition as sendMessageDef, handler as sendMessageHandler } from './definitions/sendMessage';
+import { definition as manageTaskDef, handler as manageTaskHandler } from './definitions/manageTask';
+import { definition as commandStatusDef, handler as commandStatusHandler } from './definitions/commandStatus';
 
 export * from './types';
 export * from './registry';
@@ -40,4 +44,8 @@ export function initializeTools() {
   registerTool(readUrlDef, readUrlHandler);
   registerTool(askUserDef, askUserHandler);
   registerTool(codeAnalysisDef, codeAnalysisHandler);
+  registerTool(invokeSubagentDef, invokeSubagentHandler);
+  registerTool(sendMessageDef, sendMessageHandler);
+  registerTool(manageTaskDef, manageTaskHandler);
+  registerTool(commandStatusDef, commandStatusHandler);
 }

@@ -183,8 +183,24 @@ export function buildContext(
   }
 
   if (toolDefinitions && toolDefinitions.length > 0) {
-    const toolDefsStr = JSON.stringify(toolDefinitions, null, 2);
-    systemPromptParts.push(`\n<available_tools>\n${toolDefsStr}\n</available_tools>`);
+    let toolDefsStr = '';
+    for (const wrappedTool of toolDefinitions) {
+      const tool = wrappedTool.function || wrappedTool; // Support both wrapped and unwrapped formats
+      toolDefsStr += `Tool Name: ${tool.name}\n`;
+      toolDefsStr += `Description: ${tool.description}\n`;
+      toolDefsStr += `Parameters: ${JSON.stringify(tool.parameters)}\n`;
+      
+      // Generate a dummy example based on the first property if available
+      let exampleArgs = '{}';
+      if (tool.parameters && tool.parameters.properties) {
+        const props = Object.keys(tool.parameters.properties);
+        if (props.length > 0) {
+           exampleArgs = `{"${props[0]}": "..."}`;
+        }
+      }
+      toolDefsStr += `Usage Example: call:${tool.name}${exampleArgs}\n\n`;
+    }
+    systemPromptParts.push(`\n<available_tools>\n${toolDefsStr}</available_tools>`);
   }
 
   const fullSystemPrompt = systemPromptParts.join('\n');

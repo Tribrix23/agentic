@@ -16,10 +16,25 @@ export function useAgentLoop() {
     setPendingToolCall(toolCall);
   }, []);
 
-  const handleToolDecision = useCallback((isApproved: boolean) => {
+  const handleToolDecision = useCallback((isApproved: boolean, feedback?: string) => {
+    if (pendingToolCall) {
+      window.dispatchEvent(
+        new CustomEvent('tool-approval-response', {
+          detail: { toolCallId: pendingToolCall.id, approved: isApproved }
+        })
+      );
+      
+      // If rejected with feedback, we could automatically submit that feedback to the agent
+      // We will handle this by returning the feedback to the caller
+      if (!isApproved && feedback) {
+        // Send a message as if the user typed it
+        submitPrompt(`I rejected the previous tool call. Please do this instead: ${feedback}`);
+      }
+    }
+
     setAgentState('executing_parallel');
     setPendingToolCall(null);
-  }, []);
+  }, [pendingToolCall, submitPrompt]);
 
   return { 
     agentState, 

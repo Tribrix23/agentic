@@ -22,7 +22,7 @@ contextBridge.exposeInMainWorld('electron', {
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   readProjectFiles: (path: string) => ipcRenderer.invoke('read-project-files', path),
   readFileContent: (path: string) => ipcRenderer.invoke('read-file-content', path),
-  saveFileContent: (path: string, content: string) => ipcRenderer.invoke('save-file-content', path, content),
+  saveFileContent: (path: string, content: string, options?: any) => ipcRenderer.invoke('save-file-content', path, content, options),
   startLiveServer: (path: string) => ipcRenderer.invoke('start-live-server', path),
   stopLiveServer: () => ipcRenderer.invoke('stop-live-server'),
   checkLiveServer: () => ipcRenderer.invoke('check-live-server'),
@@ -43,4 +43,14 @@ contextBridge.exposeInMainWorld('electron', {
   runCommandCapture: (command: string, cwd: string) => ipcRenderer.invoke('run-command-capture', command, cwd),
   gitDiff: (cwd: string, file?: string) => ipcRenderer.invoke('git-diff', cwd, file),
   searchFiles: (projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => ipcRenderer.invoke('search-files', projectPath, query, options),
+  
+  // ── Task Manager System ───────────────────────────────────────────────
+  taskSpawn: (command: string, cwd: string) => ipcRenderer.invoke('task-spawn', command, cwd),
+  taskStatus: (taskId: string, maxBytes: number = 50000) => ipcRenderer.invoke('task-status', taskId, maxBytes),
+  taskKill: (taskId: string) => ipcRenderer.invoke('task-kill', taskId),
+  taskSendInput: (taskId: string, input: string) => ipcRenderer.invoke('task-send-input', taskId, input),
+  taskList: () => ipcRenderer.invoke('task-list'),
+  onBackgroundTaskComplete: (callback: (data: { taskId: string; status: any }) => void) => {
+    ipcRenderer.on('background-task-complete', (_event, data) => callback(data));
+  }
 });

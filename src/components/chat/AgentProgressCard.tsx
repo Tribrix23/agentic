@@ -19,11 +19,7 @@ export interface AgentStep {
   durationMs?: number;
 }
 
-interface AgentProgressCardProps {
-  step: AgentStep;
-  onApprove?: (id: string) => void;
-  onReject?: (id: string) => void;
-}
+// Removed duplicate interface
 
 function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: string; argsStr: string } {
   switch (name) {
@@ -49,20 +45,20 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
       return { cmd: 'grep', argsStr: `-rn "${args.query || args.Query || ''}" ${args.path || args.SearchPath || '.'}` };
     case 'runCommand':
     case 'run_command': {
-      const fullCmd = args.command || args.CommandLine || 'sh';
+      const fullCmd = String(args.command || args.CommandLine || 'sh');
       const parts = fullCmd.split(' ');
       return { cmd: parts[0], argsStr: parts.slice(1).join(' ') };
     }
     case 'webSearch':
     case 'search_web':
-      return { cmd: 'search', argsStr: args.query || '' };
+      return { cmd: 'search', argsStr: String(args.query || '') };
     case 'readUrl':
     case 'read_url':
-      return { cmd: 'curl', argsStr: args.url || args.Url || '' };
+      return { cmd: 'curl', argsStr: String(args.url || args.Url || '') };
     case 'gitStatus':
       return { cmd: 'git', argsStr: 'status' };
     case 'gitAdd':
-      return { cmd: 'git', argsStr: `add ${args.paths ? (Array.isArray(args.paths) ? args.paths.join(' ') : args.paths) : '.'}` };
+      return { cmd: 'git', argsStr: `add ${args.paths ? (Array.isArray(args.paths) ? args.paths.join(' ') : String(args.paths)) : '.'}` };
     case 'gitCommit':
       return { cmd: 'git', argsStr: `commit -m "..."` };
     case 'gitDiff':
@@ -71,11 +67,18 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
     case 'askUser':
       return { cmd: 'ask', argsStr: 'user' };
     default:
-      return { cmd: name, argsStr: JSON.stringify(args) };
+      return { cmd: String(name), argsStr: JSON.stringify(args) };
   }
 }
 
-export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCardProps) {
+export interface AgentProgressCardProps {
+  step: AgentStep;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  onArtifactClick?: (path: string) => void;
+}
+
+export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }: AgentProgressCardProps) {
   const [expanded, setExpanded] = useState(step.status === 'running' || step.status === 'pending');
   
   React.useEffect(() => {
@@ -86,9 +89,8 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
     }
   }, [step.status]);
 
-  if (step.type === 'tool' && step.toolCall && step.status === 'pending' && onApprove && onReject) {
-    return <ToolApprovalCard toolCall={step.toolCall} onApprove={onApprove} onReject={onReject} />;
-  }
+  // ToolApprovalCard is now rendered exclusively in ChatContainer replacing the input box.
+  // We no longer render it inline in the chat history.
 
   // Map internal tools to human-readable strings and icons
   const getStepDetails = () => {
@@ -141,6 +143,9 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
 
   const isRunning = step.status === 'running';
   const hasDetails = step.content || (step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
+  
+  // Extract artifacts if any
+  const artifacts = step.toolCall?.result?.artifacts || [];
 
   return (
     <div className="w-full font-sans text-sm">
@@ -187,7 +192,7 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
               )}
               
               {step.type === 'tool' && step.toolCall && (
-                <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden">
+                <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden flex flex-col">
                   <div className="p-3 border-b border-white/5 bg-white/[0.02]">
                     <span className="text-white/40 mr-2">$</span>
                     <span className="text-blue-400 font-medium">{getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).cmd}</span>
@@ -198,6 +203,24 @@ export function AgentProgressCard({ step, onApprove, onReject }: AgentProgressCa
                   {step.toolCall.result && (
                     <div className="p-3 text-gray-300 overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
                       {typeof step.toolCall.result.output === 'string' ? step.toolCall.result.output : JSON.stringify(step.toolCall.result.output, null, 2)}
+                    </div>
+                  )}
+                  {artifacts.length > 0 && (
+                    <div className="p-3 border-t border-white/10 flex flex-col gap-2 bg-blue-500/5">
+                      <div className="text-blue-400/80 font-semibold mb-1 text-[11px] uppercase tracking-wider">Generated Artifacts</div>
+                      {artifacts.map((art: any, i: number) => (
+                        <button
+                          key={i}
+                          onClick={() => onArtifactClick && onArtifactClick(art.path)}
+                          className="text-left px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded border border-blue-500/20 transition-colors flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-sm">{art.path.split(/[/\\]/).pop()}</span>
+                            {art.metadata?.Summary && <span className="text-xs text-blue-300/70 truncate max-w-[400px]">{art.metadata.Summary.split('\n')[0]}</span>}
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>

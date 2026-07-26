@@ -96,6 +96,48 @@ interface ParsedToolCall {
 function parseToolCallsFromText(text: string): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
 
+  // ── Format 0: Antigravity native syntax: call:tool_name{json_args} ────────────────
+  let startIndex = text.indexOf('call:');
+  while (startIndex !== -1) {
+    const braceIndex = text.indexOf('{', startIndex);
+    if (braceIndex !== -1 && braceIndex < startIndex + 50) {
+      const toolName = text.substring(startIndex + 5, braceIndex).trim();
+      let braceCount = 0;
+      let endIndex = -1;
+      
+      for (let i = braceIndex; i < text.length; i++) {
+        if (text[i] === '{') braceCount++;
+        else if (text[i] === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            endIndex = i;
+            break;
+          }
+        }
+      }
+      
+      if (endIndex !== -1) {
+        try {
+          const argsStr = text.substring(braceIndex, endIndex + 1);
+          const parsedArgs = argsStr === '{}' ? {} : JSON.parse(argsStr);
+          toolCalls.push({
+            name: toolName,
+            arguments: parsedArgs
+          });
+          startIndex = text.indexOf('call:', endIndex + 1);
+          continue;
+        } catch (e) {
+          console.warn('[AgentLoop] Failed to parse Antigravity tool call arguments:', e);
+        }
+      }
+    }
+    startIndex = text.indexOf('call:', startIndex + 5);
+  }
+
+  if (toolCalls.length > 0) {
+    return toolCalls;
+  }
+
   // ── Format 1: XML-style tool calls ────────────────────────────────────
   const xmlRegex = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
   let match: RegExpExecArray | null;
@@ -705,22 +747,48 @@ export class AgentLoop {
               }
               
               // Only push leaked text into thought bubble if there's actually a tool call!
-              const parsedCalls = parseToolCallsFromText(fullResponseText);
+              const parsedCalls = parseToolCallsFromText(afterThink);
               if (parsedCalls.length > 0) {
-                const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|\{/i);
-                if (toolMatch && toolMatch.index !== undefined) {
-                  const leaked = afterThink.substring(0, toolMatch.index).trim();
-                  if (leaked) {
-                    assistantMsg.thinkingContent += '\n\n' + leaked;
-                  }
-                  afterThink = afterThink.substring(toolMatch.index);
-                } else {
-                  // Fallback: Just put it all in
-                  const leaked = afterThink.trim();
+                // Assign the parsed calls to assistantMsg
+                if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
+                for (const pc of parsedCalls) {
+                  // Generate an ID for the tool call
+                  const id = 'call_' + Math.random().toString(36).substring(2, 9);
+                  const newCall: ToolCall = {
+                    id,
+                    name: pc.name,
+                    arguments: pc.arguments,
+                    status: 'pending',
+                    timestamp: Date.now()
+                  };
+                  assistantMsg.toolCalls.push(newCall);
+                  this.emit({ type: 'agent:tool-call', data: newCall });
+                }
+
+                // Try to clean up the content by removing the tool call blocks
+                const callIndex = afterThink.indexOf('call:');
+                if (callIndex !== -1) {
+                  const leaked = afterThink.substring(0, callIndex).trim();
                   if (leaked) {
                     assistantMsg.thinkingContent += '\n\n' + leaked;
                   }
                   afterThink = '';
+                } else {
+                  // Fallback match
+                  const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|\{/i);
+                  if (toolMatch && toolMatch.index !== undefined) {
+                    const leaked = afterThink.substring(0, toolMatch.index).trim();
+                    if (leaked) {
+                      assistantMsg.thinkingContent += '\n\n' + leaked;
+                    }
+                    afterThink = '';
+                  } else {
+                    const leaked = afterThink.trim();
+                    if (leaked) {
+                      assistantMsg.thinkingContent += '\n\n' + leaked;
+                    }
+                    afterThink = '';
+                  }
                 }
               }
               
@@ -737,35 +805,12 @@ export class AgentLoop {
           });
         });
 
-        // ── Parse tool calls from text (fallback) ────────────────────────
-        // IMPORTANT: Always attempt text parsing, even when native tools are used.
-        // For models with supportsTools:false (Dispatcher v1), the ONLY way tool
-        // calls come through is via this text parser. The shouldUseTools gate was
-        // the root cause of tools never executing — we removed it here.
-        if (!assistantMsg.toolCalls || assistantMsg.toolCalls.length === 0) {
-          const parsedCalls = parseToolCallsFromText(fullResponseText);
-          if (parsedCalls.length > 0) {
-            // Deduplicate tool calls to prevent redundant executions
-            const deduplicatedCalls = deduplicateToolCalls(parsedCalls);
-            assistantMsg.toolCalls = deduplicatedCalls.map((pc) => createToolCall(pc.name, pc.arguments));
-            // Completely hide any conversational text leaked outside the <think> block if a tool call was made
-            assistantMsg.content = '';
-          }
-        }
-
-
-        // ── Phase 1: Core Isolation Engine - Aggressive Text Stripping ────────
-        // If this iteration contains tool calls, it is an intermediate step.
-        // We MUST strip all conversational text outside the <think> or <thinking> block
-        // to prevent hallucinated code or unnecessary narration from leaking into the UI.
-        // Since our streaming parser already separates <thinking> into thinkingContent,
-        // we can simply clear the remaining conversational content!
-        const hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
-        if (hasToolCalls) {
-          assistantMsg.content = '';
-        }
-
+        // ── Phase 1: Native Tool execution isolation ────────
+        // No text fallback parsing needed here; api.ts handles native tool calls
+        // and returns them directly in assistantMsg.toolCalls.
+        
         let forceRetry = false;
+        const hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
         
         // ── Detect duplicate tool call loops ───────────────────────────────────
         if (hasToolCalls) {
@@ -794,72 +839,8 @@ export class AgentLoop {
           this.state.lastToolSignature = currentSignature;
         }
 
-        // ── Detect AI answering without tools when tools are needed ─────────
-        const explicitlyClaimsToolCall = /EXECUTE:\s*Call|calling.*tool|use.*tool|let me use/i.test(fullResponseText);
-        const lastMsg = updatedMessages[updatedMessages.length - 1];
-        const wasJustScolded = lastMsg && lastMsg.role === 'user' && lastMsg.content.includes('[SYSTEM ERROR]');
-        
-        // Track if it claims to have performed a write action but hasn't actually used a write tool
-        const claimsWriteAction = /(?:I|I've|I have)\s+(?:created|wrote|generated|built|added|replaced|changed|modified|updated|edited|fixed)|(?:has been|was)\s+(?:created|wrote|generated|built|added|replaced|changed|modified|updated|edited|fixed|successfully)/i.test(fullResponseText);
-        const hasWriteToolsExecuted = executedToolNames.has('createFile') || executedToolNames.has('writeFile') || executedToolNames.has('editFile') || executedToolNames.has('runCommand') || executedToolNames.has('replaceFileContent') || executedToolNames.has('multiReplaceFileContent');
-        const isHallucinatingWrite = claimsWriteAction && !hasWriteToolsExecuted;
-
-        // Track if it promises to do something but fails to output a tool call
-        const claimsFutureAction = /(?:Let me|I will|I'll|I am going to)\s+(?:also\s+)?(?:read|check|examine|look at|create|write|make|build|generate|replace|change|modify|update|edit|fix)/i.test(fullResponseText);
-        const isFailedAction = claimsFutureAction && !hasToolCalls;
-
-        // General heuristic for first iteration
-        const needsTools = /list|read|file|directory|folder|search|find|explore|create|write|make|build|generate/i.test(fullResponseText);
-        const isFirstIterationHallucination = this.state.currentIteration === 1 && needsTools && !hasToolCalls;
-        
-        const isRepeatedHallucination = wasJustScolded && !hasToolCalls;
-
-        if (this.config.agentMode && !hasToolCalls && this.toolDefinitions.length > 0 && 
-            (isFirstIterationHallucination || explicitlyClaimsToolCall || isRepeatedHallucination || isHallucinatingWrite || isFailedAction)) {
-          
-          this.state.consecutiveErrors = (this.state.consecutiveErrors || 0) + 1;
-          
-          if (this.state.consecutiveErrors >= 3) {
-            console.warn('[AgentLoop] Breaking loop due to repeated failure to format tool calls.');
-            continueLoop = false;
-            
-            // Hide the 3rd hallucination as well
-            assistantMsg.isHidden = true;
-            this.emit({ type: 'agent:message-updated', data: assistantMsg });
-            
-            const errorMsg = createAssistantMessage(this.config.model);
-            errorMsg.content = 'I encountered a critical error formatting my tool calls and could not complete the action. Please try rephrasing your request.';
-            errorMsg.isStreaming = false;
-            updatedMessages.push(errorMsg);
-            this.emit({ type: 'agent:message-added', data: errorMsg });
-          } else {
-            // Hide the offending hallucination from the UI so it doesn't clutter the chat
-            assistantMsg.isHidden = true;
-            this.emit({ type: 'agent:message-updated', data: assistantMsg });
-            
-            // REMOVE the hallucination from the context entirely so the LLM doesn't get stuck in a loop
-            const idx = updatedMessages.indexOf(assistantMsg);
-            if (idx !== -1) {
-              updatedMessages.splice(idx, 1);
-            }
-            
-            const correctionMsg = createUserMessage(
-              `[SYSTEM ERROR]: You provided a direct answer without using tools, or your tool call was malformed. ` +
-              `CRITICAL: If you are claiming to read, create, or modify a file, you MUST actually output the JSON tool call (e.g. editFile, runCommand, readFile) to do so! ` +
-              `Do NOT generate or guess the file contents yourself. You CANNOT do anything without a tool call. ` +
-              `Ensure your tool call is in valid JSON or XML format as instructed. ` +
-              `Retry this request using the appropriate tools. DO NOT APOLOGIZE. DO NOT EXPLAIN. Output ONLY the tool call.`
-            );
-            
-            // Hide the system error from the UI as well (background correction)
-            correctionMsg.isHidden = true;
-            
-            updatedMessages.push(correctionMsg);
-            this.emit({ type: 'agent:message-added', data: correctionMsg });
-            forceRetry = true;
-          }
-        } else if (hasToolCalls) {
-          // Reset consecutive errors if it successfully made a tool call
+        // Reset consecutive errors if it successfully made a tool call (or gave text)
+        if (hasToolCalls) {
           this.state.consecutiveErrors = 0;
         }
 
@@ -888,10 +869,8 @@ export class AgentLoop {
           );
 
           // Execute read-only tools in parallel for efficiency
-          const allToolCalls = [...readOnlyTools, ...writeTools];
-          
-          for (const toolCall of allToolCalls) {
-            if (!this.state.isRunning) break;
+          const executeToolInternal = async (toolCall: any) => {
+            if (!this.state.isRunning) return;
 
             toolCall.status = 'running';
             this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
@@ -941,7 +920,6 @@ export class AgentLoop {
               updatedMessages.push(toolMsg);
               this.emit({ type: 'agent:message-added', data: toolMsg });
 
-              // ── Anchor intentionally removed to prevent parroting ──
             } catch (error: any) {
               const errorMessage = error.message || String(error);
               
@@ -983,9 +961,17 @@ export class AgentLoop {
                 updatedMessages.push(hintMsg);
               }
             }
+          };
 
-            this.state.currentToolCall = undefined;
+          // Run read-only tools concurrently
+          await Promise.all(readOnlyTools.map(executeToolInternal));
+          
+          // Run write tools sequentially to avoid race conditions
+          for (const writeTool of writeTools) {
+            await executeToolInternal(writeTool);
           }
+
+          this.state.currentToolCall = undefined;
 
           // Check if ALL tool calls in this iteration were duplicates
           const allDuplicates = assistantMsg.toolCalls.every(

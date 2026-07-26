@@ -13,6 +13,7 @@ interface MessageThreadProps {
   agentStatus?: string;
   agentIteration?: number;
   onStopAgent?: () => void;
+  onArtifactClick?: (path: string) => void;
 }
 
 export function MessageThread({ 
@@ -22,7 +23,8 @@ export function MessageThread({
   agentState,
   agentStatus,
   agentIteration,
-  onStopAgent
+  onStopAgent,
+  onArtifactClick
 }: MessageThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -73,7 +75,7 @@ export function MessageThread({
     <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 space-y-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
       {displayGroups.map((group, idx) => (
         <MessageBubble 
-          key={group.messages[0].id} 
+          key={group.messages[0]?.id || `working-group-${idx}`} 
           messages={group.messages} 
           onApproveToolCall={onApproveToolCall}
           onRejectToolCall={onRejectToolCall}
@@ -82,6 +84,7 @@ export function MessageThread({
           agentStatus={agentStatus}
           agentIteration={agentIteration}
           onStopAgent={onStopAgent}
+          onArtifactClick={onArtifactClick}
         />
       ))}
     </div>

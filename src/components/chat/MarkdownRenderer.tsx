@@ -1,117 +1,83 @@
 import React from 'react';
-import { CodeBlock } from './CodeBlock';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { cn } from '../../App';
 
 interface MarkdownRendererProps {
   content: string;
   isStreaming?: boolean;
+  onArtifactClick?: (path: string) => void;
 }
 
-// A simple custom markdown parser per prompt constraints
-export function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps) {
-  // We'll split the content into basic blocks (code blocks vs text blocks)
-  const renderBlocks = () => {
-    const blocks: React.ReactNode[] = [];
-    const lines = content.split('\n');
-    
-    let inCodeBlock = false;
-    let codeContent = '';
-    let codeLanguage = '';
-    
-    let currentTextBlock: string[] = [];
-    
-    const flushText = () => {
-      if (currentTextBlock.length > 0) {
-        blocks.push(
-          <div key={blocks.length} className="mb-2 last:mb-0 space-y-2">
-            {renderInlineMarkdown(currentTextBlock.join('\n'))}
-          </div>
-        );
-        currentTextBlock = [];
-      }
-    };
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      if (line.startsWith('```')) {
-        if (inCodeBlock) {
-          inCodeBlock = false;
-          blocks.push(
-            <CodeBlock 
-              key={blocks.length} 
-              code={codeContent.trimEnd()} 
-              language={codeLanguage} 
-            />
-          );
-          codeContent = '';
-          codeLanguage = '';
-        } else {
-          flushText();
-          inCodeBlock = true;
-          codeLanguage = line.slice(3).trim();
-        }
-      } else {
-        if (inCodeBlock) {
-          codeContent += line + '\n';
-        } else {
-          currentTextBlock.push(line);
-        }
-      }
-    }
-    
-    if (inCodeBlock) {
-      blocks.push(
-        <CodeBlock 
-          key={blocks.length} 
-          code={codeContent} 
-          language={codeLanguage} 
-        />
-      );
-    } else {
-      flushText();
-    }
-    
-    return blocks;
-  };
-  
-  const renderInlineMarkdown = (text: string) => {
-    // Simple inline parsing returning dangerous HTML for simplicity within React constraint
-    let html = text
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-      
-    // Headings
-    html = html.replace(/^### (.*$)/gim, '<h3 class="text-lg font-bold mt-4 mb-2">$1</h3>');
-    html = html.replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold mt-5 mb-3 border-b border-white/10 pb-1">$1</h2>');
-    html = html.replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mt-6 mb-4 border-b border-white/20 pb-2">$1</h1>');
-    
-    // Bold, Italic, Strikethrough, Inline Code
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    html = html.replace(/~~(.*?)~~/g, '<del>$1</del>');
-    html = html.replace(/`(.*?)`/g, '<code class="bg-white/10 px-1.5 py-0.5 rounded font-mono text-sm text-pink-300">$1</code>');
-    
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-400 hover:underline">$1</a>');
-    
-    // Lists (naive)
-    html = html.replace(/^\s*[-*]\s+(.*)$/gim, '<li class="ml-4 list-disc">$1</li>');
-    html = html.replace(/^\s*\d+\.\s+(.*)$/gim, '<li class="ml-4 list-decimal">$1</li>');
-    
-    // Blockquotes
-    html = html.replace(/^>\s+(.*)$/gim, '<blockquote class="border-l-2 border-white/20 pl-4 py-1 text-white/70 italic">$1</blockquote>');
-    
-    // Wrap loose text lines in paragraphs (simple heuristic)
-    // Here we just use line breaks for simplicity in the basic parser
-    html = html.replace(/\n/g, '<br/>');
-    
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  };
+export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: MarkdownRendererProps) {
+  // If streaming, append a blinking cursor
+  const displayContent = isStreaming ? `${content} ▍` : content;
 
   return (
-    <div className="font-sans leading-relaxed text-[15px]">
-      {renderBlocks()}
-      {isStreaming && <span className="inline-block w-1.5 h-4 ml-1 bg-white animate-pulse" />}
+    <div className="prose prose-invert max-w-none prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-white/10 prose-p:leading-relaxed prose-a:text-blue-400 text-[15px]">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({node, inline, className, children, ...props}: any) {
+            const match = /language-(\w+)/.exec(className || '');
+            const language = match ? match[1] : '';
+            
+            if (!inline && language) {
+              return (
+                <div className="relative group my-4">
+                  <div className="absolute top-2 right-2 text-xs text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                    {language}
+                  </div>
+                  <SyntaxHighlighter
+                    style={vscDarkPlus as any}
+                    language={language}
+                    PreTag="div"
+                    className="rounded-md !m-0 !mt-0 !mb-0"
+                    {...props}
+                  >
+                    {String(children).replace(/\n$/, '')}
+                  </SyntaxHighlighter>
+                </div>
+              );
+            }
+            
+            // Inline code
+            return (
+              <code className={cn("bg-white/10 px-1.5 py-0.5 rounded-md font-mono text-sm text-pink-300", className)} {...props}>
+                {children}
+              </code>
+            );
+          },
+          a({node, href, children, ...props}: any) {
+            // Check if it's an artifact/file link
+            if (href?.startsWith('file://')) {
+              return (
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onArtifactClick) {
+                      // Strip file:/// and #anchor
+                      const rawPath = href.replace('file:///', '').split('#')[0];
+                      // Normalize slashes
+                      const path = rawPath.replace(/\\/g, '/');
+                      onArtifactClick(path);
+                    }
+                  }}
+                  className="text-blue-400 hover:underline inline-flex items-center gap-1 bg-blue-500/10 px-1.5 rounded-sm cursor-pointer"
+                  title={href}
+                >
+                  {children}
+                </button>
+              );
+            }
+            return <a href={href} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+          }
+        }}
+      >
+        {displayContent}
+      </ReactMarkdown>
     </div>
   );
 }

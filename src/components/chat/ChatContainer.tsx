@@ -7,6 +7,7 @@ import { AgentStatusBar } from './AgentStatusBar';
 import { PromptInput } from './PromptInput';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { AgentState } from '../../lib/types/AgentTypes';
+import { ToolApprovalCard } from './ToolApprovalCard';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -25,6 +26,8 @@ interface ChatContainerProps {
   projectFiles?: any[];
   projectSelector?: React.ReactNode;
   onConfigChange?: (partial: Partial<AIConfig>) => void;
+  pendingToolCall?: any;
+  onToolDecision?: (approved: boolean, feedback?: string) => void;
 }
 
 export function ChatContainer({
@@ -41,8 +44,11 @@ export function ChatContainer({
   config,
   projectFiles,
   projectSelector,
-  onConfigChange
-}: ChatContainerProps) {
+  onConfigChange,
+  onArtifactClick,
+  pendingToolCall,
+  onToolDecision
+}: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent text-white")}>
       <div className="flex-1 overflow-hidden relative">
@@ -54,6 +60,7 @@ export function ChatContainer({
           agentStatus={agentStatus}
           agentIteration={agentIteration}
           onStopAgent={onStopAgent}
+          onArtifactClick={onArtifactClick}
         />
       </div>
       <div className="px-4 pb-4 bg-transparent w-full">
@@ -61,15 +68,22 @@ export function ChatContainer({
           {projectSelector}
           
           <div className="w-full flex flex-col items-center gap-2">
-
-            <PromptInput 
-              onSend={onSendMessage}
-              onStop={onStopAgent}
-              isAgentRunning={isAgentRunning}
-              config={config}
-              projectFiles={projectFiles}
-              onConfigChange={onConfigChange}
-            />
+            {agentState === 'awaiting_tool_approval' && pendingToolCall && onToolDecision ? (
+              <ToolApprovalCard 
+                toolCall={pendingToolCall} 
+                onDecision={onToolDecision}
+                onSkip={() => onToolDecision(false)}
+              />
+            ) : (
+              <PromptInput 
+                onSend={onSendMessage}
+                onStop={onStopAgent}
+                isAgentRunning={isAgentRunning}
+                config={config}
+                projectFiles={projectFiles}
+                onConfigChange={onConfigChange}
+              />
+            )}
           </div>
         </div>
       </div>
