@@ -104,28 +104,61 @@ const App = () => {
   const [rightSidebarOpen, setRightSidebarOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [showFullIde, setShowFullIde] = React.useState(false);
-  const [tasks, setTasks] = React.useState<Task[]>(() => getAllTasks());
+  const [tasks, setTasks] = React.useState<Task[]>([]);
   const [agentActivity, setAgentActivity] = React.useState<AgentActivity[]>([]);
   const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(null);
 
-  // Clear all tasks on mount to clean up old data
+  // Clear all tasks on mount to clean up stale data from previous sessions
   React.useEffect(() => {
     clearAllTasks();
   }, []);
 
-  // Listen for task changes
+  // When conversation changes, reload tasks scoped to that conversation
+  React.useEffect(() => {
+    if (currentConversationId) {
+      setTasks(getAllTasks({ conversationId: currentConversationId }));
+    } else {
+      setTasks([]);
+    }
+  }, [currentConversationId]);
+
+  // Listen for task changes and reload
   React.useEffect(() => {
     const handleTaskChange = () => {
-      console.log('Task change detected, reloading tasks');
-      setTasks(getAllTasks({ conversationId: currentConversationId }));
+      if (currentConversationId) {
+        setTasks(getAllTasks({ conversationId: currentConversationId }));
+      } else {
+        // No conversation scoping yet (first message) — show all agent-created tasks
+        setTasks(getAllTasks());
+      }
+    };
+
+    // Also listen for conversation switches from the sidebar
+    const handleConversationLoad = (e: any) => {
+      setCurrentConversationId(e.detail?.id || null);
+      setAgentActivity([]);  // Clear activity log on conversation switch
+    };
+
+    const handleNewConversation = () => {
+      setCurrentConversationId(null);
+      setTasks([]);
+      setAgentActivity([]);
     };
 
     window.addEventListener('task-updated', handleTaskChange);
     window.addEventListener('tasks-cleared', handleTaskChange);
+    window.addEventListener('load-conversation', handleConversationLoad);
+    window.addEventListener('new-conversation', handleNewConversation);
+    // MainContent sets a new conversation id on first message
+    window.addEventListener('conversation-started', (e: any) => {
+      setCurrentConversationId(e.detail?.id || null);
+    });
 
     return () => {
       window.removeEventListener('task-updated', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);
+      window.removeEventListener('load-conversation', handleConversationLoad);
+      window.removeEventListener('new-conversation', handleNewConversation);
     };
   }, [currentConversationId]);
 

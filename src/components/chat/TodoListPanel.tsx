@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, ListTodo, Clock, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Circle, ListTodo, Clock, AlertCircle, ChevronDown, ChevronRight, Bot, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../App';
 import { Task } from '../../lib/taskStore';
@@ -18,6 +18,8 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
   useEffect(() => {
     if (tasks.length > 0) {
       setTaskGraph(new TaskGraph(tasks));
+    } else {
+      setTaskGraph(null);
     }
   }, [tasks]);
 
@@ -63,6 +65,12 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
     }
   };
 
+  // Derive active sub-agents from delegated tasks
+  const delegatedTasks = tasks.filter(t => t.delegatedTo && t.status === 'in_progress');
+  const activeSubagents = Array.from(
+    new Map(delegatedTasks.map(t => [t.delegatedTo!, t])).values()
+  );
+
   const sections = [
     { id: 'in_progress', label: 'In Progress', tasks: getTasksByStatus('in_progress') },
     { id: 'pending', label: 'Pending', tasks: getTasksByStatus('pending') },
@@ -77,13 +85,49 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
       <div className={cn("p-4 text-center text-gray-500 text-sm", className)}>
         <ListTodo size={24} className="mx-auto mb-2 opacity-50" />
         <p>No tasks created yet</p>
+        <p className="text-[10px] mt-1 opacity-60">The agent will create tasks when processing complex requests.</p>
       </div>
     );
   }
 
   return (
     <div className={cn("space-y-2", className)}>
-      {/* Header */}
+
+      {/* ── Active Sub-Agents Panel (shown at TOP when agents are running) ── */}
+      <AnimatePresence>
+        {activeSubagents.length > 0 && (
+          <motion.div
+            key="subagents"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="rounded-lg border border-blue-500/30 bg-blue-500/5 overflow-hidden"
+          >
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-500/20">
+              <Bot size={14} className="text-blue-400" />
+              <span className="text-xs font-semibold text-blue-300">Active Sub-Agents</span>
+              <span className="text-[10px] text-blue-400/60">({activeSubagents.length} running)</span>
+              <span className="ml-auto relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+            </div>
+            <div className="p-2 space-y-1.5">
+              {activeSubagents.map(task => (
+                <div key={task.delegatedTo} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-blue-500/10 border border-blue-500/20">
+                  <Zap size={12} className="text-blue-400 mt-0.5 shrink-0 animate-pulse" />
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-mono text-blue-300 truncate">{task.delegatedTo}</div>
+                    <div className="text-[10px] text-blue-200/70 truncate mt-0.5">{task.title}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-3 py-2 bg-white/5 rounded-lg border border-white/10">
         <div className="flex items-center gap-2">
           <ListTodo size={16} className="text-purple-400" />
@@ -97,7 +141,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
         )}
       </div>
 
-      {/* Task Sections */}
+      {/* ── Task Sections ── */}
       <div className="space-y-1">
         {visibleSections.map(section => (
           <div key={section.id} className="rounded-lg bg-black/20 border border-white/5 overflow-hidden">
@@ -149,7 +193,7 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
                             </span>
                             <span
                               className={cn(
-                                "text-[9px] px-1.5 py-0.5 rounded border",
+                                "text-[9px] px-1.5 py-0.5 rounded border shrink-0",
                                 getPriorityColor(task.priority)
                               )}
                             >
@@ -160,6 +204,15 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
                             <p className="text-[10px] text-gray-400 line-clamp-2">
                               {task.description}
                             </p>
+                          )}
+                          {/* Delegated Badge */}
+                          {task.delegatedTo && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Bot size={10} className="text-blue-400 shrink-0" />
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 truncate">
+                                {task.delegatedTo}
+                              </span>
+                            </div>
                           )}
                           {/* Dependencies */}
                           {task.dependencies.length > 0 && (
@@ -199,34 +252,33 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
         ))}
       </div>
 
-      {/* Task Graph Stats */}
-      {taskGraph && (
+      {/* ── Progress Bar ── */}
+      {taskGraph && taskGraph.getStats().totalTasks > 0 && (
         <div className="px-3 py-2 bg-white/5 rounded-lg border border-white/10">
-          <div className="text-[10px] text-gray-400 mb-2">Task Graph Stats</div>
-          <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Total:</span>
-              <span className="text-white">{taskGraph.getStats().totalTasks}</span>
+          <div className="flex justify-between text-[10px] text-gray-400 mb-1.5">
+            <span>Overall Progress</span>
+            <span>{Math.round((taskGraph.getStats().completedTasks / taskGraph.getStats().totalTasks) * 100)}%</span>
+          </div>
+          <div className="w-full bg-white/10 rounded-full h-1.5">
+            <motion.div
+              className="bg-gradient-to-r from-purple-500 to-blue-500 h-1.5 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${(taskGraph.getStats().completedTasks / taskGraph.getStats().totalTasks) * 100}%` }}
+              transition={{ duration: 0.5 }}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-1 mt-2 text-[10px]">
+            <div className="text-center">
+              <div className="text-yellow-400">{taskGraph.getStats().pendingTasks}</div>
+              <div className="text-gray-500">Pending</div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Pending:</span>
-              <span className="text-yellow-400">{taskGraph.getStats().pendingTasks}</span>
+            <div className="text-center">
+              <div className="text-blue-400">{taskGraph.getStats().inProgressTasks}</div>
+              <div className="text-gray-500">Running</div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">In Progress:</span>
-              <span className="text-blue-400">{taskGraph.getStats().inProgressTasks}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Completed:</span>
-              <span className="text-green-400">{taskGraph.getStats().completedTasks}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Failed:</span>
-              <span className="text-red-400">{taskGraph.getStats().failedTasks}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Max Depth:</span>
-              <span className="text-purple-400">{taskGraph.getStats().maxDepth}</span>
+            <div className="text-center">
+              <div className="text-green-400">{taskGraph.getStats().completedTasks}</div>
+              <div className="text-gray-500">Done</div>
             </div>
           </div>
         </div>

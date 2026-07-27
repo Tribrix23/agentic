@@ -23,6 +23,7 @@ import { getPermissionConfig, checkPermission } from '../lib/permissions';
 import { initializeTools, getToolsForLLM, getTool, getAllTools } from '../lib/tools';
 import { executeTool, clearToolCache } from '../lib/tools/executor';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
+import { updateTask } from '../lib/taskStore';
 import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
 import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
@@ -81,11 +82,18 @@ export const MainContent = ({
   // ── Agentic Chat State ───────────────────────────────────────────────
   const [messages, setMessages] = useState<AgenticMessage[]>([]);
   const [isAgentRunning, setIsAgentRunning] = useState(false);
+  
   const [agentStatus, setAgentStatus] = useState<string>('');
   const [agentIteration, setAgentIteration] = useState<number>(0);
   const [tokenBudget, setTokenBudget] = useState<TokenBudget | undefined>();
   const [chatTitle, setChatTitle] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  // Track active conversation for synchronous access in toolExecutor
+  const activeConversationIdRef = useRef<string | null>(activeConversationId);
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
   const [aiConfig, setAiConfigState] = useState<AIConfig>(() => getAIConfig(selectedProject?.path));
   const [activeArtifact, setActiveArtifact] = useState<string | null>(null);
@@ -231,44 +239,99 @@ export const MainContent = ({
     };
 
     const handleSpawnSubagent = async (e: any) => {
-      const { conversationId, role, task, projectRoot } = e.detail;
+      const { conversationId, role, task, projectRoot, parentConversationId, taskId } = e.detail;
       
+      // Create a tool executor for this subagent that scopes to its conversationId
+      const subagentToolExecutor = async (toolCall: ToolCall): Promise<ToolResult> => {
+        const permConfig = getPermissionConfig(selectedProject?.path);
+        const context = {
+          projectRoot: selectedProject?.path || projectRoot || '',
+          signal: new AbortController().signal,
+          conversationId,
+        };
+        return executeTool(toolCall, context, permConfig);
+      };
+
       const subagentLoop = createAgentLoop((event) => {
-        if (event.type === 'agent:message-added' && event.data.role === 'assistant' && !event.data.toolCalls) {
-          // Send message back to main thread
-          const taskMsg = createUserMessage(`[Subagent ${role} (${conversationId})]: ${event.data.content}`);
+        if (event.type === 'agent:done' || (event.type === 'agent:message-added' && event.data?.role === 'assistant' && !event.data?.isStreaming && event.data?.content && !event.data?.toolCalls?.length)) {
+          // Sub-agent has finished — extract its final text output
+          const finalContent = event.data?.content || 'Sub-agent completed.';
+          
+          // Mark the linked task as completed if we have one
+          if (taskId) {
+            updateTask(taskId, { status: 'completed' });
+          }
+
+          // Inject result as a HIDDEN system message into main chat, then wake the main loop
+          const resultMsg = createUserMessage(
+            `[SYSTEM - Sub-agent ${role} (${conversationId}) completed]: ${finalContent.slice(0, 1000)}`
+          );
+          // Mark as hidden so it doesn't render as a visible chat bubble
+          (resultMsg as any).isHidden = true;
+          
           setMessages(prev => {
-            const newMsgs = [...prev, taskMsg];
-            // Wake up main agent if idle
-            if (!isAgentRunning && aiConfig.agentMode && activeConversationId && agentLoopRef.current) {
-              setIsAgentRunning(true);
-              isStreamingRef.current = true;
-              agentLoopRef.current.run(newMsgs.map(m => ({
-                ...m,
-                role: m.role as any,
-              }))).catch(err => console.error('Agent loop failed:', err));
+            const newMsgs = [...prev, resultMsg];
+            // Use wakeup() if the main loop is sleeping — this is the KEY fix
+            if (agentLoopRef.current) {
+              const state = agentLoopRef.current.getState();
+              if (state.status === 'sleeping') {
+                // Wake the sleeping loop with the new context message
+                agentLoopRef.current.wakeup([{ ...resultMsg, role: 'user' as const }]);
+                setIsAgentRunning(true);
+                isStreamingRef.current = true;
+              } else if (!isAgentRunning && aiConfig.agentMode && activeConversationId) {
+                // If loop is fully done, start a fresh one with the result injected
+                setIsAgentRunning(true);
+                isStreamingRef.current = true;
+                agentLoopRef.current.run(newMsgs.map(m => ({
+                  ...m,
+                  role: m.role as any,
+                }))).catch(err => console.error('Agent loop failed after subagent:', err));
+              }
             }
             return newMsgs;
           });
         }
       }, {
-        projectId: projectRoot,
-        projectContext: undefined, // Subagents share same root but let's keep it simple
+        projectId: selectedProject?.path || projectRoot,
+        projectContext: undefined,
         toolDefinitions: getToolsForLLM(),
-        toolExecutor: toolExecutor
+        toolExecutor: subagentToolExecutor
       });
       
       subagentLoop.updateConfig(aiConfig);
       
-      // Store it (you could add a ref for this: subagentsRef.current.set(conversationId, subagentLoop))
-      // For now we just run it directly.
       try {
+        const systemPrompt = `You are a sub-agent with the role: ${role}.
+Your ONLY task is: ${task}
+
+IMPORTANT RULES:
+- Use your tools to actually complete the task. Do NOT just describe what you would do.
+- After completing the task, write a brief summary of what you accomplished.
+- Do NOT invoke more sub-agents. Do the work yourself.
+- Do NOT create to-do lists. Just do the task.`;
+
         const initialMessages = [
-          createUserMessage(`You are a subagent with the role: ${role}. Your task is: ${task}. Use tools to accomplish this and respond when done.`)
+          createUserMessage(systemPrompt)
         ];
-        // Ensure standard roles
-        const formatted = initialMessages.map(m => ({ ...m, role: m.role as any }));
-        subagentLoop.run(formatted).catch(e => console.error('Subagent failed', e));
+        // Notify the main agent loop that a sub-agent has been spawned
+        // This prevents the main loop from terminating while waiting
+        if (agentLoopRef.current) {
+          agentLoopRef.current.notifySubagentSpawned();
+        }
+        subagentLoop.run(initialMessages.map(m => ({ ...m, role: m.role as any })))
+          .then(() => {
+            // When sub-agent run() completes, decrement count in main loop
+            if (agentLoopRef.current) {
+              agentLoopRef.current.notifySubagentDone();
+            }
+          })
+          .catch(e => {
+            console.error(`Subagent ${conversationId} failed:`, e);
+            if (agentLoopRef.current) {
+              agentLoopRef.current.notifySubagentDone();
+            }
+          });
       } catch(e) {
         console.error('Failed to run subagent', e);
       }
@@ -403,6 +466,21 @@ export const MainContent = ({
           m.isStreaming ? { ...m, isStreaming: false } : m
         ));
         break;
+      case 'agent:sleeping':
+        setIsAgentRunning(false); // So the user can type a new message
+        isStreamingRef.current = false;
+        setAgentStatus('Sleeping (waiting for events)...');
+        setAgentState('idle');
+        setMessages(prev => prev.map(m =>
+          m.isStreaming ? { ...m, isStreaming: false } : m
+        ));
+        break;
+      case 'agent:wakeup':
+        setIsAgentRunning(true);
+        isStreamingRef.current = true;
+        setAgentStatus('Waking up...');
+        setAgentState('executing_parallel');
+        break;
       case 'agent:error':
         setIsAgentRunning(false);
         isStreamingRef.current = false;
@@ -421,10 +499,11 @@ export const MainContent = ({
     const context = {
       projectRoot: selectedProject?.path || '',
       signal: new AbortController().signal,
+      conversationId: activeConversationIdRef.current || undefined,
     };
 
     return executeTool(toolCall, context, permConfig);
-  }, [selectedProject?.path]);
+  }, [selectedProject?.path, activeConversationId]);
 
   // ── Send Message Handler ─────────────────────────────────────────────
   const handleSendMessage = useCallback(async (
@@ -432,15 +511,21 @@ export const MainContent = ({
     attachments?: FileAttachment[],
     mentionedFiles?: string[]
   ) => {
-    if (!content.trim() || isAgentRunning) return;
+    if (!content.trim()) return;
+    
+    // If agent is already running and actively working (not sleeping), ignore
+    if (isAgentRunning) return;
 
     let isFirstMessage = false;
     let convId = activeConversationId;
     if (messages.length === 0) {
       convId = Date.now().toString();
       setActiveConversationId(convId);
+      activeConversationIdRef.current = convId; // Sync update for toolExecutor
       setChatTitle("New Conversation");
       isFirstMessage = true;
+      // Notify App.tsx so it can scope the task panel to this conversation
+      window.dispatchEvent(new CustomEvent('conversation-started', { detail: { id: convId } }));
     }
 
     // Call the hook to trigger instant UI state (shimmer effect)
@@ -452,6 +537,13 @@ export const MainContent = ({
     setMessages(allMessages);
     setIsAgentRunning(true);
     isStreamingRef.current = true;
+    
+    // If agent loop already exists and is just sleeping, wake it up!
+    if (aiConfig.agentMode && agentLoopRef.current && agentLoopRef.current.getState().status === 'sleeping') {
+      agentLoopRef.current.wakeup([{ ...userMsg, role: 'user' }]);
+      return; // Skip the rest of initialization
+    }
+    
     setAgentIteration(0);
     clearToolCache(); // Reset duplicate-call cache for this new run
 

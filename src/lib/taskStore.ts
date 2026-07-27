@@ -15,6 +15,7 @@ export interface Task {
   childrenIds: string[];
   dependencies: string[]; // Task IDs that must complete first
   assignedTo?: string; // Role or agent ID
+  delegatedTo?: string; // Sub-agent ID managing this task
   scheduledFor?: number; // Unix timestamp for scheduled execution
   tags: string[];
   metadata: Record<string, any>;
@@ -29,6 +30,7 @@ export interface TaskCreateInput {
   parentId?: string;
   dependencies?: string[];
   assignedTo?: string;
+  delegatedTo?: string;
   scheduledFor?: number;
   tags?: string[];
   metadata?: Record<string, any>;
@@ -70,6 +72,7 @@ export function createTask(input: TaskCreateInput): Task {
     childrenIds: [],
     dependencies: input.dependencies || [],
     assignedTo: input.assignedTo,
+    delegatedTo: input.delegatedTo,
     scheduledFor: input.scheduledFor,
     tags: input.tags || [],
     metadata: input.metadata || {},

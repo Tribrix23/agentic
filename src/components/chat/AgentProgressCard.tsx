@@ -66,6 +66,12 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
     case 'ask_question':
     case 'askUser':
       return { cmd: 'ask', argsStr: 'user' };
+    case 'createTodoListTasks':
+      return { cmd: 'Created', argsStr: 'To-Do List Tasks' };
+    case 'updateTaskStatus':
+      return { cmd: 'Updated', argsStr: `Task Status` };
+    case 'invokeSubagent':
+      return { cmd: 'Invoked', argsStr: `Sub-Agent (${args.taskId || ''})` };
     default:
       return { cmd: String(name), argsStr: JSON.stringify(args) };
   }
@@ -122,6 +128,11 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       
       let displayStr = `${cmd} ${argsStr}`.trim();
       if (displayStr.length > 50) displayStr = displayStr.slice(0, 47) + '...';
+
+      // Special case for agent tools so they don't say "Ran Created To-Do List Tasks"
+      if (['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+        return { icon: <Brain size={14} />, text: displayStr, color: 'text-purple-400' };
+      }
 
       return { icon: <SquareTerminal size={14} />, text: `${actionWord} ${displayStr}`, color: 'text-gray-400' };
     }

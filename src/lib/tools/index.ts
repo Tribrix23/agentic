@@ -20,6 +20,9 @@ import { definition as invokeSubagentDef, handler as invokeSubagentHandler } fro
 import { definition as sendMessageDef, handler as sendMessageHandler } from './definitions/sendMessage';
 import { definition as manageTaskDef, handler as manageTaskHandler } from './definitions/manageTask';
 import { definition as commandStatusDef, handler as commandStatusHandler } from './definitions/commandStatus';
+import { definition as createTodoListDef, handler as createTodoListHandler } from './definitions/createTodoListTasks';
+import { definition as readNecessaryFilesDef, handler as readNecessaryFilesHandler } from './definitions/readNecessaryFiles';
+import { definition as updateTaskStatusDef, handler as updateTaskStatusHandler } from './definitions/updateTaskStatus';
 
 export * from './types';
 export * from './registry';
@@ -48,4 +51,7 @@ export function initializeTools() {
   registerTool(sendMessageDef, sendMessageHandler);
   registerTool(manageTaskDef, manageTaskHandler);
   registerTool(commandStatusDef, commandStatusHandler);
+  registerTool(createTodoListDef, createTodoListHandler);
+  registerTool(readNecessaryFilesDef, readNecessaryFilesHandler);
+  registerTool(updateTaskStatusDef, updateTaskStatusHandler);
 }

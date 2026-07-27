@@ -67,6 +67,8 @@ export type AgentEventType =
   | 'agent:progress-update'
   | 'agent:goal-satisfied'
   | 'agent:goal-not-satisfied'
+  | 'agent:sleeping'
+  | 'agent:wakeup'
   | 'agent:coding-started'
   | 'agent:coding-progress'
   | 'agent:coding-complete';
@@ -94,7 +96,7 @@ export interface AgentState {
   lastToolSignature?: string;
 
   // Sophisticated agent state
-  phase: 'understanding' | 'planning' | 'executing' | 'reflecting' | 'validating' | 'done';
+  phase: 'idle' | 'understanding' | 'planning' | 'executing' | 'reflecting' | 'validating' | 'done';
   goal?: string;
   goalSatisfied: boolean;
   progress: number; // 0-100
@@ -513,6 +515,32 @@ export class AgentLoop {
       progress: 0,
       stuckCount: 0,
     };
+  }
+
+  private resolveWakeup: ((value: void | PromiseLike<void>) => void) | null = null;
+  private isSleeping = false;
+  private pendingMessages: AgenticMessage[] = [];
+  private activeSubagentCount = 0;
+
+  /** Called by the sub-agent spawner to increment/decrement active sub-agent count */
+  notifySubagentSpawned(): void {
+    this.activeSubagentCount++;
+  }
+
+  notifySubagentDone(): void {
+    this.activeSubagentCount = Math.max(0, this.activeSubagentCount - 1);
+  }
+
+  /** Wake up the agent loop with new messages */
+  wakeup(newMessages?: AgenticMessage[]): void {
+    if (this.isSleeping && this.resolveWakeup) {
+      if (newMessages && newMessages.length > 0) {
+        this.pendingMessages.push(...newMessages);
+      }
+      this.isSleeping = false;
+      this.resolveWakeup();
+      this.resolveWakeup = null;
+    }
   }
 
   /** Get current agent state */
@@ -1211,8 +1239,57 @@ export class AgentLoop {
             console.log('[AgentLoop] Early iteration without file writes, continuing...');
           } else {
             // Allow stopping after tools have been executed
-            continueLoop = false;
             console.log('[AgentLoop] Text-only response with tools executed, stopping...');
+          }
+        }
+
+        // ── PERSISTENT CONNECTION LOGIC ────────────────────────────────
+        // Only sleep (keep connection alive) when we have active sub-agents running.
+        // Otherwise emit agent:done and cleanly terminate.
+        const hasActiveSubagents = this.activeSubagentCount > 0;
+        if (!continueLoop && this.state.isRunning && hasActiveSubagents) {
+          this.state.status = 'sleeping';
+          this.state.phase = 'idle';
+          this.emit({ type: 'agent:sleeping' });
+          
+          this.isSleeping = true;
+          // Wait for wakeup with a 30-second timeout
+          await new Promise<void>((resolve) => {
+            this.resolveWakeup = resolve;
+            
+            // Abort listener for sleep phase
+            if (this.abortController) {
+              this.abortController.signal.addEventListener('abort', () => {
+                if (this.resolveWakeup) {
+                  this.isSleeping = false;
+                  this.resolveWakeup();
+                  this.resolveWakeup = null;
+                }
+              });
+            }
+
+            // 30-second timeout safety net
+            setTimeout(() => {
+              if (this.isSleeping && this.resolveWakeup) {
+                console.log('[AgentLoop] Sleep timeout reached, waking up...');
+                this.isSleeping = false;
+                this.resolveWakeup();
+                this.resolveWakeup = null;
+              }
+            }, 30000);
+          });
+          
+          // Agent woke up
+          if (this.state.isRunning && !this.abortController?.signal.aborted) {
+            continueLoop = true;
+            this.state.status = 'waking up';
+            if (this.pendingMessages.length > 0) {
+              updatedMessages.push(...this.pendingMessages);
+              this.pendingMessages = [];
+            }
+            this.emit({ type: 'agent:wakeup' });
+          } else {
+            continueLoop = false;
           }
         }
 
