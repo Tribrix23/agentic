@@ -7,10 +7,12 @@ import './index.css';
 
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
-import { RightSidebar } from './components/RightSidebar';
+import { RightSidebar, AgentActivity } from './components/RightSidebar';
 import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
 import { IdeContainer } from './components/IdeContainer';
+import { getAllTasks, clearAllTasks, clearConversationTasks } from './lib/taskStore';
+import { Task } from './lib/taskStore';
 
 export function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -102,6 +104,134 @@ const App = () => {
   const [rightSidebarOpen, setRightSidebarOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [showFullIde, setShowFullIde] = React.useState(false);
+  const [tasks, setTasks] = React.useState<Task[]>(() => getAllTasks());
+  const [agentActivity, setAgentActivity] = React.useState<AgentActivity[]>([]);
+  const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(null);
+
+  // Clear all tasks on mount to clean up old data
+  React.useEffect(() => {
+    clearAllTasks();
+  }, []);
+
+  // Listen for task changes
+  React.useEffect(() => {
+    const handleTaskChange = () => {
+      console.log('Task change detected, reloading tasks');
+      setTasks(getAllTasks({ conversationId: currentConversationId }));
+    };
+
+    window.addEventListener('task-updated', handleTaskChange);
+    window.addEventListener('tasks-cleared', handleTaskChange);
+
+    return () => {
+      window.removeEventListener('task-updated', handleTaskChange);
+      window.removeEventListener('tasks-cleared', handleTaskChange);
+    };
+  }, [currentConversationId]);
+
+  // Listen for agent activity events
+  React.useEffect(() => {
+    const handleAgentThinking = (e: CustomEvent) => {
+      setAgentActivity(prev => [...prev, {
+        id: `act_${Date.now()}`,
+        timestamp: Date.now(),
+        type: 'thinking',
+        description: 'Agent is thinking...',
+        status: 'running',
+      }]);
+    };
+
+    const handleAgentToolCall = (e: CustomEvent) => {
+      const toolCall = e.detail;
+      setAgentActivity(prev => [...prev, {
+        id: `act_${Date.now()}`,
+        timestamp: Date.now(),
+        type: 'tool_call',
+        toolName: toolCall.name,
+        description: `Calling ${toolCall.name}`,
+        status: 'running',
+      }]);
+    };
+
+    const handleAgentToolResult = (e: CustomEvent) => {
+      const { toolCall, result } = e.detail;
+      setAgentActivity(prev => {
+        const updated = prev.map(act => {
+          if (act.status === 'running' && act.toolName === toolCall.name) {
+            return {
+              ...act,
+              status: result.success ? 'completed' as const : 'error' as const,
+              durationMs: toolCall.durationMs,
+            };
+          }
+          return act;
+        });
+        return updated;
+      });
+    };
+
+    const handleCodingStarted = (e: CustomEvent) => {
+      const { fileName, filePath, toolName } = e.detail;
+      setAgentActivity(prev => [...prev, {
+        id: `act_${Date.now()}`,
+        timestamp: Date.now(),
+        type: 'coding',
+        toolName,
+        description: `Coding ${fileName}`,
+        status: 'running',
+        fileName,
+        filePath,
+      }]);
+    };
+
+    const handleCodingProgress = (e: CustomEvent) => {
+      const { fileName, added, removed } = e.detail;
+      setAgentActivity(prev => {
+        const updated = prev.map(act => {
+          if (act.type === 'coding' && act.status === 'running' && act.fileName === fileName) {
+            return {
+              ...act,
+              description: `Coding ${fileName} +${added} -${removed}`,
+            };
+          }
+          return act;
+        });
+        return updated;
+      });
+    };
+
+    const handleCodingComplete = (e: CustomEvent) => {
+      const { fileName } = e.detail;
+      setAgentActivity(prev => {
+        const updated = prev.map(act => {
+          if (act.type === 'coding' && act.status === 'running' && act.fileName === fileName) {
+            return {
+              ...act,
+              status: 'completed' as const,
+            };
+          }
+          return act;
+        });
+        return updated;
+      });
+    };
+
+    window.addEventListener('agent:thinking', handleAgentThinking as any);
+    window.addEventListener('agent:tool-call', handleAgentToolCall as any);
+    window.addEventListener('agent:tool-result', handleAgentToolResult as any);
+    window.addEventListener('agent:coding-started', handleCodingStarted as any);
+    window.addEventListener('agent:coding-progress', handleCodingProgress as any);
+    window.addEventListener('agent:coding-complete', handleCodingComplete as any);
+
+    return () => {
+      window.removeEventListener('agent:thinking', handleAgentThinking as any);
+      window.removeEventListener('agent:tool-call', handleAgentToolCall as any);
+      window.removeEventListener('agent:tool-result', handleAgentToolResult as any);
+      window.removeEventListener('agent:coding-started', handleCodingStarted as any);
+      window.removeEventListener('agent:coding-progress', handleCodingProgress as any);
+      window.removeEventListener('agent:coding-complete', handleCodingComplete as any);
+    };
+  }, []);
 
   React.useEffect(() => {
     // Listen for deep link authentication success
@@ -169,7 +299,18 @@ const App = () => {
         />
         <RightSidebar 
           isOpen={rightSidebarOpen} 
-          toggle={() => setRightSidebarOpen(false)} 
+          toggle={() => setRightSidebarOpen(false)}
+          tasks={tasks}
+          onTaskClick={(task) => console.log('Task clicked:', task)}
+          agentActivity={agentActivity}
+          conversationId={currentConversationId}
+          onClearTasks={() => {
+            if (currentConversationId) {
+              clearConversationTasks(currentConversationId);
+            } else {
+              clearAllTasks();
+            }
+          }}
         />
         
         {/* Settings Modal */}

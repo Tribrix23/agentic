@@ -163,7 +163,7 @@ export class TaskGraph {
         dep => dep.task.status !== 'completed'
       );
 
-      if (hasIncompleteDepeps) {
+      if (hasIncompleteDeps) {
         blocked.push(node.task);
       }
     }

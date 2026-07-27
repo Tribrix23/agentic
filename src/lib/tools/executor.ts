@@ -28,9 +28,20 @@ export function setCurrentUserMessageId(id: string): void {
 
 export async function executeTool(toolCall: ToolCall, context: ToolContext, permissionConfig: PermissionConfig): Promise<ToolResult> {
 
+  // Validation: tool name format (alphanumeric + underscores, reasonable length)
+  // This prevents obvious HTML tags and random text while allowing flexibility
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(toolCall.name) || toolCall.name.length > 100) {
+    console.error('[executor] INVALID TOOL NAME FORMAT:', toolCall.name);
+    return { 
+      success: false, 
+      output: `[INVALID FORMAT] "${toolCall.name}" has invalid format. Tool names must be alphanumeric with underscores only.` 
+    };
+  }
+
   const tool = getTool(toolCall.name);
   if (!tool) {
-    return { success: false, output: `Tool not found: ${toolCall.name}` };
+    console.error('[executor] Tool not found in registry:', toolCall.name);
+    return { success: false, output: `Tool not found: ${toolCall.name}. The tool may not be registered. Check the tool registry.` };
   }
 
   const sig = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;

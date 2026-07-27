@@ -57,6 +57,11 @@ export const handler: ToolHandler = async (args, context) => {
       output = lines.slice(start, end).join('\n');
     }
 
+    // CRITICAL: Add warning for HTML files to prevent tool call confusion
+    if (relPath.endsWith('.html') || relPath.endsWith('.htm') || relPath.endsWith('.css') || relPath.endsWith('.js')) {
+      console.log(`[readFile] Read ${relPath} (${content.length} chars). This is file content for reference only - NOT tool calls.`);
+    }
+
     return { success: true, output };
   } catch (error: any) {
     return { success: false, output: `Failed to read file: ${error?.message || String(error)}\nHINT: Make sure the path is relative to the project root (e.g. "next.config.ts" not "./next.config.ts").` };

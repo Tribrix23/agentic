@@ -215,13 +215,19 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           // Check for structured tool calls
           if (message.tool_calls && message.tool_calls.length > 0 && onToolCall) {
             for (const tc of message.tool_calls) {
-              const toolCall = createToolCall(
-                tc.function?.name || tc.name,
-                typeof tc.function?.arguments === 'string'
-                  ? JSON.parse(tc.function.arguments)
-                  : tc.function?.arguments || tc.arguments || {}
-              );
-              onToolCall(toolCall);
+              const toolName = tc.function?.name || tc.name;
+              // Validate tool name to prevent HTML code being treated as tool calls
+              if (toolName && toolName.length > 0 && toolName.length < 100 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(toolName)) {
+                const toolCall = createToolCall(
+                  toolName,
+                  typeof tc.function?.arguments === 'string'
+                    ? JSON.parse(tc.function.arguments)
+                    : tc.function?.arguments || tc.arguments || {}
+                );
+                onToolCall(toolCall);
+              } else {
+                console.warn('[API] Invalid tool name in non-streaming response:', toolName);
+              }
             }
           }
 
@@ -340,7 +346,11 @@ async function handleStreamingResponse(
                     pendingToolCalls[idx].id = tc.id;
                   }
                   if (tc.function?.name) {
-                    pendingToolCalls[idx].name = tc.function.name;
+                    // Validate tool name to prevent HTML code being treated as tool calls
+                    const toolName = tc.function.name;
+                    if (toolName && toolName.length > 0 && toolName.length < 100 && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(toolName)) {
+                      pendingToolCalls[idx].name = toolName;
+                    }
                   }
                   if (tc.function?.arguments) {
                     pendingToolCalls[idx].arguments += tc.function.arguments;

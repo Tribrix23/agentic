@@ -31,6 +31,13 @@ export const handler: ToolHandler = async (args, context) => {
   try {
     const { path: relativeOrAbsPath, content, artifactMetadata } = args;
     
+    console.log('[writeFile] Writing file:', { path: relativeOrAbsPath, contentLength: content?.length, hasContent: !!content });
+    
+    if (!content) {
+      console.error('[writeFile] No content provided for file:', relativeOrAbsPath);
+      return { success: false, output: `Failed to write file: No content provided` };
+    }
+    
     let targetPath = relativeOrAbsPath;
     let isArtifact = !!artifactMetadata;
 
@@ -45,8 +52,12 @@ export const handler: ToolHandler = async (args, context) => {
         : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
     }
       
+    console.log('[writeFile] Target path:', targetPath);
+      
     // Ask backend to create dirs recursively and save
     const result = await (window as any).electron.saveFileContent(targetPath, content, { createDirs: true });
+    
+    console.log('[writeFile] Save result:', result);
     
     if (result.success) {
       if (isArtifact) {
@@ -65,7 +76,7 @@ export const handler: ToolHandler = async (args, context) => {
       }
       return { 
         success: true, 
-        output: `Successfully wrote to ${targetPath}`,
+        output: `Successfully wrote to ${targetPath} (${content.length} characters)`,
         artifacts: [{
           type: 'file_change',
           path: targetPath,
@@ -73,9 +84,11 @@ export const handler: ToolHandler = async (args, context) => {
         }]
       };
     } else {
+      console.error('[writeFile] Save failed:', result.error);
       return { success: false, output: `Failed to write file: ${result.error}` };
     }
   } catch (error: any) {
+    console.error('[writeFile] Exception:', error);
     return { success: false, output: `Failed to write file: ${error.message || String(error)}` };
   }
 };

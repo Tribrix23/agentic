@@ -12,6 +12,5 @@ export class SecurityInterceptor {
   static requiresApproval(toolCall: ToolCall): boolean {
     const dangerousTools = ['deleteFile', 'renameFile', 'runCommand', 'editFile', 'writeFile'];
     return dangerousTools.includes(toolCall.name);
-    return false;
   }
 }

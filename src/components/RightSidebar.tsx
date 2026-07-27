@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { 
   X, Activity, FileCode, Layers, FileText, FilePen, Terminal, GitBranch, 
-  Search, Brain, RotateCcw, AlertCircle
+  Search, Brain, RotateCcw, AlertCircle, ListTodo, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
+import { TodoListPanel } from './chat/TodoListPanel';
+import { Task } from '../lib/taskStore';
 
 export interface TokenBudget {
   total: number;
@@ -31,6 +33,8 @@ export interface AgentActivity {
   description: string; 
   status: 'running' | 'completed' | 'error'; 
   durationMs?: number;
+  fileName?: string;
+  filePath?: string;
 }
 
 export interface FileChange {
@@ -46,12 +50,17 @@ interface RightSidebarProps {
   tokenBudget?: TokenBudget;
   onRevertFile?: (path: string) => void;
   onOpenFile?: (path: string) => void;
+  tasks?: Task[];
+  onTaskClick?: (task: Task) => void;
+  conversationId?: string;
+  onClearTasks?: () => void;
 }
 
-type TabType = 'activity' | 'files' | 'context';
+type TabType = 'activity' | 'files' | 'context' | 'tasks';
 
 const getActivityIcon = (type: string, toolName?: string) => {
   const t = (toolName || type).toLowerCase();
+  if (t.includes('coding')) return <FilePen className="w-4 h-4 text-green-400 animate-pulse" />;
   if (t.includes('read') || t.includes('view')) return <FileText className="w-4 h-4 text-blue-400" />;
   if (t.includes('write') || t.includes('edit')) return <FilePen className="w-4 h-4 text-green-400" />;
   if (t.includes('run') || t.includes('terminal')) return <Terminal className="w-4 h-4 text-yellow-400" />;
@@ -67,9 +76,9 @@ const formatTime = (ts: number) => {
 };
 
 export const RightSidebar = ({ 
-  isOpen, toggle, agentActivity = [], filesChanged = [], tokenBudget, onRevertFile, onOpenFile 
+  isOpen, toggle, agentActivity = [], filesChanged = [], tokenBudget, onRevertFile, onOpenFile, tasks = [], onTaskClick, conversationId, onClearTasks
 }: RightSidebarProps) => {
-  const [activeTab, setActiveTab] = useState<TabType>('activity');
+  const [activeTab, setActiveTab] = useState<TabType>('tasks');
 
   return (
     <div className={cn(
@@ -80,6 +89,22 @@ export const RightSidebar = ({
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-14 pb-4 border-b border-white/5 shrink-0">
           <div className="flex space-x-6">
+            <button 
+              onClick={() => setActiveTab('tasks')}
+              className={cn("flex items-center space-x-2 pb-1 border-b-2 transition-colors", activeTab === 'tasks' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
+            >
+              <ListTodo className="w-4 h-4" />
+              <span>Tasks</span>
+            </button>
+            {activeTab === 'tasks' && onClearTasks && (
+              <button
+                onClick={onClearTasks}
+                className="ml-auto p-1 hover:bg-white/10 rounded transition-colors"
+                title="Clear all tasks"
+              >
+                <Trash2 className="w-4 h-4 text-white/40 hover:text-red-400" />
+              </button>
+            )}
             <button 
               onClick={() => setActiveTab('activity')}
               className={cn("flex items-center space-x-2 pb-1 border-b-2 transition-colors", activeTab === 'activity' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
@@ -108,6 +133,23 @@ export const RightSidebar = ({
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative">
           <AnimatePresence mode="wait">
             
+            {/* TASKS TAB */}
+            {activeTab === 'tasks' && (
+              <motion.div
+                key="tasks"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                <TodoListPanel 
+                  tasks={tasks} 
+                  onTaskClick={onTaskClick}
+                  className="space-y-2"
+                />
+              </motion.div>
+            )}
+
             {/* ACTIVITY TAB */}
             {activeTab === 'activity' && (
               <motion.div

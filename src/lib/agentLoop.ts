@@ -38,6 +38,8 @@ import { estimateTokens } from './tokenCounter';
 import type { TokenBudget } from './tokenCounter';
 import { callDispatcherAPI } from '../api';
 import { SecurityInterceptor } from './SecurityInterceptor';
+import { createTask, updateTask } from './taskStore';
+import { TaskGraph } from './taskGraph';
 
 // ── Agent Events ───────────────────────────────────────────────────────────
 
@@ -55,7 +57,19 @@ export type AgentEventType =
   | 'agent:summarizing'
   | 'agent:token-budget'
   | 'agent:message-added'
-  | 'agent:message-updated'; // fired when toolCalls/content change on an existing message
+  | 'agent:message-updated' // fired when toolCalls/content change on an existing message
+  | 'agent:tasks-created'
+  | 'agent:planning-started'
+  | 'agent:planning-complete'
+  | 'agent:reflection-started'
+  | 'agent:reflection-complete'
+  | 'agent:clarification-needed'
+  | 'agent:progress-update'
+  | 'agent:goal-satisfied'
+  | 'agent:goal-not-satisfied'
+  | 'agent:coding-started'
+  | 'agent:coding-progress'
+  | 'agent:coding-complete';
 
 export interface AgentEvent {
   type: AgentEventType;
@@ -78,6 +92,16 @@ export interface AgentState {
   consecutiveDuplicates?: number;
   consecutiveErrors?: number;
   lastToolSignature?: string;
+
+  // Sophisticated agent state
+  phase: 'understanding' | 'planning' | 'executing' | 'reflecting' | 'validating' | 'done';
+  goal?: string;
+  goalSatisfied: boolean;
+  progress: number; // 0-100
+  estimatedRemainingMs?: number;
+  needsClarification?: boolean;
+  clarificationQuestion?: string;
+  stuckCount: number;
 }
 
 // ── Tool Call Parsing ──────────────────────────────────────────────────────
@@ -87,13 +111,55 @@ interface ParsedToolCall {
   arguments: Record<string, any>;
 }
 
+/** Common HTML tag names that must never be treated as tool calls. */
+const HTML_TAG_NAMES = new Set([
+  'a', 'abbr', 'address', 'area', 'article', 'aside', 'audio', 'b', 'base', 'bdi', 'bdo',
+  'blockquote', 'body', 'br', 'button', 'canvas', 'caption', 'cite', 'code', 'col', 'colgroup',
+  'data', 'datalist', 'dd', 'del', 'details', 'dfn', 'dialog', 'div', 'dl', 'dt', 'em', 'embed',
+  'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'head', 'header', 'hr', 'html', 'i', 'iframe', 'img', 'input', 'ins', 'kbd', 'label', 'legend',
+  'li', 'link', 'main', 'map', 'mark', 'menu', 'meta', 'meter', 'nav', 'noscript', 'object', 'ol',
+  'optgroup', 'option', 'output', 'p', 'param', 'picture', 'pre', 'progress', 'q', 'rp', 'rt',
+  'ruby', 's', 'samp', 'script', 'section', 'select', 'slot', 'small', 'source', 'span', 'strong',
+  'style', 'sub', 'summary', 'sup', 'svg', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot',
+  'th', 'thead', 'time', 'title', 'tr', 'track', 'u', 'ul', 'var', 'video', 'wbr',
+]);
+
+function isPlausibleToolName(name: string, knownToolNames?: Set<string>): boolean {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name) || name.length > 50) {
+    return false;
+  }
+
+  if (knownToolNames && knownToolNames.size > 0) {
+    return knownToolNames.has(name);
+  }
+
+  if (HTML_TAG_NAMES.has(name.toLowerCase())) {
+    return false;
+  }
+
+  // Project tools use camelCase; reject all-lowercase names like "meta" or "script".
+  return /[A-Z]/.test(name);
+}
+
+function getKnownToolNames(toolDefinitions: any[]): Set<string> {
+  const names = new Set<string>();
+  for (const def of toolDefinitions) {
+    const name = def?.function?.name ?? def?.name;
+    if (typeof name === 'string' && name.length > 0) {
+      names.add(name);
+    }
+  }
+  return names;
+}
+
 /**
  * Parse tool calls from LLM response text.
  * Supports two formats:
  * 1. XML-style: <tool_call>{"name": "...", "arguments": {...}}</tool_call>
  * 2. JSON blocks: ```json\n{"tool_call": {"name": "...", "arguments": {...}}}\n```
  */
-function parseToolCallsFromText(text: string): ParsedToolCall[] {
+function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
 
   // ── Format 0: Antigravity native syntax: call:tool_name{json_args} ────────────────
@@ -102,6 +168,13 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
     const braceIndex = text.indexOf('{', startIndex);
     if (braceIndex !== -1 && braceIndex < startIndex + 50) {
       const toolName = text.substring(startIndex + 5, braceIndex).trim();
+      
+      if (!isPlausibleToolName(toolName, knownToolNames)) {
+        console.warn('[AgentLoop] Invalid tool name in text parsing, skipping:', toolName);
+        startIndex = text.indexOf('call:', startIndex + 5);
+        continue;
+      }
+      
       let braceCount = 0;
       let endIndex = -1;
       
@@ -146,10 +219,14 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
     try {
       const parsed = JSON.parse(match[1].trim());
       if (parsed.name) {
-        toolCalls.push({
-          name: parsed.name,
-          arguments: parsed.arguments || parsed.params || parsed.args || {},
-        });
+        if (isPlausibleToolName(parsed.name, knownToolNames)) {
+          toolCalls.push({
+            name: parsed.name,
+            arguments: parsed.arguments || parsed.params || parsed.args || {},
+          });
+        } else {
+          console.warn('[AgentLoop] Invalid tool name in XML format, skipping:', parsed.name);
+        }
       }
     } catch (e) {
       console.warn('[AgentLoop] Failed to parse XML tool call:', e);
@@ -179,10 +256,14 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
           if (parsed.tool_call || (parsed.name && Object.keys(parsed).includes('arguments'))) {
             const tc = parsed.tool_call || parsed;
             if (tc.name) {
-              toolCalls.push({
-                name: tc.name,
-                arguments: tc.arguments || tc.params || tc.args || {},
-              });
+              if (isPlausibleToolName(tc.name, knownToolNames)) {
+                toolCalls.push({
+                  name: tc.name,
+                  arguments: tc.arguments || tc.params || tc.args || {},
+                });
+              } else {
+                console.warn('[AgentLoop] Invalid tool name in JSON format, skipping:', tc.name);
+              }
               startIndex = text.indexOf('{', endIndex + 1);
               continue;
             }
@@ -191,10 +272,14 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
             const possibleName = Object.keys(parsed)[0];
             const possibleArgs = parsed[possibleName];
             if (typeof possibleArgs === 'object' && possibleArgs !== null && !Array.isArray(possibleArgs)) {
-              toolCalls.push({
-                name: possibleName,
-                arguments: possibleArgs,
-              });
+              if (isPlausibleToolName(possibleName, knownToolNames)) {
+                toolCalls.push({
+                  name: possibleName,
+                  arguments: possibleArgs,
+                });
+              } else {
+                console.warn('[AgentLoop] Invalid tool name in raw JSON format, skipping:', possibleName);
+              }
               startIndex = text.indexOf('{', endIndex + 1);
               continue;
             }
@@ -213,7 +298,10 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
     while ((match = funcRegex.exec(text)) !== null) {
       try {
         const args = JSON.parse(match[2].trim());
-        toolCalls.push({ name: match[1], arguments: args });
+        const name = match[1];
+        if (isPlausibleToolName(name, knownToolNames)) {
+          toolCalls.push({ name, arguments: args });
+        }
       } catch (e) {
         console.warn('[AgentLoop] Failed to parse function-call style tool call:', e);
       }
@@ -238,7 +326,9 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
         args[argMatch[1].trim()] = val;
       }
       
-      toolCalls.push({ name, arguments: args });
+      if (isPlausibleToolName(name, knownToolNames)) {
+        toolCalls.push({ name, arguments: args });
+      }
     }
   }
 
@@ -260,7 +350,9 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
         args[paramMatch[1].trim()] = val;
       }
       
-      toolCalls.push({ name, arguments: args });
+      if (isPlausibleToolName(name, knownToolNames)) {
+        toolCalls.push({ name, arguments: args });
+      }
     }
   }
 
@@ -284,8 +376,7 @@ function parseToolCallsFromText(text: string): ParsedToolCall[] {
         else if (!isNaN(Number(val)) && val !== '') val = Number(val);
         args[attrMatch[1]] = val;
       }
-      // Only accept if it matches a known tool name pattern (camelCase/snake_case)
-      if (/^[a-z]/.test(name)) {
+      if (isPlausibleToolName(name, knownToolNames)) {
         toolCalls.push({ name, arguments: args });
         break; // Only take the first one per response
       }
@@ -394,6 +485,8 @@ export class AgentLoop {
   private state: AgentState;
   private toolExecutor: ((toolCall: ToolCall) => Promise<ToolResult>) | null = null;
   private toolDefinitions: any[] = [];
+  private executedToolNames: Set<string> = new Set();
+  private successfulFileWrites: number = 0;
 
   constructor(
     config: AIConfig,
@@ -415,6 +508,10 @@ export class AgentLoop {
       currentIteration: 0,
       maxIterations: config.maxAgentIterations,
       status: 'idle',
+      phase: 'understanding',
+      goalSatisfied: false,
+      progress: 0,
+      stuckCount: 0,
     };
   }
 
@@ -430,6 +527,7 @@ export class AgentLoop {
     }
     this.state.isRunning = false;
     this.state.status = 'stopped';
+    this.state.phase = 'done';
     this.emit({ type: 'agent:done', data: { reason: 'user_cancelled' } });
   }
 
@@ -459,15 +557,34 @@ export class AgentLoop {
       maxIterations: this.config.maxAgentIterations,
       status: 'thinking',
       startTime: Date.now(),
+      phase: 'understanding',
+      goalSatisfied: false,
+      progress: 0,
+      stuckCount: 0,
     };
 
     const updatedMessages = [...messages];
 
     try {
-      // ── Initial analysis state ───────────────────────────────────────────
-      // Emit initial "Analyzing user prompt" state before starting work
+      // ── PHASE 1: UNDERSTANDING ───────────────────────────────────────────
+      this.state.phase = 'understanding';
+      this.state.status = 'Understanding request...';
       this.emit({ type: 'agent:thinking' });
-      this.state.status = 'Analyzing user prompt...';
+
+      const userMessage = updatedMessages[updatedMessages.length - 1];
+      if (userMessage.role === 'user') {
+        // Extract goal from user message
+        this.state.goal = userMessage.content;
+        
+        // Check for ambiguities that need clarification
+        const clarification = await this.detectAmbiguities(userMessage.content);
+        if (clarification) {
+          this.state.needsClarification = true;
+          this.state.clarificationQuestion = clarification;
+          this.emit({ type: 'agent:clarification-needed', data: { question: clarification } });
+          // Wait for user response (in real implementation, would pause here)
+        }
+      }
 
       // ── Auto-summarize if needed ───────────────────────────────────────
       const contextBudget = this.config.contextWindowSize - this.config.maxTokens;
@@ -475,8 +592,6 @@ export class AgentLoop {
         this.emit({ type: 'agent:summarizing' });
         this.state.status = 'Summarizing conversation history...';
 
-        // For now, do a simple truncation instead of calling LLM for summary
-        // (to avoid recursive API calls). Full summarization can be added later.
         const { toSummarize, toKeep } = splitForSummarization(updatedMessages, 8);
         if (toSummarize.length > 0) {
           const summaryText = toSummarize
@@ -489,9 +604,25 @@ export class AgentLoop {
         }
       }
 
+      // ── PHASE 2: PLANNING ───────────────────────────────────────────────
+      this.state.phase = 'planning';
+      this.state.status = 'Planning approach...';
+      this.emit({ type: 'agent:planning-started' });
+
+      const taskGraph = await this.planExecution(updatedMessages);
+      this.emit({ type: 'agent:planning-complete', data: { 
+        taskCount: taskGraph.getStats().totalTasks,
+        criticalPath: taskGraph.getCriticalPath()
+      }});
+
+      // ── PHASE 3: EXECUTION ───────────────────────────────────────────────
+      this.state.phase = 'executing';
+      this.state.status = 'Executing tasks...';
+      
       // ── Agent iteration loop ─────────────────────────────────────────
       let continueLoop = true;
-      const executedToolNames = new Set<string>();
+      this.executedToolNames.clear();
+      this.successfulFileWrites = 0;
 
       while (continueLoop && this.state.isRunning) {
         this.state.currentIteration++;
@@ -511,11 +642,8 @@ export class AgentLoop {
           data: { iteration: this.state.currentIteration, maxIterations: this.state.maxIterations },
         });
 
-        if (this.state.currentIteration > 1) {
-          this.state.status = 'Waiting 2s (API rate limit)...';
-          this.emit({ type: 'agent:thinking' });
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
+        // ── PHASE 4: REFLECTION (before each iteration) ───────────────
+        await this.reflectOnProgress(updatedMessages, taskGraph);
 
         // ── Review Phase (High Architecture Only) ──────────────────────
         const latestMsg = updatedMessages[updatedMessages.length - 1];
@@ -697,6 +825,11 @@ export class AgentLoop {
               
               assistantMsg.content = hideText ? '' : afterThink.trim();
               
+              // Log for debugging HTML content in chunks
+              if (chunk.includes('<') && chunk.includes('>')) {
+                console.log('[AgentLoop] Chunk contains HTML-like content:', chunk.substring(0, 100));
+              }
+              
               this.emit({ 
                 type: 'agent:streaming', 
                 data: { 
@@ -708,6 +841,12 @@ export class AgentLoop {
               });
             },
             onToolCall: (toolCall: ToolCall) => {
+              const knownToolNames = getKnownToolNames(this.toolDefinitions);
+              if (!isPlausibleToolName(toolCall.name, knownToolNames)) {
+                console.error('[AgentLoop] BLOCKED invalid tool format from API:', toolCall.name);
+                return;
+              }
+              
               // Handle structured tool calls from the API
               if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
               assistantMsg.toolCalls.push(toolCall);
@@ -747,11 +886,17 @@ export class AgentLoop {
               }
               
               // Only push leaked text into thought bubble if there's actually a tool call!
-              const parsedCalls = parseToolCallsFromText(afterThink);
+              const knownToolNames = getKnownToolNames(this.toolDefinitions);
+              const parsedCalls = parseToolCallsFromText(afterThink, knownToolNames);
               if (parsedCalls.length > 0) {
                 // Assign the parsed calls to assistantMsg
                 if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
                 for (const pc of parsedCalls) {
+                  if (!isPlausibleToolName(pc.name, knownToolNames)) {
+                    console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
+                    continue;
+                  }
+                  
                   // Generate an ID for the tool call
                   const id = 'call_' + Math.random().toString(36).substring(2, 9);
                   const newCall: ToolCall = {
@@ -853,6 +998,11 @@ export class AgentLoop {
         // Notify UI immediately that this message now has tool calls (real-time display)
         this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
 
+        // Create tasks for each tool call
+        if (assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0) {
+          this.createTasksFromToolCalls(assistantMsg.toolCalls);
+        }
+
         // ── Process tool calls ─────────────────────────────────────────
         if (
           assistantMsg.toolCalls &&
@@ -900,10 +1050,50 @@ export class AgentLoop {
 
               let result: ToolResult;
               if (isApproved) {
+                // Check if this is a coding operation
+                const isCodingOperation = toolCall.name === 'writeFile' || toolCall.name === 'createFile' || toolCall.name === 'editFile';
+                const filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile || '';
+
+                if (isCodingOperation && filePath) {
+                  this.emit({ 
+                    type: 'agent:coding-started', 
+                    data: { 
+                      fileName: filePath.split('/').pop() || filePath,
+                      filePath,
+                      toolName: toolCall.name
+                    }
+                  });
+                }
+
                 this.state.status = `Executing ${toolCall.name}...`;
                 result = await this.toolExecutor(toolCall);
+                
                 if (result.success) {
-                  executedToolNames.add(toolCall.name);
+                  this.executedToolNames.add(toolCall.name);
+                  
+                  // Emit coding progress for successful file operations
+                  if (isCodingOperation && filePath) {
+                    const contentLength = toolCall.arguments?.content?.length || 0;
+                    this.emit({ 
+                      type: 'agent:coding-progress', 
+                      data: { 
+                        fileName: filePath.split('/').pop() || filePath,
+                        filePath,
+                        added: contentLength,
+                        removed: 0,
+                        toolName: toolCall.name
+                      }
+                    });
+                    
+                    this.emit({ 
+                      type: 'agent:coding-complete', 
+                      data: { 
+                        fileName: filePath.split('/').pop() || filePath,
+                        filePath,
+                        toolName: toolCall.name
+                      }
+                    });
+                  }
                 }
               } else {
                 result = { success: false, output: 'Tool execution was REJECTED by the user.' };
@@ -912,6 +1102,14 @@ export class AgentLoop {
               toolCall.result = result;
               toolCall.status = result.success ? 'completed' : 'error';
               toolCall.durationMs = Date.now() - toolCall.timestamp;
+
+              // Track successful file writes
+              if (result.success && (toolCall.name === 'writeFile' || toolCall.name === 'createFile' || toolCall.name === 'editFile')) {
+                this.successfulFileWrites++;
+              }
+
+              // Update the associated task status
+              this.updateTaskFromToolCall(toolCall, result);
 
               this.emit({ type: 'agent:tool-result', data: { toolCall, result } });
 
@@ -996,15 +1194,41 @@ export class AgentLoop {
             continueLoop = true;
           }
         } else {
-          // No tool calls — LLM gave a pure text-only response. We are done.
-          // (Unless forceRetry was set by the [SYSTEM ERROR] check above)
-          continueLoop = forceRetry;
+          // No tool calls — LLM gave a pure text-only response.
+          // Only stop if the agent has actually executed tools and done meaningful work
+          const hasExecutedTools = this.executedToolNames.size > 0;
+          const hasWrittenFiles = this.successfulFileWrites > 0;
+          
+          if (forceRetry) {
+            continueLoop = true;
+          } else if (!hasExecutedTools) {
+            // Haven't executed any tools yet - force continue
+            continueLoop = true;
+            console.log('[AgentLoop] Text-only response but no tools executed yet, continuing...');
+          } else if (!hasWrittenFiles && this.state.currentIteration < 3) {
+            // Early iteration without file writes - continue
+            continueLoop = true;
+            console.log('[AgentLoop] Early iteration without file writes, continuing...');
+          } else {
+            // Allow stopping after tools have been executed
+            continueLoop = false;
+            console.log('[AgentLoop] Text-only response with tools executed, stopping...');
+          }
+        }
+
+        // ── PHASE 5: VALIDATION (check if goal is satisfied) ───────────
+        if (!continueLoop || this.state.currentIteration > 1) {
+          const goalSatisfied = await this.validateGoalSatisfaction(updatedMessages);
+          if (goalSatisfied) {
+            continueLoop = false;
+          }
         }
       }
 
       // ── Finalize ─────────────────────────────────────────────────────
       this.state.isRunning = false;
       this.state.status = 'done';
+      this.state.phase = 'done';
       this.state.elapsedMs = Date.now() - (this.state.startTime || Date.now());
       this.emit({
         type: 'agent:done',
@@ -1031,9 +1255,138 @@ export class AgentLoop {
   private emit(event: AgentEvent): void {
     try {
       this.eventCallback(event);
+      // Also dispatch to window for global listeners
+      window.dispatchEvent(new CustomEvent(event.type, { detail: event.data }));
     } catch (e) {
       console.error('[AgentLoop] Event callback error:', e);
     }
+  }
+
+  /** Create tasks from tool calls */
+  private createTasksFromToolCalls(toolCalls: ToolCall[]): void {
+    for (const toolCall of toolCalls) {
+      const taskTitle = `Execute ${toolCall.name}`;
+      const taskDescription = `Tool call with arguments: ${JSON.stringify(toolCall.arguments).substring(0, 100)}...`;
+      
+      const task = createTask({
+        title: taskTitle,
+        description: taskDescription,
+        priority: 'medium',
+        tags: ['tool-execution'],
+        metadata: { toolCallId: toolCall.id },
+      });
+
+      // Store the task ID in the tool call for later updates
+      (toolCall as any).taskId = task.id;
+    }
+  }
+
+  /** Update task status based on tool call result */
+  private updateTaskFromToolCall(toolCall: ToolCall, result: ToolResult): void {
+    const taskId = (toolCall as any).taskId;
+    if (taskId) {
+      updateTask(taskId, {
+        status: result.success ? 'completed' : 'failed',
+      });
+    }
+  }
+
+  /** Detect ambiguities in user request that need clarification */
+  private async detectAmbiguities(userMessage: string): Promise<string | null> {
+    // Simple heuristic-based ambiguity detection
+    const ambiguityPatterns = [
+      { pattern: /it|this|that/gi, message: 'What specifically are you referring to?' },
+      { pattern: /fix|repair|debug/gi, message: 'What specific issue or error are you encountering?' },
+      { pattern: /improve|optimize|enhance/gi, message: 'What specific metrics or aspects should be improved?' },
+      { pattern: /add|implement|create/gi, message: 'Could you provide more details about the expected behavior?' },
+    ];
+
+    for (const { pattern, message } of ambiguityPatterns) {
+      if (pattern.test(userMessage) && userMessage.split(' ').length < 10) {
+        return message;
+      }
+    }
+
+    return null;
+  }
+
+  /** Plan execution by creating a task graph from the goal */
+  private async planExecution(messages: AgenticMessage[]): Promise<TaskGraph> {
+    // In a sophisticated implementation, this would:
+    // 1. Call LLM to decompose the goal into subtasks
+    // 2. Identify dependencies between tasks
+    // 3. Estimate resources and time for each task
+    // 4. Create tasks in the task store
+    
+    // For now, create a placeholder task graph
+    const planningMsg = createAssistantMessage(this.config.model);
+    planningMsg.isHidden = true;
+    planningMsg.content = '[PLANNING PHASE]: Analyzing requirements and creating execution plan...';
+    messages.push(planningMsg);
+    this.emit({ type: 'agent:message-added', data: planningMsg });
+
+    // Create initial planning task
+    const planTask = createTask({
+      title: 'Plan execution approach',
+      description: 'Analyze requirements and create execution plan',
+      priority: 'high',
+      tags: ['planning'],
+    });
+
+    // Create TaskGraph with the planning task
+    return new TaskGraph([planTask]);
+  }
+
+  /** Reflection phase - evaluate progress and strategy */
+  private async reflectOnProgress(messages: AgenticMessage[], taskGraph: TaskGraph): Promise<void> {
+    this.state.phase = 'reflecting';
+    this.state.status = 'Reflecting on progress...';
+    this.emit({ type: 'agent:reflection-started' });
+
+    const stats = taskGraph.getStats();
+    const progress = stats.completedTasks / (stats.totalTasks || 1) * 100;
+    this.state.progress = Math.round(progress);
+
+    // Check if stuck (no progress for multiple iterations)
+    if (progress === this.state.progress && this.state.currentIteration > 3) {
+      this.state.stuckCount++;
+    } else {
+      this.state.stuckCount = 0;
+    }
+
+    // If stuck too many times, consider alternative approach
+    if (this.state.stuckCount >= 3) {
+      this.emit({ type: 'agent:error', data: { 
+        message: 'Agent appears stuck. Considering alternative approach...' 
+      }});
+    }
+
+    // Update progress
+    this.emit({ type: 'agent:progress-update', data: { 
+      progress: this.state.progress,
+      completedTasks: stats.completedTasks,
+      totalTasks: stats.totalTasks,
+    }});
+
+    this.emit({ type: 'agent:reflection-complete' });
+  }
+
+  /** Validate if goal has been satisfied */
+  private async validateGoalSatisfaction(messages: AgenticMessage[]): Promise<boolean> {
+    this.state.phase = 'validating';
+    this.state.status = 'Validating goal satisfaction...';
+
+    // In a sophisticated implementation, this would:
+    // 1. Check if all tasks are completed
+    // 2. Run validation tests if applicable
+    // 3. Verify the solution meets the original requirements
+    // 4. Check for unintended side effects
+
+    // For now, disable automatic goal satisfaction detection
+    // Let the agent run until it naturally stops (no tool calls) or hits max iterations
+    // This prevents premature stopping when the agent says it will do something but hasn't yet
+    this.emit({ type: 'agent:goal-not-satisfied' });
+    return false;
   }
 }
 

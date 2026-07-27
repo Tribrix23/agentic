@@ -41,7 +41,11 @@ const MAX_TASKS = 1000;
 
 function loadAll(): Task[] {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return [];
+    const tasks = JSON.parse(stored);
+    // Filter out placeholder tasks created by planning phase
+    return tasks.filter((t: Task) => !t.tags?.includes('planning'));
   } catch {
     return [];
   }
@@ -92,7 +96,7 @@ export function createTask(input: TaskCreateInput): Task {
   tasks.push(task);
   saveAll(tasks);
   
-  window.dispatchEvent(new CustomEvent('task-created', { detail: task }));
+  window.dispatchEvent(new CustomEvent('task-updated', { detail: task }));
   return task;
 }
 
@@ -222,5 +226,13 @@ export function getAllTasks(filters?: {
 /** Clear all tasks (for testing/reset) */
 export function clearAllTasks(): void {
   localStorage.removeItem(STORAGE_KEY);
+  window.dispatchEvent(new CustomEvent('tasks-cleared'));
+}
+
+/** Clear tasks for a specific conversation */
+export function clearConversationTasks(conversationId: string): void {
+  const tasks = loadAll();
+  const filtered = tasks.filter(t => t.conversationId !== conversationId);
+  saveAll(filtered);
   window.dispatchEvent(new CustomEvent('tasks-cleared'));
 }
