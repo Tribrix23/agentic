@@ -10,9 +10,9 @@ export const definition: ToolDefinition = {
     properties: {
       task: { type: 'string', description: 'The detailed task for the sub-agent to perform.' },
       role: { type: 'string', description: 'The role of the sub-agent (e.g., Coder, Researcher, Designer)' },
-      taskId: { type: 'string', description: 'Optional task ID from createTodoListTask to link this sub-agent to a task. The task will be marked delegated and completed when the sub-agent finishes.' }
+      taskId: { type: 'string', description: 'REQUIRED task ID from createTodoListTasks to link this sub-agent to a task. This creates the loading spinner indicator in the sidebar.' }
     },
-    required: ['task', 'role']
+    required: ['task', 'role', 'taskId']
   },
   requiresApproval: false,
   dangerLevel: 'safe',
@@ -47,7 +47,7 @@ export const handler: ToolHandler = async (args, context) => {
 
     return { 
       success: true, 
-      output: `Sub-agent spawned successfully. Sub-agent ID: ${conversationId}. Role: ${role}. The main loop will be woken up when the sub-agent completes. You can now work on other tasks in parallel.`
+      output: `Sub-agent spawned successfully. Sub-agent ID: ${conversationId}. Role: ${role}. DO NOT use commandStatus or manageTask on this! Sub-agents are independent AI agents, not terminal commands. The main loop will automatically wake up when they finish. Go to sleep now.`
     };
   } catch (error: any) {
     return { success: false, output: `Failed to invoke sub-agent: ${error.message || String(error)}` };

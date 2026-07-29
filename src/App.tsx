@@ -35,6 +35,34 @@ const orb2Variants: Variants = {
   }
 };
 
+// Color sequence for AI running state (default colors first, then random colors)
+const aiRunningColors = [
+  'bg-purple-600/10',  // Default orb 1
+  'bg-blue-600/10',    // Default orb 2
+  'bg-green-400/15',
+  'bg-yellow-400/15',
+  'bg-green-500/15',
+  'bg-purple-500/15',
+  'bg-cyan-400/15',
+  'bg-blue-500/15',
+  'bg-pink-400/15',
+  'bg-rose-400/15',
+  'bg-orange-400/15',
+  'bg-amber-400/15',
+  'bg-lime-400/15',
+  'bg-emerald-400/15',
+  'bg-teal-400/15',
+  'bg-sky-400/15',
+  'bg-indigo-400/15',
+  'bg-violet-400/15',
+  'bg-fuchsia-400/15',
+  'bg-red-400/15',
+  'bg-slate-400/15',
+  'bg-zinc-400/15',
+  'bg-neutral-400/15',
+  'bg-stone-400/15',
+];
+
 // Vibrant Premium Button Variants
 const buttonVariants: Variants = {
   rest: {
@@ -107,11 +135,44 @@ const App = () => {
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [agentActivity, setAgentActivity] = React.useState<AgentActivity[]>([]);
   const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(null);
+  const [isAiRunning, setIsAiRunning] = React.useState(false);
+  const [orb1ColorIndex, setOrb1ColorIndex] = React.useState(0);
+  const [orb2ColorIndex, setOrb2ColorIndex] = React.useState(1);
 
   // Clear all tasks on mount to clean up stale data from previous sessions
   React.useEffect(() => {
     clearAllTasks();
   }, []);
+
+  // Color cycling for AI running state
+  React.useEffect(() => {
+    if (isAiRunning) {
+      const interval = setInterval(() => {
+        // Pick random colors (skip the first two default colors)
+        const randomIndex1 = Math.floor(Math.random() * (aiRunningColors.length - 2)) + 2;
+        const randomIndex2 = Math.floor(Math.random() * (aiRunningColors.length - 2)) + 2;
+        setOrb1ColorIndex(randomIndex1);
+        setOrb2ColorIndex(randomIndex2);
+      }, 4000); // 4 seconds per color transition
+
+      return () => clearInterval(interval);
+    } else {
+      // Reset to default colors when AI stops
+      setOrb1ColorIndex(0);
+      setOrb2ColorIndex(1);
+    }
+  }, [isAiRunning]);
+
+  // Get current colors based on AI state
+  const getOrbColors = () => {
+    if (isAiRunning) {
+      return [aiRunningColors[orb1ColorIndex], aiRunningColors[orb2ColorIndex]];
+    }
+    // Return default colors (first two in the array)
+    return [aiRunningColors[0], aiRunningColors[1]];
+  };
+
+  const [orb1Color, orb2Color] = getOrbColors();
 
   // When conversation changes, reload tasks scoped to that conversation
   React.useEffect(() => {
@@ -165,6 +226,7 @@ const App = () => {
   // Listen for agent activity events
   React.useEffect(() => {
     const handleAgentThinking = (e: CustomEvent) => {
+      setIsAiRunning(true);
       setAgentActivity(prev => [...prev, {
         id: `act_${Date.now()}`,
         timestamp: Date.now(),
@@ -172,6 +234,10 @@ const App = () => {
         description: 'Agent is thinking...',
         status: 'running',
       }]);
+    };
+
+    const handleAgentDone = () => {
+      setIsAiRunning(false);
     };
 
     const handleAgentToolCall = (e: CustomEvent) => {
@@ -250,6 +316,7 @@ const App = () => {
     };
 
     window.addEventListener('agent:thinking', handleAgentThinking as any);
+    window.addEventListener('agent:done', handleAgentDone as any);
     window.addEventListener('agent:tool-call', handleAgentToolCall as any);
     window.addEventListener('agent:tool-result', handleAgentToolResult as any);
     window.addEventListener('agent:coding-started', handleCodingStarted as any);
@@ -258,6 +325,7 @@ const App = () => {
 
     return () => {
       window.removeEventListener('agent:thinking', handleAgentThinking as any);
+      window.removeEventListener('agent:done', handleAgentDone as any);
       window.removeEventListener('agent:tool-call', handleAgentToolCall as any);
       window.removeEventListener('agent:tool-result', handleAgentToolResult as any);
       window.removeEventListener('agent:coding-started', handleCodingStarted as any);
@@ -308,15 +376,15 @@ const App = () => {
       <div className="w-full h-screen flex text-white overflow-hidden bg-[#08080c] relative">
         {/* Live Animated Background Orbs (Behind everything) */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <motion.div 
+          <motion.div
             variants={orb1Variants}
             animate="animate"
-            className="absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full bg-purple-600/10 blur-[120px]"
+            className={`absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb1Color}`}
           />
-          <motion.div 
+          <motion.div
             variants={orb2Variants}
             animate="animate"
-            className="absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full bg-blue-600/10 blur-[120px]"
+            className={`absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb2Color}`}
           />
         </div>
 
@@ -368,12 +436,12 @@ const App = () => {
         <motion.div
           variants={orb1Variants}
           animate="animate"
-          className="absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full bg-purple-600/10 blur-[120px]"
+          className={`absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb1Color}`}
         />
         <motion.div
           variants={orb2Variants}
           animate="animate"
-          className="absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full bg-blue-600/10 blur-[120px]"
+          className={`absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb2Color}`}
         />
       </div>
 

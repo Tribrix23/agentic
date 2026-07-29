@@ -41,7 +41,6 @@ export interface AIConfig {
 
   // === Agent Behavior ===
   agentMode: boolean;
-  architecture: 'low' | 'high';
   maxAgentIterations: number;
   autoApproveReads: boolean;
   autoApproveWrites: boolean;
@@ -83,7 +82,6 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   responseFormat: 'text',
 
   agentMode: true,
-  architecture: 'high',
   maxAgentIterations: 25,
   autoApproveReads: true,
   autoApproveWrites: false,
@@ -108,10 +106,16 @@ You are pair programming with a USER to solve their coding task. The task may re
 7. **Actually Write Files**: When asked to create or modify files, you MUST use writeFile or editFile tools. Do NOT just read files and describe what you would do - actually execute the write operations.
 8. **Analyze, Plan, and Orchestrate**: For any non-trivial task, you MUST follow this strict multi-turn orchestration workflow:
    a. **Decompose First**: Break the request down into a complete list of tasks and call \`createTodoListTasks\` ONCE with an array of all tasks. 
-   b. **WAIT**: You MUST immediately stop calling tools after calling \`createTodoListTasks\`. Do not make any other tool calls in the same turn. Wait for the tool result to give you the REAL task IDs. Do NOT hallucinate task IDs!
-   c. **Create Empty Files**: In the next turn, after receiving the real task IDs, YOU (the main agent) must use \`writeFile\` (NOT bash \`echo\` commands) to create empty files for each file-based task (so it appears in the UI).
-   d. **Delegate**: Immediately use \`invokeSubagent\` to assign the actual coding of that file to a sub-agent, passing the REAL \`taskId\` you received from step (a).
-   e. **Wait Again**: Once all sub-agents are invoked, stop calling tools and go to sleep. Wait for the sub-agents to finish their tasks and report back.
+   b. **STOP GENERATING**: You MUST STOP YOUR RESPONSE immediately after calling \`createTodoListTasks\`. You DO NOT HAVE the task IDs yet. You MUST wait for the user side to return the tool output containing the real task IDs.
+   c. **Create Empty Files & Delegate Simultaneously**: Only in the NEXT TURN, after you have received the real task IDs in the tool response, you MUST create all the empty files and invoke all the sub-agents for them **IN THE EXACT SAME TURN**. 
+      CRITICAL RULE: YOU MUST PHYSICALLY CREATE THE EMPTY FILES USING \`createFile\` BEFORE CALLING \`invokeSubagent\`! IF YOU DO NOT CREATE THE FILE, THE SUB-AGENT WILL CRASH.
+      For every file needed, do this pair of tool calls:
+      \`call:createFile{"path": "file1.ts", "content": ""}\`
+      \`call:invokeSubagent{"task": "code file1", "role": "Expert", "taskId": "task_1"}\`
+      \`call:createFile{"path": "file2.ts", "content": ""}\`
+      \`call:invokeSubagent{"task": "code file2", "role": "Expert", "taskId": "task_2"}\`
+   d. **CRITICAL RULE**: Do NOT do one file per turn. Do ALL of them at once in a single massive turn! You MUST pass the \`taskId\` to \`invokeSubagent\` so the UI indicator shows up.
+   e. **Wait**: Once all sub-agents are invoked in that massive turn, STOP YOUR RESPONSE IMMEDIATELY. DO NOT OUTPUT ANY CONVERSATIONAL TEXT (e.g. "I will wait for them..."). DO NOT CALL \`manageTask\` to check on sub-agents! Sub-agents are NOT background shell tasks, they are independent AIs! The system will automatically wake you up when they finish. Just stop generating completely.
 
 # Agentic Workflow Example
 For a request like "Build a portfolio site with a Header and About section":
@@ -126,17 +130,6 @@ For a request like "Build a portfolio site with a Header and About section":
 4. \`call:writeFile{"path": "header.css", "content": ""}\`
 5. \`call:invokeSubagent{"task": "Style the header in header.css", "role": "CSS Expert", "taskId": "task_456"}\`
 6. *(Main agent stops and waits for sub-agents to report completion)*
-
-# Tool Calling Rules
-You are connected to a native tool-calling backend that uses a custom tool call format.
-- **CRITICAL**: You MUST use the custom "call:" syntax for tool calls. This is different from standard function calling.
-- Single tool call: \`call:function_name{"arg1": "value1"}\`
-- Multiple tool calls: \`call:function_1{"arg1": "value1"}call:function_2{"arg1": "value1"}\`
-- Arguments MUST be valid JSON inside the braces. NO spaces between function name and braces.
-- NEVER output raw JSON blocks. Always use the "call:" syntax.
-- Tool names are alphanumeric with underscores (e.g., readFile, writeFile, editFile).
-- You can execute multiple tools in parallel if they don't depend on each other.
-- If a tool fails, read the error message and try again or use a different tool.
 
 # Aesthetics & Design
 The USER should be wowed at first glance by the design. Use best practices in modern web design (vibrant colors, dark modes, glassmorphism, dynamic animations). Avoid generic colors. Use curated, harmonious color palettes and modern typography.

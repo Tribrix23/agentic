@@ -673,75 +673,8 @@ export class AgentLoop {
         // ── PHASE 4: REFLECTION (before each iteration) ───────────────
         await this.reflectOnProgress(updatedMessages, taskGraph);
 
-        // ── Review Phase (High Architecture Only) ──────────────────────
-        const latestMsg = updatedMessages[updatedMessages.length - 1];
-        if (this.config.architecture === 'high' && latestMsg && latestMsg.role === 'tool') {
-          this.state.status = 'Reviewing tool execution...';
-          this.emit({ type: 'agent:thinking' });
+        // ── We removed the Review Phase to adhere to a single simpler architecture.
 
-          const reviewContext = buildContext(
-            this.config,
-            updatedMessages,
-            this.projectContext,
-            undefined // No tools for reviewer
-          );
-          
-          reviewContext.messages.push({
-            role: 'user',
-            content: '[SYSTEM - REVIEW PHASE]: You are the Reviewer AI. Review the results of the recent tool executions. Output a brief text summary of whether the tool succeeded, what data was found, and what the logical next step should be. Do NOT output any JSON tool calls. You MUST conclude your review by printing exactly "[CONTINUE]" if the main AI needs to take further action, or "[DONE]" if the user\'s request is fully satisfied.'
-          });
-
-          const reviewMsg = createAssistantMessage(this.config.model);
-          reviewMsg.agentIteration = this.state.currentIteration;
-          reviewMsg.isHidden = true; // Completely hide this from the user's chat!
-          updatedMessages.push(reviewMsg);
-          this.emit({ type: 'agent:message-added', data: reviewMsg });
-
-          let reviewText = '';
-          await new Promise<void>((resolve) => {
-            if (!this.state.isRunning) return resolve();
-            
-            callDispatcherAPI({
-              config: this.config,
-              messages: reviewContext.messages.map(m => ({
-                ...m,
-                role: (m.role === 'tool' ? 'user' : m.role) as 'user' | 'assistant' | 'system',
-              })),
-              tools: undefined,
-              onChunk: (chunk: string) => {
-                reviewText += chunk;
-                reviewMsg.isStreaming = true;
-                reviewMsg.content = reviewText;
-                
-                this.emit({ 
-                  type: 'agent:streaming', 
-                  data: { 
-                    text: chunk, 
-                    fullText: reviewText,
-                    parsedContent: reviewText,
-                    thinkingContent: ''
-                  } 
-                });
-              },
-              onError: () => resolve(),
-              onSuccess: () => {
-                reviewMsg.isStreaming = false;
-                reviewMsg.content = reviewText.trim();
-                this.emit({ type: 'agent:message-updated', data: { ...reviewMsg } });
-                resolve();
-              },
-              checkIsStreaming: () => this.state.isRunning,
-              signal: this.abortController?.signal,
-            });
-          });
-
-          // Wait before starting the decision phase
-          if (this.state.isRunning) {
-            this.state.status = 'Waiting 2s (API rate limit)...';
-            this.emit({ type: 'agent:thinking' });
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-        }
 
         // ── Build context ──────────────────────────────────────────────
         // Always provide tool definitions in the system prompt so the AI knows
@@ -1223,23 +1156,12 @@ export class AgentLoop {
           }
         } else {
           // No tool calls — LLM gave a pure text-only response.
-          // Only stop if the agent has actually executed tools and done meaningful work
-          const hasExecutedTools = this.executedToolNames.size > 0;
-          const hasWrittenFiles = this.successfulFileWrites > 0;
-          
+          // Allow stopping naturally since the agent has provided a response to the user.
           if (forceRetry) {
             continueLoop = true;
-          } else if (!hasExecutedTools) {
-            // Haven't executed any tools yet - force continue
-            continueLoop = true;
-            console.log('[AgentLoop] Text-only response but no tools executed yet, continuing...');
-          } else if (!hasWrittenFiles && this.state.currentIteration < 3) {
-            // Early iteration without file writes - continue
-            continueLoop = true;
-            console.log('[AgentLoop] Early iteration without file writes, continuing...');
           } else {
-            // Allow stopping after tools have been executed
-            console.log('[AgentLoop] Text-only response with tools executed, stopping...');
+            console.log('[AgentLoop] Text-only response, stopping loop naturally.');
+            continueLoop = false;
           }
         }
 

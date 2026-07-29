@@ -31,7 +31,7 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
       return { cmd: 'cat', argsStr: args.path || args.AbsolutePath || '' };
     case 'writeFile':
     case 'createFile':
-      return { cmd: 'echo', argsStr: `... > ${args.path || args.TargetFile || ''}` };
+      return { cmd: 'Created/Wrote File', argsStr: args.path || args.TargetFile || '' };
     case 'editFile':
     case 'replace_file_content':
     case 'multi_replace_file_content':
@@ -183,7 +183,17 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       };
     }
     
-    // Show +1 -1 as a minimum indicator when a file was edited
+    // If this is a create/write file step, try to count lines in the content argument
+    if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
+      const content = step.toolCall.arguments?.content || step.toolCall.arguments?.CodeContent || '';
+      if (typeof content === 'string' && content.trim() !== '') {
+        const lineCount = content.split('\n').length;
+        return { added: lineCount, removed: 0 };
+      }
+      return { added: 0, removed: 0 }; // Empty file
+    }
+    
+    // Show +1 -1 as a minimum indicator when a file was edited (if not write/create)
     return { added: 1, removed: 1 };
   };
 

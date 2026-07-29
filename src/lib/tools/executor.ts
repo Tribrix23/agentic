@@ -44,23 +44,6 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     return { success: false, output: `Tool not found: ${toolCall.name}. The tool may not be registered. Check the tool registry.` };
   }
 
-  const sig = `${toolCall.name}:${JSON.stringify(toolCall.arguments)}`;
-
-  // ── Deduplication: block identical read calls within one run ──────────
-  if (!WRITE_TOOLS.has(toolCall.name)) {
-    if (executedSignatures.has(sig)) {
-      console.warn(`[executor] Duplicate tool call blocked: ${sig}`);
-      return {
-        success: true, // Return success so the AI doesn't retry
-        output: `[Already called] ${toolCall.name} with these arguments was already executed earlier in this session. Refer to the previous result above and proceed without calling it again.`,
-      };
-    }
-    executedSignatures.add(sig);
-  } else {
-    // Write operations invalidate all cached read signatures so a re-read is allowed
-    executedSignatures.clear();
-  }
-
   // ── Permission check ──────────────────────────────────────────────────
   const permission = checkPermission(toolCall.name, toolCall.arguments, permissionConfig);
   

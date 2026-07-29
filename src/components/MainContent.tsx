@@ -467,10 +467,10 @@ IMPORTANT RULES:
         ));
         break;
       case 'agent:sleeping':
-        setIsAgentRunning(false); // So the user can type a new message
+        setIsAgentRunning(true); // Keep running so the Stop button stays visible while sub-agents are active
         isStreamingRef.current = false;
         setAgentStatus('Sleeping (waiting for events)...');
-        setAgentState('idle');
+        setAgentState('executing_parallel');
         setMessages(prev => prev.map(m =>
           m.isStreaming ? { ...m, isStreaming: false } : m
         ));
