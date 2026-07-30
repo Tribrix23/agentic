@@ -10,6 +10,7 @@ export type AgentState =
   | 'awaiting_plan_approval' 
   | 'spawning_subagents'     // Breaking tasks down
   | 'awaiting_tool_approval' // Halted by SecurityInterceptor
+  | 'awaiting_user_response' // Halted by askUser tool
   | 'executing_parallel'     // Concurrent subagents running
   | 'synthesizing'           // Merging results
   | 'done'

@@ -23,6 +23,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const [uiMode, setUiMode] = useState<'local' | 'cloud'>('local');
   
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const modeDropdownRef = useRef<HTMLDivElement>(null);
@@ -145,8 +146,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 onClick={() => setShowModeDropdown(!showModeDropdown)}
                 className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
               >
-                {config.mode === 'local' ? <HardDrive size={12} /> : <Cloud size={12} />}
-                {config.mode === 'local' ? 'Local' : 'Cloud'}
+                {uiMode === 'local' ? <HardDrive size={12} /> : <Cloud size={12} />}
+                {uiMode === 'local' ? 'Local' : 'Cloud'}
                 <ChevronDown size={12} />
               </button>
               <AnimatePresence>
@@ -162,12 +163,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       <button 
                         key={mode}
                         onClick={() => { 
-                          updateConfig({ mode: mode as 'local'|'cloud' });
+                          setUiMode(mode as 'local' | 'cloud');
                           setShowModeDropdown(false); 
                         }}
                         className={cn(
                           "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
-                          config.mode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                          uiMode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
                         )}
                       >
                         {mode === 'local' ? <HardDrive size={14} /> : <Cloud size={14} />}

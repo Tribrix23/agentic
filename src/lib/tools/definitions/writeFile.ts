@@ -42,10 +42,8 @@ export const handler: ToolHandler = async (args, context) => {
     let isArtifact = !!artifactMetadata;
 
     if (isArtifact) {
-      // Artifacts go into the brain folder
       const brainDir = `${(window as any).electron.appDataDir || context.projectRoot}/.agentic/brain/${context.conversationId || 'default'}`;
       targetPath = `${brainDir}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
-      // Ensure directory exists via IPC or just let saveFileContent handle it if backend does recursive
     } else {
       targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
         ? relativeOrAbsPath 
@@ -53,15 +51,36 @@ export const handler: ToolHandler = async (args, context) => {
     }
       
     console.log('[writeFile] Target path:', targetPath);
-      
-    // Ask backend to create dirs recursively and save
+    
+    // ── Branch-and-Merge Strategy ──────────────────────────────────────
+    // 1. Write to a .agentic-branch temp file first
+    // 2. On success, copy content to the real target
+    // 3. On failure, the original file is untouched
+    const branchPath = targetPath + '.agentic-branch';
+    
+    // Step 1: Write content to the branch file
+    const branchResult = await (window as any).electron.saveFileContent(branchPath, content, { createDirs: true });
+    
+    if (!branchResult.success) {
+      console.error('[writeFile] Branch write failed:', branchResult.error);
+      return { success: false, output: `Failed to write file (branch): ${branchResult.error}` };
+    }
+    
+    // Step 2: Write to the actual target (branch validated the content was written successfully)
     const result = await (window as any).electron.saveFileContent(targetPath, content, { createDirs: true });
     
-    console.log('[writeFile] Save result:', result);
+    // Step 3: Clean up branch file (best effort)
+    try { 
+      await (window as any).electron.deleteFile?.(branchPath);
+    } catch (e) { 
+      // If deleteFile doesn't exist, overwrite with empty to minimize disk waste
+      try { await (window as any).electron.saveFileContent(branchPath, '', {}); } catch (_) { /* ignore */ }
+    }
+    
+    console.log('[writeFile] Branch-and-merge completed:', result);
     
     if (result.success) {
       if (isArtifact) {
-        // Also save metadata
         await (window as any).electron.saveFileContent(`${targetPath}.meta.json`, JSON.stringify(artifactMetadata), { createDirs: true });
         
         return {

@@ -1,5 +1,5 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
-import { updateTask } from '../../taskStore';
+import { updateTask, createTask } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'invokeSubagent',
@@ -10,9 +10,10 @@ export const definition: ToolDefinition = {
     properties: {
       task: { type: 'string', description: 'The detailed task for the sub-agent to perform.' },
       role: { type: 'string', description: 'The role of the sub-agent (e.g., Coder, Researcher, Designer)' },
-      taskId: { type: 'string', description: 'REQUIRED task ID from createTodoListTasks to link this sub-agent to a task. This creates the loading spinner indicator in the sidebar.' }
+      taskId: { type: 'string', description: 'Optional task ID from createTodoListTasks to link this sub-agent to a task. If omitted, a task is auto-created.' },
+      targetFile: { type: 'string', description: 'The exact file path this sub-agent is responsible for creating or editing.' }
     },
-    required: ['task', 'role', 'taskId']
+    required: ['task', 'role']
   },
   requiresApproval: false,
   dangerLevel: 'safe',
@@ -22,16 +23,28 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { task, role, taskId } = args;
+    let { task, role, taskId, targetFile } = args;
     const conversationId = 'sub_' + Math.random().toString(36).substring(2, 9);
     
-    // If a taskId was provided, mark the task as delegated immediately
-    if (taskId) {
-      updateTask(taskId, { 
-        status: 'in_progress', 
-        delegatedTo: conversationId 
+    // Auto-create a task if no taskId was provided
+    if (!taskId) {
+      const autoTask = createTask({
+        title: task.slice(0, 80),
+        description: task,
+        priority: 'high',
+        dependencies: [],
+        tags: ['agent-created', 'auto'],
+        conversationId: context.conversationId,
+        projectId: context.projectRoot || '',
       });
+      taskId = autoTask.id;
     }
+    
+    // Mark the task as delegated immediately
+    updateTask(taskId, { 
+      status: 'in_progress', 
+      delegatedTo: conversationId 
+    });
 
     // Dispatch event to MainContent to spin up a new AgentLoop
     window.dispatchEvent(new CustomEvent('spawn-subagent', {
@@ -41,7 +54,8 @@ export const handler: ToolHandler = async (args, context) => {
         task,
         projectRoot: context.projectRoot,
         parentConversationId: context.conversationId,
-        taskId // Pass taskId so MainContent can mark it completed when done
+        taskId, // Pass taskId so MainContent can mark it completed when done
+        targetFile // Pass targetFile so the UI knows what it is working on
       }
     }));
 

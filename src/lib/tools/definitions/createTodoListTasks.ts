@@ -34,9 +34,21 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { tasks } = args;
+    let { tasks } = args;
+    
+    // If tasks is a stringified JSON array, parse it (handle double stringification)
+    let parseAttempts = 0;
+    while (typeof tasks === 'string' && parseAttempts < 3) {
+      try {
+        tasks = JSON.parse(tasks);
+      } catch (e) {
+        break; // Stop parsing if it's not valid JSON anymore
+      }
+      parseAttempts++;
+    }
+
     if (!Array.isArray(tasks) || tasks.length === 0) {
-      return { success: false, output: 'No tasks provided in the array.' };
+      return { success: false, output: 'No tasks provided in the array. You provided: ' + JSON.stringify(args.tasks) };
     }
     
     const createdTasks = [];
@@ -50,13 +62,14 @@ export const handler: ToolHandler = async (args, context) => {
         delegatedTo: t.delegatedTo || undefined,
         tags: ['agent-created'],
         conversationId: context.conversationId,
+        projectId: context?.projectRoot || '',
       });
       createdTasks.push(task.id);
     }
 
     return { 
       success: true, 
-      output: `Successfully created ${createdTasks.length} tasks. Task IDs: \n${createdTasks.map(id => `- ${id}`).join('\n')}\nRemember these IDs to update the task statuses later using updateTaskStatus.`
+      output: `Successfully created ${createdTasks.length} tasks. Task IDs: \n${createdTasks.map(id => `- ${id}`).join('\n')}\nPass these task IDs to invokeSubagent when delegating work.`
     };
   } catch (error: any) {
     return { success: false, output: `Failed to create tasks: ${error.message || String(error)}` };

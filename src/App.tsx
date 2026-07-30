@@ -139,10 +139,8 @@ const App = () => {
   const [orb1ColorIndex, setOrb1ColorIndex] = React.useState(0);
   const [orb2ColorIndex, setOrb2ColorIndex] = React.useState(1);
 
-  // Clear all tasks on mount to clean up stale data from previous sessions
-  React.useEffect(() => {
-    clearAllTasks();
-  }, []);
+  // Removed aggressive clearAllTasks() on mount to prevent wiping tasks on page refresh.
+  // Tasks are now properly scoped to conversations, so this is no longer needed.
 
   // Color cycling for AI running state
   React.useEffect(() => {
@@ -211,15 +209,17 @@ const App = () => {
     window.addEventListener('load-conversation', handleConversationLoad);
     window.addEventListener('new-conversation', handleNewConversation);
     // MainContent sets a new conversation id on first message
-    window.addEventListener('conversation-started', (e: any) => {
+    const handleConversationStarted = (e: any) => {
       setCurrentConversationId(e.detail?.id || null);
-    });
+    };
+    window.addEventListener('conversation-started', handleConversationStarted);
 
     return () => {
       window.removeEventListener('task-updated', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);
       window.removeEventListener('load-conversation', handleConversationLoad);
       window.removeEventListener('new-conversation', handleNewConversation);
+      window.removeEventListener('conversation-started', handleConversationStarted);
     };
   }, [currentConversationId]);
 

@@ -88,7 +88,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   let dynamicMaxTokens = config.maxTokens;
 
   // Apply legacy dynamic fallback parameter adjustments
-  if (config.dynamicParameters && messages) {
+  if (config.dynamicParameters && messages && !(config as any).strictRole) {
     const totalLength = messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
     if (totalLength > 15000) {
       dynamicTemp = Math.max(0.1, dynamicTemp - 0.25);

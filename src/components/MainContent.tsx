@@ -69,6 +69,7 @@ export const MainContent = ({
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
   const [showModeDropdown, setShowModeDropdown] = useState<boolean>(false);
+  const [uiMode, setUiMode] = useState<'local' | 'cloud'>('local');
   const [showWizard, setShowWizard] = useState<boolean>(false);
   const [wizardStep, setWizardStep] = useState<'create' | 'security'>('create');
 
@@ -98,11 +99,12 @@ export const MainContent = ({
   const [aiConfig, setAiConfigState] = useState<AIConfig>(() => getAIConfig(selectedProject?.path));
   const [activeArtifact, setActiveArtifact] = useState<string | null>(null);
 
-  const agentLoopRef = useRef<AgentLoop | null>(null);
+  const agentLoopRef = useRef<ReturnType<typeof createAgentLoop> | null>(null);
+  const subagentLoopsRef = useRef<Map<string, ReturnType<typeof createAgentLoop>>>(new Map());
   const isStreamingRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
 
-  const { agentState, setAgentState, pendingToolCall, submitPrompt, handleToolIntercepted, handleToolDecision } = useAgentLoop();
+  const { agentState, setAgentState, pendingToolCall, pendingAskUser, submitPrompt, handleToolIntercepted, handleToolDecision, handleUserResponse } = useAgentLoop();
 
   // ── Initialize Tools ─────────────────────────────────────────────────
   useEffect(() => {
@@ -253,7 +255,17 @@ export const MainContent = ({
       };
 
       const subagentLoop = createAgentLoop((event) => {
-        if (event.type === 'agent:done' || (event.type === 'agent:message-added' && event.data?.role === 'assistant' && !event.data?.isStreaming && event.data?.content && !event.data?.toolCalls?.length)) {
+        if (event.type === 'agent:coding-progress') {
+          window.dispatchEvent(new CustomEvent('subagent-file-activity', {
+            detail: {
+              taskId,
+              conversationId,
+              fileName: event.data.fileName,
+              added: event.data.added,
+              removed: event.data.removed
+            }
+          }));
+        } else if (event.type === 'agent:done' || (event.type === 'agent:message-added' && event.data?.role === 'assistant' && !event.data?.isStreaming && event.data?.content && !event.data?.toolCalls?.length)) {
           // Sub-agent has finished — extract its final text output
           const finalContent = event.data?.content || 'Sub-agent completed.';
           
@@ -261,6 +273,8 @@ export const MainContent = ({
           if (taskId) {
             updateTask(taskId, { status: 'completed' });
           }
+          
+          subagentLoopsRef.current.delete(conversationId);
 
           // Inject result as a HIDDEN system message into main chat, then wake the main loop
           const resultMsg = createUserMessage(
@@ -271,14 +285,19 @@ export const MainContent = ({
           
           setMessages(prev => {
             const newMsgs = [...prev, resultMsg];
-            // Use wakeup() if the main loop is sleeping — this is the KEY fix
+            // Use addPendingMessage() and only wakeup() if it's the last subagent
             if (agentLoopRef.current) {
               const state = agentLoopRef.current.getState();
               if (state.status === 'sleeping') {
-                // Wake the sleeping loop with the new context message
-                agentLoopRef.current.wakeup([{ ...resultMsg, role: 'user' as const }]);
-                setIsAgentRunning(true);
-                isStreamingRef.current = true;
+                // Add the result message to the sleeping loop's pending queue
+                agentLoopRef.current.addPendingMessage({ ...resultMsg, role: 'user' as const });
+                
+                // Only wake up if this is the LAST active subagent
+                if (agentLoopRef.current.activeSubagentCount <= 1) {
+                  agentLoopRef.current.wakeup();
+                  setIsAgentRunning(true);
+                  isStreamingRef.current = true;
+                }
               } else if (!isAgentRunning && aiConfig.agentMode && activeConversationId) {
                 // If loop is fully done, start a fresh one with the result injected
                 setIsAgentRunning(true);
@@ -296,10 +315,13 @@ export const MainContent = ({
         projectId: selectedProject?.path || projectRoot,
         projectContext: undefined,
         toolDefinitions: getToolsForLLM(),
-        toolExecutor: subagentToolExecutor
+        toolExecutor: subagentToolExecutor,
+        conversationId,
+        agentRole: 'subagent',
       });
       
       subagentLoop.updateConfig(aiConfig);
+      subagentLoopsRef.current.set(conversationId, subagentLoop);
       
       try {
         const systemPrompt = `You are a sub-agent with the role: ${role}.
@@ -307,6 +329,10 @@ Your ONLY task is: ${task}
 
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
+- You have FULL access to the filesystem. Use tools like \`listDirectory\`, \`readFile\`, \`writeFile\`, \`editFile\`, and \`runCommand\`.
+- If the file does not exist yet, CREATE it using \`writeFile\`. You are responsible for creating the file yourself.
+- If the file already exists and needs modification, use \`readFile\` first to see its contents, then \`editFile\` or \`writeFile\` to modify it.
+- WRITE COMPLETE CODE. Do NOT truncate or use placeholders like "// ... rest of code". Write every single line.
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.
 - Do NOT create to-do lists. Just do the task.`;
@@ -356,9 +382,29 @@ IMPORTANT RULES:
        }, 1000);
     };
 
+    const handleSubagentFileActivity = (e: any) => {
+      const { taskId, fileName, added, removed } = e.detail;
+      setMessages(prev => prev.map(m => {
+        if (m.role === 'assistant' && m.toolCalls) {
+          const updatedToolCalls = m.toolCalls.map(t => {
+            if (t.name === 'invokeSubagent' && (t.arguments?.taskId === taskId || t.arguments?.targetFile === fileName)) {
+              return {
+                ...t,
+                subagentFileActivity: { fileName, added, removed }
+              };
+            }
+            return t;
+          });
+          return { ...m, toolCalls: updatedToolCalls };
+        }
+        return m;
+      }));
+    };
+
     window.addEventListener('background-task-complete', handleBackgroundTaskComplete);
     window.addEventListener('spawn-subagent', handleSpawnSubagent);
     window.addEventListener('send-subagent-message', handleSendSubagentMessage);
+    window.addEventListener('subagent-file-activity', handleSubagentFileActivity);
 
     return () => {
       window.removeEventListener('load-conversation', handleLoadChat);
@@ -367,6 +413,7 @@ IMPORTANT RULES:
       window.removeEventListener('background-task-complete', handleBackgroundTaskComplete);
       window.removeEventListener('spawn-subagent', handleSpawnSubagent);
       window.removeEventListener('send-subagent-message', handleSendSubagentMessage);
+      window.removeEventListener('subagent-file-activity', handleSubagentFileActivity);
     };
   }, [activeConversationId, isAgentRunning, aiConfig]);
 
@@ -374,10 +421,13 @@ IMPORTANT RULES:
   const handleAgentEvent = useCallback((event: AgentEvent) => {
     switch (event.type) {
       case 'agent:thinking':
+        // Don't overwrite askUser or tool approval states — those are blocking UI states
+        if (agentState === 'awaiting_user_response' || agentState === 'awaiting_tool_approval') break;
         setAgentStatus('Thinking...');
-        setAgentState('executing_parallel'); // AI is actively generating
+        setAgentState('executing_parallel');
         break;
       case 'agent:streaming':
+        if (agentState === 'awaiting_user_response' || agentState === 'awaiting_tool_approval') break;
         setAgentStatus('Generating response...');
         setAgentState('executing_parallel');
         // Update the last assistant message with streaming content
@@ -456,16 +506,27 @@ IMPORTANT RULES:
       case 'agent:summarizing':
         setAgentStatus('Summarizing history...');
         break;
-      case 'agent:done':
-        setIsAgentRunning(false);
-        isStreamingRef.current = false;
-        setAgentStatus('');
-        setAgentState('idle');
+      case 'agent:done': {
+        // Check if sub-agents are still running before fully shutting down
+        const hasRunningSubagents = agentLoopRef.current && agentLoopRef.current.activeSubagentCount > 0;
+        if (hasRunningSubagents) {
+          // Sub-agents are still working — keep the Stop button visible
+          setIsAgentRunning(true);
+          isStreamingRef.current = false;
+          setAgentStatus('Waiting for sub-agents to finish...');
+          setAgentState('executing_parallel');
+        } else {
+          setIsAgentRunning(false);
+          isStreamingRef.current = false;
+          setAgentStatus('');
+          setAgentState('idle');
+        }
         // Mark all streaming messages as complete
         setMessages(prev => prev.map(m =>
           m.isStreaming ? { ...m, isStreaming: false } : m
         ));
         break;
+      }
       case 'agent:sleeping':
         setIsAgentRunning(true); // Keep running so the Stop button stays visible while sub-agents are active
         isStreamingRef.current = false;
@@ -637,7 +698,9 @@ IMPORTANT RULES:
         projectId: selectedProject?.path,
         projectContext,
         toolDefinitions: getToolsForLLM(),
-        toolExecutor
+        toolExecutor,
+        conversationId: convId,
+        agentRole: 'orchestrator',
       });
 
       agentLoopRef.current.updateConfig(aiConfig);
@@ -722,6 +785,10 @@ IMPORTANT RULES:
     if (agentLoopRef.current) {
       agentLoopRef.current.stop();
     }
+    // Forcefully stop all running sub-agents
+    subagentLoopsRef.current.forEach(loop => loop.stop());
+    subagentLoopsRef.current.clear();
+    
     isStreamingRef.current = false;
     setIsAgentRunning(false);
     setAgentStatus('');
@@ -1050,6 +1117,8 @@ IMPORTANT RULES:
                     }
                   });
                 }}
+                pendingAskUser={pendingAskUser}
+                onUserResponse={handleUserResponse}
               />
             </div>
             <AnimatePresence>
@@ -1171,8 +1240,8 @@ IMPORTANT RULES:
                       onClick={() => setShowModeDropdown(!showModeDropdown)}
                       className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
                     >
-                      {aiConfig.mode === 'local' ? <HardDrive size={12} /> : <Cloud size={12} />}
-                      {aiConfig.mode === 'local' ? 'Local' : 'Cloud'}
+                      {uiMode === 'local' ? <HardDrive size={12} /> : <Cloud size={12} />}
+                      {uiMode === 'local' ? 'Local' : 'Cloud'}
                       <ChevronDown size={12} />
                     </button>
                     <AnimatePresence>
@@ -1188,13 +1257,12 @@ IMPORTANT RULES:
                             <button
                               key={mode}
                               onClick={() => {
-                                const updated = setAIConfig({ mode: mode as 'local' | 'cloud' }, selectedProject?.path);
-                                setAiConfigState(updated);
+                                setUiMode(mode as 'local' | 'cloud');
                                 setShowModeDropdown(false);
                               }}
                               className={cn(
                                 "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
-                                aiConfig.mode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                                uiMode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
                               )}
                             >
                               {mode === 'local' ? <HardDrive size={14} /> : <Cloud size={14} />}

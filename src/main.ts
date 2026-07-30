@@ -272,6 +272,9 @@ function createWindow() {
       }
       return fs.readFileSync(filePath, 'utf8');
     } catch (e: any) {
+      if (e.code === 'ENOENT') {
+        return '';
+      }
       return `Error reading file: ${e.message}`;
     }
   });

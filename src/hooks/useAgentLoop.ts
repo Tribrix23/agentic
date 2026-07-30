@@ -1,14 +1,24 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AgentState } from '../lib/types/AgentTypes';
 
 export function useAgentLoop() {
   const [agentState, setAgentState] = useState<AgentState>('idle');
   const [pendingToolCall, setPendingToolCall] = useState<any>(null);
+  const [pendingAskUser, setPendingAskUser] = useState<{ id: string; question: string; options?: string[] } | null>(null);
 
   const submitPrompt = useCallback(async (prompt: string, isAgentMode: boolean = true) => {
     if (isAgentMode) {
       setAgentState('understanding');
     }
+  }, []);
+
+  useEffect(() => {
+    const handleAskUser = (e: any) => {
+      setPendingAskUser(e.detail);
+      setAgentState('awaiting_user_response');
+    };
+    window.addEventListener('agent-ask-user', handleAskUser);
+    return () => window.removeEventListener('agent-ask-user', handleAskUser);
   }, []);
 
   const handleToolIntercepted = useCallback((toolCall: any) => {
@@ -36,12 +46,27 @@ export function useAgentLoop() {
     setPendingToolCall(null);
   }, [pendingToolCall, submitPrompt]);
 
+  const handleUserResponse = useCallback((response: string) => {
+    if (pendingAskUser) {
+      window.dispatchEvent(
+        new CustomEvent('agent-user-response', {
+          detail: { id: pendingAskUser.id, response }
+        })
+      );
+    }
+    setAgentState('executing_parallel');
+    setPendingAskUser(null);
+  }, [pendingAskUser]);
+
   return { 
     agentState, 
     setAgentState,
     pendingToolCall, 
+    pendingAskUser,
+    setPendingAskUser,
     submitPrompt, 
     handleToolIntercepted,
-    handleToolDecision
+    handleToolDecision,
+    handleUserResponse
   };
 }

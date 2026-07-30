@@ -8,6 +8,7 @@ import { PromptInput } from './PromptInput';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { AgentState } from '../../lib/types/AgentTypes';
 import { ToolApprovalCard } from './ToolApprovalCard';
+import { AskUserCard } from './AskUserCard';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -29,6 +30,8 @@ interface ChatContainerProps {
   pendingToolCall?: any;
   onToolDecision?: (approved: boolean, feedback?: string) => void;
   onUndoToMessage?: (msgId: string) => void;
+  pendingAskUser?: { id: string; question: string; options?: string[] } | null;
+  onUserResponse?: (response: string) => void;
 }
 
 export function ChatContainer({
@@ -49,7 +52,9 @@ export function ChatContainer({
   onArtifactClick,
   pendingToolCall,
   onToolDecision,
-  onUndoToMessage
+  onUndoToMessage,
+  pendingAskUser,
+  onUserResponse
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent text-white")}>
@@ -76,6 +81,12 @@ export function ChatContainer({
                 toolCall={pendingToolCall} 
                 onDecision={onToolDecision}
                 onSkip={() => onToolDecision(false)}
+              />
+            ) : agentState === 'awaiting_user_response' && pendingAskUser && onUserResponse ? (
+              <AskUserCard
+                question={pendingAskUser.question}
+                options={pendingAskUser.options}
+                onSubmit={onUserResponse}
               />
             ) : (
               <PromptInput 

@@ -131,6 +131,18 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
       // Special case for agent tools so they don't say "Ran Created To-Do List Tasks"
       if (['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+        if (step.toolCall.name === 'invokeSubagent') {
+          const fileActivity = (step.toolCall as any).subagentFileActivity;
+          const role = step.toolCall.arguments?.role || 'Sub agent';
+          if (fileActivity) {
+            if (step.status === 'completed') {
+               return { icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>, text: `${role} wrote ${fileActivity.fileName}`, color: 'text-emerald-400' };
+            } else {
+               return { icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 Z"/></svg>, text: `${role} is Editing ${fileActivity.fileName}`, color: 'text-blue-400' };
+            }
+          }
+          return { icon: <Brain size={14} />, text: `${role} is Working...`, color: 'text-purple-400' };
+        }
         return { icon: <Brain size={14} />, text: displayStr, color: 'text-purple-400' };
       }
 
@@ -160,7 +172,15 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   // Compute diff stats from file-edit artifacts
   const getDiffStats = (): { added: number; removed: number } | null => {
-    if (step.status !== 'completed' || !step.toolCall) return null;
+    if (!step.toolCall) return null;
+    
+    // Bubble up diff stats from sub-agents
+    const fileActivity = (step.toolCall as any).subagentFileActivity;
+    if (step.toolCall.name === 'invokeSubagent' && fileActivity) {
+      return { added: fileActivity.added || 0, removed: fileActivity.removed || 0 };
+    }
+
+    if (step.status !== 'completed') return null;
     const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'];
     if (!editTools.includes(step.toolCall.name)) return null;
     

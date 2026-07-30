@@ -38,7 +38,7 @@ import { estimateTokens } from './tokenCounter';
 import type { TokenBudget } from './tokenCounter';
 import { callDispatcherAPI } from '../api';
 import { SecurityInterceptor } from './SecurityInterceptor';
-import { createTask, updateTask } from './taskStore';
+import { createTask, updateTask, getTasksForConversation } from './taskStore';
 import { TaskGraph } from './taskGraph';
 
 // ── Agent Events ───────────────────────────────────────────────────────────
@@ -104,6 +104,8 @@ export interface AgentState {
   needsClarification?: boolean;
   clarificationQuestion?: string;
   stuckCount: number;
+  conversationId?: string;
+  hasNudgedForDelegation?: boolean;
 }
 
 // ── Tool Call Parsing ──────────────────────────────────────────────────────
@@ -218,8 +220,12 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
   let match: RegExpExecArray | null;
 
   while ((match = xmlRegex.exec(text)) !== null) {
+    const innerText = match[1].trim();
+    // If it starts with '<', it's likely an Anthropic raw XML tool call, skip JSON parsing
+    if (innerText.startsWith('<')) continue;
+    
     try {
-      const parsed = JSON.parse(match[1].trim());
+      const parsed = JSON.parse(innerText);
       if (parsed.name) {
         if (isPlausibleToolName(parsed.name, knownToolNames)) {
           toolCalls.push({
@@ -489,21 +495,19 @@ export class AgentLoop {
   private toolDefinitions: any[] = [];
   private executedToolNames: Set<string> = new Set();
   private successfulFileWrites: number = 0;
+  private options?: AgentLoopOptions;
 
   constructor(
     config: AIConfig,
     eventCallback: AgentEventCallback,
-    options?: {
-      projectContext?: ProjectContext;
-      toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
-      toolDefinitions?: any[];
-    }
+    options?: AgentLoopOptions
   ) {
     this.config = config;
     this.eventCallback = eventCallback;
     this.projectContext = options?.projectContext;
     this.toolExecutor = options?.toolExecutor || null;
     this.toolDefinitions = options?.toolDefinitions || [];
+    this.options = options;
 
     this.state = {
       isRunning: false,
@@ -514,13 +518,24 @@ export class AgentLoop {
       goalSatisfied: false,
       progress: 0,
       stuckCount: 0,
+      conversationId: options?.conversationId,
     };
+    
+    // Store the conversation ID for when state is re-initialized in run()
+    this.conversationId = options?.conversationId;
   }
+  
+  private conversationId?: string;
 
   private resolveWakeup: ((value: void | PromiseLike<void>) => void) | null = null;
   private isSleeping = false;
   private pendingMessages: AgenticMessage[] = [];
-  private activeSubagentCount = 0;
+  public activeSubagentCount = 0;
+
+  /** Queue a message to be processed when the agent wakes up, without actually waking it up */
+  addPendingMessage(msg: AgenticMessage): void {
+    this.pendingMessages.push(msg);
+  }
 
   /** Called by the sub-agent spawner to increment/decrement active sub-agent count */
   notifySubagentSpawned(): void {
@@ -589,6 +604,7 @@ export class AgentLoop {
       goalSatisfied: false,
       progress: 0,
       stuckCount: 0,
+      conversationId: this.conversationId,
     };
 
     const updatedMessages = [...messages];
@@ -715,8 +731,26 @@ export class AgentLoop {
 
           const startTime = Date.now();
 
+          // Role-Based Dynamic Temperature
+          const effectiveConfig = { ...this.config };
+          if (this.options?.agentRole === 'orchestrator') {
+            // State-Aware Profile: check if the last message is a tool response
+            const lastMsg = context.messages[context.messages.length - 1];
+            if (lastMsg && lastMsg.role === 'tool') {
+              // Executor Mode: highly deterministic for running commands / exact file edits
+              effectiveConfig.temperature = 0.2;
+              effectiveConfig.topP = 0.5;
+            } else {
+              // Planner Mode: moderate creativity to brainstorm tasks (avoids loop)
+              effectiveConfig.temperature = 0.5;
+              effectiveConfig.topP = 0.9;
+            }
+            // Provide a flag so `api.ts` bypasses token-based logic
+            (effectiveConfig as any).strictRole = true;
+          }
+
           callDispatcherAPI({
-            config: this.config,
+            config: effectiveConfig,
             // Cast to api ChatMessage type: filter out 'tool' role messages since the API
             // only accepts 'user' | 'assistant' | 'system'. Tool results were already
             // converted to 'user' messages in contextBuilder.ts.
@@ -925,13 +959,13 @@ export class AgentLoop {
           if (currentSignature === this.state.lastToolSignature) {
             this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
             
-            if (this.state.consecutiveDuplicates >= 1) {
-              console.warn('[AgentLoop] Detected duplicate tool call loop. Intercepting.');
+            if (this.state.consecutiveDuplicates >= 3) {
+              console.warn('[AgentLoop] Detected duplicate tool call loop (3+ repeats). Intercepting.');
               
               assistantMsg.isHidden = true; // Hide the repeating tool call
               
               const errorMsg = createUserMessage(
-                `[SYSTEM ERROR] You just repeated the exact same tool call. Do not repeat identical tool calls. You are stuck in a loop. Re-evaluate your strategy and try a DIFFERENT approach or tool.`
+                `[SYSTEM ERROR] You have repeated the exact same tool call 3 times. You are stuck in a loop. STOP using this tool. Re-evaluate your strategy and try a COMPLETELY DIFFERENT approach. If you were trying to read files, use readFile instead. If you were trying to create tasks, check if they already exist.`
               );
               errorMsg.isHidden = true;
               updatedMessages.push(errorMsg);
@@ -1125,8 +1159,14 @@ export class AgentLoop {
           // Run read-only tools concurrently
           await Promise.all(readOnlyTools.map(executeToolInternal));
           
+          // Run sub-agent invocations concurrently (they are asynchronous triggers)
+          const invokeSubagentTools = writeTools.filter(tc => tc.name === 'invokeSubagent');
+          const actualWriteTools = writeTools.filter(tc => tc.name !== 'invokeSubagent');
+
+          await Promise.all(invokeSubagentTools.map(executeToolInternal));
+
           // Run write tools sequentially to avoid race conditions
-          for (const writeTool of writeTools) {
+          for (const writeTool of actualWriteTools) {
             await executeToolInternal(writeTool);
           }
 
@@ -1151,17 +1191,42 @@ export class AgentLoop {
             doneMsg.isStreaming = false;
             updatedMessages.push(doneMsg);
           } else {
-            // Continue loop to let LLM process tool results
-            continueLoop = true;
+            // Check if we invoked sub-agents. If so, force sleep to prevent restless polling loops.
+            const invokedSubagents = assistantMsg.toolCalls.some(tc => tc.name === 'invokeSubagent');
+            if (invokedSubagents) {
+              console.log('[AgentLoop] Agent invoked subagents. Forcing sleep to prevent polling loop.');
+              continueLoop = false;
+            } else {
+              // Continue loop to let LLM process tool results
+              continueLoop = true;
+            }
           }
         } else {
           // No tool calls — LLM gave a pure text-only response.
-          // Allow stopping naturally since the agent has provided a response to the user.
           if (forceRetry) {
             continueLoop = true;
           } else {
-            console.log('[AgentLoop] Text-only response, stopping loop naturally.');
-            continueLoop = false;
+            // Check if there are still pending tasks in THIS conversation that haven't been delegated
+            const convId = this.state.conversationId;
+            const convTasks = convId ? getTasksForConversation(convId) : [];
+            const pendingTasks = convTasks.filter(t => t.status === 'pending');
+            const hasUnfinishedWork = pendingTasks.length > 0 && this.activeSubagentCount === 0;
+            
+            // Only nudge ONCE to avoid infinite nudge loops
+            if (hasUnfinishedWork && !this.state.hasNudgedForDelegation && this.state.currentIteration < this.config.maxAgentIterations - 1) {
+              console.log('[AgentLoop] Text-only response but tasks are still pending. Nudging agent to delegate.');
+              this.state.hasNudgedForDelegation = true;
+              const nudgeMsg = createUserMessage(
+                `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are still ${pendingTasks.length} pending tasks in your plan. You MUST use your tools to actually complete the task. Create the necessary files, then invoke sub-agents using invokeSubagent for each file. Do not describe what you will do — actually call the tools NOW.`
+              );
+              nudgeMsg.isHidden = true;
+              updatedMessages.push(nudgeMsg);
+              this.emit({ type: 'agent:message-added', data: nudgeMsg });
+              continueLoop = true;
+            } else {
+              console.log('[AgentLoop] Text-only response, stopping loop naturally.');
+              continueLoop = false;
+            }
           }
         }
 
@@ -1190,15 +1255,19 @@ export class AgentLoop {
               });
             }
 
-            // 30-second timeout safety net
+            // 5-minute timeout safety net, but only if no subagents are active
             setTimeout(() => {
               if (this.isSleeping && this.resolveWakeup) {
-                console.log('[AgentLoop] Sleep timeout reached, waking up...');
+                if (this.activeSubagentCount > 0) {
+                  console.log('[AgentLoop] Sleep timeout reached, but subagents are still active. Staying asleep...');
+                  return;
+                }
+                console.log('[AgentLoop] Sleep timeout reached and no subagents active, waking up...');
                 this.isSleeping = false;
                 this.resolveWakeup();
                 this.resolveWakeup = null;
               }
-            }, 30000);
+            }, 300000); // 5 minutes
           });
           
           // Agent woke up
@@ -1391,20 +1460,27 @@ export class AgentLoop {
 
 // ── Factory ────────────────────────────────────────────────────────────────
 
+export interface AgentLoopOptions {
+  projectContext?: ProjectContext;
+  toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
+  toolDefinitions?: any[];
+  conversationId?: string;
+  agentRole?: 'orchestrator' | 'subagent';
+}
+
 /** Create a new AgentLoop with current configuration */
 export function createAgentLoop(
   eventCallback: AgentEventCallback,
   options?: {
     projectId?: string;
-    projectContext?: ProjectContext;
-    toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
-    toolDefinitions?: any[];
-  }
+  } & AgentLoopOptions
 ): AgentLoop {
   const config = getAIConfig(options?.projectId);
   return new AgentLoop(config, eventCallback, {
     projectContext: options?.projectContext,
     toolExecutor: options?.toolExecutor,
     toolDefinitions: options?.toolDefinitions,
+    conversationId: options?.conversationId,
+    agentRole: options?.agentRole,
   });
 }
