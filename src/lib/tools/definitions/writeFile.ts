@@ -70,11 +70,15 @@ export const handler: ToolHandler = async (args, context) => {
     const result = await (window as any).electron.saveFileContent(targetPath, content, { createDirs: true });
     
     // Step 3: Clean up branch file (best effort)
-    try { 
-      await (window as any).electron.deleteFile?.(branchPath);
-    } catch (e) { 
-      // If deleteFile doesn't exist, overwrite with empty to minimize disk waste
-      try { await (window as any).electron.saveFileContent(branchPath, '', {}); } catch (_) { /* ignore */ }
+    try {
+      if ((window as any).electron?.deleteFile) {
+        await (window as any).electron.deleteFile(branchPath);
+      } else {
+        // If deleteFile doesn't exist, try to remove via file system API if available
+        console.warn('[writeFile] deleteFile not available, branch file may remain:', branchPath);
+      }
+    } catch (e) {
+      console.warn('[writeFile] Failed to delete branch file:', branchPath, e);
     }
     
     console.log('[writeFile] Branch-and-merge completed:', result);

@@ -63,6 +63,7 @@ export interface AgenticMessage {
   // ── Tool message extensions ──
   toolCallId?: string;
   toolName?: string;
+  wasConsumed?: boolean; // Token optimization: mark tool results as consumed after LLM processes them
 
   // ── Metadata ──
   model?: string;

@@ -25,6 +25,7 @@ export interface DispatcherAPIParams {
   onSuccess: (fullText: string, finishReason?: string) => void;
   checkIsStreaming: () => boolean;
   signal?: AbortSignal;
+  conversationId?: string;
 }
 
 // ── Legacy-compatible interface (for existing code that hasn't migrated) ───
@@ -59,6 +60,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   let onSuccess: (fullText: string, finishReason?: string) => void;
   let checkIsStreaming: () => boolean;
   let signal: AbortSignal | undefined;
+  let conversationId: string | undefined;
 
   if (isLegacy) {
     const p = params as LegacyDispatcherParams;
@@ -81,6 +83,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     onSuccess = p.onSuccess;
     checkIsStreaming = p.checkIsStreaming;
     signal = p.signal;
+    conversationId = p.conversationId;
   }
 
   let dynamicTemp = config.temperature;
@@ -104,7 +107,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   // ── Build request payload ──────────────────────────────────────────
   const payload: Record<string, any> = {
     model: config.model,
-    conversation_id: `conv_${Date.now()}`,
+    conversation_id: conversationId || `conv_${Date.now()}`,
     messages,
     temperature: dynamicTemp,
     top_p: dynamicTopP,

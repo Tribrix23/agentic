@@ -34,7 +34,7 @@ import {
   applySummarization,
   splitForSummarization,
 } from './contextSummarizer';
-import { estimateTokens } from './tokenCounter';
+import { estimateTokens, truncateToTokens } from './tokenCounter';
 import type { TokenBudget } from './tokenCounter';
 import { callDispatcherAPI } from '../api';
 import { SecurityInterceptor } from './SecurityInterceptor';
@@ -291,6 +291,20 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
               startIndex = text.indexOf('{', endIndex + 1);
               continue;
             }
+          } else if (parsed.tool && typeof parsed.tool === 'string') {
+            // Support raw format: {"tool": "createTodoListTasks", "tasks": [...]}
+            if (isPlausibleToolName(parsed.tool, knownToolNames)) {
+              const args = { ...parsed };
+              delete args.tool;
+              toolCalls.push({
+                name: parsed.tool,
+                arguments: args,
+              });
+            } else {
+              console.warn('[AgentLoop] Invalid tool name in {"tool": "..."} format, skipping:', parsed.tool);
+            }
+            startIndex = text.indexOf('{', endIndex + 1);
+            continue;
           }
         } catch (e) {
           // ignore parsing errors and continue searching
@@ -327,10 +341,13 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
       const argRegex = /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/gi;
       let argMatch;
       while ((argMatch = argRegex.exec(argsStr)) !== null) {
-        let val = argMatch[2].trim();
-        if (val === 'true') val = true as any;
-        else if (val === 'false') val = false as any;
-        else if (!isNaN(Number(val))) val = Number(val) as any;
+        let val: any = argMatch[2].trim();
+        if (typeof val === 'string' && val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
+          val = val.slice(1, -1);
+        }
+        if (val === 'true') val = true;
+        else if (val === 'false') val = false;
+        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
         args[argMatch[1].trim()] = val;
       }
       
@@ -352,6 +369,9 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
       let paramMatch;
       while ((paramMatch = paramRegex.exec(argsStr)) !== null) {
         let val: any = paramMatch[2].trim();
+        if (typeof val === 'string' && val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
+          val = val.slice(1, -1);
+        }
         if (val === 'true') val = true;
         else if (val === 'false') val = false;
         else if (!isNaN(Number(val)) && val !== '') val = Number(val);
@@ -379,6 +399,7 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
       let attrMatch;
       while ((attrMatch = attrRegex.exec(attrsStr)) !== null) {
         let val: any = attrMatch[2];
+        // attrMatch[2] is already inner content, no need to strip quotes
         if (val === 'true') val = true;
         else if (val === 'false') val = false;
         else if (!isNaN(Number(val)) && val !== '') val = Number(val);
@@ -496,6 +517,10 @@ export class AgentLoop {
   private executedToolNames: Set<string> = new Set();
   private successfulFileWrites: number = 0;
   private options?: AgentLoopOptions;
+  
+  // Token optimization: cache static content
+  private cachedSystemPrompt?: string;
+  private lastSentMessageIndex = 0;
 
   constructor(
     config: AIConfig,
@@ -663,6 +688,42 @@ export class AgentLoop {
       this.state.phase = 'executing';
       this.state.status = 'Executing tasks...';
       
+      // ── Token Optimization: Cache static system prompt + project context ──
+      // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
+      const systemPromptText = buildSystemPrompt(this.config);
+      let fullSystemPrompt = systemPromptText;
+      
+      if (this.projectContext) {
+        const projectLines: string[] = [];
+        projectLines.push('\n<project_context>');
+        projectLines.push(`Project Root: ${this.projectContext.rootPath}`);
+        if (this.projectContext.gitBranch) {
+          projectLines.push(`Git Branch: ${this.projectContext.gitBranch}`);
+        }
+        if (this.projectContext.gitStatus) {
+          projectLines.push(`Git Status:\n${this.projectContext.gitStatus}`);
+        }
+        if (this.projectContext.techStack && this.projectContext.techStack.length > 0) {
+          projectLines.push(`Tech Stack: ${this.projectContext.techStack.join(', ')}`);
+        }
+        if (this.projectContext.fileTree) {
+          const treeSummary = truncateToTokens(this.projectContext.fileTree, 200);
+          projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
+        }
+        if (this.projectContext.activeFilePath) {
+          projectLines.push(`\nActive File: ${this.projectContext.activeFilePath}`);
+          if (this.projectContext.activeFileContent) {
+            const truncated = truncateToTokens(this.projectContext.activeFileContent, 500);
+            projectLines.push(`\`\`\`${this.projectContext.activeFileLanguage || ''}\n${truncated}\n\`\`\``);
+          }
+        }
+        projectLines.push('</project_context>');
+        fullSystemPrompt += '\n' + projectLines.join('\n');
+      }
+      
+      this.cachedSystemPrompt = fullSystemPrompt;
+      this.lastSentMessageIndex = 0; // Reset for new run
+      
       // ── Agent iteration loop ─────────────────────────────────────────
       let continueLoop = true;
       this.executedToolNames.clear();
@@ -702,7 +763,9 @@ export class AgentLoop {
           this.config,
           updatedMessages,
           this.projectContext,
-          hasTools ? this.toolDefinitions : undefined
+          hasTools ? this.toolDefinitions : undefined,
+          this.cachedSystemPrompt, // Pass cached system prompt to avoid rebuilding
+          this.lastSentMessageIndex // Pass for delta message injection
         );
         // shouldUseTools controls whether we pass native tools in the API payload.
         // We always pass them in context above; this only affects api.ts behavior.
@@ -760,6 +823,7 @@ export class AgentLoop {
             })),
             // Always pass tool definitions; api.ts will filter based on model's supportsTools flag
             tools: shouldUseTools ? this.toolDefinitions : undefined,
+            conversationId: this.state.conversationId,
             onChunk: (chunk: string) => {
               fullResponseText += chunk;
               assistantMsg.isStreaming = true;
@@ -794,7 +858,7 @@ export class AgentLoop {
               // 2. Put text outside of thinking into the thought block until a tool call marker is seen
               let hideText = false;
               if (assistantMsg.thinkingContent && afterThink.trim().length > 0) {
-                const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|\{/i);
+                const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|call:|\{/i);
                 if (toolMatch && toolMatch.index !== undefined) {
                   // Tool call found! Stop putting text into thought block.
                   const leaked = afterThink.substring(0, toolMatch.index).trim();
@@ -915,7 +979,7 @@ export class AgentLoop {
                   afterThink = '';
                 } else {
                   // Fallback match
-                  const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|\{/i);
+                  const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|call:|\{/i);
                   if (toolMatch && toolMatch.index !== undefined) {
                     const leaked = afterThink.substring(0, toolMatch.index).trim();
                     if (leaked) {
@@ -954,29 +1018,37 @@ export class AgentLoop {
         
         // ── Detect duplicate tool call loops ───────────────────────────────────
         if (hasToolCalls) {
-          const currentSignature = JSON.stringify(assistantMsg.toolCalls!.map(tc => ({ name: tc.name, args: tc.arguments })));
-          
-          if (currentSignature === this.state.lastToolSignature) {
-            this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
-            
-            if (this.state.consecutiveDuplicates >= 3) {
-              console.warn('[AgentLoop] Detected duplicate tool call loop (3+ repeats). Intercepting.');
-              
-              assistantMsg.isHidden = true; // Hide the repeating tool call
-              
-              const errorMsg = createUserMessage(
-                `[SYSTEM ERROR] You have repeated the exact same tool call 3 times. You are stuck in a loop. STOP using this tool. Re-evaluate your strategy and try a COMPLETELY DIFFERENT approach. If you were trying to read files, use readFile instead. If you were trying to create tasks, check if they already exist.`
-              );
-              errorMsg.isHidden = true;
-              updatedMessages.push(errorMsg);
-              this.emit({ type: 'agent:message-added', data: errorMsg });
-              
-              forceRetry = true;
+          // Only consider write operations and dangerous tools for duplicate detection
+          // Legitimate repeated reads (listDirectory, readFile) are allowed
+          const writeTools = assistantMsg.toolCalls!.filter(tc =>
+            !['listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles', 'gitStatus', 'gitDiff'].includes(tc.name)
+          );
+
+          if (writeTools.length > 0) {
+            const currentSignature = JSON.stringify(writeTools.map(tc => ({ name: tc.name, args: tc.arguments })));
+
+            if (currentSignature === this.state.lastToolSignature) {
+              this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
+
+              if (this.state.consecutiveDuplicates >= 3) {
+                console.warn('[AgentLoop] Detected duplicate tool call loop (3+ repeats). Intercepting.');
+
+                assistantMsg.isHidden = true; // Hide the repeating tool call
+
+                const errorMsg = createUserMessage(
+                  `[SYSTEM ERROR] You have repeated the exact same tool call 3 times. You are stuck in a loop. STOP using this tool. Re-evaluate your strategy and try a COMPLETELY DIFFERENT approach. If you were trying to read files, use readFile instead. If you were trying to create tasks, check if they already exist.`
+                );
+                errorMsg.isHidden = true;
+                updatedMessages.push(errorMsg);
+                this.emit({ type: 'agent:message-added', data: errorMsg });
+
+                forceRetry = true;
+              }
+            } else {
+              this.state.consecutiveDuplicates = 0;
             }
-          } else {
-            this.state.consecutiveDuplicates = 0;
+            this.state.lastToolSignature = currentSignature;
           }
-          this.state.lastToolSignature = currentSignature;
         }
 
         // Reset consecutive errors if it successfully made a tool call (or gave text)
@@ -1195,6 +1267,11 @@ export class AgentLoop {
             const invokedSubagents = assistantMsg.toolCalls.some(tc => tc.name === 'invokeSubagent');
             if (invokedSubagents) {
               console.log('[AgentLoop] Agent invoked subagents. Forcing sleep to prevent polling loop.');
+              // Ensure activeSubagentCount is incremented before we decide to sleep
+              // This prevents a race condition where the loop exits before the sub-agent is registered
+              if (this.activeSubagentCount === 0) {
+                console.warn('[AgentLoop] Sub-agent invoked but activeSubagentCount is 0. This may indicate a timing issue.');
+              }
               continueLoop = false;
             } else {
               // Continue loop to let LLM process tool results
@@ -1230,17 +1307,45 @@ export class AgentLoop {
           }
         }
 
+        // ── Token Optimization: Update last sent index for delta injection ──
+        // After processing this iteration, mark all current messages as "sent"
+        // so next iteration only sends new messages in full, compressing old ones
+        this.lastSentMessageIndex = updatedMessages.length;
+        
+        // ── Token Optimization: Mark tool results as consumed ───────────────
+        // Tool results that were sent in previous iterations should be marked as consumed
+        // so they can be compressed more aggressively in future iterations
+        for (const msg of updatedMessages) {
+          if (msg.role === 'tool' && !msg.wasConsumed) {
+            // Mark as consumed if it was sent before this iteration
+            const msgIndex = updatedMessages.indexOf(msg);
+            if (msgIndex < this.lastSentMessageIndex - 2) { // -2 to account for assistant + tool result pair
+              msg.wasConsumed = true;
+            }
+          }
+        }
+
         // ── PERSISTENT CONNECTION LOGIC ────────────────────────────────
-        // Only sleep (keep connection alive) when we have active sub-agents running.
+        // Only sleep (keep connection alive) when we have active sub-agents or background tasks running.
         // Otherwise emit agent:done and cleanly terminate.
         const hasActiveSubagents = this.activeSubagentCount > 0;
-        if (!continueLoop && this.state.isRunning && hasActiveSubagents) {
+
+        // Wait, what if there is a background task running?
+        // We will listen for a custom event 'background-task-complete'
+        const hasActiveBackgroundTasks = false; // We can track this if needed, for now we will just use the event listener while asleep
+
+        // Fix loop termination signal conflict: ensure we sleep if sub-agents were just invoked
+        // even if continueLoop was set to false. This prevents the race condition where the loop
+        // exits before the sub-agent count is incremented.
+        const shouldSleep = !continueLoop && this.state.isRunning && (hasActiveSubagents || (assistantMsg.toolCalls?.some(tc => tc.name === 'invokeSubagent')));
+
+        if (shouldSleep) {
           this.state.status = 'sleeping';
           this.state.phase = 'idle';
           this.emit({ type: 'agent:sleeping' });
           
           this.isSleeping = true;
-          // Wait for wakeup with a 30-second timeout
+          
           await new Promise<void>((resolve) => {
             this.resolveWakeup = resolve;
             
@@ -1255,8 +1360,25 @@ export class AgentLoop {
               });
             }
 
-            // 5-minute timeout safety net, but only if no subagents are active
+            // Event listener for background task completion
+            const taskCompleteListener = (e: any) => {
+              if (this.isSleeping && this.resolveWakeup) {
+                console.log('[AgentLoop] Waking up due to background-task-complete event.');
+                if (e.detail?.result) {
+                  // Append result to pending messages
+                  const toolMsg = createToolMessage(e.detail.taskId, 'manageTask', { success: true, output: e.detail.result });
+                  this.pendingMessages.push(toolMsg);
+                }
+                this.isSleeping = false;
+                this.resolveWakeup();
+                this.resolveWakeup = null;
+              }
+            };
+            window.addEventListener('background-task-complete', taskCompleteListener);
+
+            // Timeout safety net (5 minutes), only wakes if no subagents are active
             setTimeout(() => {
+              window.removeEventListener('background-task-complete', taskCompleteListener);
               if (this.isSleeping && this.resolveWakeup) {
                 if (this.activeSubagentCount > 0) {
                   console.log('[AgentLoop] Sleep timeout reached, but subagents are still active. Staying asleep...');
@@ -1362,15 +1484,20 @@ export class AgentLoop {
   /** Detect ambiguities in user request that need clarification */
   private async detectAmbiguities(userMessage: string): Promise<string | null> {
     // Simple heuristic-based ambiguity detection
+    // Removed overly broad patterns that matched normal coding requests
     const ambiguityPatterns = [
-      { pattern: /it|this|that/gi, message: 'What specifically are you referring to?' },
-      { pattern: /fix|repair|debug/gi, message: 'What specific issue or error are you encountering?' },
-      { pattern: /improve|optimize|enhance/gi, message: 'What specific metrics or aspects should be improved?' },
-      { pattern: /add|implement|create/gi, message: 'Could you provide more details about the expected behavior?' },
+      { pattern: /\b(it|this|that)\b/gi, message: 'What specifically are you referring to?' },
+      { pattern: /\b(fix|repair|debug)\b/gi, message: 'What specific issue or error are you encountering?' },
+      { pattern: /\b(improve|optimize|enhance)\b/gi, message: 'What specific metrics or aspects should be improved?' },
     ];
 
+    // Only trigger for very short, vague messages (less than 5 words)
+    if (userMessage.split(' ').length >= 5) {
+      return null;
+    }
+
     for (const { pattern, message } of ambiguityPatterns) {
-      if (pattern.test(userMessage) && userMessage.split(' ').length < 10) {
+      if (pattern.test(userMessage)) {
         return message;
       }
     }
@@ -1385,20 +1512,15 @@ export class AgentLoop {
     // 2. Identify dependencies between tasks
     // 3. Estimate resources and time for each task
     // 4. Create tasks in the task store
-    
-    // For now, create a placeholder task graph
-    const planningMsg = createAssistantMessage(this.config.model);
-    planningMsg.isHidden = true;
-    planningMsg.content = '[PLANNING PHASE]: Analyzing requirements and creating execution plan...';
-    messages.push(planningMsg);
-    this.emit({ type: 'agent:message-added', data: planningMsg });
 
-    // Create initial planning task
+    // Create initial planning task with conversationId for proper tracking
     const planTask = createTask({
       title: 'Plan execution approach',
       description: 'Analyze requirements and create execution plan',
       priority: 'high',
       tags: ['planning'],
+      conversationId: this.state.conversationId,
+      projectId: this.projectContext?.rootPath,
     });
 
     // Create TaskGraph with the planning task
@@ -1413,14 +1535,18 @@ export class AgentLoop {
 
     const stats = taskGraph.getStats();
     const progress = stats.completedTasks / (stats.totalTasks || 1) * 100;
-    this.state.progress = Math.round(progress);
+    const newProgress = Math.round(progress);
 
     // Check if stuck (no progress for multiple iterations)
-    if (progress === this.state.progress && this.state.currentIteration > 3) {
+    // Compare new progress with previous progress, not with itself
+    if (newProgress === this.state.progress && this.state.currentIteration > 3) {
       this.state.stuckCount++;
     } else {
       this.state.stuckCount = 0;
     }
+
+    // Update state progress after comparison
+    this.state.progress = newProgress;
 
     // If stuck too many times, consider alternative approach
     if (this.state.stuckCount >= 3) {
@@ -1441,19 +1567,9 @@ export class AgentLoop {
 
   /** Validate if goal has been satisfied */
   private async validateGoalSatisfaction(messages: AgenticMessage[]): Promise<boolean> {
-    this.state.phase = 'validating';
-    this.state.status = 'Validating goal satisfaction...';
-
-    // In a sophisticated implementation, this would:
-    // 1. Check if all tasks are completed
-    // 2. Run validation tests if applicable
-    // 3. Verify the solution meets the original requirements
-    // 4. Check for unintended side effects
-
-    // For now, disable automatic goal satisfaction detection
-    // Let the agent run until it naturally stops (no tool calls) or hits max iterations
-    // This prevents premature stopping when the agent says it will do something but hasn't yet
-    this.emit({ type: 'agent:goal-not-satisfied' });
+    // Validation phase is disabled to prevent premature stopping
+    // The agent should run until it naturally stops (no tool calls) or hits max iterations
+    // This prevents the agent from stopping when it says it will do something but hasn't yet
     return false;
   }
 }

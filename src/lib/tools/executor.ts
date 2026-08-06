@@ -46,7 +46,7 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
 
   // ── Permission check ──────────────────────────────────────────────────
   const permission = checkPermission(toolCall.name, toolCall.arguments, permissionConfig);
-  
+
   if (permission === 'deny') {
     return { success: false, output: `Permission denied for tool: ${toolCall.name}` };
   }
@@ -54,7 +54,8 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   // NOTE: 'ask' approval is handled by the SecurityInterceptor in agentLoop.ts
   // (via the tool-approval-needed event). The executor does NOT show its own
   // approval UI — that caused duplicate approval cards.
-  // Only dangerLevel:'dangerous' tools with explicit requiresApproval flag use this path.
+  // SecurityInterceptor now only blocks truly dangerous operations (deleteFile, renameFile, runCommand)
+  // while the permission system handles fine-grained control for other tools like writeFile/editFile.
 
 
   const startTime = Date.now();

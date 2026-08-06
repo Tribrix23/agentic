@@ -140,14 +140,18 @@ export function buildContext(
   config: AIConfig,
   messages: AgenticMessage[],
   projectContext?: ProjectContext,
-  toolDefinitions?: any[]
+  toolDefinitions?: any[],
+  cachedSystemPrompt?: string,
+  lastSentIndex?: number
 ): BuiltContext {
   // ── 1. System Prompt ─────────────────────────────────────────────────
-  const systemPromptText = buildSystemPrompt(config);
+  // Use cached system prompt if provided, otherwise build it
+  const systemPromptText = cachedSystemPrompt || buildSystemPrompt(config);
   const systemPromptParts: string[] = [systemPromptText];
 
   // ── 2. Project Context Injection ─────────────────────────────────────
-  if (projectContext) {
+  // Skip if cachedSystemPrompt is provided (it already includes project context)
+  if (projectContext && !cachedSystemPrompt) {
     const projectLines: string[] = [];
     projectLines.push('\n<project_context>');
     projectLines.push(`Project Root: ${projectContext.rootPath}`);
@@ -182,26 +186,8 @@ export function buildContext(
     systemPromptParts.push(projectLines.join('\n'));
   }
 
-  if (toolDefinitions && toolDefinitions.length > 0) {
-    let toolDefsStr = '';
-    for (const wrappedTool of toolDefinitions) {
-      const tool = wrappedTool.function || wrappedTool; // Support both wrapped and unwrapped formats
-      toolDefsStr += `Tool Name: ${tool.name}\n`;
-      toolDefsStr += `Description: ${tool.description}\n`;
-      toolDefsStr += `Parameters: ${JSON.stringify(tool.parameters)}\n`;
-      
-      // Generate a dummy example based on the first property if available
-      let exampleArgs = '{}';
-      if (tool.parameters && tool.parameters.properties) {
-        const props = Object.keys(tool.parameters.properties);
-        if (props.length > 0) {
-           exampleArgs = `{"${props[0]}": "..."}`;
-        }
-      }
-      toolDefsStr += `Usage Example: call:${tool.name}${exampleArgs}\n\n`;
-    }
-    systemPromptParts.push(`\n<available_tools>\n${toolDefsStr}</available_tools>`);
-  }
+  // Tool definitions are now passed as native tools in the API payload
+  // We don't include them in the system prompt to avoid duplication and save tokens
 
   const fullSystemPrompt = systemPromptParts.join('\n');
   const systemPromptTokens = estimateTokens(fullSystemPrompt);
@@ -227,9 +213,14 @@ export function buildContext(
   // Process from newest to oldest, keeping as many as fit
   const nonSystemMessages = messages.filter((m) => m.role !== 'system' && !m.isHidden);
 
+  // Token optimization: Delta message injection
+  // If lastSentIndex is provided, compress messages before it more aggressively
+  const isNewMessage = (index: number) => lastSentIndex === undefined || index >= lastSentIndex;
+
   for (let i = nonSystemMessages.length - 1; i >= 0; i--) {
     const msg = nonSystemMessages[i];
     const chatMsg = agenticMessageToChatMessage(msg);
+    const isMsgNew = isNewMessage(i);
 
     // ALWAYS inject the tool results as plain text instead of native tool format.
     // The quantix backend API appears to silently drop or reject native tool_calls in history,
@@ -239,10 +230,19 @@ export function buildContext(
     if (msg.role === 'tool' && msg.toolName) {
       chatMsg.role = 'user';
       // Plain-text marker — no XML that the AI might mimic.
-      // 6000 chars ≈ 1500 tokens — enough for a full config file or directory listing.
-      const MAX_TOOL_RESULT = 6000;
-      const truncated = chatMsg.content.length > MAX_TOOL_RESULT
-        ? chatMsg.content.slice(0, MAX_TOOL_RESULT) + `\n... (output truncated at ${MAX_TOOL_RESULT} chars — use startLine/endLine args to read specific sections)`
+      // For new messages (delta), keep full output. For old messages, compress aggressively.
+      // For consumed messages, compress even more aggressively.
+      const MAX_TOOL_RESULT_NEW = 25000;
+      const MAX_TOOL_RESULT_OLD = 2000; // Much smaller for old messages
+      const MAX_TOOL_RESULT_CONSUMED = 500; // Ultra-compressed for consumed messages
+      
+      let maxResult = isMsgNew ? MAX_TOOL_RESULT_NEW : MAX_TOOL_RESULT_OLD;
+      if (msg.wasConsumed) {
+        maxResult = MAX_TOOL_RESULT_CONSUMED;
+      }
+      
+      const truncated = chatMsg.content.length > maxResult
+        ? chatMsg.content.slice(0, maxResult) + `\n... (output truncated at ${maxResult} chars — use startLine/endLine args to read specific sections)`
         : chatMsg.content;
       chatMsg.content = `TOOL RESULT (${msg.toolName}):\n${truncated}`;
       delete chatMsg.tool_call_id;

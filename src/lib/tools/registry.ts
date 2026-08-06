@@ -4,6 +4,11 @@ const tools = new Map<string, RegisteredTool>();
 const disabledTools = new Set<string>();
 
 export function registerTool(definition: ToolDefinition, handler: ToolHandler): void {
+  // Idempotency guard: prevent double-registration of the same tool
+  if (tools.has(definition.name)) {
+    console.warn(`[Registry] Tool "${definition.name}" is already registered. Skipping duplicate registration.`);
+    return;
+  }
   tools.set(definition.name, { definition, handler });
 }
 

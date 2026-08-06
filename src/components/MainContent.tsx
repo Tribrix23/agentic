@@ -69,7 +69,6 @@ export const MainContent = ({
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
   const [showModeDropdown, setShowModeDropdown] = useState<boolean>(false);
-  const [uiMode, setUiMode] = useState<'local' | 'cloud'>('local');
   const [showWizard, setShowWizard] = useState<boolean>(false);
   const [wizardStep, setWizardStep] = useState<'create' | 'security'>('create');
 
@@ -338,7 +337,7 @@ IMPORTANT RULES:
 - Do NOT create to-do lists. Just do the task.`;
 
         const initialMessages = [
-          createUserMessage(systemPrompt)
+          { role: 'system' as const, content: systemPrompt, id: `system_${conversationId}`, timestamp: Date.now() }
         ];
         // Notify the main agent loop that a sub-agent has been spawned
         // This prevents the main loop from terminating while waiting
@@ -857,6 +856,15 @@ IMPORTANT RULES:
           setProjects(updatedProjects);
           localStorage.setItem('quantix_projects', JSON.stringify(updatedProjects));
         }
+
+        // Apply the selected security preset to the permission config
+        const { setPermissionConfig } = require('../lib/permissions');
+        const presetMap: Record<string, 'full' | 'user_guided' | 'semi' | 'default'> = {
+          'full': 'full',
+          'default': 'default',
+          'turbo': 'semi',
+        };
+        setPermissionConfig({ securityPreset: presetMap[selectedSecurity] }, newProject.path);
       }
       setShowWizard(false);
       setWizardFolders([]);
@@ -1226,47 +1234,6 @@ IMPORTANT RULES:
                               )}
                             >
                               {model}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-
-                  {/* Mode indicator */}
-                  <div className="relative" ref={modeDropdownRef}>
-                    <button
-                      onClick={() => setShowModeDropdown(!showModeDropdown)}
-                      className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
-                    >
-                      {uiMode === 'local' ? <HardDrive size={12} /> : <Cloud size={12} />}
-                      {uiMode === 'local' ? 'Local' : 'Cloud'}
-                      <ChevronDown size={12} />
-                    </button>
-                    <AnimatePresence>
-                      {showModeDropdown && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -5 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute top-full left-0 mt-2 w-32 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
-                        >
-                          {['local', 'cloud'].map(mode => (
-                            <button
-                              key={mode}
-                              onClick={() => {
-                                setUiMode(mode as 'local' | 'cloud');
-                                setShowModeDropdown(false);
-                              }}
-                              className={cn(
-                                "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
-                                uiMode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
-                              )}
-                            >
-                              {mode === 'local' ? <HardDrive size={14} /> : <Cloud size={14} />}
-                              {mode === 'local' ? 'Local' : 'Cloud'}
                             </button>
                           ))}
                         </motion.div>

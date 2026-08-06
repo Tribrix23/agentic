@@ -4,6 +4,7 @@ import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XC
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -165,7 +166,12 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   };
 
   const isRunning = step.status === 'running';
-  const hasDetails = step.content || (step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
+  let hasDetails = !!step.content || !!(step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
+  
+  // Hide the expandable dropdown for internal orchestration tools to prevent showing raw system output
+  if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+    hasDetails = false;
+  }
   
   // Extract artifacts if any
   const artifacts = step.toolCall?.result?.artifacts || [];
@@ -218,17 +224,26 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   };
 
   const diffStats = getDiffStats();
+  const isRunningSubagent = isRunning && step.toolCall?.name === 'invokeSubagent';
 
   return (
-    <div className="w-full font-sans text-sm">
+    <div className="w-full font-sans text-sm relative">
       <div 
         className={cn(
-          "flex items-center justify-between py-1 px-2 rounded-md border border-transparent transition-colors",
+          "flex items-center justify-between py-1 px-2 rounded-md border border-transparent transition-colors relative overflow-hidden",
           hasDetails ? "cursor-pointer hover:bg-white/5" : "",
           "bg-transparent"
         )}
         onClick={() => hasDetails && setExpanded(!expanded)}
       >
+        {/* Animated Running Border for Sub-agents */}
+        {isRunningSubagent && (
+          <>
+            <div className="absolute inset-[-100%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,transparent_0%,transparent_70%,#a855f7_100%)] opacity-70 pointer-events-none" />
+            <div className="absolute inset-[1px] bg-[#0f0f13] rounded-md pointer-events-none z-0" />
+          </>
+        )}
+        
         <div className="flex items-center gap-3 relative z-10">
           <div className={color}>
             {icon}
@@ -264,8 +279,8 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
           >
             <div className="p-3 pl-10 space-y-3 bg-[#0a0a0c] rounded-b-md border-x border-b border-white/5 mt-[-2px]">
               {step.type === 'thinking' && step.content && (
-                <div className="text-white/60 text-sm whitespace-pre-wrap leading-relaxed">
-                  {step.content}
+                <div className="text-white/60 text-sm opacity-90 prose-p:!my-2 prose-h3:!text-[13px] prose-h3:!uppercase prose-h3:!tracking-wider prose-h3:!text-purple-400/80 prose-h3:!mt-0 prose-h3:!mb-1">
+                  <MarkdownRenderer content={step.content} isStreaming={isRunning} />
                 </div>
               )}
               

@@ -10,7 +10,9 @@ export class SecurityInterceptor {
    * before execution can proceed.
    */
   static requiresApproval(toolCall: ToolCall): boolean {
-    const dangerousTools = ['deleteFile', 'renameFile', 'runCommand', 'editFile', 'writeFile'];
+    // Only block truly dangerous operations that should always require approval
+    // writeFile and editFile are handled by the permissions system and tool definitions
+    const dangerousTools = ['deleteFile', 'renameFile', 'runCommand'];
     return dangerousTools.includes(toolCall.name);
   }
 }
