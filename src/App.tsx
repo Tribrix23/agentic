@@ -199,12 +199,16 @@ const App = () => {
       setAgentActivity([]);  // Clear activity log on conversation switch
     };
 
+
     const handleNewConversation = () => {
       setCurrentConversationId(null);
       setTasks([]);
       setAgentActivity([]);
       setFilesChanged([]);
     };
+
+    const handleOpenRightSidebar = () => setRightSidebarOpen(true);
+    window.addEventListener('open-right-sidebar', handleOpenRightSidebar);
 
     window.addEventListener('task-updated', handleTaskChange);
     window.addEventListener('tasks-cleared', handleTaskChange);
@@ -217,6 +221,7 @@ const App = () => {
     window.addEventListener('conversation-started', handleConversationStarted);
 
     return () => {
+      window.removeEventListener('open-right-sidebar', handleOpenRightSidebar);
       window.removeEventListener('task-updated', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);
       window.removeEventListener('load-conversation', handleConversationLoad);

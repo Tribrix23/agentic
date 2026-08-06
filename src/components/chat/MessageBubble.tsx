@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AgenticMessage } from '../../lib/messageTypes';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { Copy, Undo2 } from 'lucide-react';
+import { Copy, Undo2, ChevronRight, ChevronDown, FileCode } from 'lucide-react';
 import { AgentProgressCard, AgentStep } from './AgentProgressCard';
 import { AgentStepsGroup } from './AgentStepsGroup';
 import { UndoConfirmModal, UndoFileChange } from './UndoConfirmModal';
@@ -172,6 +172,100 @@ export function MessageBubble({
     });
   }
 
+  // --- Aggregate File Changes ---
+  const fileChangesMap = new Map<string, { path: string; added: number; removed: number; action: string }>();
+  
+  if (!isUser) {
+    steps.forEach(step => {
+      if (step.status !== 'completed' || !step.toolCall) return;
+      
+      const tc = step.toolCall;
+      
+      // Handle subagents
+      if (tc.name === 'invokeSubagent') {
+        const fileActivity = (tc as any).subagentFileActivity;
+        // For simplicity we might just skip subagents or if it has an array of files we could parse it,
+        // but `subagentFileActivity` is just `{ added, removed }` right now in AgentProgressCard.
+        // We'll skip complex subagent parsing here unless the structure contains file paths.
+        return;
+      }
+      
+      const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content', 'write_to_file', 'run_command', 'deleteFile', 'delete_file'];
+      if (!editTools.includes(tc.name)) return;
+      
+      const args = tc.arguments || {};
+      let targetPath = args.TargetFile || args.path || args.file || args.Target || '';
+      let isDelete = false;
+
+      if (tc.name === 'run_command' && args.CommandLine) {
+        const cmd = args.CommandLine.trim();
+        const rmMatch = cmd.match(/^rm\s+(?:-[rRf]+\s+)?['"]?([^'"]+)['"]?$/);
+        if (rmMatch) {
+          targetPath = rmMatch[1];
+          isDelete = true;
+        } else {
+          return;
+        }
+      } else if (['deleteFile', 'delete_file'].includes(tc.name)) {
+        isDelete = true;
+      }
+
+      if (!targetPath) targetPath = 'Unknown File';
+      
+      let added = 0;
+      let removed = 0;
+      
+      const artifacts = tc.result?.artifacts || [];
+      const diffArtifact = artifacts.find((a: any) => a.type === 'diff' && a.diff);
+      
+      if (diffArtifact?.diff) {
+        const lines = String(diffArtifact.diff).split('\n');
+        added = lines.filter((l: string) => l.startsWith('+') && !l.startsWith('+++')).length;
+        removed = lines.filter((l: string) => l.startsWith('-') && !l.startsWith('---')).length;
+      } else {
+        const output = tc.result?.output || '';
+        const addMatch = String(output).match(/(\d+) insertion/);
+        const delMatch = String(output).match(/(\d+) deletion/);
+        if (addMatch) added = parseInt(addMatch[1]);
+        if (delMatch) removed = parseInt(delMatch[1]);
+        
+        if (['writeFile', 'createFile', 'write_to_file'].includes(tc.name)) {
+          const fileContent = args.CodeContent || args.content || args.file_content || '';
+          added = typeof fileContent === 'string' ? fileContent.split('\n').length : 1;
+        } else if (isDelete) {
+          added = 0;
+          removed = 0;
+        } else if (added === 0 && removed === 0) {
+          added = 1; removed = 1;
+        }
+      }
+      
+      const fileContent = args.CodeContent || args.content || args.file_content || args.ReplacementContent || undefined;
+
+      if (fileChangesMap.has(targetPath)) {
+        const existing = fileChangesMap.get(targetPath)!;
+        existing.added += added;
+        existing.removed += removed;
+        if (isDelete) existing.action = 'delete';
+        if (fileContent !== undefined) existing.content = fileContent;
+      } else {
+        fileChangesMap.set(targetPath, {
+          path: targetPath,
+          added,
+          removed,
+          action: isDelete ? 'delete' : tc.name.includes('create') || tc.name.includes('write') ? 'create' : 'edit',
+          content: fileContent
+        });
+      }
+    });
+  }
+
+  const aggregatedFileChanges = Array.from(fileChangesMap.values());
+  const totalAdded = aggregatedFileChanges.reduce((sum, f) => sum + (f.action === 'delete' ? 0 : f.added), 0);
+  const totalRemoved = aggregatedFileChanges.reduce((sum, f) => sum + (f.action === 'delete' ? 0 : f.removed), 0);
+
+  const [filesExpanded, setFilesExpanded] = useState(false);
+
   return (
     <div className={cn("flex w-full", isUser ? "justify-center" : "justify-start")}>
       <div className={cn(
@@ -204,7 +298,64 @@ export function MessageBubble({
             </div>
           ) : null}
 
-
+          {aggregatedFileChanges.length > 0 && (
+            <div className="w-full mt-2 bg-[#121214] border border-white/5 rounded-xl overflow-hidden font-sans shadow-lg">
+              <div 
+                className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-white/5 transition-colors"
+                onClick={() => setFilesExpanded(!filesExpanded)}
+              >
+                <div className="flex items-center gap-2 text-[13px] text-white/80">
+                  {aggregatedFileChanges.length} {aggregatedFileChanges.length === 1 ? 'file' : 'files'} changed
+                  <span className="text-[#4ec9b0] font-mono ml-1">+{totalAdded}</span>
+                  <span className="text-[#f14c4c] font-mono">-{totalRemoved}</span>
+                  {filesExpanded ? <ChevronDown size={14} className="text-white/40 ml-1" /> : <ChevronRight size={14} className="text-white/40 ml-1" />}
+                </div>
+                <button 
+                  className="text-xs px-2.5 py-1 rounded bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/5 flex items-center gap-1.5"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFilesExpanded(!filesExpanded);
+                  }}
+                >
+                  <FileCode size={12} /> Review
+                </button>
+              </div>
+              
+              {filesExpanded && (
+                <div className="border-t border-white/5 bg-[#0a0a0c] p-2 flex flex-col gap-1">
+                  {aggregatedFileChanges.map((file, idx) => {
+                    const fileName = file.path.split(/[/\\]/).pop() || file.path;
+                    return (
+                      <div 
+                        key={idx}
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('open-sidebar-file', { detail: { path: file.path, content: (file as any).content, type: file.action } }));
+                          window.dispatchEvent(new CustomEvent('open-right-sidebar'));
+                        }}
+                        className="flex items-center justify-between px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer group transition-colors"
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileCode size={13} className={cn("shrink-0", file.action === 'delete' ? "text-red-400" : "text-[#569cd6]")} />
+                          <span className={cn("text-[12px] truncate", file.action === 'delete' ? "text-red-400/80 line-through" : "text-white/80")}>{fileName}</span>
+                          <span className="text-[10px] text-white/30 truncate hidden group-hover:block transition-opacity">{file.path}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                          {file.action === 'delete' ? (
+                            <span className="text-[#f14c4c]">deleted</span>
+                          ) : (
+                            <>
+                              {file.added > 0 && <span className="text-[#4ec9b0]">+{file.added}</span>}
+                              {file.removed > 0 && <span className="text-[#f14c4c]">-{file.removed}</span>}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={cn(
             "flex items-center gap-2 text-[10px] text-white/40 opacity-0 group-hover/bubble:opacity-100 transition-opacity absolute -bottom-6 whitespace-nowrap",
