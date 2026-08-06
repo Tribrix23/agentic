@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, Code } from 'lucide-react';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -8,9 +10,10 @@ interface CodeBlockProps {
   language?: string;
   filename?: string;
   showLineNumbers?: boolean;
+  className?: string;
 }
 
-export function CodeBlock({ code, language, filename, showLineNumbers = false }: CodeBlockProps) {
+export function CodeBlock({ code, language, filename, showLineNumbers = true, className }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -19,40 +22,46 @@ export function CodeBlock({ code, language, filename, showLineNumbers = false }:
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const renderCode = (text: string) => {
-    if (typeof text !== 'string') text = String(text || '');
-    
-    // Very basic regex highlighter for standard stuff
-    // This is a naive implementation per the prompt's request to avoid heavy libs
-    let html = text
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-      
-    // Highlight strings
-    html = html.replace(/(&quot;.*?&quot;|'.*?'|`.*?`)/g, '<span class="text-green-400">$1</span>');
-    // Highlight keywords
-    html = html.replace(/\b(import|export|from|function|const|let|var|return|if|else|for|while|class|interface|type)\b/g, '<span class="text-blue-400">$1</span>');
-    // Highlight numbers
-    html = html.replace(/\b(\d+)\b/g, '<span class="text-orange-400">$1</span>');
-    
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  };
+  const displayLanguage = filename || language || 'text';
+  // Capitalize language for display
+  const capLanguage = displayLanguage.charAt(0).toUpperCase() + displayLanguage.slice(1);
 
   return (
-    <div className="rounded-lg border border-white/5 bg-[#0f0f13] overflow-hidden my-2">
-      <div className="flex items-center justify-between px-4 py-2 bg-[#1c1c21] border-b border-white/5">
-        <span className="text-xs text-white/50 font-mono">
-          {filename || language || 'text'}
-        </span>
+    <div className={cn("rounded-xl border border-white/10 bg-[#0d0d12] overflow-hidden my-3 shadow-lg", className)}>
+      <div className="flex items-center justify-between px-4 py-3 bg-[#0d0d12]">
+        <div className="flex items-center gap-2 text-white/90 font-bold font-serif tracking-wide text-sm">
+          <Code size={16} className="text-white/60" />
+          <span>{capLanguage}</span>
+        </div>
         <button 
           onClick={handleCopy}
           className="text-white/40 hover:text-white transition-colors"
         >
-          {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+          {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
         </button>
       </div>
-      <div className="p-4 overflow-x-auto text-sm font-mono text-white/80 whitespace-pre">
-        {renderCode(code)}
+      <div className="text-[14px]">
+        <SyntaxHighlighter
+          style={vscDarkPlus as any}
+          language={language || 'text'}
+          PreTag="div"
+          showLineNumbers={showLineNumbers}
+          wrapLines={true}
+          customStyle={{
+            margin: 0,
+            background: '#0d0d12',
+            padding: '0 1rem 1rem 1rem', // Removed top padding to sit closer to header
+          }}
+          lineNumberStyle={{
+            minWidth: '2.5em',
+            paddingRight: '1.2em',
+            color: '#6e7681',
+            textAlign: 'right',
+            userSelect: 'none'
+          }}
+        >
+          {code}
+        </SyntaxHighlighter>
       </div>
     </div>
   );

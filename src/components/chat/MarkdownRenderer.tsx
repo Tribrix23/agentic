@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../App';
+import { CodeBlock } from './CodeBlock';
 
 interface MarkdownRendererProps {
   content: string;
@@ -26,20 +27,10 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
             
             if (!inline && language) {
               return (
-                <div className="relative group my-4">
-                  <div className="absolute top-2 right-2 text-xs text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
-                    {language}
-                  </div>
-                  <SyntaxHighlighter
-                    style={vscDarkPlus as any}
-                    language={language}
-                    PreTag="div"
-                    className="rounded-md !m-0 !mt-0 !mb-0"
-                    {...props}
-                  >
-                    {String(children).replace(/\n$/, '')}
-                  </SyntaxHighlighter>
-                </div>
+                <CodeBlock 
+                  code={String(children).replace(/\n$/, '')} 
+                  language={language}
+                />
               );
             }
             

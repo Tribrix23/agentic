@@ -7,7 +7,7 @@ import './index.css';
 
 import { TitleBar } from './components/TitleBar';
 import { Sidebar } from './components/Sidebar';
-import { RightSidebar, AgentActivity } from './components/RightSidebar';
+import { RightSidebar, AgentActivity, FileChange } from './components/RightSidebar';
 import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
 import { IdeContainer } from './components/IdeContainer';
@@ -134,6 +134,7 @@ const App = () => {
   const [showFullIde, setShowFullIde] = React.useState(false);
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [agentActivity, setAgentActivity] = React.useState<AgentActivity[]>([]);
+  const [filesChanged, setFilesChanged] = React.useState<FileChange[]>([]);
   const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(null);
   const [isAiRunning, setIsAiRunning] = React.useState(false);
   const [orb1ColorIndex, setOrb1ColorIndex] = React.useState(0);
@@ -202,6 +203,7 @@ const App = () => {
       setCurrentConversationId(null);
       setTasks([]);
       setAgentActivity([]);
+      setFilesChanged([]);
     };
 
     window.addEventListener('task-updated', handleTaskChange);
@@ -254,6 +256,27 @@ const App = () => {
 
     const handleAgentToolResult = (e: CustomEvent) => {
       const { toolCall, result } = e.detail;
+      
+      // Update filesChanged list if it's a file operation
+      if (result.success && ['writeFile', 'createFile', 'write_to_file', 'editFile', 'replace_file_content', 'multi_replace_file_content'].includes(toolCall.name)) {
+        const filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile;
+        const content = toolCall.arguments?.content || toolCall.arguments?.CodeContent || toolCall.arguments?.ReplacementContent || '';
+        if (filePath) {
+          setFilesChanged(prev => {
+            const existing = prev.find(f => f.path === filePath);
+            if (existing) {
+              return prev.map(f => f.path === filePath ? { ...f, type: 'modified', content } : f);
+            }
+            return [...prev, { path: filePath, type: 'created', content }];
+          });
+        }
+      } else if (result.success && ['deleteFile', 'delete_file'].includes(toolCall.name)) {
+        const filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile;
+        if (filePath) {
+          setFilesChanged(prev => [...prev, { path: filePath, type: 'deleted' }]);
+        }
+      }
+
       setAgentActivity(prev => {
         const updated = prev.map(act => {
           if (act.status === 'running' && act.toolName === toolCall.name) {
@@ -322,6 +345,19 @@ const App = () => {
     window.addEventListener('agent:coding-started', handleCodingStarted as any);
     window.addEventListener('agent:coding-progress', handleCodingProgress as any);
     window.addEventListener('agent:coding-complete', handleCodingComplete as any);
+    
+    const handleOpenSidebarFile = (e: CustomEvent) => {
+      setRightSidebarOpen(true);
+      if (e.detail?.path) {
+        setFilesChanged(prev => {
+          if (!prev.some(f => f.path === e.detail.path)) {
+            return [...prev, { path: e.detail.path, type: e.detail.type || 'modified', content: e.detail.content }];
+          }
+          return prev;
+        });
+      }
+    };
+    window.addEventListener('open-sidebar-file', handleOpenSidebarFile as any);
 
     return () => {
       window.removeEventListener('agent:thinking', handleAgentThinking as any);
@@ -331,6 +367,7 @@ const App = () => {
       window.removeEventListener('agent:coding-started', handleCodingStarted as any);
       window.removeEventListener('agent:coding-progress', handleCodingProgress as any);
       window.removeEventListener('agent:coding-complete', handleCodingComplete as any);
+      window.removeEventListener('open-sidebar-file', handleOpenSidebarFile as any);
     };
   }, []);
 
@@ -404,6 +441,8 @@ const App = () => {
           tasks={tasks}
           onTaskClick={(task) => console.log('Task clicked:', task)}
           agentActivity={agentActivity}
+          filesChanged={filesChanged}
+          onClearFile={(path: string) => setFilesChanged(prev => prev.filter(f => f.path !== path))}
           conversationId={currentConversationId}
           onClearTasks={() => {
             if (currentConversationId) {

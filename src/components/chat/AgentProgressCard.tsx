@@ -131,7 +131,30 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       if (displayStr.length > 50) displayStr = displayStr.slice(0, 47) + '...';
 
       // Special case for agent tools so they don't say "Ran Created To-Do List Tasks"
-      if (['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+      if (['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', 'writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
+        if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
+          const filePath = args.path || args.TargetFile || '';
+          const content = args.content || args.CodeContent || args.ReplacementContent || '';
+          const fileName = filePath.split(/[/\\]/).pop();
+          return { 
+            icon: <SquareTerminal size={14} className="text-gray-400" />,
+            text: (
+              <span className="flex items-center gap-1.5">
+                Created File 
+                <button
+                  className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-white/90 font-semibold"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('open-sidebar-file', { detail: { path: filePath, content, type: 'created' } }));
+                  }}
+                >
+                  <FileCode size={14} className="text-blue-400" /> {fileName}
+                </button>
+              </span>
+            ),
+            color: 'text-gray-400'
+          };
+        }
         if (step.toolCall.name === 'invokeSubagent') {
           const fileActivity = (step.toolCall as any).subagentFileActivity;
           const role = step.toolCall.arguments?.role || 'Sub agent';
@@ -169,7 +192,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   let hasDetails = !!step.content || !!(step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
   
   // Hide the expandable dropdown for internal orchestration tools to prevent showing raw system output
-  if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+  if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', 'writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
     hasDetails = false;
   }
   
@@ -211,12 +234,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     
     // If this is a create/write file step, try to count lines in the content argument
     if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
-      const content = step.toolCall.arguments?.content || step.toolCall.arguments?.CodeContent || '';
-      if (typeof content === 'string' && content.trim() !== '') {
-        const lineCount = content.split('\n').length;
-        return { added: lineCount, removed: 0 };
-      }
-      return { added: 0, removed: 0 }; // Empty file
+      return null;
     }
     
     // Show +1 -1 as a minimum indicator when a file was edited (if not write/create)
@@ -285,38 +303,52 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
               )}
               
               {step.type === 'tool' && step.toolCall && (
-                <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden flex flex-col">
-                  <div className="p-3 border-b border-white/5 bg-white/[0.02]">
-                    <span className="text-white/40 mr-2">$</span>
-                    <span className="text-blue-400 font-medium">{getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).cmd}</span>
-                    <span className="text-white/60 ml-2 break-all">
-                      {getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).argsStr}
-                    </span>
+                ['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name) ? (
+                  <div className="max-h-[400px] overflow-y-auto rounded-xl">
+                    <CodeBlock 
+                      language={((step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split('.').pop() || 'text')} 
+                      code={step.toolCall.arguments?.content || step.toolCall.arguments?.CodeContent || ''} 
+                      filename={(step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split(/[/\\]/).pop()}
+                    />
                   </div>
-                  {step.toolCall.result && (
-                    <div className="p-3 text-gray-300 overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                      {typeof step.toolCall.result.output === 'string' ? step.toolCall.result.output : JSON.stringify(step.toolCall.result.output, null, 2)}
+                ) : (
+                  <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden flex flex-col">
+                    <div className="p-3 border-b border-white/5 bg-white/[0.02]">
+                      <span className="text-white/40 mr-2">$</span>
+                      <span className="text-blue-400 font-medium">{getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).cmd}</span>
+                      <span className="text-white/60 ml-2 break-all">
+                        {getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).argsStr}
+                      </span>
                     </div>
-                  )}
-                  {artifacts.length > 0 && (
-                    <div className="p-3 border-t border-white/10 flex flex-col gap-2 bg-blue-500/5">
-                      <div className="text-blue-400/80 font-semibold mb-1 text-[11px] uppercase tracking-wider">Generated Artifacts</div>
-                      {artifacts.map((art: any, i: number) => (
-                        <button
-                          key={i}
-                          onClick={() => onArtifactClick && onArtifactClick(art.path)}
-                          className="text-left px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded border border-blue-500/20 transition-colors flex items-center gap-2"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-sm">{art.path.split(/[/\\]/).pop()}</span>
-                            {art.metadata?.Summary && <span className="text-xs text-blue-300/70 truncate max-w-[400px]">{art.metadata.Summary.split('\n')[0]}</span>}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    {step.toolCall.result && (
+                      <div className="p-3 text-gray-300 overflow-x-auto max-h-[300px] overflow-y-auto">
+                        {typeof step.toolCall.result.output === 'string' && !step.toolCall.result.output.trim().startsWith('{') && !step.toolCall.result.output.trim().startsWith('[') ? (
+                          <div className="whitespace-pre-wrap">{step.toolCall.result.output}</div>
+                        ) : (
+                          <CodeBlock language="json" code={typeof step.toolCall.result.output === 'string' ? step.toolCall.result.output : JSON.stringify(step.toolCall.result.output, null, 2)} />
+                        )}
+                      </div>
+                    )}
+                    {artifacts.length > 0 && (
+                      <div className="p-3 border-t border-white/10 flex flex-col gap-2 bg-blue-500/5">
+                        <div className="text-blue-400/80 font-semibold mb-1 text-[11px] uppercase tracking-wider">Generated Artifacts</div>
+                        {artifacts.map((art: any, i: number) => (
+                          <button
+                            key={i}
+                            onClick={() => onArtifactClick && onArtifactClick(art.path)}
+                            className="text-left px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded border border-blue-500/20 transition-colors flex items-center gap-2"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-sm">{art.path.split(/[/\\]/).pop()}</span>
+                              {art.metadata?.Summary && <span className="text-xs text-blue-300/70 truncate max-w-[400px]">{art.metadata.Summary.split('\n')[0]}</span>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
               )}
             </div>
           </motion.div>

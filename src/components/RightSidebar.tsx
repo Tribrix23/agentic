@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Activity, FileCode, Layers, FileText, FilePen, Terminal, GitBranch, 
   Search, Brain, RotateCcw, AlertCircle, ListTodo, Trash2
@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { TodoListPanel } from './chat/TodoListPanel';
 import { Task } from '../lib/taskStore';
+import { CodeBlock } from './chat/CodeBlock';
 
 export interface TokenBudget {
   total: number;
@@ -40,6 +41,7 @@ export interface AgentActivity {
 export interface FileChange {
   path: string;
   type: 'modified' | 'created' | 'deleted';
+  content?: string;
 }
 
 interface RightSidebarProps {
@@ -50,6 +52,7 @@ interface RightSidebarProps {
   tokenBudget?: TokenBudget;
   onRevertFile?: (path: string) => void;
   onOpenFile?: (path: string) => void;
+  onClearFile?: (path: string) => void;
   tasks?: Task[];
   onTaskClick?: (task: Task) => void;
   conversationId?: string;
@@ -76,9 +79,30 @@ const formatTime = (ts: number) => {
 };
 
 export const RightSidebar = ({ 
-  isOpen, toggle, agentActivity = [], filesChanged = [], tokenBudget, onRevertFile, onOpenFile, tasks = [], onTaskClick, conversationId, onClearTasks
+  isOpen, toggle, agentActivity = [], filesChanged = [], tokenBudget, onRevertFile, onOpenFile, onClearFile, tasks = [], onTaskClick, conversationId, onClearTasks
 }: RightSidebarProps) => {
   const [activeTab, setActiveTab] = useState<TabType>('tasks');
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const handleOpenSidebarFile = (e: any) => {
+      setActiveTab('files');
+      if (e.detail?.path) {
+        setExpandedFiles(prev => new Set(prev).add(e.detail.path));
+      }
+    };
+    window.addEventListener('open-sidebar-file', handleOpenSidebarFile);
+    return () => window.removeEventListener('open-sidebar-file', handleOpenSidebarFile);
+  }, []);
+
+  const toggleFile = (path: string) => {
+    setExpandedFiles(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
 
   return (
     <div className={cn(
@@ -215,26 +239,44 @@ export const RightSidebar = ({
                   filesChanged.map((file, i) => {
                     const basename = file.path.split('/').pop() || file.path.split('\\').pop() || file.path;
                     const color = file.type === 'modified' ? 'text-blue-400 bg-blue-400/10' : file.type === 'created' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10';
+                    const isExpanded = expandedFiles.has(file.path);
                     return (
-                      <div key={i} className="group flex items-center justify-between p-2 rounded-lg bg-[#141419] border border-white/5 hover:border-white/10 transition-colors" title={file.path}>
-                        <div className="flex items-center space-x-3 overflow-hidden" onClick={() => onOpenFile && onOpenFile(file.path)}>
-                          <FileCode className="w-4 h-4 text-white/50 shrink-0" />
-                          <span className="truncate text-white/80 hover:text-white cursor-pointer transition-colors">
-                            {basename}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2 shrink-0">
-                          <span className={cn("text-[10px] px-2 py-0.5 rounded uppercase tracking-wider", color)}>
-                            {file.type}
-                          </span>
+                      <div key={i} className="flex flex-col space-y-2">
+                        <div className="group flex items-center justify-between p-2 rounded-lg bg-[#141419] border border-white/5 hover:border-white/10 transition-colors cursor-pointer" title={file.path} onClick={() => toggleFile(file.path)}>
+                          <div className="flex items-center space-x-3 overflow-hidden">
+                            <FileCode className="w-4 h-4 text-white/50 shrink-0" />
+                            <span className="truncate text-white/80 hover:text-white transition-colors">
+                              {basename}
+                            </span>
+                          </div>
+                          <div className="flex items-center space-x-2 shrink-0">
                           <button 
-                            className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all"
-                            onClick={(e) => { e.stopPropagation(); onRevertFile && onRevertFile(file.path); }}
-                            title="Revert changes"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                          </button>
+                              className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all p-1"
+                              onClick={(e) => { e.stopPropagation(); onClearFile && onClearFile(file.path); }}
+                              title="Clear from sidebar"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
+                        <AnimatePresence>
+                          {isExpanded && file.content && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="max-h-[400px] overflow-y-auto rounded-xl border border-white/5 bg-black/50">
+                                <CodeBlock 
+                                  language={file.path.split('.').pop() || 'text'} 
+                                  code={file.content} 
+                                  filename={basename}
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
                     );
                   })

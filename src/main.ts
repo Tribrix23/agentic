@@ -116,6 +116,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
+    show: false,
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#050505',
@@ -124,6 +125,31 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: false
     },
+  });
+
+  const splashWindow = new BrowserWindow({
+    width: 400,
+    height: 450,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    backgroundColor: '#050505',
+    webPreferences: {
+      nodeIntegration: false
+    }
+  });
+
+  splashWindow.loadFile(path.join(__dirname, '../../public/splash.html'));
+
+  mainWindow.once('ready-to-show', () => {
+    // Add a short delay to ensure Vite's React bundle fully mounts before swapping
+    setTimeout(() => {
+      if (!splashWindow.isDestroyed()) {
+        splashWindow.close();
+      }
+      mainWindow?.show();
+    }, 1000);
   });
 
   ipcMain.on('window-minimize', () => {

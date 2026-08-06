@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Quantix Agentic Coder - Loading</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #050505;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Outfit', sans-serif;
+      overflow: hidden;
+      -webkit-app-region: drag; /* Make the splash screen draggable */
+      user-select: none;
+    }
+
+    .loader-container {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid transparent;
+    }
+
+    .ring-1 {
+      width: 100%;
+      height: 100%;
+      border-top-color: #7c3aed; /* Violet */
+      border-right-color: #7c3aed;
+      animation: spin 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+      box-shadow: 0 0 15px rgba(124, 58, 237, 0.3);
+    }
+
+    .ring-2 {
+      width: 75%;
+      height: 75%;
+      border-bottom-color: #4f46e5; /* Indigo */
+      border-left-color: #4f46e5;
+      animation: spin-reverse 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+      box-shadow: 0 0 15px rgba(79, 70, 229, 0.3);
+    }
+
+    .ring-3 {
+      width: 50%;
+      height: 50%;
+      border-top-color: #38bdf8; /* Light blue */
+      animation: spin 1s linear infinite;
+    }
+
+    .core {
+      width: 25%;
+      height: 25%;
+      background: linear-gradient(135deg, #7c3aed, #4f46e5);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+      box-shadow: 0 0 20px 5px rgba(124, 58, 237, 0.5);
+    }
+
+    .brand-text {
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      margin-top: 10px;
+      background: linear-gradient(90deg, #fff, #a5b4fc, #fff);
+      background-size: 200% auto;
+      color: transparent;
+      -webkit-background-clip: text;
+      background-clip: text;
+      animation: shine 3s linear infinite;
+    }
+
+    .sub-text {
+      color: #8b8b93;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 2px;
+      margin-top: 8px;
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes spin-reverse {
+      0% { transform: rotate(360deg); }
+      100% { transform: rotate(0deg); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(0.8); opacity: 0.8; }
+      50% { transform: scale(1.1); opacity: 1; }
+    }
+
+    @keyframes shine {
+      to {
+        background-position: 200% center;
+      }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="loader-container">
+    <div class="ring ring-1"></div>
+    <div class="ring ring-2"></div>
+    <div class="ring ring-3"></div>
+    <div class="core"></div>
+  </div>
+  <div class="brand-text">QUANTIX</div>
+  <div class="sub-text">INITIALIZING SUBSYSTEMS...</div>
+</body>
+</html>
