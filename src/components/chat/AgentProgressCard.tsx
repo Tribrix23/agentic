@@ -244,6 +244,51 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   const diffStats = getDiffStats();
   const isRunningSubagent = isRunning && step.toolCall?.name === 'invokeSubagent';
 
+  if (step.type === 'tool' && step.toolCall && !['writeFile', 'createFile', 'write_to_file', 'createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+    const cmdObj = getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {});
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+
+    const session = (() => { try { return JSON.parse(localStorage.getItem('quantix_session') || '{}'); } catch { return {}; } })();
+    const rawName: string = session?.name || 'user';
+    const linuxUser = rawName.includes('@') ? rawName.split('@')[0].toLowerCase() : rawName.toLowerCase().replace(/\s+/g, '');
+
+    return (
+      <div 
+        className="w-full font-mono text-[13px] rounded-xl overflow-hidden my-2 shadow-xl shadow-black/30 min-h-[90px] flex flex-col" 
+        style={{ background: '#212124' }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 font-sans text-white/55 text-[11px]">
+          <SquareTerminal size={14} className="text-white/50" />
+          <span className="tracking-widest uppercase text-[10px] font-semibold">Terminal</span>
+        </div>
+        {/* Body */}
+        <div className="p-3 pt-1.5 space-y-2">
+          <div className="flex items-start gap-1.5 break-all">
+            {/* linux@user:~$ prompt */}
+            <span className="shrink-0">
+              <span style={{ color: '#4ec9b0' }}>linux@{linuxUser}</span>
+              <span className="text-white/40">:</span>
+              <span style={{ color: '#569cd6' }}>~</span>
+              <span className="text-white/40">$ </span>
+            </span>
+            <div className="flex-1">
+              <span style={{ color: '#ce9178' }}>{cmdObj.cmd}</span>
+              <span style={{ color: '#9cdcfe' }} className="ml-1.5">{cmdObj.argsStr}</span>
+              {isRunning && <span className="text-white/25 text-xs animate-pulse ml-1">▋</span>}
+            </div>
+          </div>
+          {output && (
+            <div className="whitespace-pre-wrap pl-5 leading-relaxed" style={{ color: '#858585' }}>
+              {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full font-sans text-sm relative">
       <div 

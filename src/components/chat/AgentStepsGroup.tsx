@@ -86,7 +86,7 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
             <span className="font-medium">Agent Activity</span>
           </div>
           {isExpanded && (
-            <div className="ml-5 mt-1 border-l border-white/10 pl-3 flex flex-col gap-2">
+            <div className="ml-5 mt-1 pl-3 flex flex-col gap-2">
               {segments.map((seg, segIdx) => (
                 <IterationBlock
                   key={seg.thinking.id}
@@ -184,7 +184,7 @@ function IterationBlock({
             </span>
           </div>
           {thoughtExpanded && (
-            <div className="ml-5 mt-1 border-l border-white/10 pl-3 py-1 text-white/60 whitespace-pre-wrap">
+            <div className="ml-5 mt-1 pl-3 py-1 text-white/60 whitespace-pre-wrap">
                {thinkingStep.content || 'Thinking...'}
             </div>
           )}
@@ -247,7 +247,7 @@ function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolC
       </div>
 
       {expanded && (
-        <div className="ml-5 mt-1 border-l border-white/10 pl-3 flex flex-col gap-1">
+        <div className="ml-5 mt-1 pl-3 flex flex-col gap-1">
           {steps.map(step => (
             <AgentProgressCard
               key={step.id}

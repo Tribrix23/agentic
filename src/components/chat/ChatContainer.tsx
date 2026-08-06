@@ -32,6 +32,8 @@ interface ChatContainerProps {
   onUndoToMessage?: (msgId: string) => void;
   pendingAskUser?: { id: string; question: string; options?: string[] } | null;
   onUserResponse?: (response: string) => void;
+  inputValue?: string;
+  onInputChange?: (val: string) => void;
 }
 
 export function ChatContainer({
@@ -54,7 +56,9 @@ export function ChatContainer({
   onToolDecision,
   onUndoToMessage,
   pendingAskUser,
-  onUserResponse
+  onUserResponse,
+  inputValue,
+  onInputChange
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent text-white")}>
@@ -96,6 +100,8 @@ export function ChatContainer({
                 config={config}
                 projectFiles={projectFiles}
                 onConfigChange={onConfigChange}
+                value={inputValue}
+                onChange={onInputChange}
               />
             )}
           </div>

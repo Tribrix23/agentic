@@ -1127,6 +1127,8 @@ IMPORTANT RULES:
                 }}
                 pendingAskUser={pendingAskUser}
                 onUserResponse={handleUserResponse}
+                inputValue={inputValue}
+                onInputChange={setInputValue}
               />
             </div>
             <AnimatePresence>

@@ -14,10 +14,14 @@ interface PromptInputProps {
   config: AIConfig;
   projectFiles?: any[];
   onConfigChange?: (partial: Partial<AIConfig>) => void;
+  value?: string;
+  onChange?: (val: string) => void;
 }
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange }: PromptInputProps) {
-  const [content, setContent] = useState('');
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange }: PromptInputProps) {
+  const [localContent, setLocalContent] = useState('');
+  const content = value !== undefined ? value : localContent;
+  const setContent = onChange || setLocalContent;
   const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
