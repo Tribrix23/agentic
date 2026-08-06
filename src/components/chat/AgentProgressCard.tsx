@@ -255,9 +255,18 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
     return (
       <div 
-        className="w-full font-mono text-[13px] rounded-xl overflow-hidden my-2 shadow-xl shadow-black/30 min-h-[90px] flex flex-col" 
-        style={{ background: '#212124' }}
+        className={cn(
+          "w-full my-2 shadow-xl shadow-black/30",
+          isRunning ? "running-border-wrapper" : "rounded-xl overflow-hidden"
+        )}
       >
+        <div 
+          className={cn(
+            "font-mono text-[13px] min-h-[90px] flex flex-col w-full h-full",
+            isRunning ? "running-border-inner" : ""
+          )}
+          style={!isRunning ? { background: '#212124' } : undefined}
+        >
         {/* Header */}
         <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 font-sans text-white/55 text-[11px]">
           <SquareTerminal size={14} className="text-white/50" />
@@ -279,13 +288,18 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
               {isRunning && <span className="text-white/25 text-xs animate-pulse ml-1">▋</span>}
             </div>
           </div>
-          {output && (
+          {output ? (
             <div className="whitespace-pre-wrap pl-5 leading-relaxed" style={{ color: '#858585' }}>
               {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
             </div>
-          )}
+          ) : isRunning ? (
+            <div className="whitespace-pre-wrap pl-5 leading-relaxed" style={{ color: '#858585' }}>
+              <span className="animate-pulse">Waiting for response...</span>
+            </div>
+          ) : null}
         </div>
       </div>
+    </div>
     );
   }
 

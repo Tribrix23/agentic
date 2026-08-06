@@ -40,6 +40,27 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
     return localStorage.getItem('quantix_active_chat_id');
   });
 
+  const [runningConversations, setRunningConversations] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const handleRunningState = (e: any) => {
+      const { isRunning, activeConversationId } = e.detail;
+      setRunningConversations(prev => {
+        const next = new Set(prev);
+        if (isRunning && activeConversationId) {
+          next.add(activeConversationId);
+        } else if (!isRunning && activeConversationId) {
+          next.delete(activeConversationId);
+        } else if (!isRunning && !activeConversationId) {
+          next.clear();
+        }
+        return next;
+      });
+    };
+    window.addEventListener('agent-running-state', handleRunningState);
+    return () => window.removeEventListener('agent-running-state', handleRunningState);
+  }, []);
+
   useEffect(() => {
     // Poll for changes in case MainContent updates local storage
     const interval = setInterval(() => {
@@ -222,26 +243,47 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                       <div className="mb-2 ml-[9px] pl-4 border-l border-white/5">
                         {conversations[proj.path] && conversations[proj.path].length > 0 ? (
                           <div className="flex flex-col gap-1 mt-1">
-                            {conversations[proj.path].map(conv => (
-                              <div key={conv.id} className="group/conv flex items-center w-full">
-                                <button
-                                  onClick={() => window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: conv.id, title: conv.title } }))}
-                                  className={cn(
-                                    "flex-1 text-left px-2 py-1.5 text-[11px] hover:text-white rounded transition-colors truncate",
-                                    activeChatId === conv.id ? "bg-white/10 text-white font-medium" : "text-[#8b8b93] hover:bg-white/5"
+                            {conversations[proj.path].map(conv => {
+                              const isRunning = runningConversations.has(conv.id);
+                              return (
+                                <div key={conv.id} className="group/conv flex items-center w-full relative">
+                                  <button
+                                    onClick={() => window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: conv.id, title: conv.title } }))}
+                                    className={cn(
+                                      "flex-1 text-left px-2 py-1.5 text-[11px] hover:text-white rounded transition-colors truncate",
+                                      activeChatId === conv.id ? "bg-white/10 text-white font-medium" : "text-[#8b8b93] hover:bg-white/5",
+                                      isRunning ? "pr-8" : ""
+                                    )}
+                                  >
+                                    {conv.title}
+                                  </button>
+                                  
+                                  {isRunning && (
+                                    <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          window.dispatchEvent(new CustomEvent('request-stop-agent'));
+                                        }}
+                                        className="group/spinner text-white/50 hover:text-red-400 p-1"
+                                        title="Stop Agent"
+                                      >
+                                        <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
+                                        <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
+                                      </button>
+                                    </div>
                                   )}
-                                >
-                                  {conv.title}
-                                </button>
-                                <button
-                                  onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
-                                  className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1"
-                                  title="Delete Conversation"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            ))}
+
+                                  <button
+                                    onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
+                                    className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1"
+                                    title="Delete Conversation"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="py-2 pl-2 text-xs text-[#5b5b63]">

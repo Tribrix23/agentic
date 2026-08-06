@@ -53,3 +53,41 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+
+/* Animated Running Border for Terminal */
+@keyframes border-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+.running-border-wrapper {
+  position: relative;
+  border-radius: 0.75rem; 
+  overflow: hidden;
+  padding: 1px;
+}
+
+.running-border-wrapper::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 250%; 
+  height: 250%;
+  background: conic-gradient(transparent 60%, #7dd3fc 85%, #c084fc 100%); 
+  animation: border-spin 4s linear infinite;
+  z-index: 0;
+}
+
+.running-border-inner {
+  position: relative;
+  z-index: 1;
+  background: #212124;
+  border-radius: calc(0.75rem - 1px);
+  width: 100%;
+  height: 100%;
+}

@@ -145,6 +145,13 @@ export const MainContent = ({
     }
   }, [messages, activeConversationId]);
 
+  // ── Broadcast Agent Running State for Sidebar ────────────────────────
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('agent-running-state', { 
+      detail: { isRunning: isAgentRunning, activeConversationId } 
+    }));
+  }, [isAgentRunning, activeConversationId]);
+
   // ── Listen for chat switching and deletion ───────────────────────────
   useEffect(() => {
     const handleLoadChat = (e: any) => {
@@ -561,7 +568,6 @@ IMPORTANT RULES:
       signal: new AbortController().signal,
       conversationId: activeConversationIdRef.current || undefined,
     };
-
     return executeTool(toolCall, context, permConfig);
   }, [selectedProject?.path, activeConversationId]);
 
@@ -795,6 +801,12 @@ IMPORTANT RULES:
       m.isStreaming ? { ...m, isStreaming: false } : m
     ));
   }, []);
+
+  useEffect(() => {
+    const handleStopRequest = () => handleStopAgent();
+    window.addEventListener('request-stop-agent', handleStopRequest);
+    return () => window.removeEventListener('request-stop-agent', handleStopRequest);
+  }, [handleStopAgent]);
 
   // ── Dropdown refs ────────────────────────────────────────────────────
   const dropdownRef = useRef<HTMLDivElement>(null);
