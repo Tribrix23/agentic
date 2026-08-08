@@ -40,7 +40,7 @@ export function CodeBlock({ code, language, filename, showLineNumbers = true, cl
           {copied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
         </button>
       </div>
-      <div className="text-[14px]">
+      <div className="text-[14px] w-full max-w-full overflow-auto max-h-[500px] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
         <SyntaxHighlighter
           style={vscDarkPlus as any}
           language={language || 'text'}
@@ -51,6 +51,7 @@ export function CodeBlock({ code, language, filename, showLineNumbers = true, cl
             margin: 0,
             background: '#0d0d12',
             padding: '0 1rem 1rem 1rem', // Removed top padding to sit closer to header
+            overflow: 'visible' // Let parent handle scrolling for custom scrollbar
           }}
           lineNumberStyle={{
             minWidth: '2.5em',

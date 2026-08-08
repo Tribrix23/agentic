@@ -117,7 +117,7 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
           ))}
           {/* Append Working... if needed */}
           {isWorking && (
-            <div className="flex flex-col gap-1">
+            <div className="flex relative w-full min-w-0 group/step">
               <div className="flex items-center gap-2 py-1.5 px-2 rounded-md text-white/60">
                 <div className="w-4 h-4 flex items-center justify-center">
                   <Activity size={14} />
@@ -237,7 +237,7 @@ function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolC
   const label = isRunning ? 'Tool call...' : `Ran ${count} tools`;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col w-full min-w-0">
       <div
         className="flex items-center gap-2 py-1.5 px-2 rounded-md cursor-pointer hover:bg-white/5 transition-colors group text-white/60 hover:text-white/80"
         onClick={onToggle}
@@ -247,7 +247,7 @@ function ToolGroupBlock({ steps, isStreaming, expanded, onToggle, onApproveToolC
       </div>
 
       {expanded && (
-        <div className="ml-5 mt-1 pl-3 flex flex-col gap-1">
+        <div className="ml-5 mt-1 pl-3 flex flex-col gap-1 w-full min-w-0">
           {steps.map(step => (
             <AgentProgressCard
               key={step.id}

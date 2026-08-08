@@ -6,6 +6,7 @@ import { AgentProgressCard, AgentStep } from './AgentProgressCard';
 import { AgentStepsGroup } from './AgentStepsGroup';
 import { UndoConfirmModal, UndoFileChange } from './UndoConfirmModal';
 import { getSnapshot, getSnapshotsFrom } from '../../lib/snapshotStore';
+import { FileIcon } from './FileIcon';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -14,7 +15,7 @@ interface MessageBubbleProps {
   onApproveToolCall: (id: string) => void;
   onRejectToolCall: (id: string) => void;
   isLatest?: boolean;
-  agentState?: AgentState;
+  agentState?: string;
   agentStatus?: string;
   agentIteration?: number;
   onStopAgent?: () => void;
@@ -173,7 +174,7 @@ export function MessageBubble({
   }
 
   // --- Aggregate File Changes ---
-  const fileChangesMap = new Map<string, { path: string; added: number; removed: number; action: string }>();
+  const fileChangesMap = new Map<string, { path: string; added: number; removed: number; action: string; content?: string }>();
   
   if (!isUser) {
     steps.forEach(step => {
@@ -267,13 +268,13 @@ export function MessageBubble({
   const [filesExpanded, setFilesExpanded] = useState(false);
 
   return (
-    <div className={cn("flex w-full", isUser ? "justify-center" : "justify-start")}>
+    <div className={cn("flex w-full min-w-0 mb-2", isUser ? "justify-center" : "justify-start")}>
       <div className={cn(
-        "flex gap-3 w-full",
+        "flex gap-3 w-full min-w-0",
         isUser ? "flex-row-reverse" : "flex-row"
       )}>
         <div className={cn(
-          "flex flex-col gap-2 relative group/bubble w-full",
+          "flex flex-col gap-2 relative group/bubble w-full min-w-0",
           isUser ? "items-end" : "items-start"
         )}>
           {stepsToRender.length > 0 && (
@@ -292,7 +293,7 @@ export function MessageBubble({
               "px-4 py-3 rounded-2xl",
               isUser 
                 ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full" 
-                : "text-white/90 mt-1"
+                : "text-white/90 mt-1 w-full min-w-0 break-words"
             )}>
               <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} onArtifactClick={onArtifactClick} />
             </div>
@@ -314,7 +315,10 @@ export function MessageBubble({
                   className="text-xs px-2.5 py-1 rounded bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/5 flex items-center gap-1.5"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setFilesExpanded(!filesExpanded);
+                    window.dispatchEvent(new CustomEvent('open-right-sidebar'));
+                    aggregatedFileChanges.forEach(file => {
+                      window.dispatchEvent(new CustomEvent('open-sidebar-file', { detail: { path: file.path, content: (file as any).content, type: file.action } }));
+                    });
                   }}
                 >
                   <FileCode size={12} /> Review
@@ -335,7 +339,9 @@ export function MessageBubble({
                         className="flex items-center justify-between px-2 py-1.5 hover:bg-white/5 rounded cursor-pointer group transition-colors"
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
-                          <FileCode size={13} className={cn("shrink-0", file.action === 'delete' ? "text-red-400" : "text-[#569cd6]")} />
+                          <div className={cn("shrink-0", file.action === 'delete' ? "opacity-50 grayscale" : "")}>
+                            <FileIcon filename={fileName} size={14} />
+                          </div>
                           <span className={cn("text-[12px] truncate", file.action === 'delete' ? "text-red-400/80 line-through" : "text-white/80")}>{fileName}</span>
                           <span className="text-[10px] text-white/30 truncate hidden group-hover:block transition-opacity">{file.path}</span>
                         </div>

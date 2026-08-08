@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  X, Activity, FileCode, Layers, FileText, FilePen, Terminal, GitBranch, 
-  Search, Brain, RotateCcw, AlertCircle, ListTodo, Trash2
+  X, Activity, Layers, FileText, FilePen, Terminal, GitBranch, 
+  Search, Brain, RotateCcw, AlertCircle, ListTodo, Trash2, FileCode,
+  Maximize2, RefreshCw, SquareTerminal, Copy, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { TodoListPanel } from './chat/TodoListPanel';
 import { Task } from '../lib/taskStore';
 import { CodeBlock } from './chat/CodeBlock';
+import { FileIcon } from './chat/FileIcon';
 
 export interface TokenBudget {
   total: number;
@@ -244,7 +246,7 @@ export const RightSidebar = ({
                       <div key={i} className="flex flex-col space-y-2">
                         <div className="group flex items-center justify-between p-2 rounded-lg bg-[#141419] border border-white/5 hover:border-white/10 transition-colors cursor-pointer" title={file.path} onClick={() => toggleFile(file.path)}>
                           <div className="flex items-center space-x-3 overflow-hidden">
-                            <FileCode className="w-4 h-4 text-white/50 shrink-0" />
+                            <FileIcon filename={basename} size={16} />
                             <span className="truncate text-white/80 hover:text-white transition-colors">
                               {basename}
                             </span>

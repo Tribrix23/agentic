@@ -17,7 +17,7 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
   const displayContent = isStreaming ? `${content} ▍` : content;
 
   return (
-    <div className="prose prose-invert max-w-none prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-white/10 prose-p:leading-relaxed prose-a:text-blue-400 text-[15px]">
+    <div className="prose prose-invert max-w-none w-full min-w-0 prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-white/10 prose-p:leading-relaxed prose-a:text-blue-400 text-[15px]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

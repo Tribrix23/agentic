@@ -363,7 +363,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
               
               {step.type === 'tool' && step.toolCall && (
                 ['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name) ? (
-                  <div className="max-h-[400px] overflow-y-auto rounded-xl">
+                  <div className="max-h-[400px] overflow-y-auto overflow-x-auto rounded-xl w-full">
                     <CodeBlock 
                       language={((step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split('.').pop() || 'text')} 
                       code={step.toolCall.arguments?.content || step.toolCall.arguments?.CodeContent || ''} 
@@ -380,7 +380,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
                       </span>
                     </div>
                     {step.toolCall.result && (
-                      <div className="p-3 text-gray-300 overflow-x-auto max-h-[300px] overflow-y-auto">
+                      <div className="p-3 text-gray-300 overflow-x-auto max-h-[300px] overflow-y-auto w-full">
                         {typeof step.toolCall.result.output === 'string' && !step.toolCall.result.output.trim().startsWith('{') && !step.toolCall.result.output.trim().startsWith('[') ? (
                           <div className="whitespace-pre-wrap">{step.toolCall.result.output}</div>
                         ) : (

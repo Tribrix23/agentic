@@ -135,6 +135,7 @@ function createWindow() {
     alwaysOnTop: true,
     resizable: false,
     backgroundColor: '#050505',
+    icon: path.join(__dirname, '../../public/icon.png'),
     webPreferences: {
       nodeIntegration: false
     }

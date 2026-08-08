@@ -74,7 +74,7 @@ export function MessageThread({
   }
 
   return (
-    <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
+    <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 pb-12 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
       <div className="w-full max-w-[900px] mx-auto flex flex-col gap-6">
         {displayGroups.map((group, idx) => (
           <MessageBubble 
