@@ -189,15 +189,12 @@ function IterationBlock({
           </div>
           {thoughtExpanded && (
             <div className="ml-5 mt-1 pl-3 py-1 text-white/60 whitespace-pre-wrap">
-              {words.map((word, index) => (
-                <span 
-                  key={index}
-                  className="inline-block thought-animate"
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                  {word}{' '}
-                </span>
-              ))}
+              {!isThinkingRunning && (
+                <div className="thought-animate">
+                  {content}
+                </div>
+              )}
+              {isThinkingRunning && content}
             </div>
           )}
         </div>

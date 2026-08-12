@@ -284,6 +284,7 @@ async function handleStreamingResponse(
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
   let fullContent = '';
+  let buffer = '';
   let pendingToolCalls: Record<number, { id?: string; name: string; arguments: string }> = {};
   let isReasoning = false;
 
@@ -300,12 +301,14 @@ async function handleStreamingResponse(
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      buffer += chunk;
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep the last incomplete line for the next chunk
 
       for (const line of lines) {
         if (line.startsWith('data: ') && line !== 'data: [DONE]') {
           const dataStr = line.replace('data: ', '').trim();
-          if (!dataStr || dataStr === 'keep-alive') continue;
+          if (!dataStr || dataStr === 'keep-alive' || dataStr === ': keep-alive') continue;
 
           try {
             const data = JSON.parse(dataStr);

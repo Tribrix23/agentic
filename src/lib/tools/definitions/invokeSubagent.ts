@@ -3,7 +3,7 @@ import { updateTask, createTask, getTask } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'invokeSubagent',
-  description: 'Invokes a sub-agent to perform a task in parallel. The sub-agent runs independently and reports back. The main agent loop will be woken up when the sub-agent completes. Pass taskId to automatically update the task status when the sub-agent finishes. IMPORTANT: The sub-agent will ALWAYS start by calling listDirectory to explore the filesystem before creating or modifying files.',
+  description: 'Invokes a sub-agent to perform a task in parallel. The sub-agent runs independently and reports back. The main agent loop will be woken up when the sub-agent completes. Pass taskId to automatically update the task status when the sub-agent finishes. IMPORTANT: You MUST provide the sub-agent with comprehensive information about its task. Tell it exactly which file to edit, what to do, and provide any necessary context. The sub-agent CANNOT use listDirectory to explore the project itself.',
   category: 'system',
   parameters: {
     type: 'object',

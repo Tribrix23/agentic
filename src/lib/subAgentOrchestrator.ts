@@ -40,12 +40,17 @@ export class SubAgentOrchestrator {
       });
     };
 
+    const config = getAIConfig();
+    // Disable default orchestration system prompt for subagents - they should be "doers", not orchestrators
+    const subagentConfig = { ...config, useDefaultSystemPrompt: false };
+
     const loop = createAgentLoop(subEventCallback, {
       conversationId: id,
       agentRole: 'subagent',
       toolDefinitions,
       toolExecutor: executor,
     });
+    loop.updateConfig(subagentConfig);
 
     const history: AgenticMessage[] = [
       createSystemMessage(`[SUB-AGENT MODE]\nYou are a sub-agent spawned by the primary orchestrator.\nYour Role: ${role}\nInstructions: ${systemPrompt}\nWhen you are finished with your task, you MUST use the send_message tool to report your results back to the parent agent.`)

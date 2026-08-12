@@ -1292,6 +1292,10 @@ export class AgentLoop {
               console.log(`[AgentLoop] activeSubagentCount after invokeSubagent: ${this.activeSubagentCount}`);
               // If count is still 0, it means the tool didn't call notifySubagentSpawned
               // This is a bug - force sleep anyway to prevent premature termination
+              if (this.activeSubagentCount === 0) {
+                console.warn('[AgentLoop] BUG: activeSubagentCount is 0 after invokeSubagent! Forcing increment.');
+                this.activeSubagentCount = assistantMsg.toolCalls.filter(tc => tc.name === 'invokeSubagent').length;
+              }
               continueLoop = false;
             } else {
               // Continue loop to let LLM process tool results

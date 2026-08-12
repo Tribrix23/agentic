@@ -290,10 +290,18 @@ export const MainContent = ({
           // Verify work was actually done before marking task complete
           // Get the task to check if it has a targetFile
           const task = taskId ? getTask(taskId) : null;
-          const targetFile = task?.metadata?.targetFile || e.detail?.targetFile;
+          let targetFile = task?.metadata?.targetFile || e.detail?.targetFile;
           
           let shouldMarkComplete = true;
           if (targetFile) {
+            // Resolve relative path against project root
+            if (!targetFile.startsWith('/') && !/^[a-zA-Z]:(\\|\/)/.test(targetFile)) {
+              const projectRoot = selectedProject?.path || e.detail?.projectRoot;
+              if (projectRoot) {
+                targetFile = projectRoot + (projectRoot.endsWith('/') || projectRoot.endsWith('\\') ? '' : '/') + targetFile;
+              }
+            }
+            
             // Check if the file exists before marking complete
             try {
               const exists = await (window as any).electron?.fileExists(targetFile);
@@ -369,35 +377,30 @@ export const MainContent = ({
         agentRole: 'subagent',
       });
       
-      subagentLoop.updateConfig(aiConfig);
-      subagentLoopsRef.current.set(conversationId, subagentLoop);
-      
       try {
         const systemPrompt = `You are a sub-agent with the role: ${role}.
 Your ONLY task is: ${task}
 
-CRITICAL FIRST STEP:
-- ALWAYS start by calling \`listDirectory\` on the project root to understand the current file structure before doing anything else.
-- This is MANDATORY - you must explore the filesystem first to know what exists.
-
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
-- You have FULL access to the filesystem. Use tools like \`listDirectory\`, \`readFile\`, \`writeFile\`, \`editFile\`, and \`runCommand\`.
+- You have access to tools like \`readFile\`, \`writeFile\`, \`editFile\`, and \`runCommand\`.
 - If the file does not exist yet, CREATE it using \`writeFile\`. You are responsible for creating the file yourself.
-- If the file already exists and needs modification, use \`readFile\` first to see its contents, then \`editFile\` or \`writeFile\` to modify it.
+- If the file already exists and needs modification, use \`readFile\` to read its contents first, then \`editFile\` or \`writeFile\` to modify it.
 - WRITE COMPLETE CODE. Do NOT truncate or use placeholders like "// ... rest of code". Write every single line.
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.
 - Do NOT create to-do lists. Just do the task.`;
 
+        // Disable default system prompt for subagents - they should be "doers", not orchestrators
+        const subagentConfig = { ...aiConfig, useDefaultSystemPrompt: false, systemPrompt };
+        subagentLoop.updateConfig(subagentConfig);
+        subagentLoopsRef.current.set(conversationId, subagentLoop);
+        
         const initialMessages = [
-          { role: 'system' as const, content: systemPrompt, id: `system_${conversationId}`, timestamp: Date.now() }
+          { role: 'user' as const, content: `Please begin the task: ${task}`, id: `user_${conversationId}`, timestamp: Date.now() }
         ];
-        // Notify the main agent loop that a sub-agent has been spawned
-        // This prevents the main loop from terminating while waiting
-        if (agentLoopRef.current) {
-          agentLoopRef.current.notifySubagentSpawned();
-        }
+        // Note: notifySubagentSpawned() is already called synchronously in invokeSubagent.ts
+        // to prevent race conditions. We don't need to call it again here.
         subagentLoop.run(initialMessages.map(m => ({ ...m, role: m.role as any })))
           .then(() => {
             // When sub-agent run() completes, decrement count in main loop
@@ -1083,8 +1086,7 @@ IMPORTANT RULES:
             onClick={() => setShowPopup(true)}
             className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
           >
-            <Zap size={14} />
-            Quick Actions
+            Dev Logs
           </button>
           <button
             onClick={onOpenIde}
@@ -1575,7 +1577,7 @@ IMPORTANT RULES:
         )}
       </AnimatePresence>
 
-      {/* Quick Actions Popup */}
+      {/* Dev Logs Popup */}
       <AnimatePresence>
         {showPopup && (
           <div className="fixed inset-0 z-[210] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
@@ -1583,10 +1585,10 @@ IMPORTANT RULES:
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-[#0f0f13] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+              className="w-full max-w-4xl h-[80vh] bg-[#0f0f13] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="flex items-start justify-between p-6 pb-4">
-                <h2 className="text-lg font-semibold text-white">Quick Actions</h2>
+              <div className="flex items-start justify-between p-6 pb-4 border-b border-white/5">
+                <h2 className="text-lg font-semibold text-white">Dev Logs</h2>
                 <button
                   onClick={() => setShowPopup(false)}
                   className="p-1 text-[#8b8b93] hover:text-white rounded-md transition-colors"
@@ -1595,13 +1597,48 @@ IMPORTANT RULES:
                 </button>
               </div>
 
-              <div className="px-6 py-4">
-                <p className="text-sm text-[#8b8b93] leading-relaxed">
-                  This is a popup that appears when you click the Quick Actions button.
-                </p>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {messages.length === 0 ? (
+                  <p className="text-sm text-[#8b8b93] text-center">No logs available yet.</p>
+                ) : (
+                  messages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        "p-4 rounded-lg border",
+                        msg.role === 'user'
+                          ? "bg-blue-500/5 border-blue-500/10"
+                          : "bg-purple-500/5 border-purple-500/10"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={cn(
+                          "text-xs font-semibold uppercase",
+                          msg.role === 'user' ? "text-blue-400" : "text-purple-400"
+                        )}>
+                          {msg.role}
+                        </span>
+                        {(msg as any).isHidden && (
+                          <span className="text-[10px] text-[#6b6b73] bg-white/5 px-2 py-0.5 rounded">HIDDEN</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-[#a8a8b1] whitespace-pre-wrap font-mono">
+                        {msg.content}
+                      </div>
+                      {msg.thinkingContent && (
+                        <div className="mt-3 pt-3 border-t border-white/5">
+                          <span className="text-[10px] text-[#6b6b73] uppercase font-semibold mb-1 block">Thinking:</span>
+                          <div className="text-xs text-[#8b8b93] whitespace-pre-wrap font-mono">
+                            {msg.thinkingContent}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
 
-              <div className="p-6 flex justify-end gap-3 mt-4">
+              <div className="p-6 flex justify-end gap-3 border-t border-white/5">
                 <button
                   onClick={() => setShowPopup(false)}
                   className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
