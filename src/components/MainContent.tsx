@@ -20,10 +20,10 @@ import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission } from '../lib/permissions';
-import { initializeTools, getToolsForLLM, getTool, getAllTools } from '../lib/tools';
+import { initializeTools, getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
 import { executeTool, clearToolCache } from '../lib/tools/executor';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
-import { updateTask } from '../lib/taskStore';
+import { updateTask, getTask } from '../lib/taskStore';
 import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
 import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
@@ -78,6 +78,7 @@ export const MainContent = ({
 
   const [wizardFolders, setWizardFolders] = useState<ProjectFolder[]>([]);
   const [selectedSecurity, setSelectedSecurity] = useState<'default' | 'full' | 'turbo'>('default');
+  const [showPopup, setShowPopup] = useState(false);
 
   // ── Agentic Chat State ───────────────────────────────────────────────
   const [messages, setMessages] = useState<AgenticMessage[]>([]);
@@ -251,16 +252,27 @@ export const MainContent = ({
       
       // Create a tool executor for this subagent that scopes to its conversationId
       const subagentToolExecutor = async (toolCall: ToolCall): Promise<ToolResult> => {
-        const permConfig = getPermissionConfig(selectedProject?.path);
-        const context = {
-          projectRoot: selectedProject?.path || projectRoot || '',
-          signal: new AbortController().signal,
-          conversationId,
+        // Subagents get auto-approval for all actions - no user prompts
+        const permConfig: any = {
+          securityPreset: 'full',
+          rules: [],
+          deniedPaths: [],
+          allowedCommands: [],
+          blockedCommands: [],
         };
-        return executeTool(toolCall, context, permConfig);
+        const controller = new AbortController();
+        const context: any = {
+          projectRoot: selectedProject?.path || projectRoot || '',
+          signal: controller.signal,
+          conversationId,
+          parentLoop: undefined, // Subagents don't spawn further subagents
+        };
+        const result = await executeTool(toolCall, context, permConfig);
+        controller.abort(); // Clean up the controller
+        return result;
       };
 
-      const subagentLoop = createAgentLoop((event) => {
+      const subagentLoop = createAgentLoop(async (event) => {
         if (event.type === 'agent:coding-progress') {
           window.dispatchEvent(new CustomEvent('subagent-file-activity', {
             detail: {
@@ -275,12 +287,42 @@ export const MainContent = ({
           // Sub-agent has finished — extract its final text output
           const finalContent = event.data?.content || 'Sub-agent completed.';
           
-          // Mark the linked task as completed if we have one
-          if (taskId) {
+          // Verify work was actually done before marking task complete
+          // Get the task to check if it has a targetFile
+          const task = taskId ? getTask(taskId) : null;
+          const targetFile = task?.metadata?.targetFile || e.detail?.targetFile;
+          
+          let shouldMarkComplete = true;
+          if (targetFile) {
+            // Check if the file exists before marking complete
+            try {
+              const exists = await (window as any).electron?.fileExists(targetFile);
+              if (!exists) {
+                console.error(`[Subagent] Task ${taskId} claimed completion but target file ${targetFile} does not exist. Marking as FAILED.`);
+                shouldMarkComplete = false;
+                updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: 'Target file not created' } });
+              } else {
+                console.log(`[Subagent] Task ${taskId} verified: target file ${targetFile} exists. Marking as COMPLETED.`);
+              }
+            } catch (err) {
+              console.error('[Subagent] Could not verify file existence:', err);
+              // If we can't verify, mark as failed to be safe
+              shouldMarkComplete = false;
+              updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: 'Could not verify file existence' } });
+            }
+          }
+          
+          // Mark the linked task as completed if verification passed
+          if (taskId && shouldMarkComplete) {
             updateTask(taskId, { status: 'completed' });
           }
           
           subagentLoopsRef.current.delete(conversationId);
+          
+          // Notify parent loop that subagent is done (decrement count)
+          if (agentLoopRef.current) {
+            agentLoopRef.current.notifySubagentDone();
+          }
 
           // Inject result as a HIDDEN system message into main chat, then wake the main loop
           const resultMsg = createUserMessage(
@@ -298,8 +340,9 @@ export const MainContent = ({
                 // Add the result message to the sleeping loop's pending queue
                 agentLoopRef.current.addPendingMessage({ ...resultMsg, role: 'user' as const });
                 
-                // Only wake up if this is the LAST active subagent
-                if (agentLoopRef.current.activeSubagentCount <= 1) {
+                // Only wake up if this is the LAST active subagent (after decrement)
+                // Check count AFTER notifySubagentDone has been called
+                if (agentLoopRef.current.activeSubagentCount === 0) {
                   agentLoopRef.current.wakeup();
                   setIsAgentRunning(true);
                   isStreamingRef.current = true;
@@ -320,7 +363,7 @@ export const MainContent = ({
       }, {
         projectId: selectedProject?.path || projectRoot,
         projectContext: undefined,
-        toolDefinitions: getToolsForLLM(),
+        toolDefinitions: getToolsForSubagent(),
         toolExecutor: subagentToolExecutor,
         conversationId,
         agentRole: 'subagent',
@@ -332,6 +375,10 @@ export const MainContent = ({
       try {
         const systemPrompt = `You are a sub-agent with the role: ${role}.
 Your ONLY task is: ${task}
+
+CRITICAL FIRST STEP:
+- ALWAYS start by calling \`listDirectory\` on the project root to understand the current file structure before doing anything else.
+- This is MANDATORY - you must explore the filesystem first to know what exists.
 
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
@@ -563,12 +610,16 @@ IMPORTANT RULES:
   // ── Tool Executor ────────────────────────────────────────────────────
   const toolExecutor = useCallback(async (toolCall: ToolCall): Promise<ToolResult> => {
     const permConfig = getPermissionConfig(selectedProject?.path);
-    const context = {
+    const controller = new AbortController();
+    const context: any = {
       projectRoot: selectedProject?.path || '',
-      signal: new AbortController().signal,
+      signal: controller.signal,
       conversationId: activeConversationIdRef.current || undefined,
+      parentLoop: agentLoopRef.current || undefined,
     };
-    return executeTool(toolCall, context, permConfig);
+    const result = await executeTool(toolCall, context, permConfig);
+    controller.abort(); // Clean up the controller
+    return result;
   }, [selectedProject?.path, activeConversationId]);
 
   // ── Send Message Handler ─────────────────────────────────────────────
@@ -1028,6 +1079,13 @@ IMPORTANT RULES:
         </div>
 
         <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2">
+          <button
+            onClick={() => setShowPopup(true)}
+            className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
+          >
+            <Zap size={14} />
+            Quick Actions
+          </button>
           <button
             onClick={onOpenIde}
             className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
@@ -1510,6 +1568,45 @@ IMPORTANT RULES:
                   className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors"
                 >
                   Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Actions Popup */}
+      <AnimatePresence>
+        {showPopup && (
+          <div className="fixed inset-0 z-[210] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#0f0f13] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            >
+              <div className="flex items-start justify-between p-6 pb-4">
+                <h2 className="text-lg font-semibold text-white">Quick Actions</h2>
+                <button
+                  onClick={() => setShowPopup(false)}
+                  className="p-1 text-[#8b8b93] hover:text-white rounded-md transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="px-6 py-4">
+                <p className="text-sm text-[#8b8b93] leading-relaxed">
+                  This is a popup that appears when you click the Quick Actions button.
+                </p>
+              </div>
+
+              <div className="p-6 flex justify-end gap-3 mt-4">
+                <button
+                  onClick={() => setShowPopup(false)}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                >
+                  Close
                 </button>
               </div>
             </motion.div>

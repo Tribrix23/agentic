@@ -298,11 +298,19 @@ function createWindow() {
         return `data:${mimeType};base64,${buffer.toString('base64')}`;
       }
       return fs.readFileSync(filePath, 'utf8');
-    } catch (e: any) {
-      if (e.code === 'ENOENT') {
-        return '';
-      }
-      return `Error reading file: ${e.message}`;
+    } catch (e) {
+      console.error('[IPC] Failed to read file:', filePath, e);
+      return null;
+    }
+  });
+
+  ipcMain.handle('file-exists', async (_event, filePath: string) => {
+    const fs = require('fs');
+    try {
+      return fs.existsSync(filePath);
+    } catch (e) {
+      console.error('[IPC] Failed to check file existence:', filePath, e);
+      return false;
     }
   });
 

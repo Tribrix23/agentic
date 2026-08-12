@@ -242,6 +242,7 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
   }
 
   // ── Format 2: JSON code blocks or raw JSON with tool_call ────────────────
+  // Only parse JSON that has explicit markers to avoid false positives from explanatory JSON
   if (toolCalls.length === 0) {
     let startIndex = text.indexOf('{');
     while (startIndex !== -1) {
@@ -261,6 +262,7 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
         try {
           const str = text.substring(startIndex, endIndex + 1);
           const parsed = JSON.parse(str);
+          // Only parse if it has explicit tool_call markers or is a known single-key format
           if (parsed.tool_call || (parsed.name && Object.keys(parsed).includes('arguments'))) {
             const tc = parsed.tool_call || parsed;
             if (tc.name) {
@@ -277,6 +279,7 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
             }
           } else if (Object.keys(parsed).length === 1) {
             // Support raw format: {"readFile": {"path": "..."}}
+            // But only if the key is a known tool name
             const possibleName = Object.keys(parsed)[0];
             const possibleArgs = parsed[possibleName];
             if (typeof possibleArgs === 'object' && possibleArgs !== null && !Array.isArray(possibleArgs)) {
@@ -556,6 +559,7 @@ export class AgentLoop {
   private isSleeping = false;
   private pendingMessages: AgenticMessage[] = [];
   public activeSubagentCount = 0;
+  private isStreaming = false; // Dedicated flag to track active streaming
 
   /** Queue a message to be processed when the agent wakes up, without actually waking it up */
   addPendingMessage(msg: AgenticMessage): void {
@@ -590,8 +594,15 @@ export class AgentLoop {
 
   /** Stop the agent loop */
   stop(): void {
+    console.log('[AgentLoop] stop() called');
     if (this.abortController) {
       this.abortController.abort();
+    }
+    this.isStreaming = false; // Reset streaming flag
+    this.isSleeping = false; // Wake up if sleeping
+    if (this.resolveWakeup) {
+      this.resolveWakeup();
+      this.resolveWakeup = null;
     }
     this.state.isRunning = false;
     this.state.status = 'stopped';
@@ -783,11 +794,16 @@ export class AgentLoop {
         this.state.status = 'Generating response...';
         this.emit({ type: 'agent:thinking' });
 
-        // ── Call LLM ─────────────────────────────────────────────────────
+        // ── Call LLM via API ──────────────────────────────────────────────
+        const startTime = Date.now();
+        const effectiveConfig = { ...this.config };
         let fullResponseText = '';
-
+        this.isStreaming = true; // Set streaming flag before API call
+        console.log('[AgentLoop] Starting API call, isStreaming set to true');
+        
         await new Promise<void>((resolve, reject) => {
           if (!this.state.isRunning) {
+            console.log('[AgentLoop] state.isRunning is false, resolving immediately');
             resolve();
             return;
           }
@@ -912,10 +928,14 @@ export class AgentLoop {
               this.emit({ type: 'agent:tool-call', data: toolCall });
             },
             onError: (error: Error) => {
+              console.log('[AgentLoop] API onError called, setting isStreaming to false');
+              this.isStreaming = false;
               this.emit({ type: 'agent:error', data: { message: error.message } });
               reject(error);
             },
             onSuccess: (fullText: string) => {
+              console.log('[AgentLoop] API onSuccess called, setting isStreaming to false');
+              this.isStreaming = false;
               fullResponseText = fullText;
               
               let textToDisplay = fullResponseText;
@@ -1004,7 +1024,7 @@ export class AgentLoop {
               this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
               resolve();
             },
-            checkIsStreaming: () => this.state.isRunning,
+            checkIsStreaming: () => this.isStreaming,
             signal: this.abortController?.signal,
           });
         });
@@ -1019,9 +1039,9 @@ export class AgentLoop {
         // ── Detect duplicate tool call loops ───────────────────────────────────
         if (hasToolCalls) {
           // Only consider write operations and dangerous tools for duplicate detection
-          // Legitimate repeated reads (listDirectory, readFile) are allowed
+          // Legitimate repeated reads (listDirectory, readFile) and subagent spawning are allowed
           const writeTools = assistantMsg.toolCalls!.filter(tc =>
-            !['listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles', 'gitStatus', 'gitDiff'].includes(tc.name)
+            !['listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles', 'gitStatus', 'gitDiff', 'invokeSubagent'].includes(tc.name)
           );
 
           if (writeTools.length > 0) {
@@ -1267,11 +1287,11 @@ export class AgentLoop {
             const invokedSubagents = assistantMsg.toolCalls.some(tc => tc.name === 'invokeSubagent');
             if (invokedSubagents) {
               console.log('[AgentLoop] Agent invoked subagents. Forcing sleep to prevent polling loop.');
-              // Ensure activeSubagentCount is incremented before we decide to sleep
-              // This prevents a race condition where the loop exits before the sub-agent is registered
-              if (this.activeSubagentCount === 0) {
-                console.warn('[AgentLoop] Sub-agent invoked but activeSubagentCount is 0. This may indicate a timing issue.');
-              }
+              // The notifySubagentSpawned() is called synchronously in invokeSubagent handler
+              // So activeSubagentCount should already be incremented
+              console.log(`[AgentLoop] activeSubagentCount after invokeSubagent: ${this.activeSubagentCount}`);
+              // If count is still 0, it means the tool didn't call notifySubagentSpawned
+              // This is a bug - force sleep anyway to prevent premature termination
               continueLoop = false;
             } else {
               // Continue loop to let LLM process tool results
@@ -1286,15 +1306,35 @@ export class AgentLoop {
             // Check if there are still pending tasks in THIS conversation that haven't been delegated
             const convId = this.state.conversationId;
             const convTasks = convId ? getTasksForConversation(convId) : [];
-            const pendingTasks = convTasks.filter(t => t.status === 'pending');
-            const hasUnfinishedWork = pendingTasks.length > 0 && this.activeSubagentCount === 0;
+            
+            // Find tasks that are ready to execute (dependencies satisfied, not delegated, not completed)
+            const readyTasks = convTasks.filter(t => {
+              if (t.status !== 'pending') return false;
+              if (t.delegatedTo) return false; // Already delegated
+              
+              // Check if dependencies are satisfied
+              if (t.dependencies && t.dependencies.length > 0) {
+                const incompleteDeps = t.dependencies.filter(depId => {
+                  const depTask = convTasks.find(ct => ct.id === depId);
+                  return !depTask || depTask.status !== 'completed';
+                });
+                if (incompleteDeps.length > 0) return false;
+              }
+              
+              return true;
+            });
+            
+            const hasUnfinishedWork = readyTasks.length > 0 && this.activeSubagentCount === 0;
             
             // Only nudge ONCE to avoid infinite nudge loops
             if (hasUnfinishedWork && !this.state.hasNudgedForDelegation && this.state.currentIteration < this.config.maxAgentIterations - 1) {
-              console.log('[AgentLoop] Text-only response but tasks are still pending. Nudging agent to delegate.');
+              console.log(`[AgentLoop] Text-only response but ${readyTasks.length} tasks are ready for execution. Nudging agent to delegate.`);
               this.state.hasNudgedForDelegation = true;
+              
+              // List the ready tasks in the nudge message
+              const taskList = readyTasks.slice(0, 5).map(t => `- ${t.title} (ID: ${t.id})`).join('\n');
               const nudgeMsg = createUserMessage(
-                `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are still ${pendingTasks.length} pending tasks in your plan. You MUST use your tools to actually complete the task. Create the necessary files, then invoke sub-agents using invokeSubagent for each file. Do not describe what you will do — actually call the tools NOW.`
+                `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are ${readyTasks.length} tasks ready for execution:\n${taskList}\n\nYou MUST use your tools to actually complete these tasks. For each task:\n1. Create the necessary files using writeFile/createFile\n2. Then invoke sub-agents using invokeSubagent with the taskId\n\nDo not describe what you will do — actually call the tools NOW.`
               );
               nudgeMsg.isHidden = true;
               updatedMessages.push(nudgeMsg);
@@ -1349,15 +1389,20 @@ export class AgentLoop {
           await new Promise<void>((resolve) => {
             this.resolveWakeup = resolve;
             
+            let timeoutId: NodeJS.Timeout | null = null;
+            
             // Abort listener for sleep phase
+            const abortListener = () => {
+              if (this.resolveWakeup) {
+                this.isSleeping = false;
+                this.resolveWakeup();
+                this.resolveWakeup = null;
+              }
+              if (timeoutId) clearTimeout(timeoutId);
+            };
+            
             if (this.abortController) {
-              this.abortController.signal.addEventListener('abort', () => {
-                if (this.resolveWakeup) {
-                  this.isSleeping = false;
-                  this.resolveWakeup();
-                  this.resolveWakeup = null;
-                }
-              });
+              this.abortController.signal.addEventListener('abort', abortListener);
             }
 
             // Event listener for background task completion
@@ -1372,13 +1417,17 @@ export class AgentLoop {
                 this.isSleeping = false;
                 this.resolveWakeup();
                 this.resolveWakeup = null;
+                if (timeoutId) clearTimeout(timeoutId);
               }
             };
             window.addEventListener('background-task-complete', taskCompleteListener);
 
             // Timeout safety net (5 minutes), only wakes if no subagents are active
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
               window.removeEventListener('background-task-complete', taskCompleteListener);
+              if (this.abortController) {
+                this.abortController.signal.removeEventListener('abort', abortListener);
+              }
               if (this.isSleeping && this.resolveWakeup) {
                 if (this.activeSubagentCount > 0) {
                   console.log('[AgentLoop] Sleep timeout reached, but subagents are still active. Staying asleep...');
@@ -1507,13 +1556,18 @@ export class AgentLoop {
 
   /** Plan execution by creating a task graph from the goal */
   private async planExecution(messages: AgenticMessage[]): Promise<TaskGraph> {
-    // In a sophisticated implementation, this would:
-    // 1. Call LLM to decompose the goal into subtasks
-    // 2. Identify dependencies between tasks
-    // 3. Estimate resources and time for each task
-    // 4. Create tasks in the task store
+    // Use existing tasks from taskStore if they exist (created by createTodoListTasks)
+    // Otherwise create a minimal planning task
+    const convId = this.state.conversationId;
+    const existingTasks = convId ? getTasksForConversation(convId) : [];
+    
+    if (existingTasks.length > 0) {
+      // Use the tasks already created by the LLM via createTodoListTasks
+      // Convert taskStore tasks to TaskGraph format
+      return new TaskGraph(existingTasks);
+    }
 
-    // Create initial planning task with conversationId for proper tracking
+    // Fallback: create initial planning task with conversationId for proper tracking
     const planTask = createTask({
       title: 'Plan execution approach',
       description: 'Analyze requirements and create execution plan',
@@ -1567,10 +1621,15 @@ export class AgentLoop {
 
   /** Validate if goal has been satisfied */
   private async validateGoalSatisfaction(messages: AgenticMessage[]): Promise<boolean> {
-    // Validation phase is disabled to prevent premature stopping
-    // The agent should run until it naturally stops (no tool calls) or hits max iterations
-    // This prevents the agent from stopping when it says it will do something but hasn't yet
-    return false;
+    // Check if all tasks in taskStore for this conversation are completed
+    const convId = this.state.conversationId;
+    if (!convId) return false;
+
+    const convTasks = getTasksForConversation(convId);
+    if (convTasks.length === 0) return false; // No tasks to track
+
+    const incompleteTasks = convTasks.filter(t => t.status !== 'completed');
+    return incompleteTasks.length === 0;
   }
 }
 

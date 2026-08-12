@@ -168,6 +168,10 @@ function IterationBlock({
   useEffect(() => {
     setToolsExpanded(hasRunningTool);
   }, [hasRunningTool]);
+
+  // Split content into words for animation
+  const content = thinkingStep.content || 'Thinking...';
+  const words = content.split(/\s+/);
   
   return (
     <div className="flex flex-col gap-1">
@@ -185,7 +189,15 @@ function IterationBlock({
           </div>
           {thoughtExpanded && (
             <div className="ml-5 mt-1 pl-3 py-1 text-white/60 whitespace-pre-wrap">
-               {thinkingStep.content || 'Thinking...'}
+              {words.map((word, index) => (
+                <span 
+                  key={index}
+                  className="inline-block thought-animate"
+                  style={{ animationDelay: `${index * 0.05}s` }}
+                >
+                  {word}{' '}
+                </span>
+              ))}
             </div>
           )}
         </div>

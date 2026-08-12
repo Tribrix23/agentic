@@ -289,7 +289,9 @@ async function handleStreamingResponse(
 
   try {
     while (true) {
-      if (!checkIsStreaming()) {
+      const isStreaming = checkIsStreaming();
+      if (!isStreaming) {
+        console.log('[API] checkIsStreaming returned false, cancelling stream');
         reader.cancel();
         break;
       }

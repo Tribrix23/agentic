@@ -1,9 +1,9 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
-import { updateTask, createTask } from '../../taskStore';
+import { updateTask, createTask, getTask } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'invokeSubagent',
-  description: 'Invokes a sub-agent to perform a task in parallel. The sub-agent runs independently and reports back. The main agent loop will be woken up when the sub-agent completes. Pass taskId to automatically update the task status when the sub-agent finishes.',
+  description: 'Invokes a sub-agent to perform a task in parallel. The sub-agent runs independently and reports back. The main agent loop will be woken up when the sub-agent completes. Pass taskId to automatically update the task status when the sub-agent finishes. IMPORTANT: The sub-agent will ALWAYS start by calling listDirectory to explore the filesystem before creating or modifying files.',
   category: 'system',
   parameters: {
     type: 'object',
@@ -40,11 +40,33 @@ export const handler: ToolHandler = async (args, context) => {
       taskId = autoTask.id;
     }
     
+    // Check if task dependencies are satisfied before delegating
+    const taskObj = taskId ? getTask(taskId) : null;
+    if (taskObj && taskObj.dependencies && taskObj.dependencies.length > 0) {
+      const incompleteDeps = taskObj.dependencies.filter(depId => {
+        const depTask = getTask(depId);
+        return !depTask || depTask.status !== 'completed';
+      });
+      
+      if (incompleteDeps.length > 0) {
+        return {
+          success: false,
+          output: `Cannot delegate task ${taskId} because ${incompleteDeps.length} dependencies are not yet completed: ${incompleteDeps.join(', ')}. Complete dependencies first.`
+        };
+      }
+    }
+    
     // Mark the task as delegated immediately
     updateTask(taskId, { 
       status: 'in_progress', 
-      delegatedTo: conversationId 
+      delegatedTo: conversationId,
+      metadata: { ...(taskObj?.metadata || {}), targetFile }
     });
+
+    // Synchronously notify parent loop if available (fixes race condition)
+    if (context.parentLoop && typeof context.parentLoop.notifySubagentSpawned === 'function') {
+      context.parentLoop.notifySubagentSpawned();
+    }
 
     // Dispatch event to MainContent to spin up a new AgentLoop
     window.dispatchEvent(new CustomEvent('spawn-subagent', {

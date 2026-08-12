@@ -97,6 +97,9 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     return { success: false, output: `Error executing tool: ${err.message}` };
   } finally {
     clearTimeout(timeoutId);
-    context.signal.removeEventListener('abort', onContextAbort);
+    // Clean up the abort listener to prevent memory leak
+    if (context.signal.removeEventListener) {
+      context.signal.removeEventListener('abort', onContextAbort);
+    }
   }
 }
