@@ -1160,13 +1160,14 @@ export class AgentLoop {
                   
                   // Emit coding progress for successful file operations
                   if (isCodingOperation && filePath) {
-                    const contentLength = toolCall.arguments?.content?.length || 0;
+                    const contentStr = typeof toolCall.arguments?.content === 'string' ? toolCall.arguments.content : '';
+                    const addedLines = contentStr ? contentStr.split('\n').length : 0;
                     this.emit({ 
                       type: 'agent:coding-progress', 
                       data: { 
                         fileName: filePath.split('/').pop() || filePath,
                         filePath,
-                        added: contentLength,
+                        added: addedLines,
                         removed: 0,
                         toolName: toolCall.name
                       }

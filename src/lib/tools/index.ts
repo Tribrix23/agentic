@@ -22,6 +22,7 @@ import { definition as manageTaskDef, handler as manageTaskHandler } from './def
 import { definition as commandStatusDef, handler as commandStatusHandler } from './definitions/commandStatus';
 import { definition as createTodoListDef, handler as createTodoListHandler } from './definitions/createTodoListTasks';
 import { definition as updateTaskStatusDef, handler as updateTaskStatusHandler } from './definitions/updateTaskStatus';
+import { definition as appendFileDef, handler as appendFileHandler } from './definitions/appendFile';
 
 export * from './types';
 export * from './registry';
@@ -52,4 +53,5 @@ export function initializeTools() {
   registerTool(commandStatusDef, commandStatusHandler);
   registerTool(createTodoListDef, createTodoListHandler);
   registerTool(updateTaskStatusDef, updateTaskStatusHandler);
+  registerTool(appendFileDef, appendFileHandler);
 }

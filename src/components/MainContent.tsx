@@ -252,9 +252,9 @@ export const MainContent = ({
       
       // Create a tool executor for this subagent that scopes to its conversationId
       const subagentToolExecutor = async (toolCall: ToolCall): Promise<ToolResult> => {
-        // Subagents get auto-approval for all actions - no user prompts
+        // Use actual security preset and rules for subagents
         const permConfig: any = {
-          securityPreset: 'full',
+          securityPreset: aiConfig.securityPreset || 'full',
           rules: [],
           deniedPaths: [],
           allowedCommands: [],
@@ -283,6 +283,55 @@ export const MainContent = ({
               removed: event.data.removed
             }
           }));
+        } else if (event.type === 'agent:error') {
+          console.error(`[Subagent ${conversationId}] Error:`, event.data?.message);
+          if (taskId) {
+            updateTask(taskId, { status: 'failed', metadata: { ...getTask(taskId)?.metadata, error: event.data?.message } });
+          }
+          subagentLoopsRef.current.delete(conversationId);
+          if (agentLoopRef.current) {
+            agentLoopRef.current.notifySubagentDone();
+            if (agentLoopRef.current.activeSubagentCount === 0) {
+              const state = agentLoopRef.current.getState();
+              if (state.status === 'sleeping') {
+                agentLoopRef.current.wakeup();
+                setIsAgentRunning(true);
+                isStreamingRef.current = true;
+              }
+            }
+          }
+        } else if (event.type === 'agent:message-added') {
+          const msg = { ...event.data, id: `subagent_${conversationId}_${event.data.id}`, name: `Subagent (${role})` };
+          setMessages(prev => {
+            if (prev.some(m => m.id === msg.id)) {
+              return prev.map(m => m.id === msg.id ? { ...m, ...msg } : m);
+            }
+            return [...prev, msg];
+          });
+        } else if (event.type === 'agent:streaming') {
+          setMessages(prev => {
+            const newMsgs = [...prev];
+            for (let i = newMsgs.length - 1; i >= 0; i--) {
+              if (newMsgs[i].id === `subagent_${conversationId}_${event.data.id}`) {
+                newMsgs[i] = { 
+                  ...newMsgs[i], 
+                  content: event.data.parsedContent ?? event.data.fullText,
+                  thinkingContent: event.data.thinkingContent
+                };
+                break;
+              }
+            }
+            return newMsgs;
+          });
+        } else if (event.type === 'agent:message-updated') {
+          const msg = { ...event.data, id: `subagent_${conversationId}_${event.data.id}`, name: `Subagent (${role})` };
+          setMessages(prev => prev.map(m => m.id === msg.id ? { ...msg } : m));
+        } else if (event.type === 'agent:awaiting-tool-approval') {
+          setAgentState('awaiting_tool_approval');
+          setPendingToolCall(event.data);
+        } else if (event.type === 'agent:tool-approved' || event.type === 'agent:tool-rejected') {
+          setAgentState('running');
+          setPendingToolCall(null);
         } else if (event.type === 'agent:done' || (event.type === 'agent:message-added' && event.data?.role === 'assistant' && !event.data?.isStreaming && event.data?.content && !event.data?.toolCalls?.length)) {
           // Sub-agent has finished — extract its final text output
           const finalContent = event.data?.content || 'Sub-agent completed.';
@@ -293,7 +342,12 @@ export const MainContent = ({
           let targetFile = task?.metadata?.targetFile || e.detail?.targetFile;
           
           let shouldMarkComplete = true;
-          if (targetFile) {
+          if (event.data?.reason === 'user_cancelled') {
+            shouldMarkComplete = false;
+            if (taskId) {
+              updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: 'Cancelled by user' } });
+            }
+          } else if (targetFile) {
             // Resolve relative path against project root
             if (!targetFile.startsWith('/') && !/^[a-zA-Z]:(\\|\/)/.test(targetFile)) {
               const projectRoot = selectedProject?.path || e.detail?.projectRoot;
@@ -355,8 +409,15 @@ export const MainContent = ({
                   setIsAgentRunning(true);
                   isStreamingRef.current = true;
                 }
-              } else if (!isAgentRunning && aiConfig.agentMode && activeConversationId) {
-                // If loop is fully done, start a fresh one with the result injected
+              } else if (state.status === 'done' || state.status === 'error') {
+                if (agentLoopRef.current.activeSubagentCount === 0) {
+                  setIsAgentRunning(false);
+                  isStreamingRef.current = false;
+                  setAgentStatus('');
+                  setAgentState('idle');
+                }
+              } else if (!isAgentRunning && aiConfig.agentMode && activeConversationId && event.data?.reason !== 'user_cancelled') {
+                // If loop is fully done, start a fresh one with the result injected (but not if cancelled)
                 setIsAgentRunning(true);
                 isStreamingRef.current = true;
                 agentLoopRef.current.run(newMsgs.map(m => ({
@@ -383,9 +444,11 @@ Your ONLY task is: ${task}
 
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
-- You have access to tools like \`readFile\`, \`writeFile\`, \`editFile\`, and \`runCommand\`.
+- You have access to tools like \`readFile\`, \`writeFile\`, \`appendFile\`, \`editFile\`, and \`runCommand\`.
 - If the file does not exist yet, CREATE it using \`writeFile\`. You are responsible for creating the file yourself.
-- If the file already exists and needs modification, use \`readFile\` to read its contents first, then \`editFile\` or \`writeFile\` to modify it.
+- If the file already exists and needs modification, use \`readFile\` to read its contents first.
+- IF YOU ARE WRITING A LARGE NEW FILE: Do NOT write the entire file at once using \`writeFile\`. It will fail. Instead, create it first with a small stub using \`writeFile\`, and then use \`appendFile\` repeatedly to add small chunks (e.g., function by function).
+- IF YOU ARE EDITING A LARGE EXISTING FILE: use \`editFile\` to make small, targeted changes (e.g., function by function or block by block).
 - WRITE COMPLETE CODE. Do NOT truncate or use placeholders like "// ... rest of code". Write every single line.
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.

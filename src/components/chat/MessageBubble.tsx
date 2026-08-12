@@ -98,10 +98,16 @@ export function MessageBubble({
       let thinkingContent = msg.thinkingContent || '';
       let displayContentLocal = msgContent;
       
-      // Fallback: if no tags, but it looks exactly like the planning template, treat all as thinking
-      if (!thinkingContent && /^(?:\s*\d+\.\s+UNDERSTAND|UNDERSTAND THE REQUEST|PLAN THE APPROACH)/i.test(displayContentLocal)) {
-        thinkingContent = displayContentLocal;
-        displayContentLocal = '';
+      // Extract <think> content if it exists in the main content body
+      if (!thinkingContent) {
+        const thinkMatch = displayContentLocal.match(/<think(?:ing)?>([\s\S]*?)(?:<\/?think(?:ing)?>|$)/i);
+        if (thinkMatch) {
+          thinkingContent = thinkMatch[1];
+        } else if (/^(?:\s*\d+\.\s+UNDERSTAND|UNDERSTAND THE REQUEST|PLAN THE APPROACH)/i.test(displayContentLocal)) {
+          // Fallback: if no tags, but it looks exactly like the planning template, treat all as thinking
+          thinkingContent = displayContentLocal;
+          displayContentLocal = '';
+        }
       }
       
       const sanitize = (text: string) => text
@@ -138,7 +144,8 @@ export function MessageBubble({
           id: `think_${msg.id}`,
           type: 'thinking',
           status: msg.isStreaming ? 'running' : 'completed',
-          content: actualThinkingContent
+          content: actualThinkingContent,
+          agentName: msg.name?.startsWith('Subagent') ? msg.name : undefined
         });
       }
 
@@ -156,6 +163,7 @@ export function MessageBubble({
             status: tc.status,
             toolCall: tc,
             durationMs: tc.durationMs,
+            agentName: msg.name?.startsWith('Subagent') ? msg.name : undefined
           });
         });
       }

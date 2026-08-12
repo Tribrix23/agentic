@@ -184,7 +184,7 @@ function IterationBlock({
           >
             <AccordionIcon isExpanded={thoughtExpanded} icon={Brain} />
             <span className={isThinkingRunning ? 'shimmer-text' : ''}>
-              Thought
+              {thinkingStep.agentName ? `${thinkingStep.agentName} Thought` : 'Thought'}
             </span>
           </div>
           {thoughtExpanded && (

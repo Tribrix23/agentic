@@ -18,6 +18,7 @@ export interface AgentStep {
   content?: string; // Raw thinking text
   toolCall?: ToolCall;
   durationMs?: number;
+  agentName?: string;
 }
 
 // Removed duplicate interface
