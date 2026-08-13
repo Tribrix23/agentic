@@ -62,6 +62,7 @@ export function useAgentLoop() {
     agentState, 
     setAgentState,
     pendingToolCall, 
+    setPendingToolCall,
     pendingAskUser,
     setPendingAskUser,
     submitPrompt, 

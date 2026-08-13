@@ -43,7 +43,7 @@ export class TaskManager {
 
     const child = spawn(command, {
       cwd,
-      shell: true,
+      shell: process.platform === 'win32' ? 'powershell.exe' : true,
       env: { ...process.env, FORCE_COLOR: '0' }
     });
 

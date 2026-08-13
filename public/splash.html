@@ -1,267 +1,376 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <title>Quantix Agentic Coder - Loading</title>
+  <title>Quantix - Preparing Workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <style>
     :root {
-      --primary: #8b5cf6;
-      --primary-glow: rgba(139, 92, 246, 0.5);
-      --secondary: #3b82f6;
-      --bg: #09090b;
-      --card: rgba(24, 24, 27, 0.7);
-      --border: rgba(255, 255, 255, 0.1);
+      --bg: #050508;
+      --text-primary: #f4f4f5;
+      --text-secondary: #71717a;
+      --text-muted: #52525b;
+      --accent: #818cf8;
+      --accent-light: #a5b4fc;
+      --success: #34d399;
+      --purple: #c084fc;
     }
-    
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body, html {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      background-color: transparent;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      font-family: 'Outfit', sans-serif;
+      width: 100%; height: 100%;
+      background: var(--bg);
+      font-family: 'Inter', -apple-system, sans-serif;
+      color: var(--text-primary);
       overflow: hidden;
       -webkit-app-region: drag;
       user-select: none;
+      display: flex; align-items: center; justify-content: center;
     }
 
-    .splash-container {
+    /* ── Main Card ── */
+    .workspace-loader {
       position: relative;
-      width: 340px;
-      height: 400px;
+      width: 380px;
       border-radius: 24px;
-      background: var(--card);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
       overflow: hidden;
+      animation: cardEntry 0.8s cubic-bezier(0.16,1,0.3,1) forwards;
+      opacity: 0;
+      transform: translateY(20px) scale(0.97);
     }
 
-    /* Ambient background glow inside the card */
-    .glow {
-      position: absolute;
-      width: 150px;
-      height: 150px;
-      background: var(--primary);
-      filter: blur(80px);
-      border-radius: 50%;
-      opacity: 0.4;
-      animation: floatGlow 6s ease-in-out infinite alternate;
-      z-index: 0;
+    @keyframes cardEntry {
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    .glow:nth-child(2) {
-      background: var(--secondary);
-      width: 120px;
-      height: 120px;
-      animation: floatGlow2 7s ease-in-out infinite alternate;
-      right: -20px;
-      bottom: -20px;
+    /* Gradient border glow */
+    .card-glow {
+      position: absolute; inset: -1px; border-radius: 25px; padding: 1px;
+      background: linear-gradient(160deg,
+        rgba(129,140,248,0.4) 0%, rgba(192,132,252,0.15) 30%,
+        rgba(255,255,255,0.05) 50%, rgba(52,211,153,0.1) 70%,
+        rgba(129,140,248,0.25) 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      pointer-events: none; z-index: 20;
     }
 
-    @keyframes floatGlow {
-      0% { transform: translate(-30px, -30px); opacity: 0.3; }
-      100% { transform: translate(30px, 30px); opacity: 0.6; }
+    /* Rotating shimmer border */
+    .card-shimmer {
+      position: absolute; inset: -1px; border-radius: 25px; padding: 1px;
+      background: conic-gradient(from var(--shimmer-angle,0deg),
+        transparent 0%, rgba(129,140,248,0.5) 10%, transparent 20%, transparent 100%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor; mask-composite: exclude;
+      pointer-events: none; z-index: 21;
+      animation: shimmerRotate 4s linear infinite; opacity: 0.6;
     }
 
-    @keyframes floatGlow2 {
-      0% { transform: translate(30px, 30px); opacity: 0.2; }
-      100% { transform: translate(-30px, -30px); opacity: 0.5; }
-    }
+    @property --shimmer-angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
+    @keyframes shimmerRotate { to { --shimmer-angle: 360deg; } }
 
-    .content {
+    /* Card interior */
+    .card-body {
       position: relative;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      background: linear-gradient(165deg,
+        rgba(30,27,55,0.95) 0%, rgba(15,14,28,0.98) 50%, rgba(10,10,20,0.99) 100%);
+      backdrop-filter: blur(60px) saturate(1.5);
+      -webkit-backdrop-filter: blur(60px) saturate(1.5);
+      padding: 36px 36px 28px;
+      display: flex; flex-direction: column; gap: 28px; z-index: 10;
     }
 
-    .logo-container {
-      position: relative;
-      width: 90px;
-      height: 90px;
-      margin-bottom: 24px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+    .card-body::before {
+      content: '';
+      position: absolute; top: 0; left: 20px; right: 20px; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
     }
 
-    .logo-ring {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      border-top-color: var(--primary);
-      border-bottom-color: var(--secondary);
-      animation: spin 3s linear infinite;
-      opacity: 0.8;
+    /* ── Header ── */
+    .header { display: flex; align-items: center; gap: 16px; }
+
+    .logo-mark {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: grid; place-items: center; position: relative; flex-shrink: 0;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #c084fc 100%);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.1) inset,
+        0 4px 20px rgba(99,102,241,0.4),
+        0 0 40px rgba(139,92,246,0.2);
     }
 
-    .logo-ring-inner {
-      position: absolute;
-      width: 70%;
-      height: 70%;
-      border-radius: 50%;
-      border: 2px dashed rgba(255, 255, 255, 0.3);
-      animation: spin-reverse 4s linear infinite;
+    .logo-mark::after {
+      content: '';
+      position: absolute; inset: 0; border-radius: 12px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
     }
 
-    .logo-core {
-      width: 40%;
-      height: 40%;
-      border-radius: 12px;
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      box-shadow: 0 0 20px var(--primary-glow);
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-      transform: rotate(45deg);
+    .logo-mark svg {
+      width: 22px; height: 22px; fill: white;
+      position: relative; z-index: 1;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
     }
 
-    .brand-title {
-      color: white;
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      margin: 0 0 8px 0;
-      text-transform: uppercase;
-      background: linear-gradient(to right, #fff, #c4b5fd, #fff);
-      background-size: 200% auto;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      animation: shimmer 3s linear infinite;
+    .brand-text h1 {
+      font-size: 20px; font-weight: 700; letter-spacing: -0.5px; line-height: 1;
+      background: linear-gradient(135deg, #ffffff 0%, #c7d2fe 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
 
-    .brand-subtitle {
-      color: rgba(255, 255, 255, 0.5);
-      font-size: 13px;
-      font-weight: 400;
-      letter-spacing: 4px;
-      margin: 0 0 30px 0;
-      text-transform: uppercase;
+    .brand-text span {
+      font-size: 12px; color: var(--text-secondary); font-weight: 400;
+      margin-top: 5px; display: block; letter-spacing: 0.2px;
     }
 
-    .progress-container {
-      width: 200px;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 4px;
-      overflow: hidden;
-      position: relative;
+    .divider {
+      height: 1px; margin: -8px 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
     }
 
-    .progress-bar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      width: 50%;
-      background: linear-gradient(90deg, transparent, var(--primary), var(--secondary), transparent);
-      background-size: 200% 100%;
-      border-radius: 4px;
-      animation: load 1.5s ease-in-out infinite, gradientMove 2s linear infinite;
+    /* ── Task List ── */
+    .task-list { display: flex; flex-direction: column; gap: 6px; }
+
+    .task-item {
+      display: flex; align-items: center; gap: 14px;
+      font-size: 12.5px; color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      padding: 8px 12px; border-radius: 10px; position: relative;
+      transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
+      opacity: 0.35; border: 1px solid transparent;
     }
 
-    .status-text {
-      margin-top: 16px;
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.4);
-      font-weight: 300;
-      letter-spacing: 1px;
-      animation: fade 1.5s ease-in-out infinite alternate;
+    .task-item.active {
+      opacity: 1; color: var(--text-primary);
+      background: rgba(99,102,241,0.06);
+      border-color: rgba(99,102,241,0.12);
     }
 
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+    .task-item.done {
+      opacity: 0.75; color: var(--success);
+      background: transparent; border-color: transparent;
     }
 
-    @keyframes spin-reverse {
-      0% { transform: rotate(360deg); }
-      100% { transform: rotate(0deg); }
+    .task-icon {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 1.5px solid currentColor;
+      display: grid; place-items: center; flex-shrink: 0;
+      transition: all 0.4s ease; position: relative;
     }
 
-    @keyframes pulse {
-      0%, 100% { transform: rotate(45deg) scale(1); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); }
-      50% { transform: rotate(45deg) scale(1.1); box-shadow: 0 0 30px rgba(139, 92, 246, 0.8); }
+    .task-item.active .task-icon {
+      border-color: var(--accent);
+      background: rgba(99,102,241,0.15);
+      box-shadow: 0 0 12px rgba(99,102,241,0.3);
     }
 
-    @keyframes shimmer {
-      0% { background-position: 200% center; }
-      100% { background-position: -200% center; }
+    .task-item.active .task-icon::before {
+      content: '';
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent-light);
+      animation: pulseDot 1.2s ease-in-out infinite;
     }
 
-    @keyframes load {
-      0% { left: -50%; }
-      100% { left: 100%; }
+    @keyframes pulseDot {
+      0%,100% { opacity:1; transform:scale(1); }
+      50% { opacity:0.4; transform:scale(0.7); }
     }
 
-    @keyframes gradientMove {
-      0% { background-position: 100% 0; }
-      100% { background-position: -100% 0; }
+    .task-item.done .task-icon {
+      background: var(--success); border-color: var(--success);
+      box-shadow: 0 0 10px rgba(52,211,153,0.3);
     }
 
-    @keyframes fade {
-      0% { opacity: 0.3; }
-      100% { opacity: 1; }
+    .task-item.done .task-icon::after {
+      content: '';
+      width: 7px; height: 4px;
+      border-left: 1.5px solid #052e1c; border-bottom: 1.5px solid #052e1c;
+      transform: rotate(-45deg) translateY(-1px);
+    }
+
+    .task-progress {
+      position: absolute; bottom: 0; left: 12px; right: 12px;
+      height: 1px; background: rgba(99,102,241,0.1);
+      border-radius: 1px; overflow: hidden; opacity: 0; transition: opacity 0.3s;
+    }
+
+    .task-item.active .task-progress { opacity: 1; }
+
+    .task-progress-bar {
+      height: 100%; border-radius: 1px; width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--purple));
+      animation: progressFill 1.2s ease-in-out forwards;
+    }
+
+    @keyframes progressFill { to { width: 100%; } }
+
+    /* ── Footer ─ */
+    .footer {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .status-area { display: flex; align-items: center; gap: 8px; }
+
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+      animation: statusPulse 1.5s ease-in-out infinite; transition: background 0.4s;
+    }
+
+    .status-dot.ready {
+      background: var(--success); animation: none;
+      box-shadow: 0 0 8px rgba(52,211,153,0.5);
+    }
+
+    @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    #status-msg {
+      font-size: 11.5px; color: var(--text-secondary);
+      font-weight: 500; letter-spacing: 0.1px; transition: color 0.4s;
+    }
+
+    .kbd-group { display: flex; align-items: center; gap: 4px; }
+
+    .kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 22px; height: 22px; padding: 0 5px;
+      background: rgba(255,255,255,0.05); border-radius: 5px;
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
+      color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    .kbd-sep {
+      font-size: 9px; color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Overall Progress Bar ── */
+    .overall-progress {
+      height: 2px; background: rgba(255,255,255,0.04);
+      position: relative; overflow: hidden;
+    }
+
+    .overall-progress-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6, #c084fc, #34d399);
+      background-size: 200% 100%; border-radius: 0 2px 2px 0;
+      transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
+      animation: gradientShift 2s linear infinite;
+      box-shadow: 0 0 10px rgba(99,102,241,0.5);
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
     }
   </style>
 </head>
+
 <body>
-  <div class="splash-container">
-    <div class="glow"></div>
-    <div class="glow"></div>
-    
-    <div class="content">
-      <div class="logo-container">
-        <div class="logo-ring"></div>
-        <div class="logo-ring-inner"></div>
-        <div class="logo-core"></div>
+
+  <div class="workspace-loader">
+    <div class="card-glow"></div>
+    <div class="card-shimmer"></div>
+
+    <div class="card-body">
+      <div class="header">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+            <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.66 0 3.14-.69 4.22-1.78L14.83 14.83A2.98 2.98 0 0 1 12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4c0 .74-.2 1.43-.55 2.02l1.42 1.42A5.96 5.96 0 0 0 18 12c0-3.31-2.69-6-6-6z"/>
+            <circle cx="17" cy="17" r="1.5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Quantix</h1>
+          <span>Agentic Workspace</span>
+        </div>
       </div>
-      
-      <h1 class="brand-title">Quantix</h1>
-      <h2 class="brand-subtitle">Agentic IDE</h2>
-      
-      <div class="progress-container">
-        <div class="progress-bar"></div>
+
+      <div class="divider"></div>
+
+      <div class="task-list" id="task-list">
+        <div class="task-item active" data-step="0">
+          <div class="task-icon"></div>
+          <span class="task-label">Verifying environment</span>
+          <div class="task-progress"><div class="task-progress-bar"></div></div>
+        </div>
+        <div class="task-item pending" data-step="1">
+          <div class="task-icon"></div>
+          <span class="task-label">Loading agent memory</span>
+          <div class="task-progress"><div class="task-progress-bar"></div></div>
+        </div>
+        <div class="task-item pending" data-step="2">
+          <div class="task-icon"></div>
+          <span class="task-label">Indexing project graph</span>
+          <div class="task-progress"><div class="task-progress-bar"></div></div>
+        </div>
+        <div class="task-item pending" data-step="3">
+          <div class="task-icon"></div>
+          <span class="task-label">Establishing LLM link</span>
+          <div class="task-progress"><div class="task-progress-bar"></div></div>
+        </div>
       </div>
-      
-      <div class="status-text">INITIALIZING SUBSYSTEMS...</div>
+
+      <div class="footer">
+        <div class="status-area">
+          <div class="status-dot" id="status-dot"></div>
+          <span id="status-msg">Initializing…</span>
+        </div>
+        <div class="kbd-group">
+          <div class="kbd">⌘</div>
+          <span class="kbd-sep">+</span>
+          <div class="kbd">K</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overall-progress">
+      <div class="overall-progress-bar" id="overall-bar"></div>
     </div>
   </div>
-  
+
   <script>
-    // Simulate updating status text for a dynamic feel
-    const statuses = [
-      "INITIALIZING SUBSYSTEMS...",
-      "LOADING AI MODELS...",
-      "ESTABLISHING SECURE CONNECTION...",
-      "PREPARING WORKSPACE...",
-      "BOOTING QUANTIX CORE..."
-    ];
-    let currentIndex = 0;
-    const statusEl = document.querySelector('.status-text');
-    
-    setInterval(() => {
-      currentIndex = (currentIndex + 1) % statuses.length;
-      statusEl.style.opacity = 0;
-      setTimeout(() => {
-        statusEl.textContent = statuses[currentIndex];
-        statusEl.style.opacity = 1;
-      }, 300);
-    }, 2500);
+    const tasks = document.querySelectorAll('.task-item');
+    const statusMsg = document.getElementById('status-msg');
+    const statusDot = document.getElementById('status-dot');
+    const overallBar = document.getElementById('overall-bar');
+    let currentStep = 0;
+    const totalSteps = tasks.length;
+
+    function updateOverall() {
+      overallBar.style.width = (currentStep / totalSteps * 100) + '%';
+    }
+
+    function advanceStep() {
+      if (currentStep >= totalSteps) return;
+      tasks[currentStep].classList.remove('active');
+      tasks[currentStep].classList.add('done');
+      currentStep++;
+      updateOverall();
+      if (currentStep < totalSteps) {
+        tasks[currentStep].classList.remove('pending');
+        tasks[currentStep].classList.add('active');
+        const bar = tasks[currentStep].querySelector('.task-progress-bar');
+        bar.style.animation = 'none'; bar.offsetHeight; bar.style.animation = '';
+        statusMsg.textContent = tasks[currentStep].querySelector('.task-label').textContent + '…';
+        setTimeout(advanceStep, 700 + Math.random() * 1100);
+      } else {
+        statusMsg.textContent = 'Ready';
+        statusMsg.style.color = 'var(--success)';
+        statusDot.classList.add('ready');
+        overallBar.style.width = '100%';
+      }
+    }
+
+    updateOverall();
+    setTimeout(advanceStep, 900);
   </script>
 </body>
 </html>

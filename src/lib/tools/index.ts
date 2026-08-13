@@ -55,3 +55,6 @@ export function initializeTools() {
   registerTool(updateTaskStatusDef, updateTaskStatusHandler);
   registerTool(appendFileDef, appendFileHandler);
 }
+
+// Automatically register all tools when the module loads to survive HMR
+initializeTools();

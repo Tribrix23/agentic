@@ -34,11 +34,11 @@ export const handler: ToolHandler = async (args, context) => {
     const exists = await (window as any).electron.fileExists(targetPath);
     if (!exists) {
         // Create if doesn't exist
-        await (window as any).electron.writeFile(targetPath, content);
+        await (window as any).electron.saveFileContent(targetPath, content);
     } else {
         const existingContent = await (window as any).electron.readFileContent(targetPath);
         const newContent = existingContent + (existingContent.endsWith('\n') ? '' : '\n') + content;
-        await (window as any).electron.writeFile(targetPath, newContent);
+        await (window as any).electron.saveFileContent(targetPath, newContent);
     }
     
     return { 

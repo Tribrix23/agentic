@@ -66,7 +66,17 @@ export const handler: ToolHandler = async (args, context) => {
       return { success: false, output: `Failed to write file (branch): ${branchResult.error}` };
     }
     
-    // Step 2: Write to the actual target (branch validated the content was written successfully)
+    // Step 2: Check if the file already existed (before we overwrite it)
+    const fileExisted = await (window as any).electron.fileExists(targetPath).catch(() => false);
+    let previousLineCount = 0;
+    if (fileExisted) {
+      try {
+        const existingContent = await (window as any).electron.readFileContent(targetPath);
+        previousLineCount = (existingContent || '').split('\n').length;
+      } catch (e) { /* ignore */ }
+    }
+    
+    // Step 3: Write to the actual target (branch validated the content was written successfully)
     const result = await (window as any).electron.saveFileContent(targetPath, content, { createDirs: true });
     
     // Step 3: Clean up branch file (best effort)
@@ -97,13 +107,17 @@ export const handler: ToolHandler = async (args, context) => {
           }]
         };
       }
+      const newLineCount = content.split('\n').length;
       return { 
         success: true, 
-        output: `Successfully wrote to ${targetPath} (${content.length} characters)`,
+        output: `Successfully ${fileExisted ? 'updated' : 'created'} ${targetPath} (${content.length} characters)`,
         artifacts: [{
           type: 'file_change',
           path: targetPath,
-          content
+          content,
+          isNew: !fileExisted,
+          added: fileExisted ? Math.max(0, newLineCount - previousLineCount) : newLineCount,
+          removed: fileExisted ? Math.max(0, previousLineCount - newLineCount) : 0
         }]
       };
     } else {

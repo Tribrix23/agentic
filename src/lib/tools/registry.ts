@@ -39,7 +39,7 @@ export function getToolsForLLM(): any[] {
 
 // Tools that subagents should NOT have access to
 const SUBAGENT_FORBIDDEN_TOOLS = new Set([
-  'askUser',           // Subagents should not ask user questions
+  'askUser',           // Subagents should not ask user questions explicitly
   'sendMessage',       // Subagents should not send messages
   'manageTask',        // Subagents should not manage background tasks
   'commandStatus',     // Subagents should not check command status

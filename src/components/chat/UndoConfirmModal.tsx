@@ -6,8 +6,8 @@ const cn = (...classes: (string | undefined | null | false)[]) => classes.filter
 
 export interface UndoFileChange {
   path: string;
-  added: number;
-  removed: number;
+  added?: number;
+  removed?: number;
 }
 
 interface UndoConfirmModalProps {
@@ -76,10 +76,12 @@ export function UndoConfirmModal({ isOpen, changes, onConfirm, onCancel }: UndoC
                         <span className="text-sm text-white/80 font-medium truncate flex-1 min-w-0">
                           {filename}
                         </span>
-                        <span className="flex items-center gap-1 text-[11px] font-mono font-semibold shrink-0">
-                          <span className="text-emerald-400">+{c.added}</span>
-                          <span className="text-red-400">-{c.removed}</span>
-                        </span>
+                        {(c.added !== undefined || c.removed !== undefined) && (
+                          <span className="flex items-center gap-1 text-[11px] font-mono font-semibold shrink-0">
+                            {c.added !== undefined && c.added > 0 && <span className="text-emerald-400">+{c.added}</span>}
+                            {c.removed !== undefined && c.removed > 0 && <span className="text-red-400">-{c.removed}</span>}
+                          </span>
+                        )}
                       </div>
                     );
                   })

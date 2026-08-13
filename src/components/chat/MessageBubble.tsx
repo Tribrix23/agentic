@@ -404,7 +404,7 @@ export function MessageBubble({
           snapshots.forEach(s => {
             s.files.forEach(f => {
               if (!fileChanges.find(c => c.path === f.path)) {
-                fileChanges.push({ path: f.path, added: 1, removed: 1 });
+                fileChanges.push({ path: f.path });
               }
             });
           });

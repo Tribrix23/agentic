@@ -137,16 +137,20 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
           const filePath = args.path || args.TargetFile || '';
           const content = args.content || args.CodeContent || args.ReplacementContent || '';
           const fileName = filePath.split(/[/\\]/).pop();
+          // Check if the file artifact says this was a new file or an update
+          const fileArtifact = step.toolCall.result?.artifacts?.find((a: any) => a.type === 'file_change');
+          const isNew = fileArtifact ? fileArtifact.isNew !== false : step.toolCall.name === 'createFile';
+          const actionLabel = isNew ? 'Created File' : 'Updated File';
           return { 
             icon: <SquareTerminal size={14} className="text-gray-400" />,
             text: (
               <span className="flex items-center gap-1.5">
-                Created File 
+                {actionLabel}{' '}
                 <button
                   className="flex items-center gap-1.5 px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-white/90 font-semibold"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent('open-sidebar-file', { detail: { path: filePath, content, type: 'created' } }));
+                    window.dispatchEvent(new CustomEvent('open-sidebar-file', { detail: { path: filePath, content, type: isNew ? 'created' : 'updated' } }));
                   }}
                 >
                   <FileCode size={14} className="text-blue-400" /> {fileName}
@@ -233,8 +237,12 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       };
     }
     
-    // If this is a create/write file step, try to count lines in the content argument
+    // If this is a create/write file step, try to read stats from artifact
     if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
+      const fileArtifact = artifacts.find((a: any) => a.type === 'file_change');
+      if (fileArtifact && (fileArtifact.added !== undefined || fileArtifact.removed !== undefined)) {
+        return { added: fileArtifact.added ?? 0, removed: fileArtifact.removed ?? 0 };
+      }
       return null;
     }
     

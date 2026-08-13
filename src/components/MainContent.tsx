@@ -254,7 +254,7 @@ export const MainContent = ({
       const subagentToolExecutor = async (toolCall: ToolCall): Promise<ToolResult> => {
         // Use actual security preset and rules for subagents
         const permConfig: any = {
-          securityPreset: aiConfig.securityPreset || 'full',
+          securityPreset: (aiConfig as any).securityPreset || 'full',
           rules: [],
           deniedPaths: [],
           allowedCommands: [],
@@ -326,13 +326,29 @@ export const MainContent = ({
         } else if (event.type === 'agent:message-updated') {
           const msg = { ...event.data, id: `subagent_${conversationId}_${event.data.id}`, name: `Subagent (${role})` };
           setMessages(prev => prev.map(m => m.id === msg.id ? { ...msg } : m));
-        } else if (event.type === 'agent:awaiting-tool-approval') {
-          setAgentState('awaiting_tool_approval');
-          setPendingToolCall(event.data);
-        } else if (event.type === 'agent:tool-approved' || event.type === 'agent:tool-rejected') {
-          setAgentState('running');
-          setPendingToolCall(null);
-        } else if (event.type === 'agent:done' || (event.type === 'agent:message-added' && event.data?.role === 'assistant' && !event.data?.isStreaming && event.data?.content && !event.data?.toolCalls?.length)) {
+        } else if (event.type === 'agent:tool-approval-needed') {
+          handleToolIntercepted(event.data);
+        } else if (event.type === 'agent:tool-executing' || event.type === 'agent:tool-result') {
+          // Forward UI state updates for tool execution inside subagent messages
+          setMessages(prev => prev.map(m => {
+            const subagentId = `subagent_${conversationId}_${event.data.messageId || (event.data.toolCall && event.data.toolCall.messageId) || ''}`;
+            if (m.id === subagentId || m.toolCalls?.some(t => t.id === (event.type === 'agent:tool-result' ? event.data.toolCall.id : event.data.id))) {
+              return {
+                ...m,
+                toolCalls: m.toolCalls?.map(t => {
+                  const targetId = event.type === 'agent:tool-result' ? event.data.toolCall.id : event.data.id;
+                  if (t.id === targetId) {
+                    return event.type === 'agent:tool-executing'
+                      ? { ...t, status: 'running' as const }
+                      : { ...t, status: event.data.toolCall.status, result: event.data.result, durationMs: event.data.toolCall.durationMs };
+                  }
+                  return t;
+                })
+              };
+            }
+            return m;
+          }));
+        } else if (event.type === 'agent:done') {
           // Sub-agent has finished — extract its final text output
           const finalContent = event.data?.content || 'Sub-agent completed.';
           
@@ -444,15 +460,17 @@ Your ONLY task is: ${task}
 
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
-- You have access to tools like \`readFile\`, \`writeFile\`, \`appendFile\`, \`editFile\`, and \`runCommand\`.
-- If the file does not exist yet, CREATE it using \`writeFile\`. You are responsible for creating the file yourself.
-- If the file already exists and needs modification, use \`readFile\` to read its contents first.
-- IF YOU ARE WRITING A LARGE NEW FILE: Do NOT write the entire file at once using \`writeFile\`. It will fail. Instead, create it first with a small stub using \`writeFile\`, and then use \`appendFile\` repeatedly to add small chunks (e.g., function by function).
-- IF YOU ARE EDITING A LARGE EXISTING FILE: use \`editFile\` to make small, targeted changes (e.g., function by function or block by block).
+- You have access to tools like readFile, writeFile, appendFile, editFile, and runCommand.
+- If the file does not exist yet, CREATE it using writeFile. You are responsible for creating the file yourself.
+- If the file already exists and needs modification, use readFile to read its contents first.
+- IF YOU ARE WRITING A LARGE NEW FILE: Do NOT write the entire file at once using writeFile. It will fail. Instead, create it first with a small stub using writeFile, and then use appendFile repeatedly to add small chunks (e.g., function by function).
+- IF YOU ARE EDITING A LARGE EXISTING FILE: use editFile to make small, targeted changes (e.g., function by function or block by block).
 - WRITE COMPLETE CODE. Do NOT truncate or use placeholders like "// ... rest of code". Write every single line.
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.
-- Do NOT create to-do lists. Just do the task.`;
+- Do NOT create to-do lists. Just do the task.
+- Do NOT try to run, compile, or execute code. Just write the files.`;
+
 
         // Disable default system prompt for subagents - they should be "doers", not orchestrators
         const subagentConfig = { ...aiConfig, useDefaultSystemPrompt: false, systemPrompt };

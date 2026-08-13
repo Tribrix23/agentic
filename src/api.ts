@@ -107,7 +107,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   // ── Build request payload ──────────────────────────────────────────
   const payload: Record<string, any> = {
     model: config.model,
-    conversation_id: conversationId || `conv_${Date.now()}`,
+    conversation_id: `${conversationId || 'conv'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     messages,
     temperature: dynamicTemp,
     top_p: dynamicTopP,
@@ -179,6 +179,9 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'close',
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
@@ -287,13 +290,17 @@ async function handleStreamingResponse(
   let buffer = '';
   let pendingToolCalls: Record<number, { id?: string; name: string; arguments: string }> = {};
   let isReasoning = false;
+  let streamCancelled = false;
 
   try {
     while (true) {
       const isStreaming = checkIsStreaming();
       if (!isStreaming) {
         console.log('[API] checkIsStreaming returned false, cancelling stream');
-        reader.cancel();
+        streamCancelled = true;
+        await reader.cancel();
+        // Also cancel the response body to fully release the connection
+        try { await response.body?.cancel(); } catch (_) {}
         break;
       }
 
@@ -397,15 +404,18 @@ async function handleStreamingResponse(
       }
     }
   } finally {
-    reader.releaseLock();
+    try { reader.releaseLock(); } catch (_) {}
+    // Ensure the response body is fully released so the connection is not left dangling
+    try { if (!streamCancelled) response.body?.cancel(); } catch (_) {}
   }
 
-  if (isReasoning) {
-    fullContent += '\n</think>\n';
-    onChunk('\n</think>\n');
+  if (!streamCancelled) {
+    if (isReasoning) {
+      fullContent += '\n</think>\n';
+      onChunk('\n</think>\n');
+    }
+    onSuccess(fullContent);
   }
-
-  onSuccess(fullContent);
 }
 
 // ── Mock Fallback ──────────────────────────────────────────────────────────
