@@ -584,6 +584,63 @@ IMPORTANT RULES:
           return newMsgs;
         });
         break;
+      case 'agent:tool-streaming':
+        // A file write/edit tool call was detected in the raw stream - show it immediately
+        // and update its live line count on every chunk
+        setMessages(prev => {
+          const newMsgs = [...prev];
+          for (let i = newMsgs.length - 1; i >= 0; i--) {
+            if (newMsgs[i].role === 'assistant' && newMsgs[i].isStreaming && newMsgs[i].id === event.data.messageId) {
+              const existingToolCalls = newMsgs[i].toolCalls || [];
+              const streamId = `live_stream_${event.data.toolName}_${event.data.filePath}`;
+              const liveLines: number = event.data.liveLines ?? 0;
+
+              const existingIdx = existingToolCalls.findIndex(
+                tc => tc.id === streamId
+              );
+              const realAlreadyExists = existingToolCalls.some(
+                tc => tc.id !== streamId && tc.name === event.data.toolName &&
+                  (tc.arguments?.TargetFile === event.data.filePath || tc.arguments?.path === event.data.filePath)
+              );
+
+              if (realAlreadyExists) {
+                // Real tool call already came in from backend — don't interfere
+                break;
+              }
+
+              // Build the fake running tool call (with live line count)
+              const liveTc = {
+                id: streamId,
+                name: event.data.toolName,
+                arguments: {
+                  TargetFile: event.data.filePath,
+                  path: event.data.filePath,
+                  // Give FileEditCard enough content to count lines
+                  ReplacementContent: liveLines > 0 ? '\n'.repeat(liveLines - 1) : '',
+                  TargetContent: ''
+                },
+                status: 'running' as const,
+                timestamp: Date.now()
+              };
+
+              if (existingIdx >= 0) {
+                // Already exists — update line count in place
+                const updated = [...existingToolCalls];
+                updated[existingIdx] = liveTc;
+                newMsgs[i] = { ...newMsgs[i], toolCalls: updated };
+              } else {
+                // First time — insert the card
+                newMsgs[i] = {
+                  ...newMsgs[i],
+                  toolCalls: [...existingToolCalls, liveTc]
+                };
+              }
+              break;
+            }
+          }
+          return newMsgs;
+        });
+        break;
       case 'agent:tool-call':
         setAgentStatus(`Calling ${event.data.name}...`);
         break;

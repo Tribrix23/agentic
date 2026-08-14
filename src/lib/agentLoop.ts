@@ -71,7 +71,8 @@ export type AgentEventType =
   | 'agent:wakeup'
   | 'agent:coding-started'
   | 'agent:coding-progress'
-  | 'agent:coding-complete';
+  | 'agent:coding-complete'
+  | 'agent:tool-streaming';  // fired during stream when a file tool call is detected
 
 export interface AgentEvent {
   type: AgentEventType;
@@ -900,11 +901,53 @@ export class AgentLoop {
               
               assistantMsg.content = hideText ? '' : afterThink.trim();
               
-              // Log for debugging HTML content in chunks
-              if (chunk.includes('<') && chunk.includes('>')) {
-                console.log('[AgentLoop] Chunk contains HTML-like content:', chunk.substring(0, 100));
+              // ── LIVE TOOL STREAMING DETECTION ──────────────────────────
+              // Scan the raw accumulated text for file write/edit tool calls.
+              // Only fires once the FULL filename is in the stream (</parameter> must be closed).
+              // Also re-emits on every chunk to update the live +N line count.
+              const FILE_WRITE_TOOLS = ['writeFile', 'createFile', 'write_to_file', 'editFile', 'replace_file_content', 'multi_replace_file_content'];
+              const liveToolRegexes = [
+                // <function=writeFile> ... <parameter=path>filename</parameter>  — requires closing tag
+                /<function=([a-zA-Z0-9_-]+)>(?:[\s\S]*?)<parameter=(?:path|TargetFile|file)>\s*([^\n<]+?)\s*<\/parameter>/i,
+                // call:writeFile{..."path":"filename"  — full quoted value required
+                /call:([a-zA-Z0-9_]+)\s*\{[\s\S]*?"(?:path|TargetFile|file)"\s*:\s*"([^"]+)"/i,
+                // {"name":"writeFile",..."path":"filename"  — full quoted value required
+                /"name"\s*:\s*"([a-zA-Z0-9_]+)"[\s\S]*?"(?:path|TargetFile|file)"\s*:\s*"([^"]+)"/i,
+              ];
+              for (const rx of liveToolRegexes) {
+                const m = fullResponseText.match(rx);
+                if (m) {
+                  const toolName = m[1];
+                  const filePath = m[2].trim();
+                  if (FILE_WRITE_TOOLS.includes(toolName)) {
+                    const streamKey = `${toolName}:${filePath}`;
+                    if (!(assistantMsg as any)._liveToolsEmitted) (assistantMsg as any)._liveToolsEmitted = new Set();
+                    
+                    // Try to read how many lines of content have streamed so far
+                    const contentMatch = fullResponseText.match(/<parameter=(?:ReplacementContent|CodeContent|file_content|content)>\s*([\s\S]*?)(?:<\/parameter>|$)/i)
+                      ?? fullResponseText.match(/"(?:ReplacementContent|CodeContent|file_content|content)"\s*:\s*"([\s\S]*?)(?:"|$)/i);
+                    const liveContent = contentMatch ? contentMatch[1] : '';
+                    const liveLines = liveContent ? liveContent.split('\n').length : 0;
+
+                    if (!(assistantMsg as any)._liveToolsEmitted.has(streamKey)) {
+                      // First time we see this complete filename — create the card
+                      (assistantMsg as any)._liveToolsEmitted.add(streamKey);
+                    }
+                    // Always emit (not just once) so the line count updates every chunk
+                    this.emit({
+                      type: 'agent:tool-streaming',
+                      data: {
+                        messageId: assistantMsg.id,
+                        toolName,
+                        filePath,
+                        liveLines,
+                      }
+                    });
+                  }
+                  break;
+                }
               }
-              
+
               this.emit({ 
                 type: 'agent:streaming', 
                 data: { 

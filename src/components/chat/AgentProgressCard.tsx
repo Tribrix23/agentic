@@ -1,12 +1,120 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
-import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal } from 'lucide-react';
+import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { FileIcon } from './FileIcon';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
+
+// ── File write/edit names ────────────────────────────────────────────────────
+const WRITE_TOOLS = ['writeFile', 'createFile', 'write_to_file'];
+const EDIT_TOOLS  = ['editFile', 'replace_file_content', 'multi_replace_file_content'];
+const FILE_TOOLS  = [...WRITE_TOOLS, ...EDIT_TOOLS];
+
+/** Compute live +N -N from tool arguments (before execution) */
+function getLiveDiffStats(toolName: string, args: Record<string, any>): { added: number; removed: number } {
+  if (WRITE_TOOLS.includes(toolName)) {
+    // Support both CodeContent (native) and ReplacementContent (used by live streaming injector)
+    const content = args.CodeContent || args.content || args.file_content || args.ReplacementContent || '';
+    const lines = typeof content === 'string' ? content.split('\n').length : 0;
+    return { added: lines, removed: 0 };
+  }
+  // For edit tools compute from TargetContent (removed) and ReplacementContent (added)
+  if (toolName === 'multi_replace_file_content') {
+    let added = 0; let removed = 0;
+    const chunks: any[] = args.ReplacementChunks || [];
+    for (const c of chunks) {
+      added   += (c.ReplacementContent || '').split('\n').length;
+      removed += (c.TargetContent       || '').split('\n').length;
+    }
+    return { added, removed };
+  }
+  const added   = (args.ReplacementContent || '').split('\n').length;
+  const removed = (args.TargetContent       || '').split('\n').length;
+  return { added: Math.max(added, 0), removed: Math.max(removed, 0) };
+}
+
+/** Rich card shown for write/edit file tool steps */
+function FileEditCard({ step }: { step: AgentStep }) {
+  const tc = step.toolCall!;
+  const args = tc.arguments || {};
+  const isRunning = step.status === 'running' || step.status === 'pending';
+  const isError   = step.status === 'error';
+
+  const filePath = args.TargetFile || args.path || args.file || '';
+  const fileName = filePath.split(/[\/\\]/).pop() || filePath;
+  const ext = fileName.split('.').pop() || '';
+
+  const isWrite = WRITE_TOOLS.includes(tc.name);
+  const actionLabel = isRunning
+    ? (isWrite ? 'Writing' : 'Editing')
+    : isError
+      ? (isWrite ? 'Write failed' : 'Edit failed')
+      : (isWrite ? 'Created' : 'Edited');
+
+  // Get diff stats: prefer result artifacts, fallback to live argument-based stats
+  let stats: { added: number; removed: number } | null = null;
+  if (!isRunning && tc.result) {
+    const artifacts = tc.result.artifacts || [];
+    const diffArt = artifacts.find((a: any) => a.type === 'diff' && a.diff);
+    if (diffArt?.diff) {
+      const lines = String(diffArt.diff).split('\n');
+      stats = {
+        added:   lines.filter((l: string) => l.startsWith('+') && !l.startsWith('+++')).length,
+        removed: lines.filter((l: string) => l.startsWith('-') && !l.startsWith('---')).length,
+      };
+    }
+  }
+  // Always show live stats (from args) when running or when no result-based stats
+  if (!stats) stats = getLiveDiffStats(tc.name, args);
+
+  return (
+    <div className="flex items-center gap-2 py-1 px-2 rounded-md font-sans text-[13px]">
+      {/* Spinner / done icon */}
+      {isRunning ? (
+        <Loader2 size={13} className="text-blue-400 animate-spin shrink-0" />
+      ) : isError ? (
+        <XCircle size={13} className="text-red-400 shrink-0" />
+      ) : (
+        <CheckCircle2 size={13} className="text-white/30 shrink-0" />
+      )}
+
+      {/* Action label */}
+      <span className={cn(
+        "font-medium",
+        isRunning ? "shimmer-text" : isError ? "text-red-400" : "text-white/60"
+      )}>
+        {actionLabel}
+      </span>
+
+      {/* File icon + name */}
+      <button
+        className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors text-white/80 font-medium"
+        onClick={(e) => {
+          e.stopPropagation();
+          const content = args.CodeContent || args.content || args.ReplacementContent || '';
+          window.dispatchEvent(new CustomEvent('open-sidebar-file', {
+            detail: { path: filePath, content, type: isWrite ? 'created' : 'updated' }
+          }));
+        }}
+      >
+        <FileIcon filename={fileName} size={16} />
+        <span className="font-mono text-[12px]">{fileName}</span>
+      </button>
+
+      {/* +N -N diff stats */}
+      {stats && (stats.added > 0 || stats.removed > 0) && (
+        <span className="flex items-center gap-1 font-mono text-[11px] font-semibold ml-0.5">
+          {stats.added   > 0 && <span className="text-emerald-400">+{stats.added}</span>}
+          {stats.removed > 0 && <span className="text-red-400">-{stats.removed}</span>}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export type AgentStepType = 'thinking' | 'tool';
 
@@ -139,7 +247,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
           const fileName = filePath.split(/[/\\]/).pop();
           // Check if the file artifact says this was a new file or an update
           const fileArtifact = step.toolCall.result?.artifacts?.find((a: any) => a.type === 'file_change');
-          const isNew = fileArtifact ? fileArtifact.isNew !== false : step.toolCall.name === 'createFile';
+          const isNew = fileArtifact ? (fileArtifact as any).isNew !== false : step.toolCall.name === 'createFile';
           const actionLabel = isNew ? 'Created File' : 'Updated File';
           return { 
             icon: <SquareTerminal size={14} className="text-gray-400" />,
@@ -240,8 +348,8 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     // If this is a create/write file step, try to read stats from artifact
     if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
       const fileArtifact = artifacts.find((a: any) => a.type === 'file_change');
-      if (fileArtifact && (fileArtifact.added !== undefined || fileArtifact.removed !== undefined)) {
-        return { added: fileArtifact.added ?? 0, removed: fileArtifact.removed ?? 0 };
+      if (fileArtifact && ((fileArtifact as any).added !== undefined || (fileArtifact as any).removed !== undefined)) {
+        return { added: (fileArtifact as any).added ?? 0, removed: (fileArtifact as any).removed ?? 0 };
       }
       return null;
     }
@@ -252,6 +360,11 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   const diffStats = getDiffStats();
   const isRunningSubagent = isRunning && step.toolCall?.name === 'invokeSubagent';
+
+  // ── Dedicated file write/edit card (shown both while running AND completed) ──
+  if (step.type === 'tool' && step.toolCall && FILE_TOOLS.includes(step.toolCall.name)) {
+    return <FileEditCard step={step} />;
+  }
 
   if (step.type === 'tool' && step.toolCall && !['writeFile', 'createFile', 'write_to_file', 'createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
     const cmdObj = getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {});

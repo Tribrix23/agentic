@@ -241,26 +241,25 @@ function IterationBlock({
             </span>
           </div>
           {thoughtExpanded && (
-            <div className="ml-5 mt-1 pl-3 py-1 text-white/60 leading-relaxed">
-              {!isThinkingRunning && (
-                <span>
-                  {words.map((word, i) => (
+              <div className="ml-5 mt-1 pl-3 py-1 text-white/60 leading-relaxed whitespace-pre-wrap">
+                {content.split(/(\s+)/).map((token, i) => {
+                  if (/^\s+$/.test(token)) {
+                    return <React.Fragment key={i}>{token}</React.Fragment>;
+                  }
+                  return (
                     <span
                       key={i}
                       className="inline-block word-enter"
                       style={{
-                        animationDelay: `${Math.min(i * 28, 600)}ms`,
+                        animationDelay: isThinkingRunning ? '0ms' : `${Math.min(i * 10, 600)}ms`,
                         animationFillMode: 'both',
-                        marginRight: '0.28em',
                       }}
                     >
-                      {word}
+                      {token}
                     </span>
-                  ))}
-                </span>
-              )}
-              {isThinkingRunning && <span className="whitespace-pre-wrap">{content}</span>}
-            </div>
+                  );
+                })}
+              </div>
           )}
         </div>
       )}

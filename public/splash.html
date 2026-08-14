@@ -7,25 +7,25 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
     rel="stylesheet">
   <style>
     :root {
-      --bg: #050508;
-      --text-primary: #f4f4f5;
-      --text-secondary: #71717a;
-      --text-muted: #52525b;
-      --accent: #818cf8;
-      --accent-light: #a5b4fc;
-      --success: #34d399;
-      --purple: #c084fc;
+      --bg-card: #0a0a0c;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-primary: #e4e4e7;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #a855f7; /* Purple to match main app */
+      --accent-light: #c084fc;
+      --success: #10b981;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body, html {
       width: 100%; height: 100%;
-      background: var(--bg);
+      background: transparent;
       font-family: 'Inter', -apple-system, sans-serif;
       color: var(--text-primary);
       overflow: hidden;
@@ -38,135 +38,90 @@
     .workspace-loader {
       position: relative;
       width: 380px;
-      border-radius: 24px;
+      border-radius: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.03) inset;
       overflow: hidden;
-      animation: cardEntry 0.8s cubic-bezier(0.16,1,0.3,1) forwards;
+      animation: cardEntry 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
       opacity: 0;
-      transform: translateY(20px) scale(0.97);
+      transform: translateY(15px) scale(0.98);
+      display: flex; flex-direction: column;
     }
 
     @keyframes cardEntry {
       to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    /* Gradient border glow */
-    .card-glow {
-      position: absolute; inset: -1px; border-radius: 25px; padding: 1px;
-      background: linear-gradient(160deg,
-        rgba(129,140,248,0.4) 0%, rgba(192,132,252,0.15) 30%,
-        rgba(255,255,255,0.05) 50%, rgba(52,211,153,0.1) 70%,
-        rgba(129,140,248,0.25) 100%);
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor; mask-composite: exclude;
-      pointer-events: none; z-index: 20;
-    }
-
-    /* Rotating shimmer border */
-    .card-shimmer {
-      position: absolute; inset: -1px; border-radius: 25px; padding: 1px;
-      background: conic-gradient(from var(--shimmer-angle,0deg),
-        transparent 0%, rgba(129,140,248,0.5) 10%, transparent 20%, transparent 100%);
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor; mask-composite: exclude;
-      pointer-events: none; z-index: 21;
-      animation: shimmerRotate 4s linear infinite; opacity: 0.6;
-    }
-
-    @property --shimmer-angle { syntax:'<angle>'; initial-value:0deg; inherits:false; }
-    @keyframes shimmerRotate { to { --shimmer-angle: 360deg; } }
-
-    /* Card interior */
     .card-body {
+      padding: 32px 32px 24px;
+      display: flex; flex-direction: column; gap: 24px;
       position: relative;
-      background: linear-gradient(165deg,
-        rgba(30,27,55,0.95) 0%, rgba(15,14,28,0.98) 50%, rgba(10,10,20,0.99) 100%);
-      backdrop-filter: blur(60px) saturate(1.5);
-      -webkit-backdrop-filter: blur(60px) saturate(1.5);
-      padding: 36px 36px 28px;
-      display: flex; flex-direction: column; gap: 28px; z-index: 10;
-    }
-
-    .card-body::before {
-      content: '';
-      position: absolute; top: 0; left: 20px; right: 20px; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+      z-index: 10;
     }
 
     /* ── Header ── */
     .header { display: flex; align-items: center; gap: 16px; }
 
     .logo-mark {
-      width: 44px; height: 44px; border-radius: 12px;
-      display: grid; place-items: center; position: relative; flex-shrink: 0;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #c084fc 100%);
-      box-shadow:
-        0 0 0 1px rgba(255,255,255,0.1) inset,
-        0 4px 20px rgba(99,102,241,0.4),
-        0 0 40px rgba(139,92,246,0.2);
+      width: 48px; height: 48px; border-radius: 12px;
+      display: grid; place-items: center; flex-shrink: 0;
+      background: #121214;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      overflow: hidden;
     }
 
-    .logo-mark::after {
-      content: '';
-      position: absolute; inset: 0; border-radius: 12px;
-      background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
-    }
-
-    .logo-mark svg {
-      width: 22px; height: 22px; fill: white;
-      position: relative; z-index: 1;
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+    .logo-mark img {
+      width: 32px; height: 32px;
+      object-fit: contain;
     }
 
     .brand-text h1 {
-      font-size: 20px; font-weight: 700; letter-spacing: -0.5px; line-height: 1;
-      background: linear-gradient(135deg, #ffffff 0%, #c7d2fe 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      font-size: 18px; font-weight: 600; letter-spacing: -0.2px; line-height: 1.2;
+      color: #ffffff;
     }
 
     .brand-text span {
       font-size: 12px; color: var(--text-secondary); font-weight: 400;
-      margin-top: 5px; display: block; letter-spacing: 0.2px;
+      display: block; letter-spacing: 0.1px;
     }
 
     .divider {
-      height: 1px; margin: -8px 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+      height: 1px; margin: -4px 0;
+      background: var(--border-color);
     }
 
     /* ── Task List ── */
-    .task-list { display: flex; flex-direction: column; gap: 6px; }
+    .task-list { display: flex; flex-direction: column; gap: 8px; }
 
     .task-item {
-      display: flex; align-items: center; gap: 14px;
-      font-size: 12.5px; color: var(--text-muted);
+      display: flex; align-items: center; gap: 12px;
+      font-size: 13px; color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
-      padding: 8px 12px; border-radius: 10px; position: relative;
-      transition: all 0.5s cubic-bezier(0.16,1,0.3,1);
-      opacity: 0.35; border: 1px solid transparent;
+      padding: 6px 0; position: relative;
+      transition: all 0.4s ease;
+      opacity: 0.4;
     }
 
     .task-item.active {
       opacity: 1; color: var(--text-primary);
-      background: rgba(99,102,241,0.06);
-      border-color: rgba(99,102,241,0.12);
     }
 
     .task-item.done {
-      opacity: 0.75; color: var(--success);
-      background: transparent; border-color: transparent;
+      opacity: 0.8; color: var(--text-secondary);
     }
 
     .task-icon {
-      width: 18px; height: 18px; border-radius: 50%;
+      width: 16px; height: 16px; border-radius: 50%;
       border: 1.5px solid currentColor;
       display: grid; place-items: center; flex-shrink: 0;
-      transition: all 0.4s ease; position: relative;
+      transition: all 0.3s ease; position: relative;
     }
 
     .task-item.active .task-icon {
       border-color: var(--accent);
-      background: rgba(99,102,241,0.15);
-      box-shadow: 0 0 12px rgba(99,102,241,0.3);
+      box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
     }
 
     .task-item.active .task-icon::before {
@@ -178,41 +133,24 @@
 
     @keyframes pulseDot {
       0%,100% { opacity:1; transform:scale(1); }
-      50% { opacity:0.4; transform:scale(0.7); }
+      50% { opacity:0.5; transform:scale(0.8); }
     }
 
     .task-item.done .task-icon {
       background: var(--success); border-color: var(--success);
-      box-shadow: 0 0 10px rgba(52,211,153,0.3);
     }
 
     .task-item.done .task-icon::after {
       content: '';
-      width: 7px; height: 4px;
-      border-left: 1.5px solid #052e1c; border-bottom: 1.5px solid #052e1c;
+      width: 6px; height: 3px;
+      border-left: 1.5px solid #000; border-bottom: 1.5px solid #000;
       transform: rotate(-45deg) translateY(-1px);
     }
 
-    .task-progress {
-      position: absolute; bottom: 0; left: 12px; right: 12px;
-      height: 1px; background: rgba(99,102,241,0.1);
-      border-radius: 1px; overflow: hidden; opacity: 0; transition: opacity 0.3s;
-    }
-
-    .task-item.active .task-progress { opacity: 1; }
-
-    .task-progress-bar {
-      height: 100%; border-radius: 1px; width: 0%;
-      background: linear-gradient(90deg, var(--accent), var(--purple));
-      animation: progressFill 1.2s ease-in-out forwards;
-    }
-
-    @keyframes progressFill { to { width: 100%; } }
-
-    /* ── Footer ─ */
+    /* ── Footer ── */
     .footer {
       display: flex; justify-content: space-between; align-items: center;
-      padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05);
+      padding-top: 16px; border-top: 1px solid var(--border-color);
     }
 
     .status-area { display: flex; align-items: center; gap: 8px; }
@@ -224,50 +162,40 @@
 
     .status-dot.ready {
       background: var(--success); animation: none;
-      box-shadow: 0 0 8px rgba(52,211,153,0.5);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
     }
 
-    @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes statusPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
     #status-msg {
-      font-size: 11.5px; color: var(--text-secondary);
-      font-weight: 500; letter-spacing: 0.1px; transition: color 0.4s;
+      font-size: 11px; color: var(--text-secondary);
+      font-weight: 500; transition: color 0.4s;
     }
 
     .kbd-group { display: flex; align-items: center; gap: 4px; }
 
     .kbd {
       display: inline-flex; align-items: center; justify-content: center;
-      min-width: 22px; height: 22px; padding: 0 5px;
-      background: rgba(255,255,255,0.05); border-radius: 5px;
-      font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 500;
-      color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.08);
-      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 1px 3px rgba(0,0,0,0.3);
+      min-width: 20px; height: 20px; padding: 0 4px;
+      background: rgba(255,255,255,0.05); border-radius: 4px;
+      font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
+      color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.1);
     }
 
     .kbd-sep {
-      font-size: 9px; color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; color: var(--text-muted);
     }
 
     /* ── Overall Progress Bar ── */
     .overall-progress {
-      height: 2px; background: rgba(255,255,255,0.04);
-      position: relative; overflow: hidden;
+      height: 2px; background: rgba(255,255,255,0.05);
+      position: absolute; bottom: 0; left: 0; right: 0;
     }
 
     .overall-progress-bar {
       height: 100%; width: 0%;
-      background: linear-gradient(90deg, #6366f1, #8b5cf6, #c084fc, #34d399);
-      background-size: 200% 100%; border-radius: 0 2px 2px 0;
-      transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
-      animation: gradientShift 2s linear infinite;
-      box-shadow: 0 0 10px rgba(99,102,241,0.5);
-    }
-
-    @keyframes gradientShift {
-      0% { background-position: 0% 50%; }
-      100% { background-position: 200% 50%; }
+      background: var(--accent);
+      transition: width 0.5s cubic-bezier(0.16,1,0.3,1);
     }
   </style>
 </head>
@@ -275,17 +203,10 @@
 <body>
 
   <div class="workspace-loader">
-    <div class="card-glow"></div>
-    <div class="card-shimmer"></div>
-
     <div class="card-body">
       <div class="header">
         <div class="logo-mark">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-            <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.66 0 3.14-.69 4.22-1.78L14.83 14.83A2.98 2.98 0 0 1 12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4c0 .74-.2 1.43-.55 2.02l1.42 1.42A5.96 5.96 0 0 0 18 12c0-3.31-2.69-6-6-6z"/>
-            <circle cx="17" cy="17" r="1.5"/>
-          </svg>
+          <img src="icon.png" alt="Quantix Logo" />
         </div>
         <div class="brand-text">
           <h1>Quantix</h1>
@@ -299,22 +220,18 @@
         <div class="task-item active" data-step="0">
           <div class="task-icon"></div>
           <span class="task-label">Verifying environment</span>
-          <div class="task-progress"><div class="task-progress-bar"></div></div>
         </div>
         <div class="task-item pending" data-step="1">
           <div class="task-icon"></div>
           <span class="task-label">Loading agent memory</span>
-          <div class="task-progress"><div class="task-progress-bar"></div></div>
         </div>
         <div class="task-item pending" data-step="2">
           <div class="task-icon"></div>
           <span class="task-label">Indexing project graph</span>
-          <div class="task-progress"><div class="task-progress-bar"></div></div>
         </div>
         <div class="task-item pending" data-step="3">
           <div class="task-icon"></div>
           <span class="task-label">Establishing LLM link</span>
-          <div class="task-progress"><div class="task-progress-bar"></div></div>
         </div>
       </div>
 
@@ -357,8 +274,6 @@
       if (currentStep < totalSteps) {
         tasks[currentStep].classList.remove('pending');
         tasks[currentStep].classList.add('active');
-        const bar = tasks[currentStep].querySelector('.task-progress-bar');
-        bar.style.animation = 'none'; bar.offsetHeight; bar.style.animation = '';
         statusMsg.textContent = tasks[currentStep].querySelector('.task-label').textContent + '…';
         setTimeout(advanceStep, 700 + Math.random() * 1100);
       } else {

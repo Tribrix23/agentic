@@ -4,6 +4,7 @@ import { FileAttachment } from '../../lib/messageTypes';
 import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
+import { FileContextBadge } from './FileContextBadge';
 
 const OpenAIIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -147,8 +148,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
                 )}
               >
-                {config.agentMode ? <Bot size={14} /> : <Mic size={14} />}
-                <span className={cn(config.agentMode ? "font-bold anaglyph tracking-wide" : "")}>
+                {config.agentMode ? <Bot size={14} className="text-white" /> : <Mic size={14} />}
+                <span className={cn(config.agentMode ? "text-white font-bold anaglyph tracking-wide" : "")}>
                   {config.agentMode ? 'Code' : 'Ask'}
                 </span>
                 <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showAgentDropdown ? "rotate-180" : "")} />

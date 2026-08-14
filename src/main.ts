@@ -134,7 +134,7 @@ function createWindow() {
     frame: false,
     alwaysOnTop: true,
     resizable: false,
-    backgroundColor: '#050505',
+    backgroundColor: '#00000000', // MUST be transparent for floating card
     icon: path.join(__dirname, '../../public/icon.png'),
     webPreferences: {
       nodeIntegration: false

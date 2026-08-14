@@ -145,12 +145,100 @@ export function MessageBubble({
           type: 'thinking',
           status: msg.isStreaming ? 'running' : 'completed',
           content: actualThinkingContent,
-          agentName: msg.name?.startsWith('Subagent') ? msg.name : undefined
+          agentName: (msg as any).name?.startsWith('Subagent') ? (msg as any).name : undefined
         });
       }
 
       if (displayContentLocal) {
         displayContent += (displayContent ? '\n\n' : '') + displayContentLocal;
+      }
+
+      // --- LIVE STREAMING TOOL INTERCEPTOR ---
+      // If the AI is streaming a tool call as raw text, we want to show the file card immediately!
+      if (msg.isStreaming) {
+        const rawContent = msg.content || '';
+        const matchToolStr = (tName: string, str: string) => {
+          // Prevent duplicates if it's already gracefully parsed into msg.toolCalls
+          if (msg.toolCalls && msg.toolCalls.some(tc => tc.name === tName)) return;
+          
+          // Extract common arguments for the live stats (using a broader match for multiline strings)
+          const pathMatch = str.match(/"(?:TargetFile|path|file|Target)"\s*:\s*"([^"]+)"/);
+          const addMatch = str.match(/"(?:ReplacementContent|CodeContent|file_content|content)"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*\})/);
+          const remMatch = str.match(/"TargetContent"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*\})/);
+
+          steps.push({
+            id: `stream_tool_${msg.id}_${tName}`,
+            type: 'tool',
+            status: 'running',
+            agentName: msg.name?.startsWith('Subagent') ? msg.name : undefined,
+            toolCall: {
+              id: `stream_tool_${msg.id}_${tName}`,
+              name: tName,
+              arguments: {
+                TargetFile: pathMatch ? pathMatch[1] : 'Unknown',
+                ReplacementContent: addMatch ? addMatch[1] : '',
+                TargetContent: remMatch ? remMatch[1] : ''
+              },
+              status: 'running',
+              timestamp: Date.now()
+            }
+          });
+        };
+
+        // Try JSON format
+        const jsonRegex = /```(?:json)?\s*(\{[\s\S]*?(?:"name"|"tool_call")[\s\S]*?(?:\}\s*```)?)/gi;
+        let jsonMatch;
+        while ((jsonMatch = jsonRegex.exec(rawContent)) !== null) {
+          const nameMatch = jsonMatch[1].match(/"name"\s*:\s*"([^"]+)"/);
+          if (nameMatch) matchToolStr(nameMatch[1], jsonMatch[1]);
+        }
+        
+        // Try XML format
+        const xmlRegex = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/gi;
+        let xmlMatch;
+        while ((xmlMatch = xmlRegex.exec(rawContent)) !== null) {
+          const nameMatch = xmlMatch[1].match(/"name"\s*:\s*"([^"]+)"/);
+          if (nameMatch) matchToolStr(nameMatch[1], xmlMatch[1]);
+        }
+
+        // Try Antigravity format: call:tool_name{...
+        const antigravityRegex = /call:([a-zA-Z0-9_]+)\s*(\{[\s\S]*?(?:\}|$))/gi;
+        let antigravityMatch;
+        while ((antigravityMatch = antigravityRegex.exec(rawContent)) !== null) {
+          matchToolStr(antigravityMatch[1], antigravityMatch[2]);
+        }
+        
+        // Try Native <function=name> format (Gemini XML style)
+        const functionRegex = /<function=([a-zA-Z0-9_-]+)>([\s\S]*?(?:<\/function>|$))/gi;
+        let functionMatch;
+        while ((functionMatch = functionRegex.exec(rawContent)) !== null) {
+          const tName = functionMatch[1];
+          const innerStr = functionMatch[2];
+          
+          if (!msg.toolCalls || !msg.toolCalls.some(tc => tc.name === tName)) {
+            const pathMatch = innerStr.match(/<parameter=(?:TargetFile|path|file|Target)>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
+            const addMatch = innerStr.match(/<parameter=(?:ReplacementContent|CodeContent|file_content|content)>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
+            const remMatch = innerStr.match(/<parameter=TargetContent>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
+
+            steps.push({
+              id: `stream_tool_${msg.id}_${tName}`,
+              type: 'tool',
+              status: 'running',
+              agentName: (msg as any).name?.startsWith('Subagent') ? (msg as any).name : undefined,
+              toolCall: {
+                id: `stream_tool_${msg.id}_${tName}`,
+                name: tName,
+                arguments: {
+                  TargetFile: pathMatch ? pathMatch[1].trim() : 'Unknown',
+                  ReplacementContent: addMatch ? addMatch[1] : '',
+                  TargetContent: remMatch ? remMatch[1] : ''
+                },
+                status: 'running',
+                timestamp: Date.now()
+              }
+            });
+          }
+        }
       }
       
       // Then add tool calls AFTER thinking so they appear below the thought that triggered them
@@ -163,7 +251,7 @@ export function MessageBubble({
             status: tc.status,
             toolCall: tc,
             durationMs: tc.durationMs,
-            agentName: msg.name?.startsWith('Subagent') ? msg.name : undefined
+            agentName: (msg as any).name?.startsWith('Subagent') ? (msg as any).name : undefined
           });
         });
       }

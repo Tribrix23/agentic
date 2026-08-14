@@ -143,5 +143,5 @@ body {
 }
 
 .anaglyph {
-  text-shadow: -1px 0px 0px rgba(255, 0, 0, 0.8), 1px 0px 0px rgba(0, 0, 255, 0.8);
+  text-shadow: -1px 0px 0px #ef4444, 1px 0px 0px #3b82f6;
 }

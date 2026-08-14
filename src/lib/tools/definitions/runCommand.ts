@@ -30,29 +30,18 @@ export const handler: ToolHandler = async (args, context) => {
         : `${context.projectRoot}/${cwd}`.replace(/\/+/g, '/');
     }
 
-    // Call the Electron backend to spawn the task
-    const res = await (window as any).electron.taskSpawn(command, targetCwd);
-    if (!res.success) {
-      return { success: false, output: `Failed to spawn task: ${res.error}` };
-    }
-
-    const taskId = res.taskId;
-
-    // Optional wait to see if it completes synchronously (for quick commands like 'ls' or 'echo')
-    if (waitMsBeforeAsync > 0) {
-      await new Promise(resolve => setTimeout(resolve, waitMsBeforeAsync));
-      const statusRes = await (window as any).electron.taskStatus(taskId, 50000);
-      if (statusRes.success && (statusRes.status.status === 'done' || statusRes.status.status === 'error')) {
-        return {
-          success: statusRes.status.status === 'done',
-          output: statusRes.output || '(No output)'
-        };
-      }
-    }
+    // Optional: still support waitMsBeforeAsync if we want to allow long tasks, but the user explicitly requested blocking terminal style.
+    // For now, let's just use runCommandCapture which blocks up to 30s and returns stdout/stderr directly.
+    const res = await (window as any).electron.runCommandCapture(command, targetCwd);
+    
+    let outputStr = '';
+    if (res.stdout) outputStr += res.stdout + '\n';
+    if (res.stderr) outputStr += res.stderr + '\n';
+    if (res.error && !res.success) outputStr += res.error;
 
     return { 
-      success: true, 
-      output: `Command spawned in background. Task ID: ${taskId}.\nThe command is still running. Use the manageTask or commandStatus tools to check output or kill it later.` 
+      success: res.success, 
+      output: outputStr.trim() || '(No output)' 
     };
   } catch (error: any) {
     return { success: false, output: `Error dispatching command: ${error.message || String(error)}` };
