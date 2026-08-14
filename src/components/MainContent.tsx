@@ -34,6 +34,7 @@ import { ChatContainer } from './chat/ChatContainer';
 import { ArtifactViewer } from './chat/ArtifactViewer';
 import { ToolApprovalCard } from './chat/ToolApprovalCard';
 import { FileContextBadge } from './chat/FileContextBadge';
+import { PromptInput } from './chat/PromptInput';
 
 interface ProjectFolder {
   path: string;
@@ -1164,12 +1165,6 @@ IMPORTANT RULES:
 
         <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2">
           <button
-            onClick={() => setShowPopup(true)}
-            className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
-          >
-            Dev Logs
-          </button>
-          <button
             onClick={onOpenIde}
             className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
           >
@@ -1323,95 +1318,19 @@ IMPORTANT RULES:
                 onSkip={() => handleToolDecision(false)}
               />
             ) : (
-              <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
-                <textarea
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage(inputValue);
-                    setInputValue('');
-                  }
+              <PromptInput 
+                onSend={(content, attachments, mentionedFiles) => handleSendMessage(content)}
+                onStop={handleStopAgent}
+                isAgentRunning={isAgentRunning}
+                config={aiConfig}
+                projectFiles={projectFiles}
+                onConfigChange={(partial) => {
+                  const updated = setAIConfig(partial, selectedProject?.path);
+                  setAiConfigState(updated);
                 }}
-                placeholder="Ask anything, @ to mention, / for actions"
-                className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] h-10 custom-scrollbar"
+                value={inputValue}
+                onChange={setInputValue}
               />
-
-              <div className="flex items-center justify-between mt-2">
-                <div className="flex items-center gap-3">
-                  {/* Agent mode indicator */}
-                  <button
-                    onClick={() => {
-                      const updated = setAIConfig({ agentMode: !aiConfig.agentMode }, selectedProject?.path);
-                      setAiConfigState(updated);
-                    }}
-                    className={cn(
-                      "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
-                      aiConfig.agentMode
-                        ? "text-purple-300 bg-purple-500/15 border border-purple-500/30"
-                        : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
-                    )}
-                  >
-                    <Bot size={14} />
-                    {aiConfig.agentMode ? 'Agent' : 'Chat'}
-                  </button>
-
-                  {/* Model selector */}
-                  <div className="relative" ref={modelDropdownRef}>
-                    <button
-                      onClick={() => setShowModelDropdown(!showModelDropdown)}
-                      className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
-                    >
-                      {aiConfig.model}
-                      <ChevronDown size={12} />
-                    </button>
-                    <AnimatePresence>
-                      {showModelDropdown && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -5 }}
-                          transition={{ duration: 0.15 }}
-                          className="absolute top-full left-0 mt-2 w-40 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
-                        >
-                          {['Dispatcher v1', 'Dispatcher v1.2', 'Dispatcher v2'].map(model => (
-                            <button
-                              key={model}
-                              onClick={() => {
-                                const updated = setAIConfig({ model }, selectedProject?.path);
-                                setAiConfigState(updated);
-                                setShowModelDropdown(false);
-                              }}
-                              className={cn(
-                                "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
-                                aiConfig.model === model ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
-                              )}
-                            >
-                              {model}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    handleSendMessage(inputValue);
-                    setInputValue('');
-                  }}
-                  className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                    inputValue.trim().length > 0
-                      ? "bg-[#007acc] hover:bg-[#0088dd] text-white"
-                      : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
-                  )}
-                >
-                  {inputValue.trim().length > 0 ? <Send size={14} /> : <Mic size={14} />}
-                </button>
-              </div>
-            </div>
             )
           )}
         </motion.div>
@@ -1658,79 +1577,7 @@ IMPORTANT RULES:
         )}
       </AnimatePresence>
 
-      {/* Dev Logs Popup */}
-      <AnimatePresence>
-        {showPopup && (
-          <div className="fixed inset-0 z-[210] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-4xl h-[80vh] bg-[#0f0f13] border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden"
-            >
-              <div className="flex items-start justify-between p-6 pb-4 border-b border-white/5">
-                <h2 className="text-lg font-semibold text-white">Dev Logs</h2>
-                <button
-                  onClick={() => setShowPopup(false)}
-                  className="p-1 text-[#8b8b93] hover:text-white rounded-md transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {messages.length === 0 ? (
-                  <p className="text-sm text-[#8b8b93] text-center">No logs available yet.</p>
-                ) : (
-                  messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={cn(
-                        "p-4 rounded-lg border",
-                        msg.role === 'user'
-                          ? "bg-blue-500/5 border-blue-500/10"
-                          : "bg-purple-500/5 border-purple-500/10"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={cn(
-                          "text-xs font-semibold uppercase",
-                          msg.role === 'user' ? "text-blue-400" : "text-purple-400"
-                        )}>
-                          {msg.role}
-                        </span>
-                        {(msg as any).isHidden && (
-                          <span className="text-[10px] text-[#6b6b73] bg-white/5 px-2 py-0.5 rounded">HIDDEN</span>
-                        )}
-                      </div>
-                      <div className="text-sm text-[#a8a8b1] whitespace-pre-wrap font-mono">
-                        {msg.content}
-                      </div>
-                      {msg.thinkingContent && (
-                        <div className="mt-3 pt-3 border-t border-white/5">
-                          <span className="text-[10px] text-[#6b6b73] uppercase font-semibold mb-1 block">Thinking:</span>
-                          <div className="text-xs text-[#8b8b93] whitespace-pre-wrap font-mono">
-                            {msg.thinkingContent}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="p-6 flex justify-end gap-3 border-t border-white/5">
-                <button
-                  onClick={() => setShowPopup(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
 
     </div>

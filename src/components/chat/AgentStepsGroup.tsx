@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AgentStep, AgentProgressCard } from './AgentProgressCard';
 import { ChevronDown, ChevronRight, RefreshCw, Check, SquareTerminal, Brain, Activity } from 'lucide-react';
 
@@ -10,6 +10,57 @@ interface AgentStepsGroupProps {
   onRejectToolCall?: (id: string) => void;
   onArtifactClick?: (path: string) => void;
 }
+
+// ── Cycling word swapper (bottom-to-top motion blur) ─────────────
+const WORKING_WORDS = [
+  'Working...',
+  'Analyzing...',
+  'Thinking...',
+  'Processing...',
+  'Reasoning...',
+  'Planning...',
+];
+
+function CyclingWord() {
+  const [index, setIndex] = useState(0);
+  // `tick` increments each time we swap words; used as CSS animation restart key
+  const [tick, setTick] = useState(0);
+  const [isExiting, setIsExiting] = useState(false);
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    // Schedule the exit after 8 seconds of showing the current word
+    exitTimer.current = setTimeout(() => {
+      setIsExiting(true);
+      // After exit animation (~380ms), swap to next word and re-enter
+      swapTimer.current = setTimeout(() => {
+        setIndex(i => (i + 1) % WORKING_WORDS.length);
+        setTick(t => t + 1);
+        setIsExiting(false);
+      }, 420);
+    }, 8000);
+
+    return () => {
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+      if (swapTimer.current) clearTimeout(swapTimer.current);
+    };
+  }, [tick]);
+
+  // NOTE: shimmer-text uses -webkit-text-fill-color:transparent + background-clip:text.
+  // Applying filter:blur() on the same element breaks the gradient clip.
+  // Fix: outer span handles transform+blur, inner span carries shimmer.
+  return (
+    <span
+      key={tick}
+      className={`font-medium inline-block ${isExiting ? 'word-exit' : 'word-enter'}`}
+      style={{ willChange: 'transform, opacity, filter' }}
+    >
+      <span className="shimmer-text">{WORKING_WORDS[index]}</span>
+    </span>
+  );
+}
+
 
 function AccordionIcon({ isExpanded, icon: Icon, colorClass = "text-white" }: { isExpanded: boolean, icon: React.ElementType, colorClass?: string }) {
   return (
@@ -122,7 +173,9 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
                 <div className="w-4 h-4 flex items-center justify-center">
                   <Activity size={14} />
                 </div>
-                <span className="shimmer-text font-medium">Working...</span>
+                <span className="overflow-hidden inline-flex items-center" style={{ minWidth: '8ch' }}>
+                  <CyclingWord />
+                </span>
               </div>
             </div>
           )}
@@ -188,13 +241,25 @@ function IterationBlock({
             </span>
           </div>
           {thoughtExpanded && (
-            <div className="ml-5 mt-1 pl-3 py-1 text-white/60 whitespace-pre-wrap">
+            <div className="ml-5 mt-1 pl-3 py-1 text-white/60 leading-relaxed">
               {!isThinkingRunning && (
-                <div className="thought-animate">
-                  {content}
-                </div>
+                <span>
+                  {words.map((word, i) => (
+                    <span
+                      key={i}
+                      className="inline-block word-enter"
+                      style={{
+                        animationDelay: `${Math.min(i * 28, 600)}ms`,
+                        animationFillMode: 'both',
+                        marginRight: '0.28em',
+                      }}
+                    >
+                      {word}
+                    </span>
+                  ))}
+                </span>
               )}
-              {isThinkingRunning && content}
+              {isThinkingRunning && <span className="whitespace-pre-wrap">{content}</span>}
             </div>
           )}
         </div>

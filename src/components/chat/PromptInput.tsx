@@ -45,6 +45,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [uiMode, setUiMode] = useState<'local' | 'cloud'>('local');
   const [modelSearchQuery, setModelSearchQuery] = useState('');
@@ -64,6 +65,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const modeDropdownRef = useRef<HTMLDivElement>(null);
+  const agentDropdownRef = useRef<HTMLDivElement>(null);
 
   const getModelIcon = (model: string) => {
     if (model.includes('GPT-OSS') || model.includes('GPT-5.6')) return <OpenAIIcon className="w-3.5 h-3.5 text-white" />;
@@ -77,6 +79,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       const target = event.target as Node;
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(target)) setShowModelDropdown(false);
       if (modeDropdownRef.current && !modeDropdownRef.current.contains(target)) setShowModeDropdown(false);
+      if (agentDropdownRef.current && !agentDropdownRef.current.contains(target)) setShowAgentDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -134,18 +137,61 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => updateConfig({ agentMode: !config.agentMode })}
-              className={cn(
-                "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
-                config.agentMode
-                  ? "text-purple-300 bg-purple-500/15 border border-purple-500/30"
-                  : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
-              )}
-            >
-              <Bot size={14} />
-              {config.agentMode ? 'Agent' : 'Chat'}
-            </button>
+            <div className="relative" ref={agentDropdownRef}>
+              <button
+                onClick={() => setShowAgentDropdown(!showAgentDropdown)}
+                className={cn(
+                  "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
+                  config.agentMode
+                    ? "text-purple-300 bg-purple-500/15 border border-purple-500/30"
+                    : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
+                )}
+              >
+                {config.agentMode ? <Bot size={14} /> : <Mic size={14} />}
+                <span className={cn(config.agentMode ? "font-bold anaglyph tracking-wide" : "")}>
+                  {config.agentMode ? 'Code' : 'Ask'}
+                </span>
+                <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showAgentDropdown ? "rotate-180" : "")} />
+              </button>
+              <AnimatePresence>
+                {showAgentDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute bottom-full left-0 mb-2 w-32 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => {
+                        updateConfig({ agentMode: true });
+                        setShowAgentDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
+                        config.agentMode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      <Bot size={14} />
+                      Code
+                    </button>
+                    <button
+                      onClick={() => {
+                        updateConfig({ agentMode: false });
+                        setShowAgentDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
+                        !config.agentMode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      <Mic size={14} />
+                      Ask
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             <div 
               className="relative" 
