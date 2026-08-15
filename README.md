@@ -303,21 +303,21 @@ Available models and their capabilities:
 | GPT-5.6 Luna | 128,000 | 32,768 | ✅ | ✅ | GPT-5.6 Luna variant |
 | GPT-5.6 Terra | 128,000 | 32,768 | ✅ | ✅ | GPT-5.6 Terra variant |
 | GPT-5.6 Sol | 128,000 | 32,768 | ✅ | ✅ | GPT-5.6 Sol variant |
+| GPT-OSS High | 128,000 | 32,768 | ✅ | ✅ | GPT-OSS with high capability |
+| GPT-OSS Medium | 128,000 | 32,768 | ✅ | ✅ | GPT-OSS with medium capability |
 | DeepSeek v4 Flash | 128,000 | 32,768 | ✅ | ✅ | Fast and efficient |
-| DeepSeek v4 Pro | 128,000 | 32,768 | ✅ | ✅ | Most capable |
+| DeepSeek v4 Pro | 128,000 | 32,768 | ✅ | ✅ | Most capable DeepSeek |
+| Qwen 3.7 Flash | 128,000 | 32,768 | ✅ | ✅ | Fast Qwen variant |
+| Qwen 3.7 Plus | 128,000 | 32,768 | ✅ | ✅ | Enhanced Qwen capabilities |
+| Qwen 3.7 Max | 128,000 | 32,768 | ✅ | ✅ | Maximum Qwen performance |
 | Kimi k2.7 | 128,000 | 32,768 | ✅ | ✅ | Moonshot AI model |
 | GLM 5.2 | 128,000 | 32,768 | ✅ | ✅ | Zhipu AI model |
+| GLM 5.2 Lite | 128,000 | 32,768 | ✅ | ✅ | Lightweight GLM variant |
+| Claude Fable 5 | 200,000 | 32,768 | ✅ | ✅ | Anthropic Claude Fable 5 |
 
-### Environment Variables
+## 📸 Screenshots
 
-```env
-# Required
-VITE_QUANTIX_API_KEY=your_api_key_here
-
-# Optional - for Supabase features
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_SERVICE_KEY=your_supabase_service_key
-```
+![Application Screenshot](public/screen.png)
 
 ### Advanced Configuration
 
