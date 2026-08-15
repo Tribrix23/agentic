@@ -343,6 +343,22 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsStreaming: true,
     description: 'Kimi k2.7 - Moonshot AI',
   },
+  'GLM 5.2': {
+    name: 'GLM 5.2',
+    contextWindow: 128000,
+    maxTokensDefault: 32768,
+    supportsTools: true,
+    supportsStreaming: true,
+    description: 'GLM 5.2 - Zhipu AI',
+  },
+  'GLM 5.2 Lite': {
+    name: 'GLM 5.2 Lite',
+    contextWindow: 128000,
+    maxTokensDefault: 32768,
+    supportsTools: true,
+    supportsStreaming: true,
+    description: 'GLM 5.2 Lite - Zhipu AI',
+  },
 };
 
 // ── Parameter constraints ──────────────────────────────────────────────────

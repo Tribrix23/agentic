@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
 import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search } from 'lucide-react';
@@ -44,6 +45,19 @@ const KimiIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const GLMIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg
+    viewBox="0 0 159 158"
+    fill="#FFFFFF"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path d="M136 30H92L20 129H65L136 30Z" />
+    <path d="M24 43H68L77 30H33L24 43Z" />
+    <path d="M79 129H123L133 116H88L79 129Z" />
+  </svg>
+);
+
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
 interface PromptInputProps {
@@ -68,8 +82,10 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [showModeDropdown, setShowModeDropdown] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [hoveredCategoryPosition, setHoveredCategoryPosition] = useState<{ top: number; left: number } | null>(null);
   const [uiMode, setUiMode] = useState<'local' | 'cloud'>('local');
   const [modelSearchQuery, setModelSearchQuery] = useState('');
+  const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
 
   const allModels = [
     { id: 'dispatcher', name: 'Dispatcher', icon: <img src="/DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: ['Dispatcher v1.5', 'Dispatcher v2'], isPro: false },
@@ -78,6 +94,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
     { id: 'deepseek', name: 'DeepSeek v4', icon: <DeepSeekIcon className="w-3.5 h-3.5 text-[#4D6BFE]" />, submodels: ['Flash', 'Pro'], isPro: true },
     { id: 'kimi', name: 'Kimi k2.7', icon: <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />, submodels: [], isPro: true },
+    { id: 'glm', name: 'GLM 5.2', icon: <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />, submodels: ['5.2', '5.2 Lite'], isPro: true },
     { id: 'claude', name: 'Claude Fable 5', icon: <SiAnthropic className="w-3.5 h-3.5 text-[#D3A982]" />, submodels: [], isPro: true },
   ];
 
@@ -95,6 +112,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     if (model.includes('Qwen')) return <QwenIcon className="w-4 h-4 text-[#FF6A00]" />;
     if (model.includes('DeepSeek')) return <DeepSeekIcon className="w-3.5 h-3.5 text-[#4D6BFE]" />;
     if (model.includes('Kimi')) return <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />;
+    if (model.includes('GLM')) return <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />;
     if (model.includes('Claude')) return <SiAnthropic className="w-3.5 h-3.5 text-[#D3A982]" />;
     return <img src="/DispatcherIcon.png" alt="" className="w-4 h-4 object-contain" />;
   };
@@ -109,6 +127,16 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Update position when hovered category changes
+  useEffect(() => {
+    if (hoveredCategory && modelItemRefs.current[hoveredCategory]) {
+      const rect = modelItemRefs.current[hoveredCategory].getBoundingClientRect();
+      setHoveredCategoryPosition({ top: rect.top, left: rect.right });
+    } else {
+      setHoveredCategoryPosition(null);
+    }
+  }, [hoveredCategory]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -236,7 +264,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 5 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[320px]"
+                    className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl z-50 overflow-visible flex flex-col h-[320px]"
                   >
                     {/* Search Input */}
                     <div className="px-2 pb-2 mt-2 flex-shrink-0">
@@ -252,58 +280,81 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       </div>
                     </div>
 
-                    {filteredModels.map((model) => (
-                      <div
-                        key={model.id}
-                        className="relative w-full"
-                        onMouseEnter={() => setHoveredCategory(model.id)}
-                      >
-                        {model.submodels.length > 0 ? (
-                          <>
-                            <button className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors", hoveredCategory === model.id ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                      {filteredModels.map((model) => (
+                        <div
+                          key={model.id}
+                          className="relative w-full"
+                          ref={(el) => {
+                            if (el) {
+                              modelItemRefs.current[model.id] = el;
+                            }
+                          }}
+                          onMouseEnter={() => setHoveredCategory(model.id)}
+                        >
+                          {model.submodels.length > 0 ? (
+                            <>
+                              <button className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors", hoveredCategory === model.id ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}>
+                                <span className="flex items-center gap-2">
+                                  {model.icon}
+                                  {model.name}
+                                  {model.isPro && <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded font-medium">PRO+</span>}
+                                </span>
+                                <ChevronRight size={12} />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => { updateConfig({ model: model.name }); setShowModelDropdown(false); }}
+                              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors"
+                            >
                               <span className="flex items-center gap-2">
                                 {model.icon}
                                 {model.name}
                                 {model.isPro && <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded font-medium">PRO+</span>}
                               </span>
-                              <ChevronRight size={12} />
                             </button>
-                            <AnimatePresence>
-                              {hoveredCategory === model.id && (
-                                <motion.div
-                                  initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }} transition={{ duration: 0.15 }}
-                                  className="absolute top-0 left-full ml-1 w-32 bg-[#16161a] border border-white/10 rounded-lg shadow-xl py-1 flex flex-col z-50"
-                                >
-                                  {model.submodels.map(m => (
-                                    <button
-                                      key={m}
-                                      onClick={() => { updateConfig({ model: model.id === 'gpt-oss' ? `GPT-OSS ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : m }); setShowModelDropdown(false); }}
-                                      className="px-3 py-1.5 text-xs text-left text-[#a8a8b1] hover:text-white hover:bg-white/10"
-                                    >
-                                      {m}
-                                    </button>
-                                  ))}
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => { updateConfig({ model: model.name }); setShowModelDropdown(false); }}
-                            className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors"
-                          >
-                            <span className="flex items-center gap-2">
-                              {model.icon}
-                              {model.name}
-                              {model.isPro && <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded font-medium">PRO+</span>}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Portal for submodel dropdown */}
+              {showModelDropdown && hoveredCategory && hoveredCategoryPosition && (() => {
+                const model = allModels.find(m => m.id === hoveredCategory);
+                if (!model || model.submodels.length === 0) return null;
+                return createPortal(
+                  <AnimatePresence>
+                    <motion.div
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -5 }}
+                      transition={{ duration: 0.15 }}
+                      style={{
+                        position: 'fixed',
+                        top: hoveredCategoryPosition.top,
+                        left: hoveredCategoryPosition.left + 4,
+                        zIndex: 9999,
+                      }}
+                      className="w-32 bg-[#16161a] border border-white/10 rounded-lg shadow-xl py-1 flex flex-col"
+                    >
+                      {model.submodels.map(m => (
+                        <button
+                          key={m}
+                          onClick={() => { updateConfig({ model: model.id === 'gpt-oss' ? `GPT-OSS ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
+                          className="px-3 py-1.5 text-xs text-left text-[#a8a8b1] hover:text-white hover:bg-white/10"
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </motion.div>
+                  </AnimatePresence>,
+                  document.body
+                );
+              })()}
             </div>
 
             <div className="relative" ref={modeDropdownRef}>

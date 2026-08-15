@@ -131,6 +131,19 @@ function getModelInfo(model: string): {
     };
   }
 
+  // Check for GLM models
+  if (lowerModel.includes('glm')) {
+    let modelName = 'glm-5.2'; // default
+    if (lowerModel.includes('lite')) {
+      modelName = 'glm-5.2-lite';
+    }
+    return {
+      endpoint: 'https://api.devctr.com/api/models',
+      modelName,
+      level: null // GLM doesn't use level parameter
+    };
+  }
+
 
   // Default to dispatcher endpoint for other models
   return {
