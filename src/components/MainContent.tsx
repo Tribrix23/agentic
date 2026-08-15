@@ -19,7 +19,7 @@ import {
 import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
-import { getPermissionConfig, checkPermission } from '../lib/permissions';
+import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
 import { initializeTools, getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
 import { executeTool, clearToolCache } from '../lib/tools/executor';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
@@ -133,6 +133,24 @@ export const MainContent = ({
     const handler = (e: any) => setAiConfigState(e.detail);
     window.addEventListener('ai-config-changed', handler);
     return () => window.removeEventListener('ai-config-changed', handler);
+  }, []);
+
+  // ── Listen for project changes from settings ───────────────────────────
+  useEffect(() => {
+    const handler = () => {
+      const savedProjects = localStorage.getItem('quantix_projects');
+      if (savedProjects) {
+        setProjects(JSON.parse(savedProjects));
+      }
+      const savedActiveProject = localStorage.getItem('quantix_active_project');
+      if (savedActiveProject) {
+        setSelectedProject(JSON.parse(savedActiveProject));
+      } else {
+        setSelectedProject(null);
+      }
+    };
+    window.addEventListener('projects-changed', handler);
+    return () => window.removeEventListener('projects-changed', handler);
   }, []);
 
   // ── Save messages whenever they change ───────────────────────────────
@@ -1063,7 +1081,6 @@ IMPORTANT RULES:
         }
 
         // Apply the selected security preset to the permission config
-        const { setPermissionConfig } = require('../lib/permissions');
         const presetMap: Record<string, 'full' | 'user_guided' | 'semi' | 'default'> = {
           'full': 'full',
           'default': 'default',
@@ -1406,6 +1423,7 @@ IMPORTANT RULES:
                 onStop={handleStopAgent}
                 isAgentRunning={isAgentRunning}
                 config={aiConfig}
+                hasProject={!!selectedProject}
                 projectFiles={projectFiles}
                 onConfigChange={(partial) => {
                   const updated = setAIConfig(partial, selectedProject?.path);

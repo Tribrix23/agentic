@@ -69,9 +69,10 @@ interface PromptInputProps {
   onConfigChange?: (partial: Partial<AIConfig>) => void;
   value?: string;
   onChange?: (val: string) => void;
+  hasProject?: boolean;
 }
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange }: PromptInputProps) {
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true }: PromptInputProps) {
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
@@ -79,16 +80,14 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
-  const [showModeDropdown, setShowModeDropdown] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [hoveredCategoryPosition, setHoveredCategoryPosition] = useState<{ top: number; left: number } | null>(null);
-  const [uiMode, setUiMode] = useState<'local' | 'cloud'>('local');
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
 
   const allModels = [
-    { id: 'dispatcher', name: 'Dispatcher', icon: <img src="/DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: ['Dispatcher v1.5', 'Dispatcher v2'], isPro: false },
+    { id: 'dispatcher', name: 'Dispatcher', icon: <img src="/DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: ['Dispatcher v1', 'Dispatcher v2'], isPro: false },
     { id: 'gpt-oss', name: 'GPT-OSS 120B', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Medium', 'High'], isPro: false },
     { id: 'qwen', name: 'Qwen 3.7', icon: <QwenIcon className="w-3.5 h-3.5 text-[#FF6A00]" />, submodels: ['Flash', 'Plus', 'Max'], isPro: true },
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
@@ -104,7 +103,6 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   );
 
   const modelDropdownRef = useRef<HTMLDivElement>(null);
-  const modeDropdownRef = useRef<HTMLDivElement>(null);
   const agentDropdownRef = useRef<HTMLDivElement>(null);
 
   const getModelIcon = (model: string) => {
@@ -121,7 +119,6 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(target)) setShowModelDropdown(false);
-      if (modeDropdownRef.current && !modeDropdownRef.current.contains(target)) setShowModeDropdown(false);
       if (agentDropdownRef.current && !agentDropdownRef.current.contains(target)) setShowAgentDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -357,44 +354,6 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               })()}
             </div>
 
-            <div className="relative" ref={modeDropdownRef}>
-              <button
-                onClick={() => setShowModeDropdown(!showModeDropdown)}
-                className="flex items-center gap-1 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-white/5 px-2 py-1 rounded-md"
-              >
-                {uiMode === 'local' ? <HardDrive size={12} /> : <Cloud size={12} />}
-                {uiMode === 'local' ? 'Local' : 'Cloud'}
-                <ChevronDown size={12} />
-              </button>
-              <AnimatePresence>
-                {showModeDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute bottom-full left-0 mb-2 w-32 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
-                  >
-                    {['local', 'cloud'].map(mode => (
-                      <button
-                        key={mode}
-                        onClick={() => {
-                          setUiMode(mode as 'local' | 'cloud');
-                          setShowModeDropdown(false);
-                        }}
-                        className={cn(
-                          "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
-                          uiMode === mode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
-                        )}
-                      >
-                        {mode === 'local' ? <HardDrive size={14} /> : <Cloud size={14} />}
-                        {mode === 'local' ? 'Local' : 'Cloud'}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -406,23 +365,33 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 <Square size={14} fill="currentColor" />
               </button>
             ) : (
-              <button
-                onClick={() => {
-                  if (content.trim()) {
-                    onSend(content.trim(), undefined, mentionedFiles);
-                    setContent('');
-                    setMentionedFiles([]);
-                  }
-                }}
-                className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                  content.trim().length > 0
-                    ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
-                    : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+              <div className="relative group">
+                {!hasProject && (
+                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    Choose a project first
+                  </div>
                 )}
-              >
-                {content.trim().length > 0 ? <Send size={14} /> : <Mic size={14} />}
-              </button>
+                <button
+                  onClick={() => {
+                    if (content.trim() && hasProject) {
+                      onSend(content.trim(), undefined, mentionedFiles);
+                      setContent('');
+                      setMentionedFiles([]);
+                    }
+                  }}
+                  disabled={!hasProject}
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                    !hasProject
+                      ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
+                      : content.trim().length > 0
+                      ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
+                      : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+                  )}
+                >
+                  {content.trim().length > 0 && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                </button>
+              </div>
             )}
           </div>
         </div>

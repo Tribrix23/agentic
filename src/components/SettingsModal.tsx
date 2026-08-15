@@ -202,6 +202,8 @@ export const SettingsModal = ({
     }
     setActiveTab('account');
     setShowConfirmDelete(false);
+    // Dispatch event to notify other components of project changes
+    window.dispatchEvent(new CustomEvent('projects-changed'));
   };
 
   const getHeaderInfo = () => {

@@ -51,8 +51,8 @@ interface LegacyDispatcherParams {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const DISPATCHER_ENDPOINT = 'https://quantix.api.devctr.com/api/dispatcher';
-const MODELS_ENDPOINT = 'https://quantix.api.devctr.com/api/models';
+const DISPATCHER_ENDPOINT = 'https://api.devctr.com/api/dispatcher';
+const MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
 const GPT56_MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
 
 // ── Helper function to detect GPT-OSS, Qwen, and GPT-5.6 models and extract parameters ──────────────
@@ -144,6 +144,18 @@ function getModelInfo(model: string): {
     };
   }
 
+  // Check for Dispatcher models
+  if (lowerModel.includes('dispatcher')) {
+    let modelName = 'dispatcher v1'; // default
+    if (lowerModel.includes('v2')) {
+      modelName = 'dispatcher v2';
+    }
+    return {
+      endpoint: DISPATCHER_ENDPOINT,
+      modelName,
+      level: null // Dispatcher doesn't use level parameter
+    };
+  }
 
   // Default to dispatcher endpoint for other models
   return {
@@ -178,7 +190,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     messages = p.messages;
     onChunk = p.onChunk;
     onError = (err: Error) => p.onError(err.message);
-    onSuccess = p.onSuccess || (() => {});
+    onSuccess = p.onSuccess || (() => { });
     checkIsStreaming = p.checkIsStreaming;
   } else {
     const p = params as DispatcherAPIParams;
@@ -234,11 +246,11 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   if (level) {
     payload.level = level;
   }
-  
+
   if (config.enableThinking) {
     payload.chat_template_kwargs = { enable_thinking: true };
     if (config.reasoningBudget) {
-        payload.reasoning_budget = config.reasoningBudget;
+      payload.reasoning_budget = config.reasoningBudget;
     }
   }
 
@@ -419,7 +431,7 @@ async function handleStreamingResponse(
         streamCancelled = true;
         await reader.cancel();
         // Also cancel the response body to fully release the connection
-        try { await response.body?.cancel(); } catch (_) {}
+        try { await response.body?.cancel(); } catch (_) { }
         break;
       }
 
@@ -438,7 +450,7 @@ async function handleStreamingResponse(
 
           try {
             const data = JSON.parse(dataStr);
-            
+
             if (data.error) {
               const errMsg = typeof data.error === 'string' ? data.error : data.error.message || 'Unknown API Error';
               throw new Error(`Stream Error: ${errMsg}`);
@@ -523,9 +535,9 @@ async function handleStreamingResponse(
       }
     }
   } finally {
-    try { reader.releaseLock(); } catch (_) {}
+    try { reader.releaseLock(); } catch (_) { }
     // Ensure the response body is fully released so the connection is not left dangling
-    try { if (!streamCancelled) response.body?.cancel(); } catch (_) {}
+    try { if (!streamCancelled) response.body?.cancel(); } catch (_) { }
   }
 
   if (!streamCancelled) {
