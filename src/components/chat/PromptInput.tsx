@@ -198,8 +198,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 )}
               >
                 {config.agentMode ? <Bot size={14} className="text-white" /> : <Mic size={14} />}
-                <span className={cn(config.agentMode ? "text-white font-bold anaglyph tracking-wide" : "")}>
-                  {config.agentMode ? 'Code' : 'Ask'}
+                <span className={cn(config.agentMode ? "text-white font-bold tracking-wide" : "")}>
+                  {config.agentMode ? 'Agent' : 'Ask'}
                 </span>
                 <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showAgentDropdown ? "rotate-180" : "")} />
               </button>
@@ -210,7 +210,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute bottom-full left-0 mb-2 w-32 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                    className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
                   >
                     <button
                       onClick={() => {
@@ -218,12 +218,15 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         setShowAgentDropdown(false);
                       }}
                       className={cn(
-                        "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
+                        "w-full px-3 py-2 text-left text-xs transition-colors",
                         config.agentMode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
                       )}
                     >
-                      <Bot size={14} />
-                      Code
+                      <div className="flex items-center gap-2 mb-1">
+                        <Bot size={14} />
+                        <span className="font-medium">Agent</span>
+                      </div>
+                      <div className="text-[10px] text-white/50 pl-6">Full agentic coding with tools</div>
                     </button>
                     <button
                       onClick={() => {
@@ -231,12 +234,15 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         setShowAgentDropdown(false);
                       }}
                       className={cn(
-                        "w-full px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors",
+                        "w-full px-3 py-2 text-left text-xs transition-colors",
                         !config.agentMode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
                       )}
                     >
-                      <Mic size={14} />
-                      Ask
+                      <div className="flex items-center gap-2 mb-1">
+                        <Mic size={14} />
+                        <span className="font-medium">Ask</span>
+                      </div>
+                      <div className="text-[10px] text-white/50 pl-6">Simple Q&A and assistance</div>
                     </button>
                   </motion.div>
                 )}
