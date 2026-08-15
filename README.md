@@ -106,133 +106,67 @@ npm run make -- --platform=linux
 
 ### System Overview
 
-```svg
-<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="800" height="400" fill="#0f172a" rx="10"/>
-  
-  <!-- Main Process -->
-  <rect x="50" y="50" width="200" height="300" fill="#1e293b" rx="8" stroke="#3b82f6" stroke-width="2"/>
-  <text x="150" y="80" fill="#3b82f6" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Main Process</text>
-  <text x="70" y="110" fill="#94a3b8" font-family="Arial" font-size="11">Window Management</text>
-  <text x="70" y="130" fill="#94a3b8" font-family="Arial" font-size="11">IPC Handlers</text>
-  <text x="70" y="150" fill="#94a3b8" font-family="Arial" font-size="11">File System</text>
-  <text x="70" y="170" fill="#94a3b8" font-family="Arial" font-size="11">Terminal (PTY)</text>
-  <text x="70" y="190" fill="#94a3b8" font-family="Arial" font-size="11">Git Operations</text>
-  <text x="70" y="210" fill="#94a3b8" font-family="Arial" font-size="11">Task Manager</text>
-  <text x="70" y="230" fill="#94a3b8" font-family="Arial" font-size="11">Deep Link Auth</text>
-  
-  <!-- Renderer Process -->
-  <rect x="300" y="50" width="200" height="300" fill="#1e293b" rx="8" stroke="#8b5cf6" stroke-width="2"/>
-  <text x="400" y="80" fill="#8b5cf6" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">Renderer Process</text>
-  <text x="320" y="110" fill="#94a3b8" font-family="Arial" font-size="11">React UI</text>
-  <text x="320" y="130" fill="#94a3b8" font-family="Arial" font-size="11">Agent Loop</text>
-  <text x="320" y="150" fill="#94a3b8" font-family="Arial" font-size="11">Tool System</text>
-  <text x="320" y="170" fill="#94a3b8" font-family="Arial" font-size="11">Context Builder</text>
-  <text x="320" y="190" fill="#94a3b8" font-family="Arial" font-size="11">Chat Interface</text>
-  <text x="320" y="210" fill="#94a3b8" font-family="Arial" font-size="11">File Explorer</text>
-  <text x="320" y="230" fill="#94a3b8" font-family="Arial" font-size="11">Activity Monitor</text>
-  
-  <!-- External Services -->
-  <rect x="550" y="50" width="200" height="300" fill="#1e293b" rx="8" stroke="#10b981" stroke-width="2"/>
-  <text x="650" y="80" fill="#10b981" font-family="Arial" font-size="14" font-weight="bold" text-anchor="middle">External Services</text>
-  <text x="570" y="110" fill="#94a3b8" font-family="Arial" font-size="11">AI API</text>
-  <text x="570" y="130" fill="#94a3b8" font-family="Arial" font-size="11">Supabase</text>
-  <text x="570" y="150" fill="#94a3b8" font-family="Arial" font-size="11">MCP Server</text>
-  <text x="570" y="170" fill="#94a3b8" font-family="Arial" font-size="11">Git Repositories</text>
-  <text x="570" y="190" fill="#94a3b8" font-family="Arial" font-size="11">File System</text>
-  
-  <!-- Arrows -->
-  <path d="M 250 200 L 300 200" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  <path d="M 500 200 L 550 200" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Arrow Marker -->
-  <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
-    </marker>
-  </defs>
-</svg>
+```mermaid
+graph LR
+    subgraph Main_Process["Main Process (Electron)"]
+        A[Window Management]
+        B[IPC Handlers]
+        C[File System]
+        D[Terminal PTY]
+        E[Git Operations]
+        F[Task Manager]
+        G[Deep Link Auth]
+    end
+    
+    subgraph Renderer_Process["Renderer Process (React)"]
+        H[React UI]
+        I[Agent Loop]
+        J[Tool System]
+        K[Context Builder]
+        L[Chat Interface]
+        M[File Explorer]
+        N[Activity Monitor]
+    end
+    
+    subgraph External_Services["External Services"]
+        O[AI API]
+        P[Supabase]
+        Q[MCP Server]
+        R[Git Repositories]
+        S[File System]
+    end
+    
+    Main_Process -->|IPC| Renderer_Process
+    Renderer_Process -->|API Calls| External_Services
 ```
 
 ### Agent Loop Architecture
 
-```svg
-<svg width="800" height="500" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="800" height="500" fill="#0f172a" rx="10"/>
-  
-  <!-- Title -->
-  <text x="400" y="40" fill="#f8fafc" font-family="Arial" font-size="18" font-weight="bold" text-anchor="middle">Agent Loop - ReAct Architecture</text>
-  
-  <!-- Steps -->
-  <!-- Step 1 -->
-  <rect x="50" y="80" width="150" height="60" fill="#3b82f6" rx="8"/>
-  <text x="125" y="115" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">1. User Message</text>
-  
-  <!-- Arrow 1-2 -->
-  <path d="M 200 110 L 250 110" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Step 2 -->
-  <rect x="250" y="80" width="150" height="60" fill="#8b5cf6" rx="8"/>
-  <text x="325" y="105" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">2. Build Context</text>
-  <text x="325" y="125" fill="#e0e7ff" font-family="Arial" font-size="10" text-anchor="middle">System + History + Tools</text>
-  
-  <!-- Arrow 2-3 -->
-  <path d="M 400 110 L 450 110" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Step 3 -->
-  <rect x="450" y="80" width="150" height="60" fill="#10b981" rx="8"/>
-  <text x="525" y="105" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">3. Call LLM</text>
-  <text x="525" y="125" fill="#d1fae5" font-family="Arial" font-size="10" text-anchor="middle">Stream Response</text>
-  
-  <!-- Arrow 3-4 -->
-  <path d="M 600 110 L 625 110 L 625 180" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Step 4 -->
-  <rect x="550" y="180" width="150" height="80" fill="#f59e0b" rx="8"/>
-  <text x="625" y="205" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">4. Parse Response</text>
-  <text x="625" y="225" fill="#fef3c7" font-family="Arial" font-size="10" text-anchor="middle">Text → Display</text>
-  <text x="625" y="245" fill="#fef3c7" font-family="Arial" font-size="10" text-anchor="middle">Tool Call → Execute</text>
-  
-  <!-- Arrow 4-5 -->
-  <path d="M 550 220 L 450 220" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Step 5 -->
-  <rect x="250" y="180" width="200" height="80" fill="#ef4444" rx="8"/>
-  <text x="350" y="205" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">5. Tool Execution</text>
-  <text x="350" y="225" fill="#fee2e2" font-family="Arial" font-size="10" text-anchor="middle">Check Permissions</text>
-  <text x="350" y="245" fill="#fee2e2" font-family="Arial" font-size="10" text-anchor="middle">Execute & Format Result</text>
-  
-  <!-- Arrow 5-6 -->
-  <path d="M 250 220 L 200 220 L 200 300" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Step 6 -->
-  <rect x="100" y="300" width="200" height="60" fill="#06b6d4" rx="8"/>
-  <text x="200" y="325" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">6. Append to Messages</text>
-  <text x="200" y="345" fill="#cffafe" font-family="Arial" font-size="10" text-anchor="middle">Add tool result to context</text>
-  
-  <!-- Loop back arrow -->
-  <path d="M 100 330 L 50 330 L 50 110 L 50 110" stroke="#64748b" stroke-width="2" stroke-dasharray="5,5" marker-end="url(#arrowhead)"/>
-  
-  <!-- Safety check -->
-  <rect x="350" y="350" width="150" height="60" fill="#6366f1" rx="8"/>
-  <text x="425" y="375" fill="white" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Safety Check</text>
-  <text x="425" y="395" fill="#e0e7ff" font-family="Arial" font-size="10" text-anchor="middle">Max Iterations</text>
-  
-  <!-- Arrow from step 5 to safety -->
-  <path d="M 350 260 L 425 350" stroke="#64748b" stroke-width="2" marker-end="url(#arrowhead)"/>
-  
-  <!-- Legend -->
-  <rect x="600" y="350" width="150" height="100" fill="#1e293b" rx="8"/>
-  <text x="675" y="375" fill="#f8fafc" font-family="Arial" font-size="12" font-weight="bold" text-anchor="middle">Legend</text>
-  <circle cx="620" cy="395" r="5" fill="#3b82f6"/>
-  <text x="635" y="400" fill="#94a3b8" font-family="Arial" font-size="10">User Input</text>
-  <circle cx="620" cy="415" r="5" fill="#10b981"/>
-  <text x="635" y="420" fill="#94a3b8" font-family="Arial" font-size="10">AI Processing</text>
-  <circle cx="620" cy="435" r="5" fill="#ef4444"/>
-  <text x="635" y="440" fill="#94a3b8" font-family="Arial" font-size="10">Tool Execution</text>
-</svg>
+```mermaid
+graph TD
+    Start([User Message]) --> BuildContext[Build Context<br/>System + History + Tools]
+    BuildContext --> CallLLM[Call LLM<br/>Stream Response]
+    CallLLM --> ParseResponse{Parse Response}
+    
+    ParseResponse -->|Text| Display[Display to User]
+    ParseResponse -->|Tool Call| ToolExec[Tool Execution<br/>Check Permissions<br/>Execute & Format]
+    
+    ToolExec --> AppendMsg[Append to Messages<br/>Add tool result to context]
+    AppendMsg --> CallLLM
+    
+    CallLLM -.->|Max Iterations| Safety[Safety Check<br/>Stop if limit reached]
+    
+    Display --> Done([Done])
+    Safety --> Done
+    
+    style Start fill:#3b82f6,color:#fff
+    style BuildContext fill:#8b5cf6,color:#fff
+    style CallLLM fill:#10b981,color:#fff
+    style ParseResponse fill:#f59e0b,color:#fff
+    style ToolExec fill:#ef4444,color:#fff
+    style AppendMsg fill:#06b6d4,color:#fff
+    style Safety fill:#6366f1,color:#fff
+    style Done fill:#94a3b8,color:#fff
 ```
 
 ### Component Structure
