@@ -20,6 +20,8 @@ export interface Artifact {
   original?: string;   // original file content before edit, used for undo
   language?: string;
   metadata?: any;
+  added?: number;      // lines added in file change
+  removed?: number;    // lines removed in file change
 }
 
 /** Result of a tool execution */
@@ -59,6 +61,7 @@ export interface AgenticMessage {
   isStreaming?: boolean;
   agentIteration?: number;
   isHidden?: boolean;
+  name?: string;  // Agent name (e.g., 'Subagent-1', 'Cascade')
 
   // ── Tool message extensions ──
   toolCallId?: string;

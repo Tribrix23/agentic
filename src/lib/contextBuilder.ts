@@ -32,6 +32,39 @@ export interface BuiltContext {
   toolDefinitions?: any[];
 }
 
+function isGpt56Model(model: string): boolean {
+  const normalized = model.toLowerCase();
+  return normalized.includes('gpt-5.6') || normalized.includes('gpt56');
+}
+
+/**
+ * GPT-5.6 is served through a compatibility endpoint that may not expose native
+ * function metadata to the model. Keep native tools in the API request, and add
+ * this text contract so the local fallback parser can still execute every tool.
+ */
+export function buildGpt56ToolPrompt(toolDefinitions: any[]): string {
+  const tools = toolDefinitions
+    .map((definition) => definition?.function ?? definition)
+    .filter((definition) => typeof definition?.name === 'string')
+    .map((definition) => ({
+      name: definition.name,
+      description: definition.description || '',
+      parameters: definition.parameters || { type: 'object', properties: {} },
+    }));
+
+  return [
+    '<gpt56_tool_contract>',
+    'You have access to every tool listed below. These tools are available in this session; never claim that a listed tool is unavailable.',
+    'Use native function calling whenever it is available. If native function calling is not available, invoke tools using exactly:',
+    '<tool_call><function=TOOL_NAME><parameter=ARGUMENT_NAME>ARGUMENT_VALUE</parameter></function></tool_call>',
+    'For object or array argument values, put valid JSON inside the parameter element.',
+    'When the user explicitly asks you to invoke a listed tool, invoke it instead of only describing it.',
+    `Available tools (${tools.length}):`,
+    JSON.stringify(tools),
+    '</gpt56_tool_contract>',
+  ].join('\n');
+}
+
 // ── Technology Detection ───────────────────────────────────────────────────
 
 const TECH_INDICATORS: Record<string, string[]> = {
@@ -149,6 +182,13 @@ export function buildContext(
   const systemPromptText = cachedSystemPrompt || buildSystemPrompt(config);
   const systemPromptParts: string[] = [systemPromptText];
 
+  // GPT-5.6's compatibility endpoint can return plain text instead of native
+  // tool_calls. Supplying the complete contract here keeps all registered tools
+  // usable through AgentLoop's validated text-tool fallback.
+  if (toolDefinitions?.length && isGpt56Model(config.model)) {
+    systemPromptParts.push(buildGpt56ToolPrompt(toolDefinitions));
+  }
+
   // ── 2. Project Context Injection ─────────────────────────────────────
   // Skip if cachedSystemPrompt is provided (it already includes project context)
   if (projectContext && !cachedSystemPrompt) {
@@ -186,8 +226,8 @@ export function buildContext(
     systemPromptParts.push(projectLines.join('\n'));
   }
 
-  // Tool definitions are now passed as native tools in the API payload
-  // We don't include them in the system prompt to avoid duplication and save tokens
+  // Native tool definitions are also passed in the API payload. GPT-5.6 gets the
+  // text contract above because its compatibility endpoint may hide that metadata.
 
   const fullSystemPrompt = systemPromptParts.join('\n');
   const systemPromptTokens = estimateTokens(fullSystemPrompt);
@@ -232,18 +272,24 @@ export function buildContext(
       // Plain-text marker — no XML that the AI might mimic.
       // For new messages (delta), keep full output. For old messages, compress aggressively.
       // For consumed messages, compress even more aggressively.
-      const MAX_TOOL_RESULT_NEW = 25000;
-      const MAX_TOOL_RESULT_OLD = 2000; // Much smaller for old messages
-      const MAX_TOOL_RESULT_CONSUMED = 500; // Ultra-compressed for consumed messages
-      
+      const MAX_TOOL_RESULT_NEW = 60000;      // ~45k tokens — enough for most large files
+      const MAX_TOOL_RESULT_OLD = 4000;       // Compressed for history
+      const MAX_TOOL_RESULT_CONSUMED = 500;   // Ultra-compressed for consumed messages
+
       let maxResult = isMsgNew ? MAX_TOOL_RESULT_NEW : MAX_TOOL_RESULT_OLD;
       if (msg.wasConsumed) {
         maxResult = MAX_TOOL_RESULT_CONSUMED;
       }
-      
-      const truncated = chatMsg.content.length > maxResult
-        ? chatMsg.content.slice(0, maxResult) + `\n... (output truncated at ${maxResult} chars — use startLine/endLine args to read specific sections)`
-        : chatMsg.content;
+
+      let truncated = chatMsg.content;
+      if (chatMsg.content.length > maxResult) {
+        const sliced = chatMsg.content.slice(0, maxResult);
+        // Estimate which line we stopped at so the AI knows the exact next startLine
+        const linesRead = sliced.split('\n').length;
+        truncated = sliced +
+          `\n... [CONTEXT TRUNCATED at ${maxResult} chars / ~line ${linesRead}]` +
+          ` — call readFile again with startLine=${linesRead + 1} to read the next section.`;
+      }
       chatMsg.content = `TOOL RESULT (${msg.toolName}):\n${truncated}`;
       delete chatMsg.tool_call_id;
       delete chatMsg.name;

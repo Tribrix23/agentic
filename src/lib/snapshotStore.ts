@@ -3,8 +3,11 @@
 // ============================================================================
 
 export interface FileSnapshot {
+  type: 'file_modify' | 'file_create' | 'folder_create' | 'rename' | 'file_delete' | 'folder_delete';
   path: string;
-  content: string;
+  oldPath?: string;
+  content?: string | null;
+  backupPath?: string;
 }
 
 export interface TurnSnapshot {

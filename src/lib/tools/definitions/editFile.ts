@@ -112,14 +112,19 @@ export const handler: ToolHandler = async (args, context) => {
     const result = await (window as any).electron.saveFileContent(targetPath, newContent);
     
     if (result.success) {
+      const oldLines = content.split('\n').length;
+      const newLines = newContent.split('\n').length;
+      const added = Math.max(0, newLines - oldLines + replace.split('\n').length - search.split('\n').length);
+      const removed = Math.max(0, oldLines - newLines + search.split('\n').length - replace.split('\n').length);
       return { 
         success: true, 
         output: `Successfully edited ${targetPath}`,
         artifacts: [{
-          type: 'diff',
+          type: 'file_change',
           path: targetPath,
-          original: content,       // Store original so undo can restore it
-          diff: `--- ${targetPath}\n+++ ${targetPath}\n- ${search}\n+ ${replace}` // Simplified diff
+          content: newContent,
+          added: replace.split('\n').length,
+          removed: search.split('\n').length
         }]
       };
     } else {

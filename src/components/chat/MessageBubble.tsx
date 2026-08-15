@@ -313,31 +313,31 @@ export function MessageBubble({
       let removed = 0;
       
       const artifacts = tc.result?.artifacts || [];
+      // First check for a file_change artifact with explicit added/removed
+      const fileChangeArtifact = artifacts.find((a: any) => a.type === 'file_change');
       const diffArtifact = artifacts.find((a: any) => a.type === 'diff' && a.diff);
       
-      if (diffArtifact?.diff) {
+      if (fileChangeArtifact?.added !== undefined || fileChangeArtifact?.removed !== undefined) {
+        added = fileChangeArtifact.added ?? 0;
+        removed = fileChangeArtifact.removed ?? 0;
+      } else if (diffArtifact?.diff) {
         const lines = String(diffArtifact.diff).split('\n');
         added = lines.filter((l: string) => l.startsWith('+') && !l.startsWith('+++')).length;
         removed = lines.filter((l: string) => l.startsWith('-') && !l.startsWith('---')).length;
       } else {
         const output = tc.result?.output || '';
-        const addMatch = String(output).match(/(\d+) insertion/);
-        const delMatch = String(output).match(/(\d+) deletion/);
-        if (addMatch) added = parseInt(addMatch[1]);
-        if (delMatch) removed = parseInt(delMatch[1]);
-        
-        if (['writeFile', 'createFile', 'write_to_file'].includes(tc.name)) {
+        const delMatch = String(output).match(/\((\d+) deletions?\)/);
+        if (delMatch) {
+          removed = parseInt(delMatch[1]);
+        }
+        // For creates: count lines in content
+        if (['createFile', 'write_to_file'].includes(tc.name)) {
           const fileContent = args.CodeContent || args.content || args.file_content || '';
           added = typeof fileContent === 'string' ? fileContent.split('\n').length : 1;
-        } else if (isDelete) {
-          added = 0;
-          removed = 0;
-        } else if (added === 0 && removed === 0) {
-          added = 1; removed = 1;
         }
       }
       
-      const fileContent = args.CodeContent || args.content || args.file_content || args.ReplacementContent || undefined;
+      const fileContent = fileChangeArtifact?.content || args.CodeContent || args.content || args.file_content || args.ReplacementContent || undefined;
 
       if (fileChangesMap.has(targetPath)) {
         const existing = fileChangesMap.get(targetPath)!;
@@ -403,8 +403,12 @@ export function MessageBubble({
               >
                 <div className="flex items-center gap-2 text-[13px] text-white/80">
                   {aggregatedFileChanges.length} {aggregatedFileChanges.length === 1 ? 'file' : 'files'} changed
-                  <span className="text-[#4ec9b0] font-mono ml-1">+{totalAdded}</span>
-                  <span className="text-[#f14c4c] font-mono">-{totalRemoved}</span>
+                  {(totalAdded > 0 || totalRemoved > 0) && (
+                    <>
+                      <span className="text-[#4ec9b0] font-mono ml-1">+{totalAdded}</span>
+                      <span className="text-[#f14c4c] font-mono">-{totalRemoved}</span>
+                    </>
+                  )}
                   {filesExpanded ? <ChevronDown size={14} className="text-white/40 ml-1" /> : <ChevronRight size={14} className="text-white/40 ml-1" />}
                 </div>
                 <button 
@@ -491,8 +495,20 @@ export function MessageBubble({
           const snapshots = getSnapshotsFrom(initialSnapshot.conversationId, firstMessage.id);
           snapshots.forEach(s => {
             s.files.forEach(f => {
-              if (!fileChanges.find(c => c.path === f.path)) {
-                fileChanges.push({ path: f.path });
+              const existing = fileChanges.find(c => c.path === f.path);
+              if (!existing) {
+                const fc = f as any;
+                let added: number | undefined;
+                let removed: number | undefined;
+                // For file_modify: snapshot content is the OLD content that will be restored.
+                // removed = lines in current (new) state; added = lines in old (snapshot) state.
+                // We only have snapshot content here, so we show the lines being restored.
+                if (fc.type === 'file_modify' && fc.content) {
+                  const oldLines = String(fc.content).split('\n').length;
+                  // We don't have current content here, so show old line count as what will be restored
+                  added = oldLines;
+                }
+                fileChanges.push({ path: f.path, type: fc.type, added, removed });
               }
             });
           });

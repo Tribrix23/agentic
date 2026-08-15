@@ -8,6 +8,7 @@ export interface UndoFileChange {
   path: string;
   added?: number;
   removed?: number;
+  type?: string;
 }
 
 interface UndoConfirmModalProps {
@@ -70,18 +71,38 @@ export function UndoConfirmModal({ isOpen, changes, onConfirm, onCancel }: UndoC
                 ) : (
                   changes.map((c, i) => {
                     const filename = c.path.split(/[/\\]/).pop() || c.path;
+                    
+                    // Only show an action label for cases that have no meaningful +N -N
+                    let actionLabel = '';
+                    let actionColor = '';
+                    if (c.type === 'file_delete' || c.type === 'folder_delete') {
+                      actionLabel = 'Restore';
+                      actionColor = 'text-emerald-400';
+                    } else if (c.type === 'file_create' || c.type === 'folder_create') {
+                      actionLabel = 'Delete';
+                      actionColor = 'text-red-400';
+                    }
+
                     return (
                       <div key={i} className="flex items-center gap-2 py-1">
                         <FileCode2 size={14} className="text-purple-400 shrink-0" />
                         <span className="text-sm text-white/80 font-medium truncate flex-1 min-w-0">
                           {filename}
                         </span>
-                        {(c.added !== undefined || c.removed !== undefined) && (
-                          <span className="flex items-center gap-1 text-[11px] font-mono font-semibold shrink-0">
-                            {c.added !== undefined && c.added > 0 && <span className="text-emerald-400">+{c.added}</span>}
-                            {c.removed !== undefined && c.removed > 0 && <span className="text-red-400">-{c.removed}</span>}
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1.5 shrink-0 font-mono text-[11px] font-semibold">
+                          {actionLabel ? (
+                            <span className={actionLabel === 'Restore' ? 'text-emerald-400' : 'text-red-400/80'}>{actionLabel}</span>
+                          ) : (
+                            <>
+                              {c.added !== undefined && c.added > 0 && (
+                                <span className="text-emerald-400">+{c.added}</span>
+                              )}
+                              {c.removed !== undefined && c.removed > 0 && (
+                                <span className="text-red-400">-{c.removed}</span>
+                              )}
+                            </>
+                          )}
+                        </span>
                       </div>
                     );
                   })

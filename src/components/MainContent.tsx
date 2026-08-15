@@ -1265,6 +1265,11 @@ IMPORTANT RULES:
                 pendingToolCall={pendingToolCall}
                 onToolDecision={handleToolDecision}
                 onUndoToMessage={async (msgId: string) => {
+                  // ── 0. Stop the agent if it's currently running
+                  if (isAgentRunning) {
+                    handleStopAgent();
+                  }
+
                   // ── 1. Find the user message
                   const idx = messages.findIndex(m => m.id === msgId);
                   if (idx === -1) return;
@@ -1276,11 +1281,32 @@ IMPORTANT RULES:
                   if (convId) {
                     const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
                     for (const snapshot of snapshotsToUndo) {
-                      for (const file of snapshot.files) {
+                      // Reverse the files in the snapshot so we undo them in reverse order
+                      for (const file of [...snapshot.files].reverse()) {
                         try {
-                          await (window as any).electron?.saveFileContent(file.path, file.content);
+                          const f = file as any; // For backward compatibility with old snapshots
+                          if (!f.type) {
+                            if (f.content !== undefined && f.content !== null) {
+                              await (window as any).electron?.saveFileContent(f.path, f.content);
+                            }
+                            continue;
+                          }
+
+                          if (f.type === 'file_create' || f.type === 'folder_create') {
+                            await (window as any).electron?.deleteFile(f.path);
+                          } else if (f.type === 'rename') {
+                            await (window as any).electron?.renameFile(f.path, f.oldPath);
+                          } else if (f.type === 'file_modify') {
+                            if (f.content !== undefined && f.content !== null) {
+                              await (window as any).electron?.saveFileContent(f.path, f.content);
+                            }
+                          } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
+                            if (f.backupPath) {
+                              await (window as any).electron?.restorePath(f.backupPath, f.path);
+                            }
+                          }
                         } catch (e) {
-                          console.error('[undo] Failed to restore file:', file.path, e);
+                          console.error('[undo] Failed to reverse action for file:', file.path, e);
                         }
                       }
                     }

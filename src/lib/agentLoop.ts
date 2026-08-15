@@ -160,259 +160,126 @@ function getKnownToolNames(toolDefinitions: any[]): Set<string> {
 
 /**
  * Parse tool calls from LLM response text.
- * Supports two formats:
- * 1. XML-style: <tool_call>{"name": "...", "arguments": {...}}</tool_call>
- * 2. JSON blocks: ```json\n{"tool_call": {"name": "...", "arguments": {...}}}\n```
+ * Primary format: <tool_call><function=name><parameter=arg>value</parameter></function></tool_call>
+ * All other formats are legacy fallbacks.
  */
 function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
+  let match: RegExpExecArray | null;
 
-  // ── Format 0: Antigravity native syntax: call:tool_name{json_args} ────────────────
+  // ── Format 1 (PRIMARY): <tool_call><function=name><parameter=x>val</parameter></function></tool_call> ──
+  const primaryRegex = /<tool_call>\s*<function=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/function>\s*<\/tool_call>/gi;
+  while ((match = primaryRegex.exec(text)) !== null) {
+    const name = match[1].trim();
+    const argsStr = match[2];
+    const args: Record<string, any> = {};
+    const paramRegex = /<parameter=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/parameter>/gi;
+    let paramMatch;
+    while ((paramMatch = paramRegex.exec(argsStr)) !== null) {
+      let val: any = paramMatch[2].trim();
+      if (val === 'true') val = true;
+      else if (val === 'false') val = false;
+      else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+      args[paramMatch[1].trim()] = val;
+    }
+
+    // Fallback: If no <parameter=X> tags were found, try standard XML tags <X>val</X>
+    if (Object.keys(args).length === 0) {
+      const standardXmlRegex = /<([a-zA-Z0-9_-]+)>([\s\S]*?)<\/\1>/gi;
+      let xmlMatch;
+      while ((xmlMatch = standardXmlRegex.exec(argsStr)) !== null) {
+        let val: any = xmlMatch[2].trim();
+        if (val === 'true') val = true;
+        else if (val === 'false') val = false;
+        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+        args[xmlMatch[1].trim()] = val;
+      }
+    }
+
+    if (isPlausibleToolName(name, knownToolNames)) {
+      toolCalls.push({ name, arguments: args });
+    }
+  }
+
+  if (toolCalls.length > 0) return toolCalls;
+
+  // ── Fallback Format: Antigravity native syntax: call:tool_name{json_args} ────────────────
   let startIndex = text.indexOf('call:');
   while (startIndex !== -1) {
     const braceIndex = text.indexOf('{', startIndex);
     if (braceIndex !== -1 && braceIndex < startIndex + 50) {
       const toolName = text.substring(startIndex + 5, braceIndex).trim();
-      
       if (!isPlausibleToolName(toolName, knownToolNames)) {
-        console.warn('[AgentLoop] Invalid tool name in text parsing, skipping:', toolName);
         startIndex = text.indexOf('call:', startIndex + 5);
         continue;
       }
-      
       let braceCount = 0;
       let endIndex = -1;
-      
       for (let i = braceIndex; i < text.length; i++) {
         if (text[i] === '{') braceCount++;
-        else if (text[i] === '}') {
-          braceCount--;
-          if (braceCount === 0) {
-            endIndex = i;
-            break;
-          }
-        }
+        else if (text[i] === '}') { braceCount--; if (braceCount === 0) { endIndex = i; break; } }
       }
-      
       if (endIndex !== -1) {
         try {
           const argsStr = text.substring(braceIndex, endIndex + 1);
           const parsedArgs = argsStr === '{}' ? {} : JSON.parse(argsStr);
-          toolCalls.push({
-            name: toolName,
-            arguments: parsedArgs
-          });
+          toolCalls.push({ name: toolName, arguments: parsedArgs });
           startIndex = text.indexOf('call:', endIndex + 1);
           continue;
-        } catch (e) {
-          console.warn('[AgentLoop] Failed to parse Antigravity tool call arguments:', e);
-        }
+        } catch (e) {}
       }
     }
     startIndex = text.indexOf('call:', startIndex + 5);
   }
+  if (toolCalls.length > 0) return toolCalls;
 
-  if (toolCalls.length > 0) {
-    return toolCalls;
-  }
-
-  // ── Format 1: XML-style tool calls ────────────────────────────────────
+  // ── Fallback: JSON <tool_call> with JSON body ────────────────────────────
   const xmlRegex = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
-  let match: RegExpExecArray | null;
-
   while ((match = xmlRegex.exec(text)) !== null) {
     const innerText = match[1].trim();
-    // If it starts with '<', it's likely an Anthropic raw XML tool call, skip JSON parsing
     if (innerText.startsWith('<')) continue;
-    
     try {
       const parsed = JSON.parse(innerText);
-      if (parsed.name) {
-        if (isPlausibleToolName(parsed.name, knownToolNames)) {
-          toolCalls.push({
-            name: parsed.name,
-            arguments: parsed.arguments || parsed.params || parsed.args || {},
-          });
-        } else {
-          console.warn('[AgentLoop] Invalid tool name in XML format, skipping:', parsed.name);
-        }
+      if (parsed.name && isPlausibleToolName(parsed.name, knownToolNames)) {
+        toolCalls.push({ name: parsed.name, arguments: parsed.arguments || parsed.params || parsed.args || {} });
       }
-    } catch (e) {
-      console.warn('[AgentLoop] Failed to parse XML tool call:', e);
-    }
+    } catch (e) {}
   }
+  if (toolCalls.length > 0) return toolCalls;
 
-  // ── Format 2: JSON code blocks or raw JSON with tool_call ────────────────
-  // Only parse JSON that has explicit markers to avoid false positives from explanatory JSON
-  if (toolCalls.length === 0) {
-    let startIndex = text.indexOf('{');
-    while (startIndex !== -1) {
-      let braceCount = 0;
-      let endIndex = -1;
-      for (let i = startIndex; i < text.length; i++) {
-        if (text[i] === '{') braceCount++;
-        else if (text[i] === '}') {
-          braceCount--;
-          if (braceCount === 0) {
-            endIndex = i;
-            break;
-          }
-        }
+  // ── Fallback: JSON code blocks / raw JSON ────────────────────────────────
+  {
+    let si = text.indexOf('{');
+    while (si !== -1) {
+      let bc = 0, ei = -1;
+      for (let i = si; i < text.length; i++) {
+        if (text[i] === '{') bc++;
+        else if (text[i] === '}') { bc--; if (bc === 0) { ei = i; break; } }
       }
-      if (endIndex !== -1) {
+      if (ei !== -1) {
         try {
-          const str = text.substring(startIndex, endIndex + 1);
-          const parsed = JSON.parse(str);
-          // Only parse if it has explicit tool_call markers or is a known single-key format
+          const parsed = JSON.parse(text.substring(si, ei + 1));
           if (parsed.tool_call || (parsed.name && Object.keys(parsed).includes('arguments'))) {
             const tc = parsed.tool_call || parsed;
-            if (tc.name) {
-              if (isPlausibleToolName(tc.name, knownToolNames)) {
-                toolCalls.push({
-                  name: tc.name,
-                  arguments: tc.arguments || tc.params || tc.args || {},
-                });
-              } else {
-                console.warn('[AgentLoop] Invalid tool name in JSON format, skipping:', tc.name);
-              }
-              startIndex = text.indexOf('{', endIndex + 1);
-              continue;
+            if (tc.name && isPlausibleToolName(tc.name, knownToolNames)) {
+              toolCalls.push({ name: tc.name, arguments: tc.arguments || tc.params || tc.args || {} });
+              si = text.indexOf('{', ei + 1); continue;
             }
           } else if (Object.keys(parsed).length === 1) {
-            // Support raw format: {"readFile": {"path": "..."}}
-            // But only if the key is a known tool name
             const possibleName = Object.keys(parsed)[0];
             const possibleArgs = parsed[possibleName];
-            if (typeof possibleArgs === 'object' && possibleArgs !== null && !Array.isArray(possibleArgs)) {
-              if (isPlausibleToolName(possibleName, knownToolNames)) {
-                toolCalls.push({
-                  name: possibleName,
-                  arguments: possibleArgs,
-                });
-              } else {
-                console.warn('[AgentLoop] Invalid tool name in raw JSON format, skipping:', possibleName);
-              }
-              startIndex = text.indexOf('{', endIndex + 1);
-              continue;
+            if (typeof possibleArgs === 'object' && possibleArgs !== null && !Array.isArray(possibleArgs) && isPlausibleToolName(possibleName, knownToolNames)) {
+              toolCalls.push({ name: possibleName, arguments: possibleArgs });
+              si = text.indexOf('{', ei + 1); continue;
             }
-          } else if (parsed.tool && typeof parsed.tool === 'string') {
-            // Support raw format: {"tool": "createTodoListTasks", "tasks": [...]}
-            if (isPlausibleToolName(parsed.tool, knownToolNames)) {
-              const args = { ...parsed };
-              delete args.tool;
-              toolCalls.push({
-                name: parsed.tool,
-                arguments: args,
-              });
-            } else {
-              console.warn('[AgentLoop] Invalid tool name in {"tool": "..."} format, skipping:', parsed.tool);
-            }
-            startIndex = text.indexOf('{', endIndex + 1);
-            continue;
+          } else if (parsed.tool && typeof parsed.tool === 'string' && isPlausibleToolName(parsed.tool, knownToolNames)) {
+            const args = { ...parsed }; delete args.tool;
+            toolCalls.push({ name: parsed.tool, arguments: args });
+            si = text.indexOf('{', ei + 1); continue;
           }
-        } catch (e) {
-          // ignore parsing errors and continue searching
-        }
+        } catch (e) {}
       }
-      startIndex = text.indexOf('{', startIndex + 1);
-    }
-  }
-
-  // ── Format 3: Direct function-call style ──────────────────────────────
-  if (toolCalls.length === 0) {
-    const funcRegex = /\[TOOL:\s*(\w+)\]\s*```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/gi;
-    while ((match = funcRegex.exec(text)) !== null) {
-      try {
-        const args = JSON.parse(match[2].trim());
-        const name = match[1];
-        if (isPlausibleToolName(name, knownToolNames)) {
-          toolCalls.push({ name, arguments: args });
-        }
-      } catch (e) {
-        console.warn('[AgentLoop] Failed to parse function-call style tool call:', e);
-      }
-    }
-  }
-
-  // ── Format 4: Custom XML syntax (e.g. <tool_call>name<arg_key>...</arg_value></tool_call>) ──
-  if (toolCalls.length === 0) {
-    const customXmlRegex = /<tool_call>\s*([a-zA-Z0-9_-]+)\s*([\s\S]*?)<\/tool_call>/gi;
-    while ((match = customXmlRegex.exec(text)) !== null) {
-      const name = match[1].trim();
-      const argsStr = match[2];
-      const args: Record<string, any> = {};
-      
-      const argRegex = /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/gi;
-      let argMatch;
-      while ((argMatch = argRegex.exec(argsStr)) !== null) {
-        let val: any = argMatch[2].trim();
-        if (typeof val === 'string' && val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
-          val = val.slice(1, -1);
-        }
-        if (val === 'true') val = true;
-        else if (val === 'false') val = false;
-        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-        args[argMatch[1].trim()] = val;
-      }
-      
-      if (isPlausibleToolName(name, knownToolNames)) {
-        toolCalls.push({ name, arguments: args });
-      }
-    }
-  }
-
-  // ── Format 6: Native <function=name> format ──────────────────────────────
-  if (toolCalls.length === 0) {
-    const fnRegex = /<function=([a-zA-Z0-9_-]+)>\s*([\s\S]*?)<\/function>/gi;
-    while ((match = fnRegex.exec(text)) !== null) {
-      const name = match[1].trim();
-      const argsStr = match[2];
-      const args: Record<string, any> = {};
-      
-      const paramRegex = /<parameter=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/parameter>/gi;
-      let paramMatch;
-      while ((paramMatch = paramRegex.exec(argsStr)) !== null) {
-        let val: any = paramMatch[2].trim();
-        if (typeof val === 'string' && val.length >= 2 && ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))) {
-          val = val.slice(1, -1);
-        }
-        if (val === 'true') val = true;
-        else if (val === 'false') val = false;
-        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-        args[paramMatch[1].trim()] = val;
-      }
-      
-      if (isPlausibleToolName(name, knownToolNames)) {
-        toolCalls.push({ name, arguments: args });
-      }
-    }
-  }
-
-  // ── Format 5: Self-closing XML tool calls ────────────────────────────────
-  // e.g. <listDirectory path="app/agentic" /> or <readFile path="./src" depth="2" />
-  // This is a format some LLMs produce when they learn from XML-style history.
-  if (toolCalls.length === 0) {
-    // Match any self-closing tag whose name looks like a camelCase tool name
-    const selfClosingRegex = /<([a-zA-Z][a-zA-Z0-9_]+)\s+([^>]*?)\s*\/>/gi;
-    while ((match = selfClosingRegex.exec(text)) !== null) {
-      const name = match[1];
-      const attrsStr = match[2];
-      const args: Record<string, any> = {};
-      // Parse key="value" attributes
-      const attrRegex = /(\w+)="([^"]*)"/gi;
-      let attrMatch;
-      while ((attrMatch = attrRegex.exec(attrsStr)) !== null) {
-        let val: any = attrMatch[2];
-        // attrMatch[2] is already inner content, no need to strip quotes
-        if (val === 'true') val = true;
-        else if (val === 'false') val = false;
-        else if (!isNaN(Number(val)) && val !== '') val = Number(val);
-        args[attrMatch[1]] = val;
-      }
-      if (isPlausibleToolName(name, knownToolNames)) {
-        toolCalls.push({ name, arguments: args });
-        break; // Only take the first one per response
-      }
+      si = text.indexOf('{', si + 1);
     }
   }
 

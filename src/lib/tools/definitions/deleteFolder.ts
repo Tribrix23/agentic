@@ -1,20 +1,20 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
 
 export const definition: ToolDefinition = {
-  name: 'deleteFile',
-  description: 'Delete a file from the project.',
+  name: 'deleteFolder',
+  description: 'Delete a folder and all its contents recursively from the project.',
   category: 'filesystem',
   parameters: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Path to the file to delete' }
+      path: { type: 'string', description: 'Path to the folder to delete' }
     },
     required: ['path']
   },
   requiresApproval: true,
   dangerLevel: 'dangerous',
   timeout: 10000,
-  icon: 'FileX'
+  icon: 'FolderMinus'
 };
 
 export const handler: ToolHandler = async (args, context) => {
@@ -32,29 +32,18 @@ export const handler: ToolHandler = async (args, context) => {
       targetPath = `${root}/${cleaned}`;
     }
 
-    let lineCount = 0;
-    try {
-      const existing = await (window as any).electron?.readFileContent(targetPath);
-      if (existing) {
-        lineCount = existing.split('\n').length;
-      }
-    } catch {}
-
+    // deleteFile on backend handles folders properly via fs.rm(..., {recursive: true})
     const result = await (window as any).electron.deleteFile(targetPath);
     
     if (result.success) {
       return { 
         success: true, 
-        output: `Successfully deleted ${path} (${lineCount} deletions)`,
-        artifacts: [{
-          type: 'file_delete',
-          path
-        }]
+        output: `(No output)`
       };
     } else {
-      return { success: false, output: `Failed to delete file: ${result.error}` };
+      return { success: false, output: `Failed to delete folder: ${result.error}` };
     }
   } catch (error: any) {
-    return { success: false, output: `Failed to delete file: ${error.message || String(error)}` };
+    return { success: false, output: `Failed to delete folder: ${error.message || String(error)}` };
   }
 };

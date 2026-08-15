@@ -41,7 +41,70 @@ interface LegacyDispatcherParams {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const ENDPOINT = 'https://quantix.api.devctr.com/api/dispatcher';
+const DISPATCHER_ENDPOINT = 'https://quantix.api.devctr.com/api/dispatcher';
+const MODELS_ENDPOINT = 'https://quantix.api.devctr.com/api/models';
+const GPT56_MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
+
+// ── Helper function to detect GPT-OSS, Qwen, and GPT-5.6 models and extract parameters ──────────────
+function getModelInfo(model: string): {
+  endpoint: string;
+  modelName: string;
+  level: string | null;
+} {
+  const lowerModel = model.toLowerCase();
+
+  // Check for GPT-OSS models
+  if (lowerModel.includes('gpt-oss')) {
+    let level = 'medium'; // default
+    if (lowerModel.includes('high')) {
+      level = 'high';
+    }
+    return {
+      endpoint: MODELS_ENDPOINT,
+      modelName: 'openai/gpt-oss-120b',
+      level
+    };
+  }
+
+  // Check for Qwen models
+  if (lowerModel.includes('qwen')) {
+    let modelName = 'qwen3.7-flash'; // default
+    if (lowerModel.includes('plus')) {
+      modelName = 'qwen3.7-plus';
+    } else if (lowerModel.includes('max')) {
+      modelName = 'qwen3.7-max';
+    }
+    return {
+      endpoint: MODELS_ENDPOINT,
+      modelName,
+      level: null // Qwen doesn't use level parameter
+    };
+  }
+
+  // Check for GPT-5.6 models
+  if (lowerModel.includes('gpt-5.6') || lowerModel.includes('gpt56')) {
+    let modelName = 'gpt-5.6-luna'; // default
+    let endpoint = GPT56_MODELS_ENDPOINT;
+    if (lowerModel.includes('terra')) {
+      modelName = 'gpt-5.6-terra';
+    } else if (lowerModel.includes('sol')) {
+      modelName = 'gpt-5.6-sol';
+      endpoint = 'https://api.devctr.com/api/models'; // Use specific endpoint for gpt5.6-sol
+    }
+    return {
+      endpoint,
+      modelName,
+      level: null // GPT-5.6 doesn't use level parameter
+    };
+  }
+
+  // Default to dispatcher endpoint for other models
+  return {
+    endpoint: DISPATCHER_ENDPOINT,
+    modelName: model,
+    level: null
+  };
+}
 
 // ── Main API Function ──────────────────────────────────────────────────────
 
@@ -104,9 +167,12 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     }
   }
 
+  // ── Check if this is a GPT-OSS, Qwen, or GPT-5.6 model and determine endpoint ─────────────
+  const { endpoint, modelName, level } = getModelInfo(config.model);
+
   // ── Build request payload ──────────────────────────────────────────
   const payload: Record<string, any> = {
-    model: config.model,
+    model: modelName,
     conversation_id: `${conversationId || 'conv'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     messages,
     temperature: dynamicTemp,
@@ -116,6 +182,11 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     imageUrl: [] as string[],
     videoUrl: [] as string[],
   };
+
+  // Add level parameter only for GPT-OSS models (not for Qwen)
+  if (level) {
+    payload.level = level;
+  }
   
   if (config.enableThinking) {
     payload.chat_template_kwargs = { enable_thinking: true };
@@ -174,7 +245,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
         signal.addEventListener('abort', () => controller.abort());
       }
 
-      const response = await fetch(ENDPOINT, {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,

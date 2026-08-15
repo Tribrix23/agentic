@@ -147,9 +147,14 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
     case 'multi_replace_file_content':
       return { cmd: 'sed', argsStr: `-i ... ${args.path || args.TargetFile || ''}` };
     case 'deleteFile':
+    case 'delete_file':
+    case 'deleteFolder':
       return { cmd: 'rm', argsStr: args.path || '' };
     case 'renameFile':
-      return { cmd: 'mv', argsStr: `${args.path || ''} ${args.newPath || ''}` };
+    case 'renameFolder':
+      return { cmd: 'mv', argsStr: `${args.path || args.oldPath || ''} ${args.newPath || ''}` };
+    case 'createFolder':
+      return { cmd: 'mkdir', argsStr: args.path || '' };
     case 'searchFiles':
     case 'grep_search':
       return { cmd: 'grep', argsStr: `-rn "${args.query || args.Query || ''}" ${args.path || args.SearchPath || '.'}` };
@@ -411,7 +416,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
             </div>
           </div>
           {output ? (
-            <div className="whitespace-pre-wrap pl-5 leading-relaxed" style={{ color: '#858585' }}>
+            <div className="whitespace-pre-wrap pl-5 leading-relaxed max-h-[200px] overflow-y-auto custom-scrollbar" style={{ color: '#858585' }}>
               {typeof output === 'string' ? output : JSON.stringify(output, null, 2)}
             </div>
           ) : isRunning ? (

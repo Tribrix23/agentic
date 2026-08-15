@@ -359,6 +359,37 @@ function createWindow() {
     }
   });
 
+  ipcMain.handle('backup-path', async (_event, sourcePath: string, projectRoot: string) => {
+    try {
+      const trashDir = path.join(projectRoot, '.quantix_trash');
+      if (!fs.existsSync(trashDir)) {
+        fs.mkdirSync(trashDir, { recursive: true });
+      }
+      const timestamp = Date.now();
+      const baseName = path.basename(sourcePath);
+      const backupPath = path.join(trashDir, `${timestamp}-${baseName}`);
+      fs.cpSync(sourcePath, backupPath, { recursive: true });
+      return { success: true, backupPath };
+    } catch (e: any) {
+      console.error('[IPC] Failed to backup path:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('restore-path', async (_event, backupPath: string, targetPath: string) => {
+    try {
+      if (fs.existsSync(targetPath)) {
+        fs.rmSync(targetPath, { recursive: true, force: true });
+      }
+      fs.cpSync(backupPath, targetPath, { recursive: true });
+      fs.rmSync(backupPath, { recursive: true, force: true });
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Failed to restore path:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   // Terminal Integration using node-pty
   try {
     pty = require('node-pty');

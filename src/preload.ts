@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electron', {
   showItemInFolder: (path: string) => ipcRenderer.send('show-item-in-folder', path),
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('rename-file', oldPath, newPath),
   deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path),
+  backupPath: (sourcePath: string, projectRoot: string) => ipcRenderer.invoke('backup-path', sourcePath, projectRoot),
+  restorePath: (backupPath: string, targetPath: string) => ipcRenderer.invoke('restore-path', backupPath, targetPath),
   createFile: (parentPath: string, fileName: string) => ipcRenderer.invoke('create-file', parentPath, fileName),
   createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('create-folder', parentPath, folderName),
   gitStatus: (cwd: string) => ipcRenderer.invoke('git-status', cwd),

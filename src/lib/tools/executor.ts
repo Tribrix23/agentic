@@ -12,6 +12,7 @@ const executedSignatures = new Set<string>();
 /** Tools that mutate the filesystem — reset the dedup store when called */
 const WRITE_TOOLS = new Set([
   'writeFile', 'editFile', 'createFile', 'deleteFile',
+  'createFolder', 'deleteFolder', 'renameFolder', 'renameFile',
   'runCommand', 'gitAdd', 'gitCommit',
 ]);
 
@@ -66,21 +67,56 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   context.signal.addEventListener('abort', onContextAbort);
 
   try {
-    // ── Snapshot: capture file content BEFORE any write ───────────────────
-    const FILE_WRITE_TOOLS = new Set(['writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content']);
-    if (FILE_WRITE_TOOLS.has(toolCall.name) && currentUserMessageId) {
-      let filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
-      if (filePath) {
-        // Resolve to absolute path if relative
-        if (!filePath.startsWith('/') && !/^[a-zA-Z]:(\\|\/)/.test(filePath) && context.projectRoot) {
-          filePath = `${context.projectRoot}/${filePath}`.replace(/\/+/g, '/');
+    // ── Snapshot: capture inverse actions BEFORE tool execution ───────────────────
+    if (currentUserMessageId) {
+      const getFullPath = (p: string) => {
+        if (!p) return '';
+        if (!p.startsWith('/') && !/^[a-zA-Z]:(\\|\/)/.test(p) && context.projectRoot) {
+          return `${context.projectRoot}/${p}`.replace(/\/+/g, '/');
         }
-        try {
-          const existing = await (window as any).electron?.readFileContent(filePath);
-          if (existing !== undefined && existing !== null) {
-            addFileToSnapshot(currentUserMessageId, { path: filePath, content: existing });
+        return p;
+      };
+
+      const toolName = toolCall.name;
+      let pathArg = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
+      let oldPathArg = toolCall.arguments?.oldPath || '';
+      let newPathArg = toolCall.arguments?.newPath || '';
+
+      const targetPath = getFullPath(pathArg);
+      const targetOldPath = getFullPath(oldPathArg);
+      const targetNewPath = getFullPath(newPathArg);
+
+      try {
+        if (['writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'].includes(toolName)) {
+          if (targetPath) {
+            try {
+              const existing = await (window as any).electron?.readFileContent(targetPath);
+              if (existing !== undefined && existing !== null) {
+                addFileToSnapshot(currentUserMessageId, { type: 'file_modify', path: targetPath, content: existing });
+              }
+            } catch {
+              addFileToSnapshot(currentUserMessageId, { type: 'file_create', path: targetPath });
+            }
           }
-        } catch { /* file may not exist yet (createFile case) — that's fine */ }
+        } else if (toolName === 'createFolder') {
+          if (targetPath) {
+            addFileToSnapshot(currentUserMessageId, { type: 'folder_create', path: targetPath });
+          }
+        } else if (toolName === 'renameFile' || toolName === 'renameFolder') {
+          if (targetOldPath && targetNewPath) {
+            addFileToSnapshot(currentUserMessageId, { type: 'rename', path: targetNewPath, oldPath: targetOldPath });
+          }
+        } else if (toolName === 'deleteFile' || toolName === 'delete_file' || toolName === 'deleteFolder') {
+          if (targetPath) {
+            const backupRes = await (window as any).electron?.backupPath(targetPath, context.projectRoot);
+            if (backupRes?.success && backupRes.backupPath) {
+              const type = toolName === 'deleteFolder' ? 'folder_delete' : 'file_delete';
+              addFileToSnapshot(currentUserMessageId, { type, path: targetPath, backupPath: backupRes.backupPath });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[Executor] Failed to capture snapshot:', e);
       }
     }
 
