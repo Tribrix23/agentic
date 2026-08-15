@@ -2,7 +2,7 @@
 // Context Builder — Assembles optimal context for each LLM call
 // ============================================================================
 
-import { AIConfig, buildSystemPrompt, MODEL_PRESETS } from './aiConfig';
+import { AIConfig, buildSystemPrompt } from './aiConfig';
 import { AgenticMessage, agenticMessageToChatMessage, ChatMessage } from './messageTypes';
 import {
   estimateTokens,

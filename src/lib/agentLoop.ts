@@ -27,7 +27,7 @@ import {
   createToolCall,
   createUserMessage,
 } from './messageTypes';
-import { buildContext, ProjectContext } from './contextBuilder';
+import { buildContext, buildGpt56ToolPrompt, ProjectContext } from './contextBuilder';
 import {
   needsSummarization,
   buildSummaryRequest,
@@ -571,6 +571,16 @@ export class AgentLoop {
       // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
       const systemPromptText = buildSystemPrompt(this.config);
       let fullSystemPrompt = systemPromptText;
+
+      // The cached prompt is passed back into buildContext on every iteration.
+      // Therefore the model-specific tool contract must be added while creating
+      // the cache; buildContext cannot add it later when a cached prompt exists.
+      if (
+        this.toolDefinitions.length > 0 &&
+        (this.config.model.toLowerCase().includes('gpt-5.6') || this.config.model.toLowerCase().includes('gpt56'))
+      ) {
+        fullSystemPrompt += '\n' + buildGpt56ToolPrompt(this.toolDefinitions);
+      }
       
       if (this.projectContext) {
         const projectLines: string[] = [];
