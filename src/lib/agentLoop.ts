@@ -708,12 +708,13 @@ export class AgentLoop {
 
           callDispatcherAPI({
             config: effectiveConfig,
-            // Cast to api ChatMessage type: filter out 'tool' role messages since the API
-            // only accepts 'user' | 'assistant' | 'system'. Tool results were already
-            // converted to 'user' messages in contextBuilder.ts.
+            // Preserve native assistant tool_calls and matching role=tool results
+            // for GPT-5.6's function-call protocol.
             messages: context.messages.map(m => ({
               ...m,
-              role: (m.role === 'tool' ? 'user' : m.role) as 'user' | 'assistant' | 'system',
+              // Native GPT-5.6 calls require the assistant tool_calls message
+              // to be followed by a role=tool message with the same call ID.
+              role: m.role as 'user' | 'assistant' | 'system' | 'tool',
             })),
             // Always pass tool definitions; api.ts will filter based on model's supportsTools flag
             tools: shouldUseTools ? this.toolDefinitions : undefined,

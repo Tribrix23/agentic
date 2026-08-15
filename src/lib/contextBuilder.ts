@@ -185,7 +185,7 @@ export function buildContext(
   // GPT-5.6's compatibility endpoint can return plain text instead of native
   // tool_calls. Supplying the complete contract here keeps all registered tools
   // usable through AgentLoop's validated text-tool fallback.
-  if (toolDefinitions?.length && isGpt56Model(config.model)) {
+  if (toolDefinitions?.length && isGpt56Model(config.model) && !cachedSystemPrompt) {
     systemPromptParts.push(buildGpt56ToolPrompt(toolDefinitions));
   }
 
@@ -261,13 +261,12 @@ export function buildContext(
     const msg = nonSystemMessages[i];
     const chatMsg = agenticMessageToChatMessage(msg);
     const isMsgNew = isNewMessage(i);
+    const preserveNativeToolHistory = isGpt56Model(config.model) && Boolean(toolDefinitions?.length);
 
-    // ALWAYS inject the tool results as plain text instead of native tool format.
-    // The quantix backend API appears to silently drop or reject native tool_calls in history,
-    // blinding the AI to its own past actions. By converting everything to plain text,
-    // the AI can perfectly read its history and the backend won't strip it!
+    // Keep native tool-call history for GPT-5.6. Other compatibility backends
+    // receive readable plain-text history because some silently drop tool roles.
     
-    if (msg.role === 'tool' && msg.toolName) {
+    if (msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
       chatMsg.role = 'user';
       // Plain-text marker — no XML that the AI might mimic.
       // For new messages (delta), keep full output. For old messages, compress aggressively.
@@ -295,7 +294,7 @@ export function buildContext(
       delete chatMsg.name;
     }
 
-    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
       const toolCallDesc = msg.toolCalls
         .map((tc) => {
           // Plain text format — no XML, no brackets the AI will echo back.
@@ -342,6 +341,13 @@ export function buildContext(
 
   chatMessages.push(...historyMessages);
 
+  // GPT-5.6 validates the complete native tool-call chain on every request.
+  // A cancelled/older conversation can contain an assistant tool call without
+  // its result; remove that incomplete assistant turn before sending history.
+  if (preserveNativeToolHistoryForConfig(config, toolDefinitions)) {
+    normalizeNativeToolHistory(chatMessages);
+  }
+
   // ── 6. Calculate Final Token Budget ──────────────────────────────────
   const tokenBudget = calculateTokenBudget({
     contextWindowSize: contextBudget,
@@ -357,6 +363,60 @@ export function buildContext(
     tokenBudget,
     toolDefinitions,
   };
+}
+
+function preserveNativeToolHistoryForConfig(config: AIConfig, toolDefinitions?: any[]): boolean {
+  return Boolean(toolDefinitions?.length) && isGpt56Model(config.model);
+}
+
+function normalizeNativeToolHistory(messages: ChatMessage[]): void {
+  const normalized: ChatMessage[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (message.role === 'tool') {
+      console.warn(`[ContextBuilder] Removed orphaned tool result ${message.tool_call_id || '(missing id)'} from history.`);
+      continue;
+    }
+
+    if (message.role !== 'assistant' || !message.tool_calls?.length) {
+      normalized.push(message);
+      continue;
+    }
+
+    const following: ChatMessage[] = [];
+    let nextIndex = i + 1;
+    while (nextIndex < messages.length && messages[nextIndex].role === 'tool') {
+      following.push(messages[nextIndex]);
+      nextIndex++;
+    }
+
+    const completeCalls = message.tool_calls.filter((call) =>
+      following.some((candidate) => candidate.role === 'tool' && candidate.tool_call_id === call.id)
+    );
+
+    if (completeCalls.length > 0) {
+      normalized.push(
+        completeCalls.length === message.tool_calls.length
+          ? message
+          : { ...message, tool_calls: completeCalls }
+      );
+      normalized.push(...following.filter((result) =>
+        completeCalls.some((call) => call.id === result.tool_call_id)
+      ));
+    } else if (message.content) {
+      normalized.push({ role: 'assistant', content: message.content });
+    }
+
+    const removedCount = message.tool_calls.length - completeCalls.length;
+    if (removedCount > 0) {
+      console.warn(`[ContextBuilder] Removed ${removedCount} dangling native tool call(s) from history.`);
+    }
+
+    i = nextIndex - 1;
+  }
+
+  messages.splice(0, messages.length, ...normalized);
 }
 
 /**

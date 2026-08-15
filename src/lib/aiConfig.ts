@@ -319,6 +319,30 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsStreaming: true,
     description: 'GPT-5.6 Sol with native and text-fallback tool calling',
   },
+  'DeepSeek v4 Flash': {
+    name: 'DeepSeek v4 Flash',
+    contextWindow: 128000,
+    maxTokensDefault: 32768,
+    supportsTools: true,
+    supportsStreaming: true,
+    description: 'DeepSeek v4 Flash - fast and efficient',
+  },
+  'DeepSeek v4 Pro': {
+    name: 'DeepSeek v4 Pro',
+    contextWindow: 128000,
+    maxTokensDefault: 32768,
+    supportsTools: true,
+    supportsStreaming: true,
+    description: 'DeepSeek v4 Pro - most capable',
+  },
+  'Kimi k2.7': {
+    name: 'Kimi k2.7',
+    contextWindow: 128000,
+    maxTokensDefault: 32768,
+    supportsTools: true,
+    supportsStreaming: true,
+    description: 'Kimi k2.7 - Moonshot AI',
+  },
 };
 
 // ── Parameter constraints ──────────────────────────────────────────────────

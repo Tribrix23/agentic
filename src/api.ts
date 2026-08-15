@@ -7,8 +7,18 @@ import { ToolCall, createToolCall } from './lib/messageTypes';
 
 // ── Legacy exports for backward compatibility ──────────────────────────────
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: {
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }[];
 }
 
 // ── New API interfaces ─────────────────────────────────────────────────────
@@ -60,7 +70,7 @@ function getModelInfo(model: string): {
       level = 'high';
     }
     return {
-      endpoint: MODELS_ENDPOINT,
+      endpoint: 'https://api.devctr.com/api/models',
       modelName: 'openai/gpt-oss-120b',
       level
     };
@@ -97,6 +107,30 @@ function getModelInfo(model: string): {
       level: null // GPT-5.6 doesn't use level parameter
     };
   }
+
+  // Check for DeepSeek models
+  if (lowerModel.includes('deepseek')) {
+    let modelName = 'deepseek-v4-flash'; // default
+    if (lowerModel.includes('pro')) {
+      modelName = 'deepseek-v4-pro';
+    }
+    return {
+      endpoint: 'https://api.devctr.com/api/models',
+      modelName,
+      level: null // DeepSeek doesn't use level parameter
+    };
+  }
+
+  // Check for Kimi models
+  if (lowerModel.includes('kimi')) {
+    let modelName = 'kimi-k2.7';
+    return {
+      endpoint: 'https://api.devctr.com/api/models',
+      modelName,
+      level: null // Kimi doesn't use level parameter
+    };
+  }
+
 
   // Default to dispatcher endpoint for other models
   return {
@@ -299,7 +333,8 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
                   toolName,
                   typeof tc.function?.arguments === 'string'
                     ? JSON.parse(tc.function.arguments)
-                    : tc.function?.arguments || tc.arguments || {}
+                    : tc.function?.arguments || tc.arguments || {},
+                  tc.id
                 );
                 onToolCall(toolCall);
               } else {
