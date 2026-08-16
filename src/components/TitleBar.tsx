@@ -1,7 +1,12 @@
 import React from 'react';
 import { Minus, Square, X } from 'lucide-react';
 
-export const TitleBar = () => {
+interface TitleBarProps {
+  userName?: string;
+  userAvatar?: string;
+}
+
+export const TitleBar = ({ userName, userAvatar }: TitleBarProps) => {
   const handleMinimize = () => {
     (window as any).electron?.windowControls?.minimize();
   };
@@ -21,6 +26,21 @@ export const TitleBar = () => {
         <span className="shimmer-text font-bold text-[13px] tracking-wider">QUANTIX</span>
       </div>
       <div className="flex h-full region-no-drag pointer-events-auto bg-[#08080c]">
+        {(userName || userAvatar) && (
+          <div
+            className="flex max-w-[260px] items-center gap-2 border-r border-white/10 px-3 text-[12px] font-medium text-[#c7c7cc] select-none"
+            title={userName}
+          >
+            {userName && <span className="truncate">{userName}</span>}
+            {userAvatar && (
+              <img
+                src={userAvatar}
+                alt={`${userName || 'User'} profile`}
+                className="h-6 w-6 shrink-0 rounded-full border border-white/15 object-cover"
+              />
+            )}
+          </div>
+        )}
         <button 
           className="w-[46px] h-full flex justify-center items-center text-[#8b8b93] hover:bg-white/10 hover:text-white transition-colors duration-100" 
           onClick={handleMinimize}

@@ -139,6 +139,7 @@ const App = () => {
   const [isAiRunning, setIsAiRunning] = React.useState(false);
   const [orb1ColorIndex, setOrb1ColorIndex] = React.useState(0);
   const [orb2ColorIndex, setOrb2ColorIndex] = React.useState(1);
+  const [accountCreated, setAccountCreated] = React.useState(false);
 
   // Removed aggressive clearAllTasks() on mount to prevent wiping tasks on page refresh.
   // Tasks are now properly scoped to conversations, so this is no longer needed.
@@ -389,10 +390,31 @@ const App = () => {
           setUser(newUser);
           // Persist to local storage
           localStorage.setItem('quantix_session', JSON.stringify(newUser));
+          
+          // Create account after successful login (only once)
+          if (data.token && !accountCreated) {
+            createAccount(data.token);
+            setAccountCreated(true);
+          }
         }
       });
     }
   }, []);
+
+  const createAccount = async (userId: string) => {
+    try {
+      const response = await fetch('https://api.devctr.com/api/create-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ userId })
+      });
+      return response;
+    } catch (error) {
+      console.error('Failed to create account:', error);
+    }
+  };
 
   const handleLogin = () => {
     if (user) {
@@ -411,7 +433,7 @@ const App = () => {
   // If user is logged in, show the full IDE three-pane dashboard or full IDE container
   if (user) {
     if (showFullIde) {
-      return <IdeContainer onBack={() => setShowFullIde(false)} />;
+      return <IdeContainer user={user} onBack={() => setShowFullIde(false)} />;
     }
 
     return (
@@ -430,7 +452,7 @@ const App = () => {
           />
         </div>
 
-        <TitleBar />
+        <TitleBar userName={user.name} userAvatar={user.avatar} />
         <Sidebar isOpen={leftSidebarOpen} onOpenSettings={() => setSettingsOpen(true)} />
         <MainContent 
           user={user} 

@@ -13,12 +13,12 @@ if (started) {
 // Register custom protocol for auth deep links
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('quantix code', process.execPath, [path.resolve(process.argv[1])])
+    app.setAsDefaultProtocolClient('quantix', process.execPath, [path.resolve(process.argv[1])])
   } else {
-    app.setAsDefaultProtocolClient('quantix code', process.execPath, ['--squirrel-firstrun'])
+    app.setAsDefaultProtocolClient('quantix', process.execPath, ['--squirrel-firstrun'])
   }
 } else {
-  app.setAsDefaultProtocolClient('quantix code', process.execPath, ['--squirrel-firstrun'])
+  app.setAsDefaultProtocolClient('quantix', process.execPath, ['--squirrel-firstrun'])
 }
 
 let mainWindow: BrowserWindow | null = null;

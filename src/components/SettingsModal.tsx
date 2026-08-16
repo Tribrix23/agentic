@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot } from 'lucide-react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, getAvailableModels, AIConfig } from '../lib/aiConfig';
@@ -26,7 +26,7 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
 
   return (
     <div className="relative" ref={ref}>
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-black/40 border border-white/10 hover:border-white/20 text-xs text-white rounded-lg px-3 py-2 min-w-[140px] flex items-center justify-between gap-2 outline-none transition-colors shadow-inner"
       >
@@ -35,7 +35,7 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
       </button>
       <AnimatePresence>
         {isOpen && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95, y: -5 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -43,7 +43,7 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
             className="absolute top-full right-0 mt-2 w-[140px] bg-[#141419] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 py-1"
           >
             {options.map(opt => (
-              <div 
+              <div
                 key={opt}
                 onClick={() => {
                   onChange(opt);
@@ -65,9 +65,9 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
   );
 };
 
-const SliderSetting = ({ 
-  label, description, min, max, step, value, onChange 
-}: { 
+const SliderSetting = ({
+  label, description, min, max, step, value, onChange
+}: {
   label: string; description?: string; min: number; max: number; step: number; value: number; onChange: (val: number) => void;
 }) => (
   <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/[0.07] transition-colors">
@@ -76,12 +76,12 @@ const SliderSetting = ({
       {description && <span className="text-[#8b8b93] text-[13px] mt-1">{description}</span>}
     </div>
     <div className="flex items-center gap-4">
-      <input 
-        type="range" min={min} max={max} step={step} value={value} 
+      <input
+        type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
         className="flex-1 h-1.5 bg-black/40 rounded-full appearance-none outline-none accent-[#7C3AED]"
       />
-      <input 
+      <input
         type="number" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
         className="w-20 bg-[#1c1c21] border border-white/10 text-white text-xs px-2 py-1 rounded outline-none"
@@ -102,16 +102,89 @@ const ToggleSetting = ({ label, description, checked, onChange }: { label: strin
   </div>
 );
 
-export const SettingsModal = ({ 
-  user, 
-  onClose, 
-  onLogout 
-}: { 
+interface TokenQuotaResponse {
+  userId: string;
+  max_token: number;
+  token_remaining: number;
+  reset: string | null;
+  other_ai_remaining: number;
+  other_ai_max: number;
+  other_ai_reset: string | null;
+}
+
+const getResetDaysRemaining = (reset: string | null) => {
+  if (!reset) return null;
+
+  const firstTokenConsumedAt = new Date(reset);
+  if (Number.isNaN(firstTokenConsumedAt.getTime())) return null;
+
+  const resetAt = firstTokenConsumedAt.getTime() + (6 * 24 * 60 * 60 * 1000);
+  return Math.max(0, Math.ceil((resetAt - Date.now()) / (24 * 60 * 60 * 1000)));
+};
+
+const TokenQuota = ({
+  label,
+  remaining,
+  maximum,
+  reset,
+  loading,
+  accent,
+}: {
+  label: string;
+  remaining: number;
+  maximum: number;
+  reset: string | null;
+  loading: boolean;
+  accent: string;
+}) => {
+  const percentage = maximum > 0
+    ? Math.min(Math.max((remaining / maximum) * 100, 0), 100)
+    : 0;
+  const roundedPercentage = Math.round(percentage);
+  const resetDaysRemaining = percentage <= 50 ? getResetDaysRemaining(reset) : null;
+
+  return (
+    <section>
+      <h4 className="mb-2 text-[14px] font-semibold text-white">{label}</h4>
+      <div className="flex min-h-[92px] items-center justify-between gap-5 rounded-lg border border-white/10 bg-white/[0.045] px-5 py-4">
+        <div className="min-w-0">
+          <p className="text-[12px] font-medium text-white">Weekly Quota Remaining</p>
+          {resetDaysRemaining !== null && (
+            <p className="mt-1 text-[11px] text-amber-400">
+              Quota resets in {resetDaysRemaining} {resetDaysRemaining === 1 ? 'day' : 'days'}
+            </p>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-3" aria-label={`${roundedPercentage}% of weekly quota remaining`}>
+          <span className="text-[13px] font-semibold text-[#c7c7ce]">{loading ? '--' : `${roundedPercentage}%`}</span>
+          <div
+            className="grid h-9 w-9 place-items-center rounded-full"
+            style={{
+              background: `conic-gradient(${accent} ${percentage * 3.6}deg, #34343a 0deg)`,
+            }}
+          >
+            <div className="h-[27px] w-[27px] rounded-full bg-[#151519]" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export const SettingsModal = ({
+  user,
+  onClose,
+  onLogout
+}: {
   user: { name: string, avatar: string, email?: string, token?: string },
   onClose: () => void,
-  onLogout: () => void 
+  onLogout: () => void
 }) => {
   const [email, setEmail] = useState<string>('Loading...');
+  const [tokenQuotas, setTokenQuotas] = useState<TokenQuotaResponse | null>(null);
+  const [tokenQuotasLoading, setTokenQuotasLoading] = useState(false);
+  const [tokenQuotasError, setTokenQuotasError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(() => {
     const tab = localStorage.getItem('quantix_settings_initial_tab');
     if (tab) {
@@ -122,15 +195,15 @@ export const SettingsModal = ({
   });
   const [marketingEmails, setMarketingEmails] = useState(false);
   const [projects, setProjects] = useState<ProjectFolder[]>([]);
-  
+
   const [aiConfig, setLocalAIConfig] = useState<AIConfig>(() => getAIConfig());
   const [stopSequenceInput, setStopSequenceInput] = useState("");
-  
+
   const handleAIConfigChange = (partial: Partial<AIConfig>) => {
     const newConfig = setAIConfig(partial);
     setLocalAIConfig(newConfig);
   };
-  
+
   // Per-project states
   const [projectSettings, setProjectSettings] = useState<Record<string, any>>({});
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
@@ -140,13 +213,13 @@ export const SettingsModal = ({
     if (saved) {
       try {
         setProjects(JSON.parse(saved));
-      } catch(e) {}
+      } catch (e) { }
     }
     const savedSettings = localStorage.getItem('quantix_project_settings');
     if (savedSettings) {
       try {
         setProjectSettings(JSON.parse(savedSettings));
-      } catch(e) {}
+      } catch (e) { }
     }
   }, []);
 
@@ -170,7 +243,7 @@ export const SettingsModal = ({
       }
       try {
         const result = await (window as any).electron.fetchSupabaseEmail(user.token);
-        
+
         if (result.error) {
           console.error('Error fetching email via IPC:', result.error);
           setEmail('Error: ' + result.error);
@@ -186,6 +259,43 @@ export const SettingsModal = ({
     }
     fetchEmail();
   }, [user.token]);
+
+  const fetchTokenQuotas = useCallback(async () => {
+    if (!user.token) {
+      setTokenQuotasError('No user ID is available for this session.');
+      return;
+    }
+
+    setTokenQuotasLoading(true);
+    setTokenQuotasError(null);
+
+    try {
+      const response = await fetch('https://api.devctr.com/api/get-tokens', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: user.token }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to fetch token quotas.');
+      }
+
+      setTokenQuotas(data as TokenQuotaResponse);
+    } catch (error) {
+      setTokenQuotasError(error instanceof Error ? error.message : 'Failed to fetch token quotas.');
+    } finally {
+      setTokenQuotasLoading(false);
+    }
+  }, [user.token]);
+
+  useEffect(() => {
+    if (activeTab === 'model' && !tokenQuotas && !tokenQuotasLoading && !tokenQuotasError) {
+      void fetchTokenQuotas();
+    }
+  }, [activeTab, fetchTokenQuotas, tokenQuotas, tokenQuotasError, tokenQuotasLoading]);
 
   const selectedProject = projects.find(p => `project-${p.path}` === activeTab);
 
@@ -210,6 +320,9 @@ export const SettingsModal = ({
     if (activeTab === 'account') {
       return { title: 'Account', subtitle: 'Manage your plan, credentials, and general preferences.' };
     }
+    if (activeTab === 'model') {
+      return { title: 'Model', subtitle: 'View token usage and quotas for AI models.' };
+    }
     if (activeTab === 'shortcuts') {
       return { title: 'Shortcuts', subtitle: 'Keyboard shortcuts for quick navigation and control.' };
     }
@@ -229,41 +342,48 @@ export const SettingsModal = ({
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         className="w-full max-w-5xl h-[80vh] bg-[#0f0f13] border border-white/10 rounded-xl shadow-2xl flex overflow-hidden"
       >
-        
+
         {/* Sidebar */}
         <div className="w-64 border-r border-white/5 p-4 flex flex-col gap-1 overflow-y-auto bg-[#141419]">
           <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mb-1 uppercase tracking-wider">General</div>
-          <button 
+          <button
             onClick={() => setActiveTab('account')}
             className={cn("w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'account' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
           >
             Account
           </button>
-          <button 
+          <button
+            onClick={() => setActiveTab('model')}
+            className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'model' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
+          >
+            <Cpu size={14} className="shrink-0" />
+            Model
+          </button>
+          <button
             onClick={() => setActiveTab('ai_settings')}
             className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'ai_settings' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
           >
             <Cpu size={14} className="shrink-0" />
             AI Settings
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('agent_settings')}
             className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'agent_settings' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
           >
             <Bot size={14} className="shrink-0" />
             Agent Settings
           </button>
-          
+
           <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mt-6 mb-1 uppercase tracking-wider">Projects</div>
           {projects.map(p => (
-            <button 
-              key={p.path} 
+            <button
+              key={p.path}
               onClick={() => setActiveTab(`project-${p.path}`)}
               className={cn("w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors truncate flex items-center gap-2", activeTab === `project-${p.path}` ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
             >
@@ -271,9 +391,9 @@ export const SettingsModal = ({
               <span className="truncate">{p.name}</span>
             </button>
           ))}
-          
+
           <div className="mt-auto pt-8 flex flex-col gap-1">
-            <button 
+            <button
               onClick={() => setActiveTab('shortcuts')}
               className={cn("w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'shortcuts' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
             >
@@ -297,27 +417,66 @@ export const SettingsModal = ({
               </div>
               <p className="text-[#8b8b93] text-sm">{headerInfo.subtitle}</p>
             </div>
-            <button 
+            <button
               onClick={onClose}
               className="p-2 text-[#8b8b93] hover:text-white hover:bg-white/5 rounded-md transition-colors -mr-2 -mt-2"
             >
               <X size={20} />
             </button>
           </div>
-          
+
           <div className="p-8 pt-2 overflow-y-auto flex-1 custom-scrollbar">
+            {activeTab === 'model' && (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-white font-semibold text-[15px]">Token Quotas</h3>
+                  <button
+                    onClick={() => void fetchTokenQuotas()}
+                    disabled={tokenQuotasLoading}
+                    className="text-[#8b8b93] hover:text-white hover:bg-white/5 p-2 rounded-md transition-colors"
+                    title="Refresh token quotas"
+                  >
+                    <RefreshCw size={16} className={cn(tokenQuotasLoading && 'animate-spin')} />
+                  </button>
+                </div>
+
+                {tokenQuotasError && (
+                  <p className="mb-3 text-[12px] text-red-400" role="alert">{tokenQuotasError}</p>
+                )}
+
+                <div className="space-y-5">
+                  <TokenQuota
+                    label="Dispatcher"
+                    remaining={tokenQuotas?.token_remaining ?? 0}
+                    maximum={tokenQuotas?.max_token ?? 0}
+                    reset={tokenQuotas?.reset ?? null}
+                    loading={tokenQuotasLoading && !tokenQuotas}
+                    accent="#3b82f6"
+                  />
+                  <TokenQuota
+                    label="Other AI token"
+                    remaining={tokenQuotas?.other_ai_remaining ?? 0}
+                    maximum={tokenQuotas?.other_ai_max ?? 0}
+                    reset={tokenQuotas?.other_ai_reset ?? null}
+                    loading={tokenQuotasLoading && !tokenQuotas}
+                    accent="#7C3AED"
+                  />
+                </div>
+              </>
+            )}
+
             {activeTab === 'account' && (
               <>
                 <h3 className="text-white font-semibold text-[15px] mb-3">General</h3>
-                
+
                 <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden mb-8">
                   <div className="flex items-center justify-between p-4">
                     <div className="flex flex-col">
                       <span className="text-white font-medium text-[14px]">Marketing Emails</span>
                       <span className="text-[#8b8b93] text-[13px]">Receive product updates, tips, and promotions from Quantix via email.</span>
                     </div>
-                    <div 
-                      onClick={() => setMarketingEmails(!marketingEmails)} 
+                    <div
+                      onClick={() => setMarketingEmails(!marketingEmails)}
                       className={cn("w-10 h-5 rounded-full flex items-center p-0.5 cursor-pointer transition-colors", marketingEmails ? "bg-white" : "bg-white/20")}
                     >
                       <div className={cn("w-4 h-4 rounded-full transition-transform", marketingEmails ? "translate-x-5 bg-black" : "translate-x-0 bg-white")} />
@@ -326,7 +485,7 @@ export const SettingsModal = ({
                 </div>
 
                 <h3 className="text-white font-semibold text-[15px] mb-3">Account</h3>
-                
+
                 <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                   <div className="flex items-center justify-between p-4 border-b border-white/5">
                     <div className="flex flex-col">
@@ -337,13 +496,13 @@ export const SettingsModal = ({
                       Upgrade
                     </button>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4">
                     <div className="flex flex-col">
                       <span className="text-white font-medium text-[14px]">Email</span>
                       <span className="text-[#8b8b93] text-[13px]">{email}</span>
                     </div>
-                    <button 
+                    <button
                       onClick={onLogout}
                       className="bg-white/5 hover:bg-red-500/20 text-[#a8a8b1] hover:text-red-400 px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-300 border border-white/5 hover:border-red-500/30"
                     >
@@ -351,10 +510,10 @@ export const SettingsModal = ({
                     </button>
                   </div>
                 </div>
-                
+
                 <p className="mt-8 text-[12px] text-[#8b8b93]">
                   By using this app, you agree to its{' '}
-                  <button 
+                  <button
                     onClick={() => {
                       if ((window as any).electron?.openExternal) {
                         (window as any).electron.openExternal('https://quantix.devctr.com/terms-and-conditions');
@@ -372,7 +531,7 @@ export const SettingsModal = ({
 
             {activeTab === 'shortcuts' && (
               <div className="flex flex-col gap-6">
-                
+
                 {/* RECOMMENDED */}
                 <div>
                   <div className="text-[11px] font-semibold text-[#8b8b93] mb-3 uppercase tracking-wider">
@@ -585,7 +744,7 @@ export const SettingsModal = ({
                       <span className="text-white font-medium text-[14px]">Model Selection</span>
                       <span className="text-[#8b8b93] text-[13px] mt-1">Choose the AI model for generations. Context window: {aiConfig.contextWindowSize}</span>
                     </div>
-                    <CustomSelect 
+                    <CustomSelect
                       value={aiConfig.model}
                       onChange={val => handleAIConfigChange({ model: val })}
                       options={getAvailableModels()}
@@ -596,44 +755,44 @@ export const SettingsModal = ({
                 <div>
                   <h3 className="text-white font-semibold text-[15px] mb-3">Parameters</h3>
                   <div className="flex flex-col gap-4">
-                    <ToggleSetting 
-                      label="Dynamic Task Parameters" 
-                      description="Quantix will automatically tune temperature, top P, and top K based on the complexity and nature of your task." 
-                      checked={aiConfig.dynamicParameters ?? true} 
-                      onChange={val => handleAIConfigChange({ dynamicParameters: val })} 
+                    <ToggleSetting
+                      label="Dynamic Task Parameters"
+                      description="Quantix will automatically tune temperature, top P, and top K based on the complexity and nature of your task."
+                      checked={aiConfig.dynamicParameters ?? true}
+                      onChange={val => handleAIConfigChange({ dynamicParameters: val })}
                     />
-                    
+
                     <div className={cn("flex flex-col gap-4 transition-opacity", (aiConfig.dynamicParameters ?? true) ? "opacity-50 pointer-events-none" : "opacity-100")}>
-                      <SliderSetting 
-                      label="Temperature" description={AI_PARAM_RANGES.temperature.description}
-                      min={AI_PARAM_RANGES.temperature.min} max={AI_PARAM_RANGES.temperature.max} step={AI_PARAM_RANGES.temperature.step}
-                      value={aiConfig.temperature} onChange={val => handleAIConfigChange({ temperature: val })}
-                    />
-                    <SliderSetting 
-                      label="Top P" description={AI_PARAM_RANGES.topP.description}
-                      min={AI_PARAM_RANGES.topP.min} max={AI_PARAM_RANGES.topP.max} step={AI_PARAM_RANGES.topP.step}
-                      value={aiConfig.topP} onChange={val => handleAIConfigChange({ topP: val })}
-                    />
-                    <SliderSetting 
-                      label="Top K" description={AI_PARAM_RANGES.topK.description}
-                      min={AI_PARAM_RANGES.topK.min} max={AI_PARAM_RANGES.topK.max} step={AI_PARAM_RANGES.topK.step}
-                      value={aiConfig.topK} onChange={val => handleAIConfigChange({ topK: val })}
-                    />
-                    <SliderSetting 
-                      label="Max Tokens" description={AI_PARAM_RANGES.maxTokens.description}
-                      min={AI_PARAM_RANGES.maxTokens.min} max={AI_PARAM_RANGES.maxTokens.max} step={AI_PARAM_RANGES.maxTokens.step}
-                      value={aiConfig.maxTokens} onChange={val => handleAIConfigChange({ maxTokens: val })}
-                    />
-                    <SliderSetting 
-                      label="Frequency Penalty" description={AI_PARAM_RANGES.frequencyPenalty.description}
-                      min={AI_PARAM_RANGES.frequencyPenalty.min} max={AI_PARAM_RANGES.frequencyPenalty.max} step={AI_PARAM_RANGES.frequencyPenalty.step}
-                      value={aiConfig.frequencyPenalty} onChange={val => handleAIConfigChange({ frequencyPenalty: val })}
-                    />
-                    <SliderSetting 
-                      label="Presence Penalty" description={AI_PARAM_RANGES.presencePenalty.description}
-                      min={AI_PARAM_RANGES.presencePenalty.min} max={AI_PARAM_RANGES.presencePenalty.max} step={AI_PARAM_RANGES.presencePenalty.step}
-                      value={aiConfig.presencePenalty} onChange={val => handleAIConfigChange({ presencePenalty: val })}
-                    />
+                      <SliderSetting
+                        label="Temperature" description={AI_PARAM_RANGES.temperature.description}
+                        min={AI_PARAM_RANGES.temperature.min} max={AI_PARAM_RANGES.temperature.max} step={AI_PARAM_RANGES.temperature.step}
+                        value={aiConfig.temperature} onChange={val => handleAIConfigChange({ temperature: val })}
+                      />
+                      <SliderSetting
+                        label="Top P" description={AI_PARAM_RANGES.topP.description}
+                        min={AI_PARAM_RANGES.topP.min} max={AI_PARAM_RANGES.topP.max} step={AI_PARAM_RANGES.topP.step}
+                        value={aiConfig.topP} onChange={val => handleAIConfigChange({ topP: val })}
+                      />
+                      <SliderSetting
+                        label="Top K" description={AI_PARAM_RANGES.topK.description}
+                        min={AI_PARAM_RANGES.topK.min} max={AI_PARAM_RANGES.topK.max} step={AI_PARAM_RANGES.topK.step}
+                        value={aiConfig.topK} onChange={val => handleAIConfigChange({ topK: val })}
+                      />
+                      <SliderSetting
+                        label="Max Tokens" description={AI_PARAM_RANGES.maxTokens.description}
+                        min={AI_PARAM_RANGES.maxTokens.min} max={AI_PARAM_RANGES.maxTokens.max} step={AI_PARAM_RANGES.maxTokens.step}
+                        value={aiConfig.maxTokens} onChange={val => handleAIConfigChange({ maxTokens: val })}
+                      />
+                      <SliderSetting
+                        label="Frequency Penalty" description={AI_PARAM_RANGES.frequencyPenalty.description}
+                        min={AI_PARAM_RANGES.frequencyPenalty.min} max={AI_PARAM_RANGES.frequencyPenalty.max} step={AI_PARAM_RANGES.frequencyPenalty.step}
+                        value={aiConfig.frequencyPenalty} onChange={val => handleAIConfigChange({ frequencyPenalty: val })}
+                      />
+                      <SliderSetting
+                        label="Presence Penalty" description={AI_PARAM_RANGES.presencePenalty.description}
+                        min={AI_PARAM_RANGES.presencePenalty.min} max={AI_PARAM_RANGES.presencePenalty.max} step={AI_PARAM_RANGES.presencePenalty.step}
+                        value={aiConfig.presencePenalty} onChange={val => handleAIConfigChange({ presencePenalty: val })}
+                      />
                     </div>
                   </div>
                 </div>
@@ -643,7 +802,7 @@ export const SettingsModal = ({
                   <div className="flex flex-col gap-4">
                     <ToggleSetting label="Streaming" description="Stream response chunks as they arrive." checked={aiConfig.stream} onChange={val => handleAIConfigChange({ stream: val })} />
                     <SliderSetting label="Stream Chunk Delay" description={AI_PARAM_RANGES.streamChunkDelay.description} min={AI_PARAM_RANGES.streamChunkDelay.min} max={AI_PARAM_RANGES.streamChunkDelay.max} step={AI_PARAM_RANGES.streamChunkDelay.step} value={aiConfig.streamChunkDelay} onChange={val => handleAIConfigChange({ streamChunkDelay: val })} />
-                    
+
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-start justify-between gap-4 hover:bg-white/[0.07] transition-colors">
                       <div className="flex flex-col flex-1">
                         <span className="text-white font-medium text-[14px]">Response Format</span>
@@ -656,7 +815,7 @@ export const SettingsModal = ({
                         <span className="text-white font-medium text-[14px]">Stop Sequences</span>
                         <span className="text-[#8b8b93] text-[13px] mt-1">Press Enter to add.</span>
                       </div>
-                      <input 
+                      <input
                         type="text" value={stopSequenceInput} onChange={e => setStopSequenceInput(e.target.value)}
                         onKeyDown={e => {
                           if (e.key === 'Enter' && stopSequenceInput.trim()) {
@@ -688,13 +847,13 @@ export const SettingsModal = ({
                   <h3 className="text-white font-semibold text-[15px] mb-3">Limits & Retries</h3>
                   <div className="flex flex-col gap-4">
                     <SliderSetting label="Max Conversation Turns" description={AI_PARAM_RANGES.maxConversationTurns.description} min={AI_PARAM_RANGES.maxConversationTurns.min} max={AI_PARAM_RANGES.maxConversationTurns.max} step={AI_PARAM_RANGES.maxConversationTurns.step} value={aiConfig.maxConversationTurns} onChange={val => handleAIConfigChange({ maxConversationTurns: val })} />
-                    <SliderSetting label="Request Timeout (s)" description="Timeout in seconds." min={AI_PARAM_RANGES.timeoutMs.min/1000} max={AI_PARAM_RANGES.timeoutMs.max/1000} step={1} value={aiConfig.timeoutMs / 1000} onChange={val => handleAIConfigChange({ timeoutMs: val * 1000 })} />
+                    <SliderSetting label="Request Timeout (s)" description="Timeout in seconds." min={AI_PARAM_RANGES.timeoutMs.min / 1000} max={AI_PARAM_RANGES.timeoutMs.max / 1000} step={1} value={aiConfig.timeoutMs / 1000} onChange={val => handleAIConfigChange({ timeoutMs: val * 1000 })} />
                     <SliderSetting label="Max Retries" description={AI_PARAM_RANGES.maxRetries.description} min={AI_PARAM_RANGES.maxRetries.min} max={AI_PARAM_RANGES.maxRetries.max} step={AI_PARAM_RANGES.maxRetries.step} value={aiConfig.maxRetries} onChange={val => handleAIConfigChange({ maxRetries: val })} />
                   </div>
                 </div>
 
                 <div className="pt-4 flex justify-end">
-                  <button 
+                  <button
                     onClick={() => setLocalAIConfig(resetAIConfig())}
                     className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg text-sm transition-colors"
                   >
@@ -729,7 +888,7 @@ export const SettingsModal = ({
                     <ToggleSetting label="Use Default System Prompt" description="Include the default system prompt." checked={aiConfig.useDefaultSystemPrompt} onChange={val => handleAIConfigChange({ useDefaultSystemPrompt: val })} />
                     <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/[0.07] transition-colors">
                       <span className="text-white font-medium text-[14px]">Custom System Prompt</span>
-                      <textarea 
+                      <textarea
                         value={aiConfig.systemPrompt}
                         onChange={e => handleAIConfigChange({ systemPrompt: e.target.value })}
                         className="w-full h-32 bg-[#1c1c21] border border-white/10 text-white text-sm px-3 py-2 rounded-lg outline-none font-mono resize-y"
@@ -744,7 +903,7 @@ export const SettingsModal = ({
             {/* PER-PROJECT SETTINGS VIEW */}
             {selectedProject && (
               <div className="flex flex-col gap-6">
-                
+
                 {/* 1. Folders */}
                 <div>
                   <h3 className="text-white font-semibold text-[15px] mb-3">Folders</h3>
@@ -785,7 +944,7 @@ export const SettingsModal = ({
                         Learn more about {projectSettings[selectedProject.path]?.securityPreset || 'Default'} <Info size={12} />
                       </span>
                     </div>
-                    <CustomSelect 
+                    <CustomSelect
                       value={projectSettings[selectedProject.path]?.securityPreset || 'Default'}
                       onChange={(val) => updateProjectSetting(selectedProject.path, 'securityPreset', val)}
                       options={['Default', 'User Guided', 'Semi Permission', 'Full Permission']}
@@ -803,7 +962,7 @@ export const SettingsModal = ({
                         Specifies Agent's behavior when asking for review on artifacts, which are documents it creates to enable a richer conversation experience.
                       </span>
                     </div>
-                    <CustomSelect 
+                    <CustomSelect
                       value={projectSettings[selectedProject.path]?.artifactPolicy || 'Always Ask'}
                       onChange={(val) => updateProjectSetting(selectedProject.path, 'artifactPolicy', val)}
                       options={['Always Ask', 'Auto Approve', 'Never Ask']}
@@ -884,7 +1043,7 @@ export const SettingsModal = ({
                       The breakdown below shows token usage from customizations like skills, rules, and MCP. If the budget is exceeded, large customizations will be truncated automatically.
                     </p>
                     <p className="text-xs text-white font-medium">71.5% of the customization budget is available.</p>
-                    
+
                     {/* Progress Bar */}
                     <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
                       <div className="bg-[#3b82f6] h-full w-[28.5%]" />
@@ -912,7 +1071,7 @@ export const SettingsModal = ({
                         Permanently delete <strong className="text-white">{selectedProject.name}</strong> including active conversations and archived conversations.
                       </span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setShowConfirmDelete(true)}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
                     >
@@ -933,7 +1092,7 @@ export const SettingsModal = ({
       <AnimatePresence>
         {showConfirmDelete && selectedProject && (
           <div className="fixed inset-0 z-[250] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -941,7 +1100,7 @@ export const SettingsModal = ({
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">Delete Project</h3>
-                <button 
+                <button
                   onClick={() => setShowConfirmDelete(false)}
                   className="text-[#8b8b93] hover:text-white"
                 >

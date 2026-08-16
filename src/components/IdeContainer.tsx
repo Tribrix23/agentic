@@ -88,6 +88,7 @@ const shimmerVariants: Variants = {
 
 interface IdeContainerProps {
   onBack: () => void;
+  user?: { name: string; avatar: string };
 }
 
 interface FileNode {
@@ -261,7 +262,7 @@ const BottomPanel: React.FC<{ projectPath?: string }> = ({ projectPath }) => {
   );
 };
 
-export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack }) => {
+export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
   const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'source-control'>('explorer');
   const [activeProject, setActiveProject] = useState<ProjectFolder | null>(() => {
@@ -643,7 +644,7 @@ const handleSkip = () => {
       </div>
 
       {/* TitleBar wrapper */}
-      <TitleBar />
+      <TitleBar userName={user?.name} userAvatar={user?.avatar} />
 
       {/* Top Header of the IDE */}
       <div className="absolute top-0 left-0 right-0 h-[88px] flex items-center justify-between border-b border-white/5 px-4 bg-[#0f0f13] z-10 pointer-events-none">
