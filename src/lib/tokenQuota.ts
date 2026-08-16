@@ -18,6 +18,29 @@ const DEDUCT_TOKENS_ENDPOINT = 'https://api.devctr.com/api/deduct-tokens';
 const INPUT_TOKEN_WEIGHT = 0.15;
 const MINIMUM_START_CHARGE = 5;
 const USAGE_CHECKPOINT = 500;
+const QUOTA_RESET_WINDOW_MS = 6 * 24 * 60 * 60 * 1000;
+
+export interface QuotaResetDetails {
+  resetAt: Date;
+  days: number;
+  hours: number;
+}
+
+export function getQuotaResetDetails(reset: string | null, now = Date.now()): QuotaResetDetails | null {
+  if (!reset) return null;
+
+  const firstTokenConsumedAt = new Date(reset);
+  if (Number.isNaN(firstTokenConsumedAt.getTime())) return null;
+
+  const resetAt = new Date(firstTokenConsumedAt.getTime() + QUOTA_RESET_WINDOW_MS);
+  const remainingHours = Math.max(0, Math.ceil((resetAt.getTime() - now) / (60 * 60 * 1000)));
+
+  return {
+    resetAt,
+    days: Math.floor(remainingHours / 24),
+    hours: remainingHours % 24,
+  };
+}
 
 export class QuotaExhaustedError extends Error {
   readonly code = 'QUOTA_EXHAUSTED';

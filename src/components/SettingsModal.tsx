@@ -3,7 +3,7 @@ import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clo
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, getAvailableModels, AIConfig } from '../lib/aiConfig';
-import { fetchTokenQuota, TokenQuotaSnapshot } from '../lib/tokenQuota';
+import { fetchTokenQuota, getQuotaResetDetails, TokenQuotaSnapshot } from '../lib/tokenQuota';
 
 interface ProjectFolder {
   path: string;
@@ -105,16 +105,6 @@ const ToggleSetting = ({ label, description, checked, onChange }: { label: strin
 
 type TokenQuotaResponse = TokenQuotaSnapshot;
 
-const getResetDaysRemaining = (reset: string | null) => {
-  if (!reset) return null;
-
-  const firstTokenConsumedAt = new Date(reset);
-  if (Number.isNaN(firstTokenConsumedAt.getTime())) return null;
-
-  const resetAt = firstTokenConsumedAt.getTime() + (6 * 24 * 60 * 60 * 1000);
-  return Math.max(0, Math.ceil((resetAt - Date.now()) / (24 * 60 * 60 * 1000)));
-};
-
 const TokenQuota = ({
   label,
   remaining,
@@ -130,11 +120,25 @@ const TokenQuota = ({
   loading: boolean;
   accent: string;
 }) => {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const percentage = maximum > 0
     ? Math.min(Math.max((remaining / maximum) * 100, 0), 100)
     : 0;
   const roundedPercentage = Math.round(percentage);
-  const resetDaysRemaining = percentage <= 50 ? getResetDaysRemaining(reset) : null;
+  const resetDetails = percentage <= 50 ? getQuotaResetDetails(reset, now) : null;
+  const formattedResetAt = resetDetails?.resetAt.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
   return (
     <section>
@@ -142,10 +146,13 @@ const TokenQuota = ({
       <div className="flex min-h-[92px] items-center justify-between gap-5 rounded-lg border border-white/10 bg-white/[0.045] px-5 py-4">
         <div className="min-w-0">
           <p className="text-[12px] font-medium text-white">Weekly Quota Remaining</p>
-          {resetDaysRemaining !== null && (
-            <p className="mt-1 text-[11px] text-amber-400">
-              Quota resets in {resetDaysRemaining} {resetDaysRemaining === 1 ? 'day' : 'days'}
-            </p>
+          {resetDetails && (
+            <div className="mt-1 text-[11px] leading-relaxed text-amber-400">
+              <p>Resets {formattedResetAt}</p>
+              <p>
+                In {resetDetails.days} {resetDetails.days === 1 ? 'day' : 'days'} {resetDetails.hours} {resetDetails.hours === 1 ? 'hour' : 'hours'}
+              </p>
+            </div>
           )}
         </div>
 

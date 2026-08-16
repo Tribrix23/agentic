@@ -34,6 +34,7 @@ interface ChatContainerProps {
   onUserResponse?: (response: string) => void;
   inputValue?: string;
   onInputChange?: (val: string) => void;
+  userId?: string;
 }
 
 export function ChatContainer({
@@ -58,7 +59,8 @@ export function ChatContainer({
   pendingAskUser,
   onUserResponse,
   inputValue,
-  onInputChange
+  onInputChange,
+  userId
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
     <div className={cn("flex flex-col h-full bg-transparent text-white")}>
@@ -102,6 +104,7 @@ export function ChatContainer({
                 onConfigChange={onConfigChange}
                 value={inputValue}
                 onChange={onInputChange}
+                userId={userId}
               />
             )}
           </div>

@@ -105,6 +105,7 @@ export const MainContent = ({
   const subagentLoopsRef = useRef<Map<string, ReturnType<typeof createAgentLoop>>>(new Map());
   const billingSessionRef = useRef<TokenBillingSession | null>(null);
   const isStreamingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
 
   const { agentState, setAgentState, pendingToolCall, pendingAskUser, submitPrompt, handleToolIntercepted, handleToolDecision, handleUserResponse } = useAgentLoop();
@@ -793,12 +794,15 @@ IMPORTANT RULES:
   ) => {
     if (!content.trim()) return;
     
-    // If agent is already running and actively working (not sleeping), ignore
-    if (isAgentRunning) return;
+    // React state does not update synchronously, so guard the entire startup path
+    // against double-clicks and repeated Enter key events with a ref as well.
+    if (isAgentRunning || isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     if (!user.token) {
       setAgentStatus('Error: No user ID is available for token billing.');
       setAgentState('error');
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -807,20 +811,6 @@ IMPORTANT RULES:
       agentLoopRef.current &&
       agentLoopRef.current.getState().status === 'sleeping'
     );
-    let billingSession = isSleepingAgent ? billingSessionRef.current : null;
-    if (!billingSession) {
-      billingSession = new TokenBillingSession(user.token, aiConfig.model);
-      billingSessionRef.current = billingSession;
-      try {
-        await billingSession.start();
-      } catch (error) {
-        billingSessionRef.current = null;
-        const message = error instanceof Error ? error.message : 'Unable to verify the weekly token quota.';
-        setAgentStatus(`Error: ${message}`);
-        setAgentState('error');
-        return;
-      }
-    }
 
     let isFirstMessage = false;
     let convId = activeConversationId;
@@ -834,15 +824,37 @@ IMPORTANT RULES:
       window.dispatchEvent(new CustomEvent('conversation-started', { detail: { id: convId } }));
     }
 
-    // Call the hook to trigger instant UI state (shimmer effect)
-    submitPrompt(content, aiConfig.agentMode);
-
-    // Create user message
+    // Render the user's message and the Working shimmer before any quota or API
+    // network request. This gives immediate visual confirmation of submission.
     const userMsg = createUserMessage(content, { attachments, mentionedFiles });
     const allMessages = [...messages, userMsg];
     setMessages(allMessages);
     setIsAgentRunning(true);
     isStreamingRef.current = true;
+    submitPrompt(content, aiConfig.agentMode);
+
+    let billingSession = isSleepingAgent ? billingSessionRef.current : null;
+    if (!billingSession) {
+      billingSession = new TokenBillingSession(user.token, aiConfig.model);
+      billingSessionRef.current = billingSession;
+      try {
+        await billingSession.start();
+      } catch (error) {
+        billingSessionRef.current = null;
+        const message = error instanceof Error ? error.message : 'Unable to verify the weekly token quota.';
+        setAgentStatus(`Error: ${message}`);
+        setAgentState('error');
+        setIsAgentRunning(false);
+        isStreamingRef.current = false;
+        const errorMsg = createAssistantMessage(aiConfig.model);
+        errorMsg.content = `**Unable to start:** ${message}`;
+        errorMsg.isStreaming = false;
+        setMessages(prev => [...prev, errorMsg]);
+        isSubmittingRef.current = false;
+        return;
+      }
+    }
+    isSubmittingRef.current = false;
     
     // If agent loop already exists and is just sleeping, wake it up!
     if (isSleepingAgent && agentLoopRef.current) {
@@ -889,40 +901,8 @@ IMPORTANT RULES:
       savedConvos[projPath] = projConvos;
       localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
 
-      // Trigger AI to generate a better title in the background
-      callDispatcherAPI({
-        config: aiConfig,
-        messages: [{ role: 'user', content: `Summarize this user prompt into a short 3-5 word conversation title: "${content}"\nRespond ONLY with the title, no quotes or intro.` }],
-        onChunk: () => { },
-        onError: () => { }, // Ignore errors, just keep the truncated title
-        onSuccess: (aiTitle: string) => {
-          const finalTitle = aiTitle
-            // Strip <think>...</think> and <thinking>...</thinking> blocks
-            .replace(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi, '')
-            // Strip any orphaned think tags
-            .replace(/<\/?think(?:ing)?>/gi, '')
-            .trim()
-            .replace(/^[\"']|[\"']$/g, '');
-          if (finalTitle) {
-            setChatTitle(finalTitle);
-            let updatedConvos: any = {};
-            try {
-              const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-              if (!Array.isArray(parsed)) updatedConvos = parsed;
-            } catch (e) {}
-            const currentProjConvos = updatedConvos[projPath] || [];
-            const existing = currentProjConvos.find((c: any) => c.id === convId);
-            if (existing) {
-              existing.title = finalTitle;
-              localStorage.setItem('quantix_conversations', JSON.stringify(updatedConvos));
-              // Dispatch event to force sidebar to update
-              window.dispatchEvent(new Event('conversationsUpdated'));
-            }
-          }
-        },
-        checkIsStreaming: () => true,
-        billingSession,
-      });
+      // The local title avoids a second hidden model request and token deduction.
+      window.dispatchEvent(new Event('conversationsUpdated'));
     }
 
     // ── Run Agent Loop ─────────────────────────────────────────────────
@@ -985,6 +965,8 @@ IMPORTANT RULES:
           });
         },
         onError: (err: Error) => {
+          billingSessionRef.current?.stop();
+          billingSessionRef.current = null;
           setMessages(prev => {
             const newMsgs = [...prev];
             const last = newMsgs[newMsgs.length - 1];
@@ -1001,6 +983,8 @@ IMPORTANT RULES:
           setIsAgentRunning(false);
         },
         onSuccess: () => {
+          billingSessionRef.current?.stop();
+          billingSessionRef.current = null;
           setMessages(prev => prev.map(m =>
             m.isStreaming ? { ...m, isStreaming: false } : m
           ));
@@ -1031,6 +1015,8 @@ IMPORTANT RULES:
   // ── Stop Agent ───────────────────────────────────────────────────────
   const handleStopAgent = useCallback(() => {
     billingSessionRef.current?.stop();
+    billingSessionRef.current = null;
+    isSubmittingRef.current = false;
     if (agentLoopRef.current) {
       agentLoopRef.current.stop();
     }
@@ -1430,6 +1416,7 @@ IMPORTANT RULES:
                 onUserResponse={handleUserResponse}
                 inputValue={inputValue}
                 onInputChange={setInputValue}
+                userId={user.token}
               />
             </div>
             <AnimatePresence>
@@ -1484,6 +1471,7 @@ IMPORTANT RULES:
                 }}
                 value={inputValue}
                 onChange={setInputValue}
+                userId={user.token}
               />
             )
           )}

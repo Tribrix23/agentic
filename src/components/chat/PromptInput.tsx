@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search } from 'lucide-react';
+import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
+import { fetchTokenQuota, getQuotaTarget, TokenQuotaSnapshot } from '../../lib/tokenQuota';
 
 const OpenAIIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -70,9 +71,10 @@ interface PromptInputProps {
   value?: string;
   onChange?: (val: string) => void;
   hasProject?: boolean;
+  userId?: string;
 }
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true }: PromptInputProps) {
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId }: PromptInputProps) {
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
@@ -84,6 +86,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [hoveredCategoryPosition, setHoveredCategoryPosition] = useState<{ top: number; left: number } | null>(null);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
+  const [tokenQuota, setTokenQuota] = useState<TokenQuotaSnapshot | null>(null);
   const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
 
   const allModels = [
@@ -125,6 +128,30 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (!userId) {
+      setTokenQuota(null);
+      return;
+    }
+
+    let cancelled = false;
+    const refreshQuota = async () => {
+      try {
+        const quota = await fetchTokenQuota(userId);
+        if (!cancelled) setTokenQuota(quota);
+      } catch {
+        if (!cancelled) setTokenQuota(null);
+      }
+    };
+
+    void refreshQuota();
+    window.addEventListener('token-quota-updated', refreshQuota);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('token-quota-updated', refreshQuota);
+    };
+  }, [userId]);
+
   // Update position when hovered category changes
   useEffect(() => {
     if (hoveredCategory && modelItemRefs.current[hoveredCategory]) {
@@ -159,6 +186,21 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       onConfigChange(partial);
     }
   };
+
+  const quotaTarget = getQuotaTarget(config.model || 'Dispatcher v2');
+  const quotaRemaining = tokenQuota?.[quotaTarget];
+  const quotaMaximum = quotaTarget === 'token_remaining' ? tokenQuota?.max_token : tokenQuota?.other_ai_max;
+  const quotaPercentage = quotaRemaining !== undefined && quotaMaximum && quotaMaximum > 0
+    ? Math.min(Math.max((quotaRemaining / quotaMaximum) * 100, 0), 100)
+    : null;
+  const quotaWarning = quotaPercentage !== null && quotaPercentage <= 20
+    ? {
+        color: quotaPercentage <= 10 ? 'text-red-400' : 'text-amber-400',
+        label: quotaPercentage <= 10
+          ? `Your quota for this model is critically low (${Math.round(quotaPercentage)}% remaining).`
+          : `Your quota for this model is running low (${Math.round(quotaPercentage)}% remaining).`,
+      }
+    : null;
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
@@ -258,6 +300,17 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               >
                 {getModelIcon(config.model || 'Dispatcher v2')}
                 <span className="font-medium text-white">{config.model || 'Dispatcher v2'}</span>
+                {quotaWarning && (
+                  <span className="group/quota relative flex shrink-0 items-center" aria-label={quotaWarning.label}>
+                    <Gauge size={13} className={quotaWarning.color} />
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute bottom-full left-1/2 z-[100] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#252529] px-2.5 py-1.5 text-[10px] font-normal text-white opacity-0 shadow-xl transition-opacity group-hover/quota:opacity-100"
+                    >
+                      {quotaWarning.label}
+                    </span>
+                  </span>
+                )}
                 <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showModelDropdown ? "rotate-180" : "")} />
               </button>
               <AnimatePresence>
