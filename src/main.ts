@@ -755,53 +755,32 @@ function createWindow() {
     });
   });
 
+  const emailCache = new Map<string, { email: string; timestamp: number }>();
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   ipcMain.handle('fetch-supabase-email', async (event, token) => {
     try {
-      const fs = require('fs');
-      // Look for .env in the project root
-      const envPath = path.join(__dirname, '../../.env');
-      let supabaseUrl = '';
-      let supabaseServiceKey = '';
-      
-      try {
-        if (fs.existsSync(envPath)) {
-          const envContent = fs.readFileSync(envPath, 'utf8');
-          const lines = envContent.split('\n');
-          for (const line of lines) {
-            if (line.startsWith('VITE_SUPABASE_URL=')) supabaseUrl = line.split('=')[1].trim();
-            if (line.startsWith('VITE_SUPABASE_SERVICE_KEY=')) supabaseServiceKey = line.split('=')[1].trim();
-          }
-        }
-      } catch (e) {
-        console.error('Failed to read .env file manually', e);
-      }
-      
-      // Fallback
-      supabaseUrl = supabaseUrl || process.env.VITE_SUPABASE_URL || '';
-      supabaseServiceKey = supabaseServiceKey || process.env.VITE_SUPABASE_SERVICE_KEY || '';
-
-      if (!supabaseUrl || !supabaseServiceKey || supabaseUrl.includes('YOUR_SUPABASE_URL')) {
-        return { error: 'Supabase credentials missing or invalid in .env' };
+      // Check cache first
+      const cached = emailCache.get(token);
+      if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return { email: cached.email };
       }
 
-      const res = await fetch(`${supabaseUrl}/rest/v1/profile?id=eq.${token}&select=email`, {
+      const response = await fetch('https://api.devctr.com/api/database', {
+        method: 'POST',
         headers: {
-          'apikey': supabaseServiceKey,
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ uuid: token }),
       });
+      const data = await response.json();
 
-      if (!res.ok) {
-        const errorText = await res.text();
-        return { error: `Fetch failed: ${res.statusText}. ${errorText}` };
-      }
-
-      const data = await res.json();
-      if (data && data.length > 0 && data[0].email) {
-        return { email: data[0].email };
+      if (data && data.email) {
+        // Cache the result
+        emailCache.set(token, { email: data.email, timestamp: Date.now() });
+        return { email: data.email };
       } else {
-        return { error: 'No email found in profile table' };
+        return { error: 'No email found in response' };
       }
     } catch (err: any) {
       return { error: err.message || String(err) };
