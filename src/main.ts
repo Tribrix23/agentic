@@ -547,6 +547,117 @@ function createWindow() {
     }
   });
 
+  // Vite may reload the main process while an Electron instance is still alive.
+  // Remove old invoke handlers so the rebuilt implementation is always installed.
+  ipcMain.removeHandler('run-code-file');
+  ipcMain.handle('run-code-file', async (_event, filePath: string, cwd: string) => {
+    const resolvedCwd = path.resolve(cwd || path.dirname(filePath));
+    const resolvedFile = path.resolve(filePath);
+    const relativeFile = path.relative(resolvedCwd, resolvedFile);
+
+    if (relativeFile.startsWith('..') || path.isAbsolute(relativeFile)) {
+      return { success: false, stdout: '', stderr: 'The selected file is outside the active project.', exitCode: 1 };
+    }
+    if (!fs.existsSync(resolvedFile) || !fs.statSync(resolvedFile).isFile()) {
+      return { success: false, stdout: '', stderr: 'The selected file no longer exists.', exitCode: 1 };
+    }
+
+    const extension = path.extname(resolvedFile).toLowerCase();
+    const runners: Record<string, { command: string; args: string[] }> = {
+      '.bat': { command: 'cmd.exe', args: ['/d', '/c', resolvedFile] },
+      '.cmd': { command: 'cmd.exe', args: ['/d', '/c', resolvedFile] },
+      '.dart': { command: 'dart', args: [resolvedFile] },
+      '.go': { command: 'go', args: ['run', resolvedFile] },
+      '.java': { command: 'java', args: [resolvedFile] },
+      '.js': { command: 'node', args: [resolvedFile] },
+      '.cjs': { command: 'node', args: [resolvedFile] },
+      '.mjs': { command: 'node', args: [resolvedFile] },
+      '.lua': { command: 'lua', args: [resolvedFile] },
+      '.php': { command: 'php', args: [resolvedFile] },
+      '.ps1': { command: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolvedFile] },
+      '.py': { command: process.platform === 'win32' ? 'python' : 'python3', args: [resolvedFile] },
+      '.pyw': { command: process.platform === 'win32' ? 'python' : 'python3', args: [resolvedFile] },
+      '.rb': { command: 'ruby', args: [resolvedFile] },
+      '.sh': { command: 'bash', args: [resolvedFile] },
+      '.ts': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
+      '.tsx': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
+    };
+    const runner = runners[extension];
+    if (!runner) {
+      return { success: false, stdout: '', stderr: `No code runner is configured for ${extension || 'this file type'}.`, exitCode: 1 };
+    }
+
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      let settled = false;
+      let timeout: NodeJS.Timeout;
+      const child = spawn(runner.command, runner.args, {
+        cwd: resolvedCwd,
+        shell: false,
+        windowsHide: true,
+        env: { ...process.env, FORCE_COLOR: '0' },
+      });
+      const finish = (result: { success: boolean; stdout: string; stderr: string; exitCode: number }) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(result);
+      };
+      const append = (current: string, chunk: Buffer) => (current + chunk.toString()).slice(-5 * 1024 * 1024);
+      child.stdout?.on('data', (chunk: Buffer) => { stdout = append(stdout, chunk); });
+      child.stderr?.on('data', (chunk: Buffer) => { stderr = append(stderr, chunk); });
+      child.on('error', (error: NodeJS.ErrnoException) => {
+        const detail = error.code === 'ENOENT'
+          ? `Runner "${runner.command}" was not found. Install it and make sure it is available on PATH.`
+          : error.message;
+        finish({ success: false, stdout, stderr: [stderr, detail].filter(Boolean).join('\n'), exitCode: 1 });
+      });
+      child.on('close', (code) => {
+        finish({ success: code === 0, stdout, stderr, exitCode: code ?? 1 });
+      });
+      timeout = setTimeout(() => {
+        child.kill();
+        finish({ success: false, stdout, stderr: [stderr, 'Execution timed out after 30 seconds.'].filter(Boolean).join('\n'), exitCode: 1 });
+      }, 30000);
+    });
+  });
+
+  ipcMain.removeHandler('validate-code');
+  ipcMain.handle('validate-code', async (_event, filePath: string, content: string) => {
+    if (!['.py', '.pyw'].includes(path.extname(filePath).toLowerCase())) {
+      return { diagnostics: [] };
+    }
+
+    const command = process.platform === 'win32' ? 'python' : 'python3';
+    const validator = [
+      'import json, sys',
+      'source = sys.stdin.read()',
+      'try:',
+      '    compile(source, sys.argv[1], "exec")',
+      '    print(json.dumps({"diagnostics": []}))',
+      'except SyntaxError as error:',
+      '    print(json.dumps({"diagnostics": [{"message": error.msg, "line": error.lineno or 1, "column": error.offset or 1, "endLine": error.end_lineno or error.lineno or 1, "endColumn": error.end_offset or (error.offset or 1) + 1}]}))',
+    ].join('\n');
+
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      const child = spawn(command, ['-c', validator, filePath], { windowsHide: true, shell: false });
+      child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+      child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+      child.on('error', () => resolve({ diagnostics: [] }));
+      child.on('close', () => {
+        try {
+          resolve(JSON.parse(stdout.trim()));
+        } catch {
+          resolve({ diagnostics: stderr ? [{ message: stderr.trim(), line: 1, column: 1, endLine: 1, endColumn: 2 }] : [] });
+        }
+      });
+      child.stdin.end(content);
+    });
+  });
+
   ipcMain.handle('git-status', async (event, cwd: string) => {
     const { exec } = require('child_process');
     return new Promise((resolve) => {

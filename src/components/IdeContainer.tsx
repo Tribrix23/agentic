@@ -11,6 +11,8 @@ import { SourceControl } from './ide/SourceControl';
 import { FileIcon } from './chat/FileIcon';
 import { cn } from '../App';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
+import type * as Monaco from 'monaco-editor';
+import { isHtmlFile } from '../lib/fileLanguage';
 
 const BlurText = ({ text, className, delay = 0 }: { text: string, className?: string, delay?: number }) => {
   const letters = text.split("");
@@ -111,10 +113,28 @@ export interface OpenFile {
   originalContent: string;
 }
 
-const BottomPanel: React.FC<{ projectPath?: string }> = ({ projectPath }) => {
+type OutputLine = { text: string; stream: 'info' | 'stdout' | 'stderr' };
+type DiagnosticsByPath = Record<string, Monaco.editor.IMarker[]>;
+
+const BottomPanel: React.FC<{
+  projectPath?: string;
+  diagnostics: DiagnosticsByPath;
+  outputLines: OutputLine[];
+  requestedTab: 'problems' | 'output' | null;
+  requestId: number;
+}> = ({ projectPath, diagnostics, outputLines, requestedTab, requestId }) => {
   const [activeTab, setActiveTab] = useState<'problems' | 'output' | 'terminal'>('terminal');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const problems = Object.entries(diagnostics).flatMap(([filePath, markers]) =>
+    markers.map(marker => ({ filePath, marker }))
+  );
+
+  useEffect(() => {
+    if (!requestedTab) return;
+    setActiveTab(requestedTab);
+    setIsExpanded(true);
+  }, [requestedTab, requestId]);
 
   if (!isVisible) return null;
 
@@ -122,7 +142,7 @@ const BottomPanel: React.FC<{ projectPath?: string }> = ({ projectPath }) => {
     return (
       <div className="h-8 bg-[#0f0f13] border-t border-white/5 flex items-center justify-between px-4 z-20 shrink-0">
         <div className="flex items-center gap-4 text-xs text-[#8b8b93]">
-          <button onClick={() => { setIsExpanded(true); setActiveTab('problems'); }} className="hover:text-white flex items-center gap-1.5"><AlertCircle size={12}/> Problems (0)</button>
+          <button onClick={() => { setIsExpanded(true); setActiveTab('problems'); }} className="hover:text-white flex items-center gap-1.5"><AlertCircle size={12}/> Problems ({problems.length})</button>
           <button onClick={() => { setIsExpanded(true); setActiveTab('output'); }} className="hover:text-white flex items-center gap-1.5"><Activity size={12}/> Output</button>
           <button onClick={() => { setIsExpanded(true); setActiveTab('terminal'); }} className="hover:text-white flex items-center gap-1.5"><TerminalSquare size={12}/> Terminal</button>
         </div>
@@ -172,19 +192,33 @@ const BottomPanel: React.FC<{ projectPath?: string }> = ({ projectPath }) => {
           <TerminalWidget cwd={projectPath} />
         )}
         {activeTab === 'output' && (
-          <div className="space-y-1">
-            <div className="text-[#8b8b93]">[Info] Build started...</div>
-            <div className="text-blue-400">[Quantix] target built src/main.ts</div>
-            <div className="text-blue-400">[Quantix] target built src/preload.ts</div>
-            <div className="text-[#8b8b93]">[Info] Build completed successfully in 432ms.</div>
-            <div className="text-[#8b8b93] mt-2">[IPC] Reading project files...</div>
+          <div className="h-full overflow-auto p-3 space-y-0.5 whitespace-pre-wrap break-words">
+            {outputLines.map((line, index) => (
+              <div key={`${index}-${line.text}`} className={cn(
+                line.stream === 'stderr' ? 'text-[#f48771]' : line.stream === 'info' ? 'text-[#8b8b93]' : 'text-[#d4d4d4]'
+              )}>
+                {line.text || ' '}
+              </div>
+            ))}
           </div>
         )}
         {activeTab === 'problems' && (
-          <div className="flex flex-col items-center justify-center h-full text-[#5b5b63] gap-3">
-            <Shield size={32} className="opacity-40" />
-            <span className="font-sans text-sm">No problems have been detected in the workspace.</span>
-          </div>
+          problems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-[#5b5b63] gap-3">
+              <Shield size={32} className="opacity-40" />
+              <span className="font-sans text-sm">No problems have been detected in open files.</span>
+            </div>
+          ) : (
+            <div className="h-full overflow-auto py-1">
+              {problems.map(({ filePath, marker }, index) => (
+                <div key={`${filePath}-${marker.startLineNumber}-${marker.startColumn}-${index}`} className="flex items-start gap-2 px-3 py-1.5 hover:bg-white/5">
+                  <AlertCircle size={13} className={marker.severity === 8 ? 'text-[#f48771] mt-0.5' : 'text-[#cca700] mt-0.5'} />
+                  <span className="text-[#d4d4d4] flex-1">{marker.message}</span>
+                  <span className="text-[#8b8b93] shrink-0">{filePath.split(/[\\/]/).pop()} [{marker.startLineNumber}, {marker.startColumn}]</span>
+                </div>
+              ))}
+            </div>
+          )
         )}
       </div>
     </motion.div>
@@ -208,6 +242,9 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [gitStatusMap, setGitStatusMap] = useState<Record<string, string>>({});
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsByPath>({});
+  const [outputLines, setOutputLines] = useState<OutputLine[]>([]);
+  const [bottomPanelRequest, setBottomPanelRequest] = useState<{ tab: 'problems' | 'output' | null; id: number }>({ tab: null, id: 0 });
 
   // Dropdown & Wizard States
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
@@ -253,6 +290,34 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
       }, 5000);
     } else {
       console.error("Failed to start live server:", res.error);
+    }
+  };
+
+  const handleRunFile = async (filePath: string, fileName: string) => {
+    if (!activeProject?.path) return;
+    if (isHtmlFile(fileName)) {
+      await handleRunLive();
+      return;
+    }
+
+    setOutputLines([{ text: `Running ${fileName}...`, stream: 'info' }]);
+    setBottomPanelRequest(previous => ({ tab: 'output', id: previous.id + 1 }));
+    try {
+      const result = await (window as any).electron.runCodeFile(filePath, activeProject.path);
+      const lines: OutputLine[] = [];
+      if (result.stdout) {
+        lines.push(...String(result.stdout).replace(/\r/g, '').split('\n').map(text => ({ text, stream: 'stdout' as const })));
+      }
+      if (result.stderr) {
+        lines.push(...String(result.stderr).replace(/\r/g, '').split('\n').map(text => ({ text, stream: 'stderr' as const })));
+      }
+      lines.push({
+        text: result.success ? `Process finished with exit code 0.` : `Process finished with exit code ${result.exitCode ?? 1}.`,
+        stream: result.success ? 'info' : 'stderr',
+      });
+      setOutputLines(lines);
+    } catch (error) {
+      setOutputLines([{ text: error instanceof Error ? error.message : String(error), stream: 'stderr' }]);
     }
   };
 
@@ -776,6 +841,11 @@ const handleSkip = () => {
                   activeFilePath={activeFilePath}
                   isLiveServerRunning={isLiveServerRunning}
                   onTabClose={(path) => {
+                    setDiagnostics(previous => {
+                      const next = { ...previous };
+                      delete next[path];
+                      return next;
+                    });
                     setOpenFiles(prev => {
                       const filtered = prev.filter(f => f.path !== path);
                       if (activeFilePath === path) {
@@ -785,16 +855,28 @@ const handleSkip = () => {
                     });
                   }}
                   onTabClick={(path) => setActiveFilePath(path)}
-                  handleRunLive={handleRunLive}
+                  handleRunFile={handleRunFile}
                   handleStopLive={handleStopLive}
                   onFileSaved={(path, newContent) => {
                     setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
                     fetchProjectFiles();
                   }}
+                  onDiagnosticsChange={(path, markers) => {
+                    setDiagnostics(previous => ({ ...previous, [path]: markers }));
+                    if (markers.some(marker => marker.severity === 8)) {
+                      setBottomPanelRequest(previous => ({ tab: 'problems', id: previous.id + 1 }));
+                    }
+                  }}
                   gitStatusMap={gitStatusMap}
                 />
               </div>
-              <BottomPanel projectPath={activeProject?.path} />
+              <BottomPanel
+                projectPath={activeProject?.path}
+                diagnostics={diagnostics}
+                outputLines={outputLines}
+                requestedTab={bottomPanelRequest.tab}
+                requestId={bottomPanelRequest.id}
+              />
             </>
           ) : (
             <div className="flex-1 flex flex-col justify-center items-center text-[#8b8b93] select-none">

@@ -28,6 +28,71 @@ self.MonacoEnvironment = {
 
 loader.config({ monaco });
 
+let pythonCompletionProvider: monaco.IDisposable | null = null;
+
+const PYTHON_KEYWORDS = [
+  'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue',
+  'def', 'del', 'elif', 'else', 'except', 'False', 'finally', 'for', 'from',
+  'global', 'if', 'import', 'in', 'is', 'lambda', 'None', 'nonlocal', 'not',
+  'or', 'pass', 'raise', 'return', 'True', 'try', 'while', 'with', 'yield',
+];
+
+const PYTHON_BUILTINS = [
+  'abs', 'all', 'any', 'bool', 'dict', 'enumerate', 'filter', 'float', 'input',
+  'int', 'isinstance', 'len', 'list', 'map', 'max', 'min', 'open', 'print',
+  'range', 'repr', 'reversed', 'round', 'set', 'sorted', 'str', 'sum', 'super',
+  'tuple', 'type', 'zip',
+];
+
+type MonacoApi = Parameters<NonNullable<React.ComponentProps<typeof Editor>['beforeMount']>>[0];
+
+const registerPythonIntelliSense = (monacoApi: MonacoApi) => {
+  if (pythonCompletionProvider) return;
+
+  pythonCompletionProvider = monacoApi.languages.registerCompletionItemProvider('python', {
+    provideCompletionItems(model, position) {
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      };
+      const keywordSuggestions = PYTHON_KEYWORDS.map(label => ({
+        label,
+        kind: monacoApi.languages.CompletionItemKind.Keyword,
+        insertText: label,
+        range,
+      }));
+      const builtinSuggestions = PYTHON_BUILTINS.map(label => ({
+        label,
+        kind: monacoApi.languages.CompletionItemKind.Function,
+        insertText: `${label}($0)`,
+        insertTextRules: monacoApi.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+        detail: 'Python built-in',
+        range,
+      }));
+      const snippetSuggestions: monaco.languages.CompletionItem[] = [
+        ['def', 'def ${1:name}(${2:args}):\n\t${0:pass}', 'Define a function'],
+        ['class', 'class ${1:Name}:\n\tdef __init__(self${2:, args}):\n\t\t${0:pass}', 'Define a class'],
+        ['for', 'for ${1:item} in ${2:items}:\n\t${0:pass}', 'For loop'],
+        ['if', 'if ${1:condition}:\n\t${0:pass}', 'If statement'],
+        ['try', 'try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:error}:\n\t${0:raise}', 'Try/except block'],
+        ['main', 'if __name__ == "__main__":\n\t${0:main()}', 'Python entry point'],
+      ].map(([label, insertText, detail]) => ({
+        label,
+        kind: monacoApi.languages.CompletionItemKind.Snippet,
+        insertText,
+        insertTextRules: monacoApi.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+        detail,
+        range,
+      }));
+
+      return { suggestions: [...snippetSuggestions, ...keywordSuggestions, ...builtinSuggestions] };
+    },
+  });
+};
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileJson, FileType2, FileCode2, Code, FileImage, FileText, File, 
@@ -35,7 +100,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../App';
 import { FileIcon } from '../chat/FileIcon';
-import { getFileLanguage } from '../../lib/fileLanguage';
+import { getFileLanguage, isHtmlFile, isRunnableCodeFile } from '../../lib/fileLanguage';
 
 const EditorSkeleton = () => (
   <div className="flex-1 w-full h-full p-6 flex flex-col gap-4 select-none pointer-events-none">
@@ -57,9 +122,10 @@ interface EditorAreaProps {
   isLiveServerRunning: boolean;
   onTabClose: (path: string) => void;
   onTabClick: (path: string) => void;
-  handleRunLive: () => void;
+  handleRunFile: (path: string, name: string) => Promise<void>;
   handleStopLive: () => void;
   onFileSaved: (path: string, newContent: string) => void;
+  onDiagnosticsChange: (path: string, markers: monaco.editor.IMarker[]) => void;
   gitStatusMap?: Record<string, string>;
 }
 
@@ -69,14 +135,21 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   isLiveServerRunning,
   onTabClose,
   onTabClick,
-  handleRunLive,
+  handleRunFile,
   handleStopLive,
   onFileSaved,
+  onDiagnosticsChange,
   gitStatusMap
 }) => {
   const [localContents, setLocalContents] = useState<Record<string, string>>({});
   const [showEditorMenu, setShowEditorMenu] = useState(false);
   const editorMenuRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const onDiagnosticsChangeRef = useRef(onDiagnosticsChange);
+
+  useEffect(() => {
+    onDiagnosticsChangeRef.current = onDiagnosticsChange;
+  }, [onDiagnosticsChange]);
 
   const [autoSaveEnabled, setAutoSaveEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('quantix_autosave');
@@ -109,14 +182,53 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   const currentLocalContent = activeFilePath ? (localContents[activeFilePath] ?? activeFile?.originalContent ?? '') : '';
   const isDirty = activeFilePath ? currentLocalContent !== activeFile?.originalContent : false;
 
-  const handleSaveFile = async () => {
+  useEffect(() => {
+    if (!activeFilePath || !selectedFileName || !/\.pyw?$/i.test(selectedFileName)) return;
+    const timeoutId = setTimeout(async () => {
+      const model = editorRef.current?.getModel();
+      if (!model || model.uri.path.toLowerCase().endsWith(selectedFileName.toLowerCase()) === false) return;
+      try {
+        const result = await (window as any).electron.validateCode(activeFilePath, currentLocalContent);
+        const markers: monaco.editor.IMarkerData[] = (result.diagnostics || []).map((diagnostic: any) => ({
+          severity: monaco.MarkerSeverity.Error,
+          message: diagnostic.message,
+          startLineNumber: diagnostic.line,
+          startColumn: diagnostic.column,
+          endLineNumber: diagnostic.endLine,
+          endColumn: diagnostic.endColumn,
+          source: 'Python',
+        }));
+        monaco.editor.setModelMarkers(model, 'quantix-python', markers);
+        onDiagnosticsChangeRef.current(
+          activeFilePath,
+          monaco.editor.getModelMarkers({ resource: model.uri }),
+        );
+      } catch (error) {
+        console.error('Failed to validate Python file:', error);
+      }
+    }, 350);
+    return () => clearTimeout(timeoutId);
+  }, [activeFilePath, selectedFileName, currentLocalContent]);
+
+  const handleSaveFile = async (): Promise<boolean> => {
     if (activeFilePath && isDirty) {
       const res = await (window as any).electron.saveFileContent(activeFilePath, currentLocalContent);
       if (res.success) {
         onFileSaved(activeFilePath, currentLocalContent);
+        return true;
       } else {
         console.error('Failed to save file:', res.error);
+        return false;
       }
+    }
+    return true;
+  };
+
+  const handleRunActiveFile = async () => {
+    if (!activeFilePath || !selectedFileName) return;
+    setShowEditorMenu(false);
+    if (await handleSaveFile()) {
+      await handleRunFile(activeFilePath, selectedFileName);
     }
   };
 
@@ -261,17 +373,17 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                     </button>
                   ) : (
                     <button
-                      onClick={handleRunLive}
-                      disabled={!selectedFileName?.toLowerCase().endsWith('.html')}
+                      onClick={handleRunActiveFile}
+                      disabled={!isHtmlFile(selectedFileName) && !isRunnableCodeFile(selectedFileName)}
                       className={cn(
                         "w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors",
-                        selectedFileName?.toLowerCase().endsWith('.html') 
+                        isHtmlFile(selectedFileName) || isRunnableCodeFile(selectedFileName)
                           ? "text-white hover:bg-white/10" 
                           : "text-[#5b5b63] cursor-not-allowed opacity-50"
                       )}
                     >
-                      <Play size={14} className={selectedFileName?.toLowerCase().endsWith('.html') ? "text-green-500" : "text-[#5b5b63]"} />
-                      Run Live
+                      <Play size={14} className={isHtmlFile(selectedFileName) || isRunnableCodeFile(selectedFileName) ? "text-green-500" : "text-[#5b5b63]"} />
+                      {isHtmlFile(selectedFileName) ? 'Run Live' : 'Run Code'}
                     </button>
                   )}
                   
@@ -318,8 +430,15 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
               }
             }}
             loading={<EditorSkeleton />}
-            beforeMount={(monaco) => {
-              const ts = monaco.languages.typescript as any;
+            onMount={(editor) => {
+              editorRef.current = editor;
+            }}
+            onValidate={(markers) => {
+              if (activeFilePath) onDiagnosticsChangeRef.current(activeFilePath, markers);
+            }}
+            beforeMount={(monacoApi) => {
+              registerPythonIntelliSense(monacoApi);
+              const ts = monacoApi.languages.typescript as any;
               ts.typescriptDefaults.setCompilerOptions({
                 jsx: ts.JsxEmit.React,
                 jsxFactory: 'React.createElement',
@@ -343,6 +462,10 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
               cursorBlinking: "smooth",
               cursorSmoothCaretAnimation: "on",
               formatOnPaste: true,
+              quickSuggestions: { other: true, comments: false, strings: false },
+              suggestOnTriggerCharacters: true,
+              wordBasedSuggestions: 'currentDocument',
+              parameterHints: { enabled: true },
             }}
           />
         )}

@@ -44,6 +44,18 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   yml: 'yaml',
 };
 
+const RUNNABLE_EXTENSIONS = new Set([
+  'bat', 'cmd', 'dart', 'go', 'java', 'js', 'cjs', 'mjs', 'lua', 'php',
+  'ps1', 'py', 'pyw', 'rb', 'sh', 'ts', 'tsx',
+]);
+
+const getExtension = (filename?: string | null): string => {
+  if (!filename) return '';
+  const normalizedName = filename.toLowerCase();
+  const lastDot = normalizedName.lastIndexOf('.');
+  return lastDot >= 0 ? normalizedName.slice(lastDot + 1) : '';
+};
+
 export const getFileLanguage = (filename?: string | null): string => {
   if (!filename) return 'plaintext';
 
@@ -53,4 +65,13 @@ export const getFileLanguage = (filename?: string | null): string => {
 
   const extension = normalizedName.split('.').pop();
   return extension ? LANGUAGE_BY_EXTENSION[extension] ?? 'plaintext' : 'plaintext';
+};
+
+export const isHtmlFile = (filename?: string | null): boolean => {
+  const extension = getExtension(filename);
+  return extension === 'html' || extension === 'htm';
+};
+
+export const isRunnableCodeFile = (filename?: string | null): boolean => {
+  return RUNNABLE_EXTENSIONS.has(getExtension(filename));
 };

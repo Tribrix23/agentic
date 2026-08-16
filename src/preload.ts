@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electron', {
   startLiveServer: (path: string) => ipcRenderer.invoke('start-live-server', path),
   stopLiveServer: () => ipcRenderer.invoke('stop-live-server'),
   checkLiveServer: () => ipcRenderer.invoke('check-live-server'),
+  runCodeFile: (filePath: string, cwd: string) => ipcRenderer.invoke('run-code-file', filePath, cwd),
+  validateCode: (filePath: string, content: string) => ipcRenderer.invoke('validate-code', filePath, content),
   showItemInFolder: (path: string) => ipcRenderer.send('show-item-in-folder', path),
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('rename-file', oldPath, newPath),
   deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path),
