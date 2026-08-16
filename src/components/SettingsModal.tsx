@@ -345,7 +345,7 @@ export const SettingsModal = ({
                     </div>
                     <button 
                       onClick={onLogout}
-                      className="bg-white/5 hover:bg-white/10 text-[#a8a8b1] hover:text-white px-4 py-1.5 rounded-md text-[13px] font-medium transition-colors border border-white/5"
+                      className="bg-white/5 hover:bg-red-500/20 text-[#a8a8b1] hover:text-red-400 px-4 py-1.5 rounded-md text-[13px] font-medium transition-all duration-300 border border-white/5 hover:border-red-500/30"
                     >
                       Sign Out
                     </button>
