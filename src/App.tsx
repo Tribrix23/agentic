@@ -11,6 +11,7 @@ import { RightSidebar, AgentActivity, FileChange } from './components/RightSideb
 import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
 import { IdeContainer } from './components/IdeContainer';
+import { ModelAnnouncementCard } from './components/ModelAnnouncementCard';
 import { getAllTasks, clearAllTasks, clearConversationTasks } from './lib/taskStore';
 import { Task } from './lib/taskStore';
 
@@ -454,6 +455,7 @@ const App = () => {
 
         <TitleBar userName={user.name} userAvatar={user.avatar} />
         <Sidebar isOpen={leftSidebarOpen} onOpenSettings={() => setSettingsOpen(true)} />
+        <ModelAnnouncementCard />
         <MainContent 
           user={user} 
           leftOpen={leftSidebarOpen}
