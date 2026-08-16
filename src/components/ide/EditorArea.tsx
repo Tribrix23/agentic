@@ -34,6 +34,8 @@ import {
   X, Save, Menu, Play, StopCircle, Radio, Check, Settings, Shield
 } from 'lucide-react';
 import { cn } from '../../App';
+import { FileIcon } from '../chat/FileIcon';
+import { getFileLanguage } from '../../lib/fileLanguage';
 
 const EditorSkeleton = () => (
   <div className="flex-1 w-full h-full p-6 flex flex-col gap-4 select-none pointer-events-none">
@@ -46,60 +48,6 @@ const EditorSkeleton = () => (
     <div className="h-4 bg-white/5 rounded w-1/4 animate-pulse" />
   </div>
 );
-
-import { SiReact, SiTypescript, SiJavascript, SiHtml5, SiCss, SiJson, SiMarkdown, SiTailwindcss, SiVite } from 'react-icons/si';
-import { VscFileMedia, VscFile } from 'react-icons/vsc';
-import { DiNpm } from 'react-icons/di';
-import { FaGitAlt } from 'react-icons/fa';
-
-const getFileIcon = (filename: string, className?: string) => {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  
-  if (filename.startsWith('.env')) {
-    return <Settings size={14} className={className || "text-[#2dd4bf] shrink-0"} />;
-  }
-  if (filename === '.gitignore' || filename === '.gitattributes') {
-    return <FaGitAlt size={14} className={className || "text-[#f34f29] shrink-0"} />;
-  }
-  if (filename === 'package.json' || filename === 'package-lock.json') {
-    return <DiNpm size={14} className={className || "text-[#cb3837] shrink-0"} />;
-  }
-  if (filename === 'tailwind.config.js' || filename === 'tailwind.config.ts') {
-    return <SiTailwindcss size={14} className={className || "text-[#38bdf8] shrink-0"} />;
-  }
-  if (filename === 'vite.config.js' || filename === 'vite.config.ts') {
-    return <SiVite size={14} className={className || "text-[#646cff] shrink-0"} />;
-  }
-
-  switch (ext) {
-    case 'json': case 'tsbuildinfo': return <SiJson size={14} className={className || "text-[#fbc02d] shrink-0"} />;
-    case 'ts': return <SiTypescript size={14} className={className || "text-[#3178c6] shrink-0"} />;
-    case 'tsx': return <SiReact size={14} className={className || "text-[#61dafb] shrink-0"} />;
-    case 'js': return <SiJavascript size={14} className={className || "text-[#f7df1e] shrink-0"} />;
-    case 'jsx': return <SiReact size={14} className={className || "text-[#61dafb] shrink-0"} />;
-    case 'html': return <SiHtml5 size={14} className={className || "text-[#e34c26] shrink-0"} />;
-    case 'css': return <SiCss size={14} className={className || "text-[#264de4] shrink-0"} />;
-    case 'png': case 'jpg': case 'jpeg': case 'svg': case 'gif': case 'ico': case 'webp': return <VscFileMedia size={14} className={className || "text-[#4caf50] shrink-0"} />;
-    case 'md': case 'txt': return <SiMarkdown size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
-    default: return <VscFile size={14} className={className || "text-[#a8a8b1] shrink-0"} />;
-  }
-};
-
-const getFileLanguage = (filename: string | null) => {
-  if (!filename) return 'plaintext';
-  if (filename === '.gitignore' || filename.startsWith('.env')) return 'plaintext';
-  
-  const ext = filename.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'js': case 'jsx': return 'javascript';
-    case 'ts': case 'tsx': return 'typescript';
-    case 'json': case 'tsbuildinfo': return 'json';
-    case 'html': return 'html';
-    case 'css': return 'css';
-    case 'md': return 'markdown';
-    default: return 'plaintext';
-  }
-};
 
 import { OpenFile } from '../IdeContainer';
 
@@ -236,7 +184,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                   textColorClass
                 )}
               >
-                {getFileIcon(file.name, "w-3 h-3 shrink-0")}
+                <FileIcon filename={file.name} size={14} className="shrink-0" />
                 <span className="truncate flex-1 text-xs">{file.name}</span>
                 {tabIsDirty && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 ml-1" title="Unsaved changes" />}
                 
@@ -359,6 +307,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             height="100%"
             language={getFileLanguage(selectedFileName || null)}
             theme="vs-dark"
+            path={activeFilePath}
             value={currentLocalContent}
             onChange={(value) => {
               if (activeFilePath) {
