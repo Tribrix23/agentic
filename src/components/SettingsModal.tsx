@@ -3,6 +3,7 @@ import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clo
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, getAvailableModels, AIConfig } from '../lib/aiConfig';
+import { fetchTokenQuota, TokenQuotaSnapshot } from '../lib/tokenQuota';
 
 interface ProjectFolder {
   path: string;
@@ -102,15 +103,7 @@ const ToggleSetting = ({ label, description, checked, onChange }: { label: strin
   </div>
 );
 
-interface TokenQuotaResponse {
-  userId: string;
-  max_token: number;
-  token_remaining: number;
-  reset: string | null;
-  other_ai_remaining: number;
-  other_ai_max: number;
-  other_ai_reset: string | null;
-}
+type TokenQuotaResponse = TokenQuotaSnapshot;
 
 const getResetDaysRemaining = (reset: string | null) => {
   if (!reset) return null;
@@ -270,20 +263,7 @@ export const SettingsModal = ({
     setTokenQuotasError(null);
 
     try {
-      const response = await fetch('https://api.devctr.com/api/get-tokens', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ userId: user.token }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to fetch token quotas.');
-      }
-
-      setTokenQuotas(data as TokenQuotaResponse);
+      setTokenQuotas(await fetchTokenQuota(user.token));
     } catch (error) {
       setTokenQuotasError(error instanceof Error ? error.message : 'Failed to fetch token quotas.');
     } finally {
@@ -296,6 +276,14 @@ export const SettingsModal = ({
       void fetchTokenQuotas();
     }
   }, [activeTab, fetchTokenQuotas, tokenQuotas, tokenQuotasError, tokenQuotasLoading]);
+
+  useEffect(() => {
+    const handleQuotaUpdated = () => {
+      if (activeTab === 'model') void fetchTokenQuotas();
+    };
+    window.addEventListener('token-quota-updated', handleQuotaUpdated);
+    return () => window.removeEventListener('token-quota-updated', handleQuotaUpdated);
+  }, [activeTab, fetchTokenQuotas]);
 
   const selectedProject = projects.find(p => `project-${p.path}` === activeTab);
 

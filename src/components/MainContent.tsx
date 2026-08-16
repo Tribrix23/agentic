@@ -28,6 +28,7 @@ import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
 import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
 import { setCurrentUserMessageId } from '../lib/tools/executor';
+import { TokenBillingSession } from '../lib/tokenQuota';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
@@ -51,7 +52,7 @@ export const MainContent = ({
   rightOpen,
   onOpenIde
 }: {
-  user: { name: string, avatar: string },
+  user: { name: string, avatar: string, token?: string },
   toggleLeftSidebar: () => void,
   toggleRightSidebar: () => void,
   leftOpen: boolean,
@@ -102,6 +103,7 @@ export const MainContent = ({
 
   const agentLoopRef = useRef<ReturnType<typeof createAgentLoop> | null>(null);
   const subagentLoopsRef = useRef<Map<string, ReturnType<typeof createAgentLoop>>>(new Map());
+  const billingSessionRef = useRef<TokenBillingSession | null>(null);
   const isStreamingRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
 
@@ -471,6 +473,7 @@ export const MainContent = ({
         toolExecutor: subagentToolExecutor,
         conversationId,
         agentRole: 'subagent',
+        billingSession: billingSessionRef.current || undefined,
       });
       
       try {
@@ -793,6 +796,32 @@ IMPORTANT RULES:
     // If agent is already running and actively working (not sleeping), ignore
     if (isAgentRunning) return;
 
+    if (!user.token) {
+      setAgentStatus('Error: No user ID is available for token billing.');
+      setAgentState('error');
+      return;
+    }
+
+    const isSleepingAgent = Boolean(
+      aiConfig.agentMode &&
+      agentLoopRef.current &&
+      agentLoopRef.current.getState().status === 'sleeping'
+    );
+    let billingSession = isSleepingAgent ? billingSessionRef.current : null;
+    if (!billingSession) {
+      billingSession = new TokenBillingSession(user.token, aiConfig.model);
+      billingSessionRef.current = billingSession;
+      try {
+        await billingSession.start();
+      } catch (error) {
+        billingSessionRef.current = null;
+        const message = error instanceof Error ? error.message : 'Unable to verify the weekly token quota.';
+        setAgentStatus(`Error: ${message}`);
+        setAgentState('error');
+        return;
+      }
+    }
+
     let isFirstMessage = false;
     let convId = activeConversationId;
     if (messages.length === 0) {
@@ -816,7 +845,7 @@ IMPORTANT RULES:
     isStreamingRef.current = true;
     
     // If agent loop already exists and is just sleeping, wake it up!
-    if (aiConfig.agentMode && agentLoopRef.current && agentLoopRef.current.getState().status === 'sleeping') {
+    if (isSleepingAgent && agentLoopRef.current) {
       agentLoopRef.current.wakeup([{ ...userMsg, role: 'user' }]);
       return; // Skip the rest of initialization
     }
@@ -891,7 +920,8 @@ IMPORTANT RULES:
             }
           }
         },
-        checkIsStreaming: () => true
+        checkIsStreaming: () => true,
+        billingSession,
       });
     }
 
@@ -917,6 +947,7 @@ IMPORTANT RULES:
         toolExecutor,
         conversationId: convId,
         agentRole: 'orchestrator',
+        billingSession,
       });
 
       agentLoopRef.current.updateConfig(aiConfig);
@@ -977,6 +1008,7 @@ IMPORTANT RULES:
           setIsAgentRunning(false);
         },
         checkIsStreaming: () => isStreamingRef.current,
+        billingSession,
       });
     }
   }, [messages, activeConversationId, selectedProject, aiConfig, isAgentRunning, projectFiles, handleAgentEvent, toolExecutor]);
@@ -998,6 +1030,7 @@ IMPORTANT RULES:
 
   // ── Stop Agent ───────────────────────────────────────────────────────
   const handleStopAgent = useCallback(() => {
+    billingSessionRef.current?.stop();
     if (agentLoopRef.current) {
       agentLoopRef.current.stop();
     }
@@ -1011,6 +1044,26 @@ IMPORTANT RULES:
     setMessages(prev => prev.map(m =>
       m.isStreaming ? { ...m, isStreaming: false } : m
     ));
+  }, []);
+
+  useEffect(() => {
+    const handleQuotaExhausted = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message || 'Weekly token quota is exhausted.';
+      if (agentLoopRef.current) agentLoopRef.current.stop();
+      subagentLoopsRef.current.forEach(loop => loop.stop());
+      subagentLoopsRef.current.clear();
+      isStreamingRef.current = false;
+      setIsAgentRunning(false);
+      setAgentStatus(`Quota exhausted: ${message}`);
+      setAgentState('error');
+      setMessages(prev => prev.map(m => m.isStreaming ? {
+        ...m,
+        content: `${m.content}\n\n**Stopped:** ${message}`.trim(),
+        isStreaming: false,
+      } : m));
+    };
+    window.addEventListener('token-quota-exhausted', handleQuotaExhausted);
+    return () => window.removeEventListener('token-quota-exhausted', handleQuotaExhausted);
   }, []);
 
   useEffect(() => {

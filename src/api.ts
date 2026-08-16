@@ -4,6 +4,7 @@
 
 import { AIConfig, DEFAULT_AI_CONFIG, buildSystemPrompt, MODEL_PRESETS } from './lib/aiConfig';
 import { ToolCall, createToolCall } from './lib/messageTypes';
+import { isQuotaError, TokenBillingSession } from './lib/tokenQuota';
 
 // ── Legacy exports for backward compatibility ──────────────────────────────
 export interface ChatMessage {
@@ -36,6 +37,7 @@ export interface DispatcherAPIParams {
   checkIsStreaming: () => boolean;
   signal?: AbortSignal;
   conversationId?: string;
+  billingSession?: TokenBillingSession;
 }
 
 // ── Legacy-compatible interface (for existing code that hasn't migrated) ───
@@ -258,6 +260,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   let checkIsStreaming: () => boolean;
   let signal: AbortSignal | undefined;
   let conversationId: string | undefined;
+  let billingSession: TokenBillingSession | undefined;
 
   if (isLegacy) {
     const p = params as LegacyDispatcherParams;
@@ -281,6 +284,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     checkIsStreaming = p.checkIsStreaming;
     signal = p.signal;
     conversationId = p.conversationId;
+    billingSession = p.billingSession;
   }
 
   let dynamicTemp = config.temperature;
@@ -316,6 +320,15 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     imageUrl: [] as string[],
     videoUrl: [] as string[],
   };
+
+  if (billingSession) {
+    try {
+      await billingSession.consumePrompt(messages);
+    } catch (error) {
+      onError(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+  }
 
   // Add level parameter only for GPT-OSS models (not for Qwen)
   if (level) {
@@ -416,6 +429,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           onSuccess,
           checkIsStreaming,
           config.streamChunkDelay
+          ,billingSession
         );
       } else {
         // ── Handle non-streaming response ──────────────────────────────
@@ -444,6 +458,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           }
 
           const content = message.content || '';
+          if (content && billingSession) await billingSession.consumeOutput(content);
           if (content) onChunk(content);
           onSuccess(content);
         }
@@ -452,6 +467,10 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
       return; // Success — exit retry loop
 
     } catch (error: any) {
+      if (isQuotaError(error)) {
+        onError(error);
+        return;
+      }
       if (error.name === 'AbortError') {
         if (signal?.aborted) {
           onError(new Error('Request aborted by user'));
@@ -489,6 +508,7 @@ async function handleStreamingResponse(
   onSuccess: (fullText: string) => void,
   checkIsStreaming: () => boolean,
   chunkDelay: number
+  ,billingSession?: TokenBillingSession
 ): Promise<void> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
@@ -536,6 +556,7 @@ async function handleStreamingResponse(
             if (delta) {
               // ── Handle reasoning content (e.g. Nemotron/DeepSeek) ─────────
               if (delta.reasoning_content) {
+                if (billingSession) await billingSession.consumeOutput(delta.reasoning_content);
                 if (!isReasoning) {
                   isReasoning = true;
                   fullContent += '<think>\n';
@@ -547,6 +568,7 @@ async function handleStreamingResponse(
 
               // ── Handle text content ────────────────────────────────
               if (delta.content !== undefined && delta.content !== null) {
+                if (billingSession) await billingSession.consumeOutput(delta.content);
                 if (isReasoning) {
                   isReasoning = false;
                   fullContent += '\n</think>\n';
@@ -596,7 +618,7 @@ async function handleStreamingResponse(
               pendingToolCalls = {};
             }
           } catch (e: any) {
-            if (e.message?.startsWith('Stream Error:')) {
+            if (isQuotaError(e) || e.message?.startsWith('Stream Error:')) {
               throw e; // Propagate real API errors
             }
             // Ignore JSON parse errors on partial chunks

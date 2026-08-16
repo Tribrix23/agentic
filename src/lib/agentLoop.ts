@@ -37,6 +37,7 @@ import {
 import { estimateTokens, truncateToTokens } from './tokenCounter';
 import type { TokenBudget } from './tokenCounter';
 import { callDispatcherAPI } from '../api';
+import { TokenBillingSession } from './tokenQuota';
 import { SecurityInterceptor } from './SecurityInterceptor';
 import { createTask, updateTask, getTasksForConversation } from './taskStore';
 import { TaskGraph } from './taskGraph';
@@ -728,6 +729,7 @@ export class AgentLoop {
             // Always pass tool definitions; api.ts will filter based on model's supportsTools flag
             tools: shouldUseTools ? this.toolDefinitions : undefined,
             conversationId: this.state.conversationId,
+            billingSession: this.options?.billingSession,
             onChunk: (chunk: string) => {
               fullResponseText += chunk;
               assistantMsg.isStreaming = true;
@@ -1593,6 +1595,7 @@ export interface AgentLoopOptions {
   toolDefinitions?: any[];
   conversationId?: string;
   agentRole?: 'orchestrator' | 'subagent';
+  billingSession?: TokenBillingSession;
 }
 
 /** Create a new AgentLoop with current configuration */
@@ -1609,5 +1612,6 @@ export function createAgentLoop(
     toolDefinitions: options?.toolDefinitions,
     conversationId: options?.conversationId,
     agentRole: options?.agentRole,
+    billingSession: options?.billingSession,
   });
 }
