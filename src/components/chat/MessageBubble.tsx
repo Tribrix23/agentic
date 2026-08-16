@@ -116,7 +116,7 @@ export function MessageBubble({
         .replace(/\[Tool Result:[^\]]*\]/gi, '')
         .replace(/\[Actions taken[^\]]*\]/gi, '')
         .replace(/^TOOL RESULT \([^)]+\):.*$/gim, '')
-        .replace(/^TOOL ACTION: \w+\(.*$/gim, '')
+        .replace(/^TOOL ACTION: \w+.*$/gim, '')
         .replace(/^\[Actions taken in previous step\].*$/gim, '')
         .replace(/<past_action[\s\S]*?(?:<\/past_action>|$)/gi, '')
         .replace(/<past_tool_result[\s\S]*?(?:<\/past_tool_result>|$)/gi, '')

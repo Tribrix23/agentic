@@ -31,10 +31,11 @@ export class ParallelToolExecutor {
   }
 
   /**
-   * Analyzes tool calls to determine dependencies
-   * Tools are independent if they don't reference the same files or have explicit dependencies
+   * Analyzes tool calls to determine dependencies.
+   * Tools are independent if they don't reference the same files or have explicit dependencies.
+   * Public so callers can inspect the dependency graph directly.
    */
-  private analyzeDependencies(toolCalls: ToolCall[]): ToolDependency[] {
+  public analyzeDependencies(toolCalls: ToolCall[]): ToolDependency[] {
     const dependencies: ToolDependency[] = [];
 
     for (const toolCall of toolCalls) {
@@ -95,10 +96,11 @@ export class ParallelToolExecutor {
   }
 
   /**
-   * Creates execution batches based on dependencies
-   * Returns an array of batches, where each batch contains tool IDs that can run in parallel
+   * Creates execution batches based on dependencies.
+   * Returns an array of batches, where each batch contains tool IDs that can run in parallel.
+   * Public so callers can use the batch structure with their own execution logic.
    */
-  private createBatches(dependencies: ToolDependency[]): string[][] {
+  public createBatches(dependencies: ToolDependency[]): string[][] {
     const batches: string[][] = [];
     const executed = new Set<string>();
     const depMap = new Map<string, string[]>();
@@ -235,6 +237,33 @@ export class ParallelToolExecutor {
       totalDuration,
       parallelism: maxParallelism,
     };
+  }
+
+  /**
+   * Analyzes tool calls and returns ordered execution batches as ToolCall arrays.
+   * Tools within the same batch are independent and can safely run in parallel.
+   * Batches must be executed sequentially since later batches may depend on earlier ones.
+   *
+   * Use this method to integrate parallel scheduling with custom execution logic
+   * (e.g. agentLoop's executeToolInternal which handles events, approvals, snapshots).
+   *
+   * @example
+   *   const batches = parallelExecutor.getExecutionBatches(writeTools);
+   *   for (const batch of batches) {
+   *     await Promise.all(batch.map(tc => executeToolInternal(tc))); // parallel within batch
+   *   }
+   */
+  public getExecutionBatches(toolCalls: ToolCall[]): ToolCall[][] {
+    if (toolCalls.length === 0) return [];
+    if (toolCalls.length === 1) return [toolCalls];
+
+    const toolMap = new Map<string, ToolCall>(toolCalls.map(tc => [tc.id, tc]));
+    const dependencies = this.analyzeDependencies(toolCalls);
+    const batchIds = this.createBatches(dependencies);
+
+    return batchIds
+      .map(ids => ids.map(id => toolMap.get(id)!).filter(Boolean))
+      .filter(batch => batch.length > 0);
   }
 
   /**

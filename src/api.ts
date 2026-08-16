@@ -54,6 +54,81 @@ interface LegacyDispatcherParams {
 const DISPATCHER_ENDPOINT = 'https://api.devctr.com/api/dispatcher';
 const MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
 const GPT56_MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
+const TEMP_API_KEY_ENDPOINT = 'https://api.devctr.com/api/calls';
+
+// ── Temporary API Key Management ──────────────────────────────────────────────
+
+interface TempApiKeyResponse {
+  tempApiKey: string;
+  expiresAt: string;
+}
+
+let cachedTempApiKey: string | null = null;
+let cachedExpiresAt: number | null = null;
+let endpointCallCount = 0;
+let cacheHitCount = 0;
+let pendingKeyFetch: Promise<string> | null = null;
+
+async function getTempApiKey(): Promise<string> {
+  const now = Date.now();
+  
+  // Check if we have a cached key that's still valid (with 5 minute buffer)
+  if (cachedTempApiKey && cachedExpiresAt) {
+    const expiresWithBuffer = cachedExpiresAt - (5 * 60 * 1000); // 5 minutes before actual expiry
+    if (now < expiresWithBuffer) {
+      cacheHitCount++;
+      console.log(`[TempAPI] Cache hit #${cacheHitCount}. Using cached key (expires in ${Math.floor((cachedExpiresAt - now) / 1000)}s). Total endpoint calls: ${endpointCallCount}`);
+      return cachedTempApiKey;
+    }
+    
+    console.log(`[TempAPI] Cached key expired or expiring soon. Fetching new key...`);
+  } else {
+    console.log(`[TempAPI] No cached key available. Fetching new key...`);
+  }
+
+  // If there's already a fetch in progress, wait for it instead of starting a new one
+  if (pendingKeyFetch) {
+    console.log(`[TempAPI] Key fetch already in progress, waiting for existing promise...`);
+    return pendingKeyFetch;
+  }
+
+  // Fetch new temporary API key
+  endpointCallCount++;
+  console.log(`[TempAPI] Endpoint call #${endpointCallCount}. Fetching new temporary API key...`);
+  
+  const fetchPromise = (async () => {
+    try {
+      const response = await fetch(TEMP_API_KEY_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ durationMinutes: 60 })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch temporary API key: ${response.statusText}`);
+      }
+
+      const data: TempApiKeyResponse = await response.json();
+      
+      // Cache the key and expiry time
+      cachedTempApiKey = data.tempApiKey;
+      cachedExpiresAt = new Date(data.expiresAt).getTime();
+      
+      const timeUntilExpiry = Math.floor((cachedExpiresAt - now) / 1000);
+      console.log(`[TempAPI] New key fetched successfully. Expires in ${timeUntilExpiry}s (${Math.floor(timeUntilExpiry / 60)}min). Total endpoint calls: ${endpointCallCount}`);
+
+      return data.tempApiKey;
+    } finally {
+      // Clear the pending promise when done (success or failure)
+      pendingKeyFetch = null;
+    }
+  })();
+
+  pendingKeyFetch = fetchPromise;
+  return fetchPromise;
+}
 
 // ── Helper function to detect GPT-OSS, Qwen, and GPT-5.6 models and extract parameters ──────────────
 function getModelInfo(model: string): {
@@ -294,7 +369,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     }
 
     try {
-      const apiKey = (import.meta as any).env?.VITE_QUANTIX_API_KEY;
+      const apiKey = await getTempApiKey();
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);

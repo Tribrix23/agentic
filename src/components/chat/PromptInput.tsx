@@ -297,7 +297,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         >
                           {model.submodels.length > 0 ? (
                             <>
-                              <button className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors", hoveredCategory === model.id ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}>
+                              <button disabled={model.isPro} className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors", hoveredCategory === model.id ? "bg-white/10 text-white" : "text-[#a8a8b1]", model.isPro ? "opacity-50 cursor-not-allowed" : "hover:text-white hover:bg-white/5")}>
                                 <span className="flex items-center gap-2">
                                   {model.icon}
                                   {model.name}
@@ -308,8 +308,9 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             </>
                           ) : (
                             <button
-                              onClick={() => { updateConfig({ model: model.name }); setShowModelDropdown(false); }}
-                              className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors"
+                              disabled={model.isPro}
+                              onClick={() => { if(!model.isPro) { updateConfig({ model: model.name }); setShowModelDropdown(false); } }}
+                              className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 transition-colors", model.isPro ? "opacity-50 cursor-not-allowed text-[#a8a8b1]" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
                             >
                               <span className="flex items-center gap-2">
                                 {model.icon}
@@ -325,10 +326,35 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 )}
               </AnimatePresence>
 
-              {/* Portal for submodel dropdown */}
+              {/* Portal for submodel dropdown and tooltips */}
               {showModelDropdown && hoveredCategory && hoveredCategoryPosition && (() => {
                 const model = allModels.find(m => m.id === hoveredCategory);
-                if (!model || model.submodels.length === 0) return null;
+                if (!model) return null;
+                
+                if (model.isPro) {
+                  return createPortal(
+                    <AnimatePresence>
+                      <motion.div
+                        initial={{ opacity: 0, x: -5 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -5 }}
+                        transition={{ duration: 0.15 }}
+                        style={{
+                          position: 'fixed',
+                          top: hoveredCategoryPosition.top + 2,
+                          left: hoveredCategoryPosition.left + 8,
+                          zIndex: 9999,
+                        }}
+                        className="px-3 py-1.5 bg-[#1f2937] text-white text-xs rounded whitespace-nowrap shadow-xl border border-white/5"
+                      >
+                        Upgrade your plan to Pro+
+                      </motion.div>
+                    </AnimatePresence>,
+                    document.body
+                  );
+                }
+
+                if (model.submodels.length === 0) return null;
                 return createPortal(
                   <AnimatePresence>
                     <motion.div

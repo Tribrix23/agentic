@@ -13,6 +13,8 @@ export interface SubAgent {
   loop: AgentLoop;
   history: AgenticMessage[];
   status: 'idle' | 'running' | 'done' | 'error';
+  /** The primary file this agent is responsible for writing — used to build sibling manifests. */
+  targetFile?: string;
 }
 
 export class SubAgentOrchestrator {
@@ -28,7 +30,13 @@ export class SubAgentOrchestrator {
   }
 
   /** Spawn a new isolated sub-agent */
-  public spawnSubAgent(role: string, systemPrompt: string, toolDefinitions: any[], executor: any): string {
+  public spawnSubAgent(
+    role: string,
+    systemPrompt: string,
+    toolDefinitions: any[],
+    executor: any,
+    targetFile?: string
+  ): string {
     const id = `subagent_${Math.random().toString(36).substring(2, 9)}`;
     
     // Sub-agent gets its own isolated event callback to route to the main UI
@@ -52,8 +60,21 @@ export class SubAgentOrchestrator {
     });
     loop.updateConfig(subagentConfig);
 
+    // Build sibling-awareness manifest so this agent knows which files
+    // are already claimed by concurrently-running sibling agents.
+    const runningSiblings = Array.from(this.subAgents.values()).filter(
+      sa => (sa.status === 'idle' || sa.status === 'running') && sa.targetFile
+    );
+    const siblingManifest = runningSiblings.length > 0
+      ? `\n\n[SIBLING AGENTS — FILE OWNERSHIP]\nThe following sub-agents are currently running and own these files. You MUST NOT write to these paths to avoid conflicts:\n${runningSiblings.map(sa => `- ${sa.role}: ${sa.targetFile}`).join('\n')}\nYour assigned file: ${targetFile || '(none specified)'}`
+      : targetFile
+        ? `\n\n[YOUR ASSIGNED FILE] You are solely responsible for: ${targetFile}`
+        : '';
+
     const history: AgenticMessage[] = [
-      createSystemMessage(`[SUB-AGENT MODE]\nYou are a sub-agent spawned by the primary orchestrator.\nYour Role: ${role}\nInstructions: ${systemPrompt}\nWhen you are finished with your task, you MUST use the send_message tool to report your results back to the parent agent.`)
+      createSystemMessage(
+        `[SUB-AGENT MODE]\nYou are a sub-agent spawned by the primary orchestrator.\nYour Role: ${role}\nInstructions: ${systemPrompt}${siblingManifest}\nWhen you are finished with your task, you MUST use the send_message tool to report your results back to the parent agent.`
+      )
     ];
 
     this.subAgents.set(id, {
@@ -62,7 +83,8 @@ export class SubAgentOrchestrator {
       systemPrompt,
       loop,
       history,
-      status: 'idle'
+      status: 'idle',
+      targetFile,
     });
 
     this.parentAgent.notifySubagentSpawned();

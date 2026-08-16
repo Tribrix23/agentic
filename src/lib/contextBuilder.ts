@@ -298,8 +298,13 @@ export function buildContext(
       const toolCallDesc = msg.toolCalls
         .map((tc) => {
           // Plain text format — no XML, no brackets the AI will echo back.
-          const argsStr = JSON.stringify(tc.arguments).slice(0, 120);
-          let desc = `TOOL ACTION: ${tc.name}(${argsStr})`;
+          // IMPORTANT: Do NOT use JSON.stringify here! If the AI sees JSON in its history,
+          // it will start outputting JSON instead of XML, poisoning its context.
+          const argsStr = Object.entries(tc.arguments || {})
+            .map(([k, v]) => `${k}=${String(v)}`)
+            .join(', ')
+            .slice(0, 150);
+          let desc = `TOOL ACTION: ${tc.name} [${argsStr}]`;
           if (tc.result) {
             const snippet = tc.result.output.slice(0, 600) + (tc.result.output.length > 600 ? '...' : '');
             desc += ` → ${tc.result.success ? 'OK' : 'ERROR'}: ${snippet}`;
@@ -310,6 +315,12 @@ export function buildContext(
       // Prepend a brief note so the AI knows this is history
       const historyNote = `[Actions taken in previous step - DO NOT REPEAT THESE]\n${toolCallDesc}`;
       chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + historyNote : historyNote;
+      // CHANGE ROLE TO USER: If we leave this as 'assistant', the LLM will learn by
+      // example to literally generate "[Actions taken...]" in its own responses.
+      // EXCEPTION: 'dispatcher v1' is fine-tuned to expect this as an assistant role.
+      if (!config.model.toLowerCase().includes('dispatcher v1')) {
+        chatMsg.role = 'user';
+      }
     }
 
     const msgTokens = estimateTokens(chatMsg.content) + 4;

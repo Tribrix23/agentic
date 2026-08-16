@@ -41,7 +41,7 @@ export interface AppConfig {
 export const DEFAULT_CONFIG: AppConfig = {
   environment: 'development',
   api: {
-    endpoint: 'https://quantix.api.devctr.com/api/dispatcher',
+    endpoint: 'https://api.devctr.com/api/dispatcher',
     timeout: 30000,
     maxRetries: 3,
     retryDelay: 1000,
@@ -161,8 +161,8 @@ export class ConfigManager {
     // Validate logging config
     if (config.logging && typeof config.logging === 'object') {
       validated.logging = {
-        level: ['debug', 'info', 'warn', 'error'].includes(config.logging.level) 
-          ? config.logging.level 
+        level: ['debug', 'info', 'warn', 'error'].includes(config.logging.level)
+          ? config.logging.level
           : DEFAULT_CONFIG.logging.level,
         enableConsole: typeof config.logging.enableConsole === 'boolean' ? config.logging.enableConsole : DEFAULT_CONFIG.logging.enableConsole,
         enableFile: typeof config.logging.enableFile === 'boolean' ? config.logging.enableFile : DEFAULT_CONFIG.logging.enableFile,

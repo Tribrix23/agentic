@@ -73,10 +73,11 @@ cd ..
 ### Environment Setup
 Create a `.env` file in the root directory:
 ```env
-VITE_QUANTIX_API_KEY=your_api_key_here
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_SERVICE_KEY=your_supabase_service_key
 ```
+
+Note: The API key is now automatically fetched from the temporary API key endpoint, so no manual API key configuration is required.
 
 ### Development Mode
 ```bash

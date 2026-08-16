@@ -40,6 +40,7 @@ import { callDispatcherAPI } from '../api';
 import { SecurityInterceptor } from './SecurityInterceptor';
 import { createTask, updateTask, getTasksForConversation } from './taskStore';
 import { TaskGraph } from './taskGraph';
+import { ParallelToolExecutor } from './parallelExecutor';
 
 // ── Agent Events ───────────────────────────────────────────────────────────
 
@@ -359,7 +360,7 @@ function stripToolCallBlocks(text: string, parsedToolCalls?: ParsedToolCall[]): 
   cleaned = cleaned.replace(/\[Actions taken[^\]]*\]/gi, '');
   // New plain-text history format echoes
   cleaned = cleaned.replace(/^TOOL RESULT \([^)]+\):.*$/gim, '');
-  cleaned = cleaned.replace(/^TOOL ACTION: \w+\(.*$/gim, '');
+  cleaned = cleaned.replace(/^TOOL ACTION: \w+.*$/gim, '');
   cleaned = cleaned.replace(/^\[Actions taken in previous step\].*$/gim, '');
   // XML past_action / past_tool_result — match even if malformed/unclosed
   cleaned = cleaned.replace(/<past_action[\s\S]*?(?:<\/past_action>|$)/gi, '');
@@ -388,6 +389,9 @@ export class AgentLoop {
   private executedToolNames: Set<string> = new Set();
   private successfulFileWrites: number = 0;
   private options?: AgentLoopOptions;
+  /** Dependency-aware parallel executor for write tools — uses ParallelToolExecutor's
+   * file-dependency analysis to safely run independent writes concurrently. */
+  private parallelExecutor?: ParallelToolExecutor;
   
   // Token optimization: cache static content
   private cachedSystemPrompt?: string;
@@ -488,6 +492,11 @@ export class AgentLoop {
   updateTools(definitions: any[], executor: (toolCall: ToolCall) => Promise<ToolResult>): void {
     this.toolDefinitions = definitions;
     this.toolExecutor = executor;
+    // (Re-)initialize the parallel executor whenever the tool executor changes
+    this.parallelExecutor = new ParallelToolExecutor(
+      executor as any, // ToolCall types are structurally identical — same re-export from messageTypes
+      { maxConcurrency: 4 }
+    );
   }
 
   /**
@@ -1018,13 +1027,15 @@ export class AgentLoop {
           this.toolExecutor &&
           this.state.isRunning
         ) {
-          // Separate read-only tools (can run in parallel) from write tools (must run sequentially)
-          const readOnlyTools = assistantMsg.toolCalls.filter(tc => 
-            ['listDirectory', 'readFile', 'grepSearch', 'findByName'].includes(tc.name)
-          );
-          const writeTools = assistantMsg.toolCalls.filter(tc => 
-            !['listDirectory', 'readFile', 'grepSearch', 'findByName'].includes(tc.name)
-          );
+          // ── Classify tools: read-only (all can run in parallel) vs write/side-effect ──
+          // Expanded pool: any non-mutating tool is safe to parallelize.
+          const READ_ONLY_TOOLS = new Set([
+            'listDirectory', 'readFile', 'grepSearch', 'findByName',
+            'searchFiles', 'codeAnalysis', 'webSearch', 'readUrl',
+            'gitStatus', 'gitDiff', 'commandStatus',
+          ]);
+          const readOnlyTools = assistantMsg.toolCalls.filter(tc => READ_ONLY_TOOLS.has(tc.name));
+          const writeTools    = assistantMsg.toolCalls.filter(tc => !READ_ONLY_TOOLS.has(tc.name));
 
           // Execute read-only tools in parallel for efficiency
           const executeToolInternal = async (toolCall: any) => {
@@ -1179,9 +1190,27 @@ export class AgentLoop {
 
           await Promise.all(invokeSubagentTools.map(executeToolInternal));
 
-          // Run write tools sequentially to avoid race conditions
-          for (const writeTool of actualWriteTools) {
-            await executeToolInternal(writeTool);
+          // ── Smart parallel execution for independent write tools ──────────────────
+          // Use ParallelToolExecutor's dependency analysis to group tools by file
+          // conflicts. Tools in the same batch target different files and are safe
+          // to run concurrently. Batches are run sequentially (later batches may
+          // depend on earlier ones, e.g. editFile after createFile on the same path).
+          if (this.parallelExecutor && actualWriteTools.length > 1) {
+            const batches = this.parallelExecutor.getExecutionBatches(actualWriteTools as any);
+            console.log(`[AgentLoop] Parallel write execution: ${actualWriteTools.length} tools → ${batches.length} batch(es)`, batches.map(b => b.map(t => t.name)));
+            for (const batch of batches) {
+              if (batch.length === 1) {
+                await executeToolInternal(batch[0]);
+              } else {
+                // Multiple independent tools — run in parallel
+                await Promise.all(batch.map(executeToolInternal));
+              }
+            }
+          } else {
+            // Fallback: single tool or no parallel executor
+            for (const writeTool of actualWriteTools) {
+              await executeToolInternal(writeTool);
+            }
           }
 
           this.state.currentToolCall = undefined;
@@ -1234,21 +1263,11 @@ export class AgentLoop {
             const convTasks = convId ? getTasksForConversation(convId) : [];
             
             // Find tasks that are ready to execute (dependencies satisfied, not delegated, not completed)
-            const readyTasks = convTasks.filter(t => {
-              if (t.status !== 'pending') return false;
-              if (t.delegatedTo) return false; // Already delegated
-              
-              // Check if dependencies are satisfied
-              if (t.dependencies && t.dependencies.length > 0) {
-                const incompleteDeps = t.dependencies.filter(depId => {
-                  const depTask = convTasks.find(ct => ct.id === depId);
-                  return !depTask || depTask.status !== 'completed';
-                });
-                if (incompleteDeps.length > 0) return false;
-              }
-              
-              return true;
-            });
+            // Rebuild graph from fresh task store data so status is current,
+            // then use TaskGraph.getExecutableTasks() for proper dependency-aware scheduling.
+            const freshTasks = convId ? getTasksForConversation(convId) : [];
+            const freshGraph = new TaskGraph(freshTasks);
+            const readyTasks = freshGraph.getExecutableTasks().filter(t => !t.delegatedTo);
             
             const hasUnfinishedWork = readyTasks.length > 0 && this.activeSubagentCount === 0;
             
@@ -1367,10 +1386,17 @@ export class AgentLoop {
             }, 300000); // 5 minutes
           });
           
-          // Agent woke up
+          // Agent woke up — collect any messages that arrive in a short batch window
+          // before triggering the next LLM call. This merges results from multiple
+          // sub-agents that finish near-simultaneously into a single LLM round-trip
+          // instead of N separate round-trips.
           if (this.state.isRunning && !this.abortController?.signal.aborted) {
             continueLoop = true;
             this.state.status = 'waking up';
+
+            // 300 ms batch window: accumulate any additional sub-agent messages
+            await new Promise<void>(r => setTimeout(r, 300));
+
             if (this.pendingMessages.length > 0) {
               updatedMessages.push(...this.pendingMessages);
               this.pendingMessages = [];
