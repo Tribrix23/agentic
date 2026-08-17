@@ -26,6 +26,32 @@ import { definition as appendFileDef, handler as appendFileHandler } from './def
 import { definition as createFolderDef, handler as createFolderHandler } from './definitions/createFolder';
 import { definition as deleteFolderDef, handler as deleteFolderHandler } from './definitions/deleteFolder';
 import { definition as renameFolderDef, handler as renameFolderHandler } from './definitions/renameFolder';
+import { definition as findTextDef, handler as findTextHandler } from './definitions/findText';
+import { definition as executeCodeDef, handler as executeCodeHandler } from './definitions/executeCode';
+import { definition as analyzeDependenciesDef, handler as analyzeDependenciesHandler } from './definitions/analyzeDependencies';
+import { definition as formatCodeDef, handler as formatCodeHandler } from './definitions/formatCode';
+import { definition as runTestsDef, handler as runTestsHandler } from './definitions/runTests';
+import { definition as getGitBranchDef, handler as getGitBranchHandler } from './definitions/getGitBranch';
+import { definition as createBranchDef, handler as createBranchHandler } from './definitions/createBranch';
+import { definition as downloadFileDef, handler as downloadFileHandler } from './definitions/downloadFile';
+import { definition as getFileInfoDef, handler as getFileInfoHandler } from './definitions/getFileInfo';
+import { definition as compareFilesDef, handler as compareFilesHandler } from './definitions/compareFiles';
+import { definition as findDuplicatesDef, handler as findDuplicatesHandler } from './definitions/findDuplicates';
+import { definition as checkSyntaxDef, handler as checkSyntaxHandler } from './definitions/checkSyntax';
+import { definition as compressFileDef, handler as compressFileHandler } from './definitions/compressFile';
+import { definition as extractArchiveDef, handler as extractArchiveHandler } from './definitions/extractArchive';
+import { definition as validateSchemaDef, handler as validateSchemaHandler } from './definitions/validateSchema';
+import { definition as generateDocumentationDef, handler as generateDocumentationHandler } from './definitions/generateDocumentation';
+import { definition as refactorCodeDef, handler as refactorCodeHandler } from './definitions/refactorCode';
+import { definition as convertFormatDef, handler as convertFormatHandler } from './definitions/convertFormat';
+import { definition as optimizeImageDef, handler as optimizeImageHandler } from './definitions/optimizeImage';
+import { definition as mergeBranchDef, handler as mergeBranchHandler } from './definitions/mergeBranch';
+import { definition as screenshotDef, handler as screenshotHandler } from './definitions/screenshot';
+import { definition as listWindowsDef, handler as listWindowsHandler } from './definitions/listWindows';
+import { definition as getClipboardDef, handler as getClipboardHandler } from './definitions/getClipboard';
+import { definition as setClipboardDef, handler as setClipboardHandler } from './definitions/setClipboard';
+import { definition as listProcessesDef, handler as listProcessesHandler } from './definitions/listProcesses';
+import { definition as killProcessDef, handler as killProcessHandler } from './definitions/killProcess';
 
 export * from './types';
 export * from './registry';
@@ -60,6 +86,32 @@ export function initializeTools() {
   registerTool(createFolderDef, createFolderHandler);
   registerTool(deleteFolderDef, deleteFolderHandler);
   registerTool(renameFolderDef, renameFolderHandler);
+  registerTool(findTextDef, findTextHandler);
+  registerTool(executeCodeDef, executeCodeHandler);
+  registerTool(analyzeDependenciesDef, analyzeDependenciesHandler);
+  registerTool(formatCodeDef, formatCodeHandler);
+  registerTool(runTestsDef, runTestsHandler);
+  registerTool(getGitBranchDef, getGitBranchHandler);
+  registerTool(createBranchDef, createBranchHandler);
+  registerTool(downloadFileDef, downloadFileHandler);
+  registerTool(getFileInfoDef, getFileInfoHandler);
+  registerTool(compareFilesDef, compareFilesHandler);
+  registerTool(findDuplicatesDef, findDuplicatesHandler);
+  registerTool(checkSyntaxDef, checkSyntaxHandler);
+  registerTool(compressFileDef, compressFileHandler);
+  registerTool(extractArchiveDef, extractArchiveHandler);
+  registerTool(validateSchemaDef, validateSchemaHandler);
+  registerTool(generateDocumentationDef, generateDocumentationHandler);
+  registerTool(refactorCodeDef, refactorCodeHandler);
+  registerTool(convertFormatDef, convertFormatHandler);
+  registerTool(optimizeImageDef, optimizeImageHandler);
+  registerTool(mergeBranchDef, mergeBranchHandler);
+  registerTool(screenshotDef, screenshotHandler);
+  registerTool(listWindowsDef, listWindowsHandler);
+  registerTool(getClipboardDef, getClipboardHandler);
+  registerTool(setClipboardDef, setClipboardHandler);
+  registerTool(listProcessesDef, listProcessesHandler);
+  registerTool(killProcessDef, killProcessHandler);
 }
 
 // Automatically register all tools when the module loads to survive HMR

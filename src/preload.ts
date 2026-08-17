@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // ── Agentic Tool System ──────────────────────────────────────────────
   runCommandCapture: (command: string, cwd: string) => ipcRenderer.invoke('run-command-capture', command, cwd),
+  captureWindow: (options: { windowTitle: string; savePath: string; format?: 'png' | 'jpg' }) => ipcRenderer.invoke('capture-window', options),
   gitDiff: (cwd: string, file?: string) => ipcRenderer.invoke('git-diff', cwd, file),
   searchFiles: (projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => ipcRenderer.invoke('search-files', projectPath, query, options),
   fileExists: (filePath: string) => ipcRenderer.invoke('file-exists', filePath),

@@ -9,6 +9,7 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 import { AgentState } from '../../lib/types/AgentTypes';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { AskUserCard } from './AskUserCard';
+import { Square } from 'lucide-react';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -63,7 +64,18 @@ export function ChatContainer({
   userId
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
-    <div className={cn("flex flex-col h-full bg-transparent text-white")}>
+    <div className={cn("relative flex flex-col h-full bg-transparent text-white")}>
+      {isAgentRunning && (
+        <button
+          type="button"
+          onClick={onStopAgent}
+          className="absolute bottom-5 right-5 z-[120] flex h-10 w-10 items-center justify-center rounded-full border border-red-300/30 bg-red-500 text-white shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-colors hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300/70"
+          title="Stop agent"
+          aria-label="Stop agent"
+        >
+          <Square size={15} fill="currentColor" />
+        </button>
+      )}
       <div className="flex-1 overflow-hidden relative">
         <MessageThread 
           messages={messages}
