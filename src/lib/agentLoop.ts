@@ -27,6 +27,7 @@ import {
   createToolCall,
   createUserMessage,
 } from './messageTypes';
+import { isFileTool, getFileOperation } from './fileActivity';
 import { buildContext, buildGpt56ToolPrompt, ProjectContext } from './contextBuilder';
 import {
   needsSummarization,
@@ -916,6 +917,10 @@ export class AgentLoop {
                 return;
               }
               
+              // Tag calls before emitting them so the UI can identify the
+              // actor even while the call is still waiting or streaming.
+              toolCall.agentKind = this.options?.agentRole === 'subagent' ? 'subagent' : 'main';
+              toolCall.agentRole = this.options?.agentRole;
               // Handle structured tool calls from the API
               if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
               assistantMsg.toolCalls.push(toolCall);
@@ -977,7 +982,9 @@ export class AgentLoop {
                     name: pc.name,
                     arguments: pc.arguments,
                     status: 'pending',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    agentKind: this.options?.agentRole === 'subagent' ? 'subagent' : 'main',
+                    agentRole: this.options?.agentRole
                   };
                   assistantMsg.toolCalls.push(newCall);
                   this.emit({ type: 'agent:tool-call', data: newCall });
@@ -1165,8 +1172,11 @@ export class AgentLoop {
               let result: ToolResult;
               if (isApproved) {
                 // Check if this is a coding operation
-                const isCodingOperation = toolCall.name === 'writeFile' || toolCall.name === 'createFile' || toolCall.name === 'editFile';
+                const isCodingOperation = isFileTool(toolCall.name);
                 const filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile || '';
+
+                toolCall.agentKind = this.options?.agentRole === 'subagent' ? 'subagent' : 'main';
+                toolCall.agentRole = this.options?.agentRole;
 
                 if (isCodingOperation && filePath) {
                   this.emit({ 
@@ -1181,6 +1191,9 @@ export class AgentLoop {
 
                 this.state.status = `Executing ${toolCall.name}...`;
                 result = await this.toolExecutor(toolCall);
+                // Attach the result before deriving the user-facing operation so
+                // writeFile can distinguish a new file from an existing file.
+                toolCall.result = result;
                 
                 if (result.success) {
                   this.executedToolNames.add(toolCall.name);
@@ -1196,7 +1209,8 @@ export class AgentLoop {
                         filePath,
                         added: addedLines,
                         removed: 0,
-                        toolName: toolCall.name
+                        toolName: toolCall.name,
+                        operation: getFileOperation(toolCall)
                       }
                     });
                     
@@ -1205,7 +1219,8 @@ export class AgentLoop {
                       data: { 
                         fileName: filePath.split('/').pop() || filePath,
                         filePath,
-                        toolName: toolCall.name
+                        toolName: toolCall.name,
+                        operation: getFileOperation(toolCall)
                       }
                     });
                   }

@@ -3,7 +3,7 @@ import { updateTask, getTask, getTasksForConversation } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'invokeSubagent',
-  description: 'Invokes a sub-agent to perform a task in parallel. The sub-agent runs independently and reports back. The main agent loop will be woken up when the sub-agent completes. Pass taskId to automatically update the task status when the sub-agent finishes. IMPORTANT: You MUST provide the sub-agent with comprehensive information about its task. Tell it exactly which file to edit, what to do, and provide any necessary context. The sub-agent CANNOT use listDirectory to explore the project itself.',
+  description: 'Invokes a sub-agent for a bounded analysis or implementation task when delegation materially improves speed or handles complexity. The sub-agent runs independently and reports back, then the main loop wakes automatically. Provide complete scope and context. Implementation tasks should identify the owned targetFile; read-only analysis tasks may omit targetFile and must not mutate files.',
   category: 'system',
   parameters: {
     type: 'object',
@@ -11,7 +11,7 @@ export const definition: ToolDefinition = {
       task: { type: 'string', description: 'The detailed task for the sub-agent to perform.' },
       role: { type: 'string', description: 'The role of the sub-agent (e.g., Coder, Researcher, Designer)' },
       taskId: { type: 'string', description: 'Required task ID returned by createTodoListTasks. Only currently executable tasks may be delegated.' },
-      targetFile: { type: 'string', description: 'The exact file path this sub-agent is responsible for creating or editing.' }
+      targetFile: { type: 'string', description: 'For implementation tasks, the exact file path this sub-agent owns. Omit for read-only analysis.' }
     },
     required: ['task', 'role', 'taskId']
   },
@@ -80,6 +80,7 @@ export const handler: ToolHandler = async (args, context) => {
         parentConversationId: context.conversationId,
         taskId, // Pass taskId so MainContent can mark it completed when done
         targetFile: claimedTarget // Pass the planned claim so the UI knows what it is working on
+        ,agentKind: 'subagent'
       }
     }));
 

@@ -42,6 +42,8 @@ export interface ToolCall {
   result?: ToolResult;
   timestamp: number;
   durationMs?: number;
+  agentKind?: 'main' | 'subagent';
+  agentRole?: string;
 }
 
 /** The full agentic message model — extends the simple ChatMessage */

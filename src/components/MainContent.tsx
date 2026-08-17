@@ -291,6 +291,8 @@ export const MainContent = ({
           signal: controller.signal,
           conversationId,
           parentLoop: undefined, // Subagents don't spawn further subagents
+          agentKind: 'subagent',
+          agentRole: role,
         };
         const result = await executeTool(toolCall, context, permConfig);
         controller.abort(); // Clean up the controller
@@ -305,7 +307,9 @@ export const MainContent = ({
               conversationId,
               fileName: event.data.fileName,
               added: event.data.added,
-              removed: event.data.removed
+              removed: event.data.removed,
+              operation: event.data.operation,
+              role
             }
           }));
         } else if (event.type === 'agent:error') {
@@ -347,6 +351,36 @@ export const MainContent = ({
             }
             return newMsgs;
           });
+        } else if (event.type === 'agent:tool-streaming') {
+          // Mirror the raw stream into the subagent assistant message so its
+          // file activity card is visible before the tool finishes executing.
+          setMessages(prev => prev.map(message => {
+            const messageId = `subagent_${conversationId}_${event.data.messageId}`;
+            if (message.id !== messageId) return message;
+            const toolCalls = message.toolCalls || [];
+            const existingIndex = toolCalls.findIndex(toolCall => toolCall.id === event.data.toolCallId);
+            const liveToolCall: ToolCall = {
+              id: event.data.toolCallId,
+              name: event.data.toolName,
+              arguments: {
+                TargetFile: event.data.filePath,
+                path: event.data.filePath,
+                content: event.data.content,
+                CodeContent: event.data.content,
+                ReplacementContent: event.data.content,
+                _liveAdded: event.data.added,
+                _liveRemoved: event.data.removed,
+              },
+              status: 'running',
+              timestamp: Date.now(),
+              agentKind: 'subagent',
+              agentRole: role,
+            };
+            const nextToolCalls = [...toolCalls];
+            if (existingIndex >= 0) nextToolCalls[existingIndex] = liveToolCall;
+            else nextToolCalls.push(liveToolCall);
+            return { ...message, toolCalls: nextToolCalls };
+          }));
         } else if (event.type === 'agent:message-updated') {
           const msg = { ...event.data, id: `subagent_${conversationId}_${event.data.id}`, name: `Subagent (${role})` };
           setMessages(prev => prev.map(m => m.id === msg.id ? { ...msg } : m));
@@ -355,7 +389,7 @@ export const MainContent = ({
         } else if (event.type === 'agent:tool-executing' || event.type === 'agent:tool-result') {
           // Forward UI state updates for tool execution inside subagent messages
           setMessages(prev => prev.map(m => {
-            const subagentId = `subagent_${conversationId}_${event.data.messageId || (event.data.toolCall && event.data.toolCall.messageId) || ''}`;
+              const subagentId = `subagent_${conversationId}_${event.data.messageId || (event.data.toolCall && event.data.toolCall.messageId) || ''}`;
             if (m.id === subagentId || m.toolCalls?.some(t => t.id === (event.type === 'agent:tool-result' ? event.data.toolCall.id : event.data.id))) {
               return {
                 ...m,
@@ -491,10 +525,10 @@ Your ONLY task is: ${task}
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
 - You have access to tools like readFile, writeFile, editFile, and runCommand.
-- If the file does not exist yet, CREATE it using writeFile. You are responsible for creating the file yourself.
+- If the file does not exist yet, start with writeFile and create a small but valid basic file. Then use editFile in separate logical passes to build the requested result.
 - If the file already exists and needs modification, use readFile to read its contents first.
-- For a new file, use writeFile with a complete, structurally valid document whenever practical.
-- For an existing file, use editFile with an exact unique anchor and operation replace, before, or after. For HTML, insert before </body> or another stable structural anchor. Never append content blindly after a document's closing tag.
+- Use editFile with an exact unique anchor and operation replace, before, or after for subsequent passes. For HTML, insert before </body> or another stable structural anchor. Never append content blindly after a document's closing tag.
+- Follow the requested artifact scope exactly. For an HTML page using Tailwind, keep the implementation in the HTML file and do not create JavaScript or standalone CSS unless explicitly requested.
 - WRITE COMPLETE CODE. Do NOT truncate or use placeholders like "// ... rest of code". Write every single line.
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.
@@ -546,7 +580,7 @@ IMPORTANT RULES:
             if (t.name === 'invokeSubagent' && (t.arguments?.taskId === taskId || t.arguments?.targetFile === fileName)) {
               return {
                 ...t,
-                subagentFileActivity: { fileName, added, removed }
+                subagentFileActivity: { fileName, added, removed, operation: e.detail.operation, role: e.detail.role }
               };
             }
             return t;
@@ -640,7 +674,8 @@ IMPORTANT RULES:
                   _liveRemoved: event.data.removed
                 },
                 status: 'running' as const,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                agentKind: 'main' as const
               };
 
               if (existingIdx >= 0) {

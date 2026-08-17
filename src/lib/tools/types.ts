@@ -18,6 +18,8 @@ export interface ToolContext {
   signal: AbortSignal;
   conversationId?: string;
   parentLoop?: any; // AgentLoop instance for direct subagent management
+  agentKind?: 'main' | 'subagent';
+  agentRole?: string;
 }
 
 export type ToolHandler = (args: Record<string, any>, context: ToolContext) => Promise<ToolResult>;

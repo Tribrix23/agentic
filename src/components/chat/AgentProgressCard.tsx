@@ -6,6 +6,7 @@ import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { FileIcon } from './FileIcon';
+import { getFileActivityPrefix } from '../../lib/fileActivity';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -55,10 +56,10 @@ function FileEditCard({ step }: { step: AgentStep }) {
 
   const isWrite = WRITE_TOOLS.includes(tc.name);
   const actionLabel = isRunning
-    ? (isWrite ? 'Writing' : 'Editing')
+    ? getFileActivityPrefix(tc)
     : isError
-      ? (isWrite ? 'Write failed' : 'Edit failed')
-      : (isWrite ? 'Created' : 'Edited');
+      ? `${getFileActivityPrefix(tc)} failed`
+      : getFileActivityPrefix(tc);
 
   // Get diff stats: prefer result artifacts, fallback to live argument-based stats
   let stats: { added: number; removed: number } | null = null;
@@ -250,15 +251,15 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       if (displayStr.length > 50) displayStr = displayStr.slice(0, 47) + '...';
 
       // Special case for agent tools so they don't say "Ran Created To-Do List Tasks"
-      if (['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', 'writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
-        if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
+      if (['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', ...FILE_TOOLS].includes(step.toolCall.name)) {
+        if (FILE_TOOLS.includes(step.toolCall.name)) {
           const filePath = args.path || args.TargetFile || '';
           const content = args.content || args.CodeContent || args.ReplacementContent || '';
           const fileName = filePath.split(/[/\\]/).pop();
           // Check if the file artifact says this was a new file or an update
-          const fileArtifact = step.toolCall.result?.artifacts?.find((a: any) => a.type === 'file_change');
-          const isNew = fileArtifact ? (fileArtifact as any).isNew !== false : step.toolCall.name === 'createFile';
-          const actionLabel = isNew ? 'Created File' : 'Updated File';
+           const fileArtifact = step.toolCall.result?.artifacts?.find((a: any) => a.type === 'file_change');
+           const isNew = fileArtifact ? (fileArtifact as any).isNew !== false : step.toolCall.name === 'createFile';
+           const actionLabel = getFileActivityPrefix(step.toolCall);
           return { 
             icon: <SquareTerminal size={14} className="text-gray-400" />,
             text: (
@@ -285,7 +286,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
             if (step.status === 'completed') {
                return { icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15h6"/></svg>, text: `${role} wrote ${fileActivity.fileName}`, color: 'text-emerald-400' };
             } else {
-               return { icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 Z"/></svg>, text: `${role} is Editing ${fileActivity.fileName}`, color: 'text-blue-400' };
+               return { icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 Z"/></svg>, text: `${fileActivity.role || role} is Editing ${fileActivity.fileName}`, color: 'text-blue-400' };
             }
           }
           return { icon: <Brain size={14} />, text: `${role} is Working...`, color: 'text-purple-400' };
@@ -315,7 +316,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   let hasDetails = !!step.content || !!(step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
   
   // Hide the expandable dropdown for internal orchestration tools to prevent showing raw system output
-  if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', 'writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
+   if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', ...FILE_TOOLS].includes(step.toolCall.name)) {
     hasDetails = false;
   }
   
