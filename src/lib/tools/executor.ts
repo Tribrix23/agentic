@@ -2,6 +2,7 @@ import { ToolCall, ToolResult, ToolContext } from './types';
 import { getTool } from './registry';
 import { checkPermission, PermissionConfig } from '../permissions';
 import { addFileToSnapshot, getSnapshot } from '../snapshotStore';
+import { withFileWriteLock } from '../fileWriteQueue';
 
 // ── Deduplication store ────────────────────────────────────────────────────
 // Tracks tool signatures executed this session. Resets when a write operation
@@ -15,6 +16,16 @@ const WRITE_TOOLS = new Set([
   'createFolder', 'deleteFolder', 'renameFolder', 'renameFile',
   'runCommand', 'gitAdd', 'gitCommit',
 ]);
+
+const FILE_MUTATION_TOOLS = new Set([
+  'writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content',
+]);
+
+function resolveToolPath(toolCall: ToolCall, context: ToolContext): string {
+  const value = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
+  if (!value || value.startsWith('/') || /^[a-zA-Z]:(\\|\/)/.test(value)) return value;
+  return context.projectRoot ? `${context.projectRoot}/${value}`.replace(/\/+/g, '/') : value;
+}
 
 /** Call at the start of each new agent run */
 export function clearToolCache(): void {
@@ -126,7 +137,12 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     }
 
     const combinedContext = { ...context, signal: controller.signal };
-    const result = await tool.handler(toolCall.arguments, combinedContext);
+    const runHandler = () => tool.handler(toolCall.arguments, combinedContext);
+    // Sub-agents are launched concurrently, so protect conflicting file writes
+    // at the last shared execution boundary rather than relying on the parser.
+    const result = FILE_MUTATION_TOOLS.has(toolCall.name)
+      ? await withFileWriteLock(resolveToolPath(toolCall, context), runHandler)
+      : await runHandler();
     if (result) {
       (result as any).durationMs = Date.now() - startTime;
     }

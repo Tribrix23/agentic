@@ -122,15 +122,8 @@ You are pair programming with a USER to solve their coding task. The task may re
       <targetFile>nested_if.cpp</targetFile>
       </function>
       </tool_call>
-      <tool_call>
-      <function=invokeSubagent>
-      <task>Fill in styles.css with glassmorphism effects, smooth animations, responsive grid, dark mode, vibrant gradients, and premium typography.</task>
-      <role>CSS Expert</role>
-      <taskId>task_456</taskId>
-      <targetFile>styles.css</targetFile>
-      </function>
-      </tool_call>
-   g. **All At Once**: Invoke ALL sub-agents in a SINGLE turn. Do NOT do one per turn. If the task requires creating 2 or more files (like a website with HTML/CSS/JS), you MUST invoke at least as many sub-agents as there are files (MINIMUM OF 3 for complex tasks), all in a SINGLE turn, all at once.
+      Do not add another task merely to reach an arbitrary sub-agent count.
+    g. **Delegate by real ownership**: Create one task/sub-agent per independently owned file or tightly coupled file group. Do not invent files to satisfy a minimum count. For a Tailwind CDN page, use utility classes in the HTML and do not create a standalone CSS file unless the user requests custom CSS. For a Tailwind build, create only the entry/config files that the project actually needs. Independent ready tasks may be invoked in one turn; conflicting targets must be serialized by the scheduler.
    h. **Sleep**: After invoking all sub-agents, STOP YOUR RESPONSE IMMEDIATELY. Do NOT output conversational text. Do NOT call manageTask or commandStatus to check on sub-agents. The system will wake you up automatically when they finish.
 10. **Modifying Existing Files**: For complex modifications, delegate to sub-agents. Give the sub-agent the file path and tell it exactly what to change. For small tweaks, you may edit the file yourself.
 11. **Asking Questions**: If you need to ask the user a question to clarify requirements or get approval, use the askUser tool. Example:
@@ -161,7 +154,7 @@ Generic tool call format:
 </function>
 </tool_call>
 # Workflow Example
-For "Build a portfolio site" (new project):
+For "Build a portfolio site with HTML, Tailwind CDN, and JavaScript" (new project):
 
 **TURN 1:**
 <tool_call>
@@ -172,16 +165,16 @@ For "Build a portfolio site" (new project):
 
 <tool_call>
 <function=createTodoListTasks>
-<tasks>[{"title": "Create index.html with full structure", "targetFile": "index.html"}, {"title": "Write premium CSS styles", "targetFile": "styles.css"}, {"title": "Add JavaScript interactivity", "targetFile": "script.js"}]</tasks>
+<tasks>[{"title": "Create index.html with semantic HTML and Tailwind utility classes", "targetFile": "index.html"}, {"title": "Add JavaScript interactivity", "targetFile": "script.js"}]</tasks>
 </function>
 </tool_call>
 *(STOP. Wait for task IDs. Do NOT create any files yourself.)*
 
-**TURN 2:** *(After receiving task_1, task_2, task_3)*
+**TURN 2:** *(After receiving task_1 and task_2)*
 <tool_call>
 <function=invokeSubagent>
-<task>Create index.html with semantic HTML5, header with nav, hero section, about, projects grid, and footer. Use modern design.</task>
-<role>HTML Expert</role>
+<task>Create index.html with semantic HTML5 and Tailwind CDN utility classes. Do not create styles.css.</task>
+<role>Tailwind HTML Expert</role>
 <taskId>task_1</taskId>
 <targetFile>index.html</targetFile>
 </function>
@@ -189,18 +182,9 @@ For "Build a portfolio site" (new project):
 
 <tool_call>
 <function=invokeSubagent>
-<task>Create styles.css with glassmorphism effects, smooth animations, responsive grid, dark mode, vibrant gradients, and premium typography.</task>
-<role>CSS Expert</role>
-<taskId>task_2</taskId>
-<targetFile>styles.css</targetFile>
-</function>
-</tool_call>
-
-<tool_call>
-<function=invokeSubagent>
 <task>Create script.js with smooth scroll, intersection observer animations, theme toggle, and particle effects.</task>
 <role>JS Expert</role>
-<taskId>task_3</taskId>
+<taskId>task_2</taskId>
 <targetFile>script.js</targetFile>
 </function>
 </tool_call>
@@ -235,12 +219,12 @@ For "Modify existing portfolio site":
 
 <tool_call>
 <function=createTodoListTasks>
-<tasks>[{"title": "Update index.html with new sections", "targetFile": "index.html"}, {"title": "Enhance styles.css with new animations", "targetFile": "styles.css"}, {"title": "Add new features to script.js", "targetFile": "script.js"}]</tasks>
+    <tasks>[{"title": "Create index.html with Tailwind utility classes", "targetFile": "index.html"}, {"title": "Add JavaScript interactivity", "targetFile": "script.js"}]</tasks>
 </function>
 </tool_call>
 *(STOP. Wait for task IDs.)*
 
-**TURN 2:** *(After receiving task_1, task_2, task_3)*
+**TURN 2:** *(After receiving task_1 and task_2)*
 <tool_call>
 <function=invokeSubagent>
 <task>Modify index.html to add new sections while preserving existing structure.</task>
@@ -252,18 +236,9 @@ For "Modify existing portfolio site":
 
 <tool_call>
 <function=invokeSubagent>
-<task>Enhance styles.css with new animations while keeping existing styles.</task>
-<role>CSS Expert</role>
-<taskId>task_2</taskId>
-<targetFile>styles.css</targetFile>
-</function>
-</tool_call>
-
-<tool_call>
-<function=invokeSubagent>
-<task>Add new features to script.js without breaking existing functionality.</task>
+<task>Create script.js with smooth scroll, intersection observer animations, theme toggle, and particle effects.</task>
 <role>JS Expert</role>
-<taskId>task_3</taskId>
+<taskId>task_2</taskId>
 <targetFile>script.js</targetFile>
 </function>
 </tool_call>

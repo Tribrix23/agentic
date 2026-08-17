@@ -53,7 +53,8 @@ export const handler: ToolHandler = async (args, context) => {
       
     console.log('[writeFile] Target path:', targetPath);
     
-    // ── Branch-and-Merge Strategy ──────────────────────────────────────
+    // The executor serializes writes targeting this path. The branch file
+    // still protects the existing file if the staged write itself fails.
     // 1. Write to a .agentic-branch temp file first
     // 2. On success, copy content to the real target
     // 3. On failure, the original file is untouched

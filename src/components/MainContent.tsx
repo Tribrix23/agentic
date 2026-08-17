@@ -105,6 +105,7 @@ export const MainContent = ({
 
   const agentLoopRef = useRef<ReturnType<typeof createAgentLoop> | null>(null);
   const subagentLoopsRef = useRef<Map<string, ReturnType<typeof createAgentLoop>>>(new Map());
+  const finalizedSubagentsRef = useRef<Set<string>>(new Set());
   const billingSessionRef = useRef<TokenBillingSession | null>(null);
   const isStreamingRef = useRef(false);
   const isSubmittingRef = useRef(false);
@@ -264,6 +265,15 @@ export const MainContent = ({
 
     const handleSpawnSubagent = async (e: any) => {
       const { conversationId, role, task, projectRoot, parentConversationId, taskId } = e.detail;
+      finalizedSubagentsRef.current.delete(conversationId);
+
+      const claimFinalization = (): boolean => {
+        if (finalizedSubagentsRef.current.has(conversationId)) return false;
+        finalizedSubagentsRef.current.add(conversationId);
+        subagentLoopsRef.current.delete(conversationId);
+        agentLoopRef.current?.notifySubagentDone();
+        return true;
+      };
       
       // Create a tool executor for this subagent that scopes to its conversationId
       const subagentToolExecutor = async (toolCall: ToolCall): Promise<ToolResult> => {
@@ -299,13 +309,12 @@ export const MainContent = ({
             }
           }));
         } else if (event.type === 'agent:error') {
+          if (!claimFinalization()) return;
           console.error(`[Subagent ${conversationId}] Error:`, event.data?.message);
           if (taskId) {
             updateTask(taskId, { status: 'failed', metadata: { ...getTask(taskId)?.metadata, error: event.data?.message } });
           }
-          subagentLoopsRef.current.delete(conversationId);
           if (agentLoopRef.current) {
-            agentLoopRef.current.notifySubagentDone();
             if (agentLoopRef.current.activeSubagentCount === 0) {
               const state = agentLoopRef.current.getState();
               if (state.status === 'sleeping') {
@@ -364,6 +373,7 @@ export const MainContent = ({
             return m;
           }));
         } else if (event.type === 'agent:done') {
+          if (!claimFinalization()) return;
           // Sub-agent has finished — extract its final text output
           const finalContent = event.data?.content || 'Sub-agent completed.';
           
@@ -421,13 +431,6 @@ export const MainContent = ({
             updateTask(taskId, { status: 'completed' });
           }
           
-          subagentLoopsRef.current.delete(conversationId);
-          
-          // Notify parent loop that subagent is done (decrement count)
-          if (agentLoopRef.current) {
-            agentLoopRef.current.notifySubagentDone();
-          }
-
           // Inject result as a HIDDEN system message into main chat, then wake the main loop
           const resultMsg = createUserMessage(
             `[SYSTEM - Sub-agent ${role} (${conversationId}) completed]: ${finalContent.slice(0, 1000)}`
