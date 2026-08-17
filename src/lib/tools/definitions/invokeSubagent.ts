@@ -1,5 +1,5 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
-import { updateTask, createTask, getTask } from '../../taskStore';
+import { updateTask, getTask, getTasksForConversation } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'invokeSubagent',
@@ -10,10 +10,10 @@ export const definition: ToolDefinition = {
     properties: {
       task: { type: 'string', description: 'The detailed task for the sub-agent to perform.' },
       role: { type: 'string', description: 'The role of the sub-agent (e.g., Coder, Researcher, Designer)' },
-      taskId: { type: 'string', description: 'Optional task ID from createTodoListTasks to link this sub-agent to a task. If omitted, a task is auto-created.' },
+      taskId: { type: 'string', description: 'Required task ID returned by createTodoListTasks. Only currently executable tasks may be delegated.' },
       targetFile: { type: 'string', description: 'The exact file path this sub-agent is responsible for creating or editing.' }
     },
-    required: ['task', 'role']
+    required: ['task', 'role', 'taskId']
   },
   requiresApproval: false,
   dangerLevel: 'safe',
@@ -23,36 +23,38 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    let { task, role, taskId, targetFile } = args;
+    const { task, role, taskId, targetFile } = args;
     const conversationId = 'sub_' + Math.random().toString(36).substring(2, 9);
-    
-    // Auto-create a task if no taskId was provided
+
     if (!taskId) {
-      const autoTask = createTask({
-        title: task.slice(0, 80),
-        description: task,
-        priority: 'high',
-        dependencies: [],
-        tags: ['agent-created', 'auto'],
-        conversationId: context.conversationId,
-        projectId: context.projectRoot || '',
-      });
-      taskId = autoTask.id;
+      return { success: false, output: 'Cannot delegate without taskId. Create the complete task graph first, then delegate a ready task.' };
     }
-    
-    // Check if task dependencies are satisfied before delegating
-    const taskObj = taskId ? getTask(taskId) : null;
-    if (taskObj && taskObj.dependencies && taskObj.dependencies.length > 0) {
-      const incompleteDeps = taskObj.dependencies.filter(depId => {
-        const depTask = getTask(depId);
-        return !depTask || depTask.status !== 'completed';
-      });
-      
-      if (incompleteDeps.length > 0) {
-        return {
-          success: false,
-          output: `Cannot delegate task ${taskId} because ${incompleteDeps.length} dependencies are not yet completed: ${incompleteDeps.join(', ')}. Complete dependencies first.`
-        };
+
+    const taskObj = getTask(taskId);
+    if (!taskObj) return { success: false, output: `Cannot delegate unknown task ${taskId}.` };
+    if (context.conversationId && taskObj.conversationId !== context.conversationId) {
+      return { success: false, output: `Cannot delegate task ${taskId}: it belongs to another conversation.` };
+    }
+    if (taskObj.status !== 'pending') {
+      return { success: false, output: `Cannot delegate task ${taskId}: current status is ${taskObj.status}.` };
+    }
+
+    const incompleteDeps = taskObj.dependencies.filter(depId => {
+      const depTask = getTask(depId);
+      return !depTask || depTask.status !== 'completed';
+    });
+    if (incompleteDeps.length > 0) {
+      return { success: false, output: `Cannot delegate task ${taskId}: prerequisites are incomplete (${incompleteDeps.join(', ')}).` };
+    }
+
+    const plannedTarget = taskObj.metadata?.targetFile;
+    const claimedTarget = targetFile || plannedTarget;
+    const siblingTasks = context.conversationId ? getTasksForConversation(context.conversationId) : [];
+    if (claimedTarget) {
+      const normalizedTarget = String(claimedTarget).replace(/\\/g, '/').toLowerCase();
+      const conflict = siblingTasks.find(sibling => sibling.id !== taskId && sibling.status === 'in_progress' && sibling.metadata?.targetFile && String(sibling.metadata.targetFile).replace(/\\/g, '/').toLowerCase() === normalizedTarget);
+      if (conflict) {
+        return { success: false, output: `Cannot delegate task ${taskId}: target file is already owned by active task ${conflict.id}.` };
       }
     }
     
@@ -60,7 +62,7 @@ export const handler: ToolHandler = async (args, context) => {
     updateTask(taskId, { 
       status: 'in_progress', 
       delegatedTo: conversationId,
-      metadata: { ...(taskObj?.metadata || {}), targetFile }
+      metadata: { ...(taskObj.metadata || {}), targetFile: claimedTarget }
     });
 
     // Synchronously notify parent loop if available (fixes race condition)
@@ -77,7 +79,7 @@ export const handler: ToolHandler = async (args, context) => {
         projectRoot: context.projectRoot,
         parentConversationId: context.conversationId,
         taskId, // Pass taskId so MainContent can mark it completed when done
-        targetFile // Pass targetFile so the UI knows what it is working on
+        targetFile: claimedTarget // Pass the planned claim so the UI knows what it is working on
       }
     }));
 

@@ -22,6 +22,8 @@ import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
 import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
 import { executeTool, clearToolCache } from '../lib/tools/executor';
+import { executeMcpTool, getMcpToolDefinitions } from '../lib/mcp/renderer';
+import type { McpServerSnapshot } from '../lib/mcp/types';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
 import { updateTask, getTask } from '../lib/taskStore';
 import { useAgentLoop } from '../hooks/useAgentLoop';
@@ -230,7 +232,7 @@ export const MainContent = ({
 
     let removeBackgroundTaskListener: any = null;
     if ((window as any).electron?.onBackgroundTaskComplete) {
-      (window as any).electron.onBackgroundTaskComplete((data: { taskId: string; status: any }) => {
+      removeBackgroundTaskListener = (window as any).electron.onBackgroundTaskComplete((data: { taskId: string; status: any }) => {
         // Emit an event to wake up the agent loop
         window.dispatchEvent(new CustomEvent('background-task-complete', { detail: data }));
       });
@@ -393,7 +395,18 @@ export const MainContent = ({
                 shouldMarkComplete = false;
                 updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: 'Target file not created' } });
               } else {
-                console.log(`[Subagent] Task ${taskId} verified: target file ${targetFile} exists. Marking as COMPLETED.`);
+                const content = await (window as any).electron?.readFileContent(targetFile);
+                const validation = typeof content === 'string'
+                  ? await (window as any).electron?.validateCode(targetFile, content)
+                  : { diagnostics: [{ message: 'Target file is not readable text.' }] };
+                if (validation?.diagnostics?.length > 0) {
+                  const error = validation.diagnostics.slice(0, 3).map((diagnostic: any) => diagnostic.message).join('; ');
+                  console.error(`[Subagent] Task ${taskId} produced invalid output: ${error}`);
+                  shouldMarkComplete = false;
+                  updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: `Validation failed: ${error}` } });
+                } else {
+                  console.log(`[Subagent] Task ${taskId} verified: target file ${targetFile} exists and passed validation.`);
+                }
               }
             } catch (err) {
               console.error('[Subagent] Could not verify file existence:', err);
@@ -474,11 +487,11 @@ Your ONLY task is: ${task}
 
 IMPORTANT RULES:
 - Use your tools to actually complete the task. Do NOT just describe what you would do.
-- You have access to tools like readFile, writeFile, appendFile, editFile, and runCommand.
+- You have access to tools like readFile, writeFile, editFile, and runCommand.
 - If the file does not exist yet, CREATE it using writeFile. You are responsible for creating the file yourself.
 - If the file already exists and needs modification, use readFile to read its contents first.
-- IF YOU ARE WRITING A LARGE NEW FILE: Do NOT write the entire file at once using writeFile. It will fail. Instead, create it first with a small stub using writeFile, and then use appendFile repeatedly to add small chunks (e.g., function by function).
-- IF YOU ARE EDITING A LARGE EXISTING FILE: use editFile to make small, targeted changes (e.g., function by function or block by block).
+- For a new file, use writeFile with a complete, structurally valid document whenever practical.
+- For an existing file, use editFile with an exact unique anchor and operation replace, before, or after. For HTML, insert before </body> or another stable structural anchor. Never append content blindly after a document's closing tag.
 - WRITE COMPLETE CODE. Do NOT truncate or use placeholders like "// ... rest of code". Write every single line.
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.
@@ -497,18 +510,7 @@ IMPORTANT RULES:
         // Note: notifySubagentSpawned() is already called synchronously in invokeSubagent.ts
         // to prevent race conditions. We don't need to call it again here.
         subagentLoop.run(initialMessages.map(m => ({ ...m, role: m.role as any })))
-          .then(() => {
-            // When sub-agent run() completes, decrement count in main loop
-            if (agentLoopRef.current) {
-              agentLoopRef.current.notifySubagentDone();
-            }
-          })
-          .catch(e => {
-            console.error(`Subagent ${conversationId} failed:`, e);
-            if (agentLoopRef.current) {
-              agentLoopRef.current.notifySubagentDone();
-            }
-          });
+          .catch(e => console.error(`Subagent ${conversationId} failed:`, e));
       } catch(e) {
         console.error('Failed to run subagent', e);
       }
@@ -565,6 +567,7 @@ IMPORTANT RULES:
       window.removeEventListener('spawn-subagent', handleSpawnSubagent);
       window.removeEventListener('send-subagent-message', handleSendSubagentMessage);
       window.removeEventListener('subagent-file-activity', handleSubagentFileActivity);
+      if (typeof removeBackgroundTaskListener === 'function') removeBackgroundTaskListener();
     };
   }, [activeConversationId, isAgentRunning, aiConfig]);
 
@@ -765,6 +768,9 @@ IMPORTANT RULES:
 
   // ── Tool Executor ────────────────────────────────────────────────────
   const toolExecutor = useCallback(async (toolCall: ToolCall): Promise<ToolResult> => {
+    const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+    const mcpResult = await executeMcpTool(toolCall, mcpServers);
+    if (mcpResult) return mcpResult;
     const permConfig = getPermissionConfig(selectedProject?.path);
     const controller = new AbortController();
     const context: any = {
@@ -919,10 +925,11 @@ IMPORTANT RULES:
       }
 
       // Instantiate AgentLoop directly for the main chat
+      const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
       agentLoopRef.current = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
-        toolDefinitions: getToolsForLLM(),
+        toolDefinitions: [...getToolsForLLM(), ...getMcpToolDefinitions(mcpServers)],
         toolExecutor,
         conversationId: convId,
         agentRole: 'orchestrator',

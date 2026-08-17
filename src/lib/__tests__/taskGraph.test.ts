@@ -102,6 +102,14 @@ export function runTaskGraphTests(): void {
     assertEqual(executable[0].id, 'task1', 'First task should be executable');
   });
 
+  test('should block tasks with unresolved dependencies', () => {
+    const tasks = createMockTasks();
+    tasks[0].dependencies = ['missing-task'];
+    const graph = new TaskGraph(tasks);
+    assertEqual(graph.getExecutableTasks().length, 0, 'No task should execute with an unresolved dependency');
+    assert(graph.getBlockedTasks().some(task => task.id === 'task1'), 'task1 should be blocked');
+  });
+
   // Test 4: Get blocked tasks
   test('should identify blocked tasks', () => {
     const tasks = createMockTasks();
@@ -187,14 +195,14 @@ export function runTaskGraphTests(): void {
     const tasks = createMockTasks();
     const graph = new TaskGraph(tasks);
     
-    const depth0 = graph.getTasksByDepth();
-    const depth0Tasks = depth0.get(0);
-    const depth1Tasks = depth0.get(1);
-    const depth2Tasks = depth0.get(2);
+    const depths = graph.getTasksByDepth();
+    const depth1Tasks = depths.get(1);
+    const depth2Tasks = depths.get(2);
+    const depth3Tasks = depths.get(3);
     
-    assert(depth0Tasks?.length === 1, 'Should have 1 task at depth 0');
     assert(depth1Tasks?.length === 1, 'Should have 1 task at depth 1');
     assert(depth2Tasks?.length === 1, 'Should have 1 task at depth 2');
+    assert(depth3Tasks?.length === 1, 'Should have 1 task at depth 3');
   });
 
   // Test 10: Critical path

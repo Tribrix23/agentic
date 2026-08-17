@@ -44,6 +44,15 @@ import { TaskGraph } from './taskGraph';
 import { ParallelToolExecutor } from './parallelExecutor';
 import { calculateLineChanges, IncrementalToolCallParser } from './incrementalToolCallParser';
 import type { StreamingFileToolCall } from './incrementalToolCallParser';
+import { parseMcpToolCalls } from './mcp/xml';
+import { toMcpAlias } from './mcp/renderer';
+import {
+  buildSequentialPlanningContract,
+  hasSequentialThinkingTool,
+  isSequentialThinkingTool,
+  requiresStructuredPlanning,
+  SequentialThoughtTrace,
+} from './sequentialThinking';
 
 // ── Agent Events ───────────────────────────────────────────────────────────
 
@@ -174,6 +183,13 @@ function getKnownToolNames(toolDefinitions: any[]): Set<string> {
 function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
   let match: RegExpExecArray | null;
+
+  const mcpCalls = parseMcpToolCalls(text);
+  for (const call of mcpCalls) {
+    const name = toMcpAlias(call.server, call.tool);
+    if (isPlausibleToolName(name, knownToolNames)) toolCalls.push({ name, arguments: call.arguments });
+  }
+  if (toolCalls.length > 0) return toolCalls;
 
   // ── Format 1 (PRIMARY): <tool_call><function=name><parameter=x>val</parameter></function></tool_call> ──
   const primaryRegex = /<tool_call>\s*<function=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/function>\s*<\/tool_call>/gi;
@@ -403,6 +419,8 @@ export class AgentLoop {
   private toolDefinitions: any[] = [];
   private executedToolNames: Set<string> = new Set();
   private successfulFileWrites: number = 0;
+  private planningRequired = false;
+  private sequentialThoughts = new SequentialThoughtTrace();
   private options?: AgentLoopOptions;
   /** Dependency-aware parallel executor for write tools — uses ParallelToolExecutor's
    * file-dependency analysis to safely run independent writes concurrently. */
@@ -522,6 +540,8 @@ export class AgentLoop {
    */
   async run(messages: AgenticMessage[]): Promise<AgenticMessage[]> {
     this.abortController = new AbortController();
+    this.sequentialThoughts = new SequentialThoughtTrace();
+    this.planningRequired = false;
     this.state = {
       isRunning: true,
       currentIteration: 0,
@@ -547,6 +567,9 @@ export class AgentLoop {
       if (userMessage.role === 'user') {
         // Extract goal from user message
         this.state.goal = userMessage.content;
+        this.planningRequired = this.options?.agentRole !== 'subagent'
+          && hasSequentialThinkingTool(this.toolDefinitions)
+          && requiresStructuredPlanning(userMessage.content);
         
         // Check for ambiguities that need clarification
         const clarification = await this.detectAmbiguities(userMessage.content);
@@ -581,10 +604,12 @@ export class AgentLoop {
       this.state.status = 'Planning approach...';
       this.emit({ type: 'agent:planning-started' });
 
-      const taskGraph = await this.planExecution(updatedMessages);
+      const taskGraph = await this.planExecution();
       this.emit({ type: 'agent:planning-complete', data: { 
         taskCount: taskGraph.getStats().totalTasks,
-        criticalPath: taskGraph.getCriticalPath()
+        criticalPath: taskGraph.getCriticalPath(),
+        structured: this.sequentialThoughts.isComplete(),
+        awaitingStructuredPlan: this.planningRequired && !this.sequentialThoughts.isComplete(),
       }});
 
       // ── PHASE 3: EXECUTION ───────────────────────────────────────────────
@@ -595,6 +620,10 @@ export class AgentLoop {
       // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
       const systemPromptText = buildSystemPrompt(this.config);
       let fullSystemPrompt = systemPromptText;
+
+      if (this.planningRequired) {
+        fullSystemPrompt += buildSequentialPlanningContract();
+      }
 
       // The cached prompt is passed back into buildContext on every iteration.
       // Therefore the model-specific tool contract must be added while creating
@@ -662,7 +691,7 @@ export class AgentLoop {
         });
 
         // ── PHASE 4: REFLECTION (before each iteration) ───────────────
-        await this.reflectOnProgress(updatedMessages, taskGraph);
+        await this.reflectOnProgress();
 
         // ── We removed the Review Phase to adhere to a single simpler architecture.
 
@@ -1066,7 +1095,7 @@ export class AgentLoop {
         // Notify UI immediately that this message now has tool calls (real-time display)
         this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
 
-        // Create tasks for each tool call
+        // Create execution records for each tool call.
         if (assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0) {
           this.createTasksFromToolCalls(assistantMsg.toolCalls);
         }
@@ -1091,6 +1120,21 @@ export class AgentLoop {
           // Execute read-only tools in parallel for efficiency
           const executeToolInternal = async (toolCall: any) => {
             if (!this.state.isRunning) return;
+
+            if (this.isBlockedByPlanningGate(toolCall)) {
+              const result: ToolResult = {
+                success: false,
+                output: 'Structured planning is incomplete. Continue the Sequential Thinking trace until nextThoughtNeeded is false before planning, delegating, writing files, or executing commands.',
+              };
+              toolCall.result = result;
+              toolCall.status = 'error';
+              this.updateTaskFromToolCall(toolCall, result);
+              const toolMsg = createToolMessage(toolCall.id, toolCall.name, result);
+              updatedMessages.push(toolMsg);
+              this.emit({ type: 'agent:tool-result', data: { toolCall, result } });
+              this.emit({ type: 'agent:message-added', data: toolMsg });
+              return;
+            }
 
             toolCall.status = 'running';
             this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
@@ -1181,6 +1225,24 @@ export class AgentLoop {
 
               // Update the associated task status
               this.updateTaskFromToolCall(toolCall, result);
+
+              const thoughtSummary = this.sequentialThoughts.record(toolCall, result);
+              if (thoughtSummary) {
+                this.emit({
+                  type: 'agent:progress-update',
+                  data: {
+                    phase: 'planning',
+                    thoughtNumber: thoughtSummary.thoughtNumber,
+                    totalThoughts: thoughtSummary.totalThoughts,
+                    nextThoughtNeeded: thoughtSummary.nextThoughtNeeded,
+                    isRevision: thoughtSummary.isRevision,
+                    branchId: thoughtSummary.branchId,
+                  },
+                });
+                if (this.sequentialThoughts.isComplete()) {
+                  this.emit({ type: 'agent:planning-complete', data: { structured: true, ...thoughtSummary } });
+                }
+              }
 
               this.emit({ type: 'agent:tool-result', data: { toolCall, result } });
 
@@ -1460,8 +1522,13 @@ export class AgentLoop {
 
         // ── PHASE 5: VALIDATION (check if goal is satisfied) ───────────
         if (!continueLoop || this.state.currentIteration > 1) {
-          const goalSatisfied = await this.validateGoalSatisfaction(updatedMessages);
-          if (goalSatisfied) {
+          const completion = await this.validateGoalSatisfaction(updatedMessages);
+          this.state.goalSatisfied = completion.satisfied;
+          this.emit({
+            type: completion.satisfied ? 'agent:goal-satisfied' : 'agent:goal-not-satisfied',
+            data: completion,
+          });
+          if (completion.satisfied) {
             continueLoop = false;
           }
         }
@@ -1516,6 +1583,8 @@ export class AgentLoop {
         priority: 'medium',
         tags: ['tool-execution'],
         metadata: { toolCallId: toolCall.id },
+        conversationId: this.state.conversationId,
+        projectId: this.projectContext?.rootPath,
       });
 
       // Store the task ID in the tool call for later updates
@@ -1558,9 +1627,8 @@ export class AgentLoop {
   }
 
   /** Plan execution by creating a task graph from the goal */
-  private async planExecution(messages: AgenticMessage[]): Promise<TaskGraph> {
+  private async planExecution(): Promise<TaskGraph> {
     // Use existing tasks from taskStore if they exist (created by createTodoListTasks)
-    // Otherwise create a minimal planning task
     const convId = this.state.conversationId;
     const existingTasks = convId ? getTasksForConversation(convId) : [];
     
@@ -1570,26 +1638,17 @@ export class AgentLoop {
       return new TaskGraph(existingTasks);
     }
 
-    // Fallback: create initial planning task with conversationId for proper tracking
-    const planTask = createTask({
-      title: 'Plan execution approach',
-      description: 'Analyze requirements and create execution plan',
-      priority: 'high',
-      tags: ['planning'],
-      conversationId: this.state.conversationId,
-      projectId: this.projectContext?.rootPath,
-    });
-
-    // Create TaskGraph with the planning task
-    return new TaskGraph([planTask]);
+    return new TaskGraph([]);
   }
 
   /** Reflection phase - evaluate progress and strategy */
-  private async reflectOnProgress(messages: AgenticMessage[], taskGraph: TaskGraph): Promise<void> {
+  private async reflectOnProgress(): Promise<void> {
     this.state.phase = 'reflecting';
     this.state.status = 'Reflecting on progress...';
     this.emit({ type: 'agent:reflection-started' });
 
+    const tasks = this.state.conversationId ? getTasksForConversation(this.state.conversationId) : [];
+    const taskGraph = new TaskGraph(tasks.filter(task => !task.tags.includes('tool-execution')));
     const stats = taskGraph.getStats();
     const progress = stats.completedTasks / (stats.totalTasks || 1) * 100;
     const newProgress = Math.round(progress);
@@ -1622,17 +1681,66 @@ export class AgentLoop {
     this.emit({ type: 'agent:reflection-complete' });
   }
 
+  private isBlockedByPlanningGate(toolCall: ToolCall): boolean {
+    if (!this.planningRequired || this.sequentialThoughts.isComplete()) return false;
+    if (isSequentialThinkingTool(toolCall.name)) return false;
+
+    const discoveryTools = new Set([
+      'listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles',
+      'codeAnalysis', 'webSearch', 'readUrl', 'gitStatus', 'gitDiff', 'commandStatus',
+    ]);
+    return !discoveryTools.has(toolCall.name);
+  }
+
   /** Validate if goal has been satisfied */
-  private async validateGoalSatisfaction(messages: AgenticMessage[]): Promise<boolean> {
+  private async validateGoalSatisfaction(messages: AgenticMessage[]): Promise<{
+    satisfied: boolean;
+    reason: string;
+    totalTasks: number;
+    completedTasks: number;
+    failedTasks: number;
+    executionEvidence: boolean;
+    structuredPlanningComplete: boolean;
+  }> {
     // Check if all tasks in taskStore for this conversation are completed
     const convId = this.state.conversationId;
-    if (!convId) return false;
+    const structuredPlanningComplete = !this.planningRequired || this.sequentialThoughts.isComplete();
+    if (!convId) {
+      return {
+        satisfied: false,
+        reason: 'No conversation is associated with this run.',
+        totalTasks: 0,
+        completedTasks: 0,
+        failedTasks: 0,
+        executionEvidence: this.executedToolNames.size > 0,
+        structuredPlanningComplete,
+      };
+    }
 
     const convTasks = getTasksForConversation(convId);
-    if (convTasks.length === 0) return false; // No tasks to track
+    const durableTasks = convTasks.filter(task => !task.tags.includes('tool-execution'));
+    const failedTasks = durableTasks.filter(task => task.status === 'failed');
+    const completedTasks = durableTasks.filter(task => task.status === 'completed');
+    const executionEvidence = this.executedToolNames.size > 0 || this.successfulFileWrites > 0;
+    const allTasksComplete = durableTasks.length > 0 && completedTasks.length === durableTasks.length;
+    const satisfied = allTasksComplete && failedTasks.length === 0 && structuredPlanningComplete && executionEvidence;
 
-    const incompleteTasks = convTasks.filter(t => t.status !== 'completed');
-    return incompleteTasks.length === 0;
+    let reason = 'Goal evidence is complete.';
+    if (!durableTasks.length) reason = 'No durable goal tasks were created.';
+    else if (failedTasks.length) reason = `${failedTasks.length} durable task(s) failed.`;
+    else if (!allTasksComplete) reason = `${durableTasks.length - completedTasks.length} durable task(s) remain incomplete.`;
+    else if (!structuredPlanningComplete) reason = 'Structured planning is incomplete.';
+    else if (!executionEvidence) reason = 'No successful tool execution evidence was recorded.';
+
+    return {
+      satisfied,
+      reason,
+      totalTasks: durableTasks.length,
+      completedTasks: completedTasks.length,
+      failedTasks: failedTasks.length,
+      executionEvidence,
+      structuredPlanningComplete,
+    };
   }
 }
 

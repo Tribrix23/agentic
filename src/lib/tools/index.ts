@@ -22,7 +22,6 @@ import { definition as manageTaskDef, handler as manageTaskHandler } from './def
 import { definition as commandStatusDef, handler as commandStatusHandler } from './definitions/commandStatus';
 import { definition as createTodoListDef, handler as createTodoListHandler } from './definitions/createTodoListTasks';
 import { definition as updateTaskStatusDef, handler as updateTaskStatusHandler } from './definitions/updateTaskStatus';
-import { definition as appendFileDef, handler as appendFileHandler } from './definitions/appendFile';
 import { definition as createFolderDef, handler as createFolderHandler } from './definitions/createFolder';
 import { definition as deleteFolderDef, handler as deleteFolderHandler } from './definitions/deleteFolder';
 import { definition as renameFolderDef, handler as renameFolderHandler } from './definitions/renameFolder';
@@ -82,7 +81,6 @@ export function initializeTools() {
   registerTool(commandStatusDef, commandStatusHandler);
   registerTool(createTodoListDef, createTodoListHandler);
   registerTool(updateTaskStatusDef, updateTaskStatusHandler);
-  registerTool(appendFileDef, appendFileHandler);
   registerTool(createFolderDef, createFolderHandler);
   registerTool(deleteFolderDef, deleteFolderHandler);
   registerTool(renameFolderDef, renameFolderHandler);

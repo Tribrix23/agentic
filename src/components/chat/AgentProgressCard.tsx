@@ -21,7 +21,7 @@ function getLiveDiffStats(toolName: string, args: Record<string, any>): { added:
   }
   if (WRITE_TOOLS.includes(toolName)) {
     // Support both CodeContent (native) and ReplacementContent (used by live streaming injector)
-    const content = args.CodeContent || args.content || args.file_content || args.ReplacementContent || '';
+    const content = args.content || args.CodeContent || args.ReplacementContent || '';
     const lines = typeof content === 'string' ? content.split('\n').length : 0;
     return { added: lines, removed: 0 };
   }
@@ -35,8 +35,10 @@ function getLiveDiffStats(toolName: string, args: Record<string, any>): { added:
     }
     return { added, removed };
   }
-  const added   = (args.ReplacementContent || '').split('\n').length;
-  const removed = (args.TargetContent       || '').split('\n').length;
+  const replacement = args.ReplacementContent ?? args.content ?? '';
+  const target = args.TargetContent ?? (args.operation === 'replace' ? args.anchor : '');
+  const added = replacement ? String(replacement).split('\n').length : 0;
+  const removed = target ? String(target).split('\n').length : 0;
   return { added: Math.max(added, 0), removed: Math.max(removed, 0) };
 }
 

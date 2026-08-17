@@ -7,6 +7,21 @@ contextBridge.exposeInMainWorld('electron', {
     close: () => ipcRenderer.send('window-close'),
   },
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
+  mcp: {
+    addServer: (config: any) => ipcRenderer.invoke('mcp-add-server', config),
+    removeServer: (id: string) => ipcRenderer.invoke('mcp-remove-server', id),
+    connectServer: (id: string) => ipcRenderer.invoke('mcp-connect-server', id),
+    disconnectServer: (id: string) => ipcRenderer.invoke('mcp-disconnect-server', id),
+    reconnectServer: (id: string) => ipcRenderer.invoke('mcp-reconnect-server', id),
+    getServers: () => ipcRenderer.invoke('mcp-get-servers'),
+    callTool: (serverId: string, tool: string, args: Record<string, any>) => ipcRenderer.invoke('mcp-call-tool', serverId, tool, args),
+    listResources: (serverId: string) => ipcRenderer.invoke('mcp-list-resources', serverId),
+    readResource: (serverId: string, uri: string) => ipcRenderer.invoke('mcp-read-resource', serverId, uri),
+    listResourceTemplates: (serverId: string) => ipcRenderer.invoke('mcp-list-resource-templates', serverId),
+    listPrompts: (serverId: string) => ipcRenderer.invoke('mcp-list-prompts', serverId),
+    getPrompt: (serverId: string, name: string, args?: Record<string, string>) => ipcRenderer.invoke('mcp-get-prompt', serverId, name, args),
+    onEvent: (callback: (event: any) => void) => ipcRenderer.on('mcp-event', (_event, data) => callback(data)),
+  },
   onAuthSuccess: (callback: (data: any) => void) => {
     ipcRenderer.on('auth-success', (_event, data) => callback(data));
   },
@@ -53,14 +68,14 @@ contextBridge.exposeInMainWorld('electron', {
   gitDiff: (cwd: string, file?: string) => ipcRenderer.invoke('git-diff', cwd, file),
   searchFiles: (projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => ipcRenderer.invoke('search-files', projectPath, query, options),
   fileExists: (filePath: string) => ipcRenderer.invoke('file-exists', filePath),
-  
+
   // ── Task Manager System ───────────────────────────────────────────────
   taskSpawn: (command: string, cwd: string) => ipcRenderer.invoke('task-spawn', command, cwd),
   taskStatus: (taskId: string, maxBytes: number = 50000) => ipcRenderer.invoke('task-status', taskId, maxBytes),
   taskKill: (taskId: string) => ipcRenderer.invoke('task-kill', taskId),
   taskSendInput: (taskId: string, input: string) => ipcRenderer.invoke('task-send-input', taskId, input),
-  taskList: () => ipcRenderer.invoke('task-list'),
   onBackgroundTaskComplete: (callback: (data: { taskId: string; status: any }) => void) => {
+    return () => ipcRenderer.removeListener('background-task-complete', callback as any);
     ipcRenderer.on('background-task-complete', (_event, data) => callback(data));
   }
 });

@@ -1,9 +1,9 @@
 import { ToolDefinition, ToolHandler } from '../types';
-import { createTask } from '../../taskStore';
+import { createTask, updateTask } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'createTodoListTasks',
-  description: 'Create multiple tasks in the agentic to-do list at once. Use this to decompose a complex request into a complete plan of tasks upfront. Returns an array of task IDs which you should store to update their status later. IMPORTANT: Tasks will be executed in dependency order - only tasks with all dependencies completed will be available for delegation.',
+  description: 'Create the complete dependency graph before execution. Every task should include its target file when applicable and dependencies must use local IDs such as task_1. The scheduler determines the ready wave; invokeSubagent requires the returned taskId.',
   category: 'system',
   parameters: {
     type: 'object',
@@ -53,13 +53,15 @@ export const handler: ToolHandler = async (args, context) => {
     }
     
     const createdTasks = [];
+    const localIds = new Map<string, string>();
     
-    for (const t of tasks) {
+    for (let index = 0; index < tasks.length; index++) {
+      const t = tasks[index];
       const task = createTask({
         title: t.title,
         description: t.description,
         priority: t.priority || 'medium',
-        dependencies: t.dependencies || [],
+        dependencies: [],
         delegatedTo: t.delegatedTo || undefined,
         tags: ['agent-created'],
         conversationId: context.conversationId,
@@ -67,11 +69,20 @@ export const handler: ToolHandler = async (args, context) => {
         metadata: t.targetFile ? { targetFile: t.targetFile } : undefined,
       });
       createdTasks.push(task.id);
+      localIds.set(`task_${index + 1}`, task.id);
+      if (typeof t.id === 'string' && t.id.trim()) localIds.set(t.id.trim(), task.id);
+    }
+
+    for (let index = 0; index < tasks.length; index++) {
+      const dependencies = Array.isArray(tasks[index].dependencies)
+        ? tasks[index].dependencies.map((dependency: string) => localIds.get(dependency) || dependency)
+        : [];
+      if (dependencies.length > 0) updateTask(createdTasks[index], { dependencies });
     }
 
     return { 
       success: true, 
-      output: `Successfully created ${createdTasks.length} tasks. Task IDs: \n${createdTasks.map(id => `- ${id}`).join('\n')}\n\nIMPORTANT: Tasks will be executed in dependency order. Only delegate tasks whose dependencies are completed. Use invokeSubagent with the taskId and targetFile for each task.`
+      output: `Successfully created ${createdTasks.length} tasks. Task IDs: \n${createdTasks.map((id, index) => `- task_${index + 1} -> ${id}`).join('\n')}\n\nOnly currently ready tasks may be delegated. Use invokeSubagent with the taskId; after a wave completes, recompute the graph for the next wave.`
     };
   } catch (error: any) {
     return { success: false, output: `Failed to create tasks: ${error.message || String(error)}` };

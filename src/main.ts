@@ -4,6 +4,8 @@ import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import started from 'electron-squirrel-startup';
 import { TaskManager } from './lib/TaskManager';
+import { McpClientManager } from './lib/mcp/manager';
+import type { McpServerConfig } from './lib/mcp/types';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -25,6 +27,7 @@ let mainWindow: BrowserWindow | null = null;
 let ptyProcess: any = null;
 let pty: any = null;
 let activeLiveServer: any = null;
+export const mcpClientManager = new McpClientManager();
 
 function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -270,6 +273,23 @@ function createWindow() {
     },
   });
 
+  if (!mcpClientManager.getServer('sequential-thinking')) {
+    const serverEntry = require.resolve('@modelcontextprotocol/server-sequential-thinking/dist/index.js');
+    mcpClientManager.addServer({
+      id: 'sequential-thinking',
+      name: 'Sequential Thinking',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [serverEntry],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('sequential-thinking').catch(error => console.error('[MCP] Sequential Thinking failed to connect:', error));
+  }
+
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,
@@ -315,6 +335,32 @@ function createWindow() {
   ipcMain.on('open-external', (_event, url) => {
     shell.openExternal(url);
   });
+
+  ipcMain.removeHandler('mcp-add-server');
+  ipcMain.handle('mcp-add-server', (_event, config: McpServerConfig) => mcpClientManager.addServer(config));
+  ipcMain.removeHandler('mcp-remove-server');
+  ipcMain.handle('mcp-remove-server', (_event, id: string) => mcpClientManager.removeServer(id));
+  ipcMain.removeHandler('mcp-connect-server');
+  ipcMain.handle('mcp-connect-server', (_event, id: string) => mcpClientManager.connectServer(id));
+  ipcMain.removeHandler('mcp-disconnect-server');
+  ipcMain.handle('mcp-disconnect-server', (_event, id: string) => mcpClientManager.disconnectServer(id));
+  ipcMain.removeHandler('mcp-reconnect-server');
+  ipcMain.handle('mcp-reconnect-server', (_event, id: string) => mcpClientManager.reconnectServer(id));
+  ipcMain.removeHandler('mcp-get-servers');
+  ipcMain.handle('mcp-get-servers', () => mcpClientManager.getServers());
+  ipcMain.removeHandler('mcp-call-tool');
+  ipcMain.handle('mcp-call-tool', (_event, serverId: string, tool: string, args: Record<string, any>) => mcpClientManager.callTool(serverId, tool, args));
+  ipcMain.removeHandler('mcp-list-resources');
+  ipcMain.handle('mcp-list-resources', (_event, serverId: string) => mcpClientManager.listResources(serverId));
+  ipcMain.removeHandler('mcp-read-resource');
+  ipcMain.handle('mcp-read-resource', (_event, serverId: string, uri: string) => mcpClientManager.readResource(serverId, uri));
+  ipcMain.removeHandler('mcp-list-resource-templates');
+  ipcMain.handle('mcp-list-resource-templates', (_event, serverId: string) => mcpClientManager.listResourceTemplates(serverId));
+  ipcMain.removeHandler('mcp-list-prompts');
+  ipcMain.handle('mcp-list-prompts', (_event, serverId: string) => mcpClientManager.listPrompts(serverId));
+  ipcMain.removeHandler('mcp-get-prompt');
+  ipcMain.handle('mcp-get-prompt', (_event, serverId: string, name: string, args?: Record<string, string>) => mcpClientManager.getPrompt(serverId, name, args));
+  mcpClientManager.onEvent(event => mainWindow?.webContents.send('mcp-event', event));
 
   ipcMain.removeHandler('capture-window');
   ipcMain.handle('capture-window', async (_event, options: WindowCaptureOptions) => {
@@ -847,7 +893,50 @@ function createWindow() {
 
   ipcMain.removeHandler('validate-code');
   ipcMain.handle('validate-code', async (_event, filePath: string, content: string) => {
-    if (!['.py', '.pyw'].includes(path.extname(filePath).toLowerCase())) {
+    const extension = path.extname(filePath).toLowerCase();
+    if (['.js', '.jsx', '.ts', '.tsx', '.cjs', '.mjs'].includes(extension)) {
+      try {
+        const ts = require('typescript');
+        const result = ts.transpileModule(content, {
+          compilerOptions: {
+            jsx: ts.JsxEmit.ReactJSX,
+            module: ts.ModuleKind.ESNext,
+            target: ts.ScriptTarget.ES2020,
+          },
+          fileName: filePath,
+          reportDiagnostics: true,
+        });
+        const diagnostics = (result.diagnostics || []).filter((diagnostic: any) => diagnostic.category === ts.DiagnosticCategory.Error).map((diagnostic: any) => {
+          const position = diagnostic.file && typeof diagnostic.start === 'number'
+            ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
+            : { line: 0, character: 0 };
+          return {
+            message: ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+            line: position.line + 1,
+            column: position.character + 1,
+            endLine: position.line + 1,
+            endColumn: position.character + Math.max(2, diagnostic.length || 1),
+          };
+        });
+        return { diagnostics };
+      } catch (error: any) {
+        return { diagnostics: [{ message: error.message, line: 1, column: 1, endLine: 1, endColumn: 2 }] };
+      }
+    }
+
+    if (['.html', '.htm'].includes(extension)) {
+      const diagnostics: any[] = [];
+      const lower = content.toLowerCase();
+      const htmlClose = lower.lastIndexOf('</html>');
+      const bodyClose = lower.lastIndexOf('</body>');
+      if (lower.includes('<html') && htmlClose < 0) diagnostics.push({ message: 'Missing closing </html> tag.', line: 1, column: 1, endLine: 1, endColumn: 2 });
+      if (lower.includes('<body') && bodyClose < 0) diagnostics.push({ message: 'Missing closing </body> tag.', line: 1, column: 1, endLine: 1, endColumn: 2 });
+      if (htmlClose >= 0 && content.slice(htmlClose + 7).trim()) diagnostics.push({ message: 'Content appears after the closing </html> tag.', line: 1, column: 1, endLine: 1, endColumn: 2 });
+      if (bodyClose >= 0 && htmlClose >= 0 && bodyClose > htmlClose) diagnostics.push({ message: 'The closing </body> tag appears after </html>.', line: 1, column: 1, endLine: 1, endColumn: 2 });
+      return { diagnostics };
+    }
+
+    if (!['.py', '.pyw'].includes(extension)) {
       return { diagnostics: [] };
     }
 

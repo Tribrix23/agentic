@@ -13,6 +13,7 @@ export interface TaskNode {
 
 export class TaskGraph {
   private nodes: Map<string, TaskNode> = new Map();
+  private unresolvedDependencies: Map<string, string[]> = new Map();
 
   constructor(tasks: Task[]) {
     this.buildGraph(tasks);
@@ -40,6 +41,10 @@ export class TaskGraph {
         if (depNode) {
           node.dependencies.push(depNode);
           depNode.dependents.push(node);
+        } else {
+          const unresolved = this.unresolvedDependencies.get(task.id) || [];
+          unresolved.push(depId);
+          this.unresolvedDependencies.set(task.id, unresolved);
         }
       }
     }
@@ -126,7 +131,7 @@ export class TaskGraph {
       if (node.task.status !== 'pending') continue;
 
       // Check if all dependencies are completed
-      const allDepsComplete = node.dependencies.every(
+      const allDepsComplete = !this.unresolvedDependencies.has(taskId) && node.dependencies.every(
         dep => dep.task.status === 'completed'
       );
 
@@ -159,7 +164,7 @@ export class TaskGraph {
     for (const [taskId, node] of this.nodes) {
       if (node.task.status !== 'pending') continue;
 
-      const hasIncompleteDeps = node.dependencies.some(
+      const hasIncompleteDeps = this.unresolvedDependencies.has(taskId) || node.dependencies.some(
         dep => dep.task.status !== 'completed'
       );
 

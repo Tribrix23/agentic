@@ -3,14 +3,23 @@ import { calculateLineChanges } from '../../incrementalToolCallParser';
 
 export const definition: ToolDefinition = {
   name: 'editFile',
-  description: 'Edit a file by finding a specific string and replacing it.',
+  description: 'Edit an existing file using one exact, unique anchor. Replace the anchor, or insert content immediately before or after it. Read the file first. For HTML, insert before </body> or another stable structural anchor; never append blindly.',
   category: 'filesystem',
   parameters: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Path to the file' },
-      search: { type: 'string', description: 'Exact string to search for' },
-      replace: { type: 'string', description: 'String to replace it with' }
+      search: { type: 'string', description: 'Exact, unique anchor string to search for' },
+      replace: { type: 'string', description: 'Replacement or inserted content' },
+      operation: {
+        type: 'string',
+        enum: ['replace', 'before', 'after'],
+        description: 'replace substitutes the anchor; before/after inserts content while preserving the anchor. Defaults to replace.'
+      },
+      expectedMatches: {
+        type: 'number',
+        description: 'Required number of exact anchor matches. Defaults to 1. Use a value above 1 only when intentionally editing every matching occurrence.'
+      }
     },
     required: ['path', 'search', 'replace']
   },
@@ -23,6 +32,10 @@ export const definition: ToolDefinition = {
 export const handler: ToolHandler = async (args, context) => {
   try {
     const { path: relativeOrAbsPath } = args;
+    const operation = args.operation === 'before' || args.operation === 'after' ? args.operation : 'replace';
+    const expectedMatches = Number.isInteger(args.expectedMatches) && args.expectedMatches > 0
+      ? args.expectedMatches
+      : 1;
     
     // Explicitly coerce to strings to avoid "Cannot read properties of undefined (reading 'replace')"
     // Fallback to common hallucinated property names for maximum robustness against agent mistakes
@@ -59,64 +72,34 @@ export const handler: ToolHandler = async (args, context) => {
       fileContent = fileContent.replace(/\r\n/g, '\n');
     }
     
-    // Check if the agent passed a regex like "/pattern/g" or "s/pattern/replacement/g"
-    let isRegex = false;
-    let regexObj: RegExp | null = null;
-    
-    if (!fileContent.includes(finalSearch) && finalSearch) {
-      let regexPattern = '';
-      let regexFlags = '';
-      
-      if (finalSearch.startsWith('/') && finalSearch.lastIndexOf('/') > 0) {
-        const lastSlash = finalSearch.lastIndexOf('/');
-        regexPattern = finalSearch.substring(1, lastSlash);
-        regexFlags = finalSearch.substring(lastSlash + 1);
-      } else if (finalSearch.startsWith('s/') && finalSearch.lastIndexOf('/') > 1) {
-        // If they passed `s/hi/world/g` in the search field
-        const parts = finalSearch.split('/');
-        if (parts.length >= 3) {
-          regexPattern = parts[1];
-          finalReplace = parts[2];
-          regexFlags = parts[3] || '';
-        }
-      }
-      
-      if (regexPattern) {
-        try {
-          if (!regexFlags.includes('g')) regexFlags += 'g';
-          regexObj = new RegExp(regexPattern, regexFlags);
-          // Check if regex matches empty string, which causes severe corruption
-          if ("".match(regexObj)) {
-             return { success: false, output: `Failed to edit file: The provided regex \`${regexPattern}\` matches empty strings and would corrupt the file. Please provide a more specific search string.` };
-          }
-          isRegex = true;
-        } catch (e) {
-          // ignore invalid regex
-        }
-      }
-    }
-
-    if (!isRegex && !fileContent.includes(finalSearch)) {
+    if (!fileContent.includes(finalSearch)) {
       return { 
         success: false, 
-        output: `Search string not found in ${targetPath}.\n\nTried to search for: [\`${search}\`].\n\nArguments received:\n${JSON.stringify(args, null, 2)}\n\nPlease check your spelling, whitespace, quotes, and newlines.` 
+        output: `Search anchor was not found in ${targetPath}. Read the current file and retry with an exact structural anchor.` 
       };
     }
-    
-    // Use split and join to globally replace all occurrences of the search string
-    let newContent = content;
-    if (isRegex && regexObj) {
-      newContent = fileContent.replace(regexObj, finalReplace);
-    } else {
-      newContent = fileContent.split(finalSearch).join(finalReplace);
+
+    const matchCount = fileContent.split(finalSearch).length - 1;
+    if (matchCount !== expectedMatches) {
+      return {
+        success: false,
+        output: `Refusing to edit ${targetPath}: expected ${expectedMatches} exact match(es) for the anchor but found ${matchCount}. Use a more specific anchor or set expectedMatches intentionally.`,
+      };
     }
+
+    const replacement = operation === 'before'
+      ? `${finalReplace}${finalSearch}`
+      : operation === 'after'
+        ? `${finalSearch}${finalReplace}`
+        : finalReplace;
+    const newContent = fileContent.split(finalSearch).join(replacement);
     const result = await (window as any).electron.saveFileContent(targetPath, newContent);
     
     if (result.success) {
       const { added, removed } = calculateLineChanges(content, newContent);
       return { 
         success: true, 
-        output: `Successfully edited ${targetPath}`,
+        output: `Successfully ${operation === 'replace' ? 'edited' : `inserted content ${operation}`} ${targetPath} (${matchCount} anchor match${matchCount === 1 ? '' : 'es'}).`,
         artifacts: [{
           type: 'file_change',
           path: targetPath,
