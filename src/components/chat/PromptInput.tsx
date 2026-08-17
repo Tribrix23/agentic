@@ -85,7 +85,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
 
   const allModels = [
-    { id: 'dispatcher', name: 'Dispatcher', icon: <img src="/DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: ['Dispatcher v1', 'Dispatcher v2'], isPro: false },
+    { id: 'dispatcher', name: 'Dispatcher', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: ['Dispatcher v1', 'Dispatcher v2'], isPro: false },
     { id: 'gpt-oss', name: 'GPT-OSS 120B', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Medium', 'High'], isPro: false },
     { id: 'qwen', name: 'Qwen 3.7', icon: <QwenIcon className="w-3.5 h-3.5 text-[#FF6A00]" />, submodels: ['Flash', 'Plus', 'Max'], isPro: true },
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
@@ -110,7 +110,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     if (model.includes('Kimi')) return <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />;
     if (model.includes('GLM')) return <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />;
     if (model.includes('Claude')) return <SiAnthropic className="w-3.5 h-3.5 text-[#D3A982]" />;
-    return <img src="/DispatcherIcon.png" alt="" className="w-4 h-4 object-contain" />;
+    return <img src="./DispatcherIcon.png" alt="" className="w-4 h-4 object-contain" />;
   };
 
   useEffect(() => {

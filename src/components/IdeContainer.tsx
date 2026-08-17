@@ -658,7 +658,7 @@ const handleSkip = () => {
             onClick={onBack}
             className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
           >
-            <img src="/icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
+            <img src="./icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
             Close QUANTIX IDE
           </button>
           <div className="w-[30px] h-[30px]" />
@@ -884,7 +884,7 @@ const handleSkip = () => {
                 initial={{ opacity: 0, scale: 0.8, filter: 'blur(10px)' }}
                 animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                src="/icon.png" 
+                src="./icon.png"
                 alt="QUANTIX Logo" 
                 className="w-20 h-20 object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.6)] mb-4"
               />

@@ -22,7 +22,7 @@ export const TitleBar = ({ userName, userAvatar }: TitleBarProps) => {
   return (
     <div className="shrink-0 w-full h-8 flex justify-between items-center z-[100] region-drag bg-transparent absolute top-0 left-0 right-0 pointer-events-none">
       <div className="flex items-center h-full pl-4 pointer-events-auto region-no-drag gap-2 select-none">
-        <img src="/icon.png" alt="QUANTIX Logo" className="w-[18px] h-[18px] object-contain" />
+        <img src="./icon.png" alt="QUANTIX Logo" className="w-[18px] h-[18px] object-contain" />
         <span className="shimmer-text font-bold text-[13px] tracking-wider">QUANTIX</span>
       </div>
       <div className="flex h-full region-no-drag pointer-events-auto bg-[#08080c]">

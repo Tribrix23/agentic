@@ -523,7 +523,7 @@ const App = () => {
         >
           <motion.div variants={itemVariants} className="mb-10">
             <img
-              src="/icon.png"
+              src="./icon.png"
               alt="QUANTIX Logo"
               className="w-[120px] h-[120px] object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.8)]"
             />

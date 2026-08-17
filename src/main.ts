@@ -26,6 +26,11 @@ let ptyProcess: any = null;
 let pty: any = null;
 let activeLiveServer: any = null;
 
+const getPublicAssetPath = (...segments: string[]) => path.join(
+  app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '../../public'),
+  ...segments,
+);
+
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -54,7 +59,7 @@ if (!gotTheLock) {
   });
 
   app.on('ready', createWindow);
-  
+
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
       app.quit();
@@ -72,7 +77,7 @@ if (!gotTheLock) {
     if (typeof ptyProcess !== 'undefined' && ptyProcess) {
       try {
         ptyProcess.kill();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (typeof activeLiveServer !== 'undefined' && activeLiveServer) {
       try {
@@ -82,7 +87,7 @@ if (!gotTheLock) {
         } else {
           activeLiveServer.kill();
         }
-      } catch (e) {}
+      } catch (e) { }
     }
   });
 
@@ -99,12 +104,12 @@ function handleAuthDeepLink(url: string) {
     // Windows sometimes appends a trailing slash, clean it up
     const cleanUrl = url.replace(/\/$/, '');
     const parsedUrl = new URL(cleanUrl);
-    
+
     // Fallback to default values if the redirect was missing some parameters
     const token = parsedUrl.searchParams.get('token') || 'session-token';
     const name = parsedUrl.searchParams.get('name') || 'Developer';
     const avatar = parsedUrl.searchParams.get('avatar') || 'https://i.pravatar.cc/150?img=11';
-    
+
     if (mainWindow) {
       // Send the user data to the renderer
       mainWindow.webContents.send('auth-success', { token, name, avatar });
@@ -122,7 +127,7 @@ function createWindow() {
     frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#050505',
-    icon: path.join(__dirname, '../../public/icon.png'),
+    icon: getPublicAssetPath('quantix.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: false
@@ -137,13 +142,13 @@ function createWindow() {
     alwaysOnTop: true,
     resizable: false,
     backgroundColor: '#00000000', // MUST be transparent for floating card
-    icon: path.join(__dirname, '../../public/icon.png'),
+    icon: getPublicAssetPath('quantix.ico'),
     webPreferences: {
       nodeIntegration: false
     }
   });
 
-  splashWindow.loadFile(path.join(__dirname, '../../public/splash.html'));
+  splashWindow.loadFile(getPublicAssetPath('splash.html'));
 
   mainWindow.once('ready-to-show', () => {
     // Add a short delay to ensure Vite's React bundle fully mounts before swapping
@@ -158,7 +163,7 @@ function createWindow() {
   ipcMain.on('window-minimize', () => {
     mainWindow?.minimize();
   });
-  
+
   ipcMain.on('window-maximize', () => {
     if (mainWindow?.isMaximized()) {
       mainWindow?.unmaximize();
@@ -166,7 +171,7 @@ function createWindow() {
       mainWindow?.maximize();
     }
   });
-  
+
   ipcMain.on('window-close', () => {
     mainWindow?.close();
   });
@@ -190,7 +195,7 @@ function createWindow() {
     // Robust folder name parsing (handle trailing slashes and windows/unix paths)
     const normalizedPath = folderPath.replace(/[/\\]+$/, '');
     const folderName = normalizedPath.split(/[/\\]/).filter(Boolean).pop() || folderPath;
-    
+
     let branch = null;
 
     // Fallback 1: Direct file read of .git/HEAD
@@ -224,8 +229,8 @@ function createWindow() {
     if (!branch) {
       try {
         const { execSync } = require('child_process');
-        branch = execSync('git rev-parse --abbrev-ref HEAD', { 
-          cwd: folderPath, 
+        branch = execSync('git rev-parse --abbrev-ref HEAD', {
+          cwd: folderPath,
           stdio: ['ignore', 'pipe', 'ignore'],
           timeout: 1000,
           shell: true
@@ -246,7 +251,7 @@ function createWindow() {
     const fs = require('fs');
     const path = require('path');
     console.log('[IPC] Reading project files for path:', projectPath);
-    
+
     function getFiles(dir: string, depth = 0): any[] {
       if (depth > 5) return [];
       try {
@@ -286,7 +291,7 @@ function createWindow() {
         return [];
       }
     }
-    
+
     return getFiles(projectPath);
   });
 
@@ -403,7 +408,7 @@ function createWindow() {
     if (ptyProcess) {
       ptyProcess.kill();
     }
-    
+
     const shellStr = process.env[process.platform === 'win32' ? 'COMSPEC' : 'SHELL'] || (process.platform === 'win32' ? 'cmd.exe' : 'bash');
 
     if (pty) {
@@ -484,7 +489,7 @@ function createWindow() {
     const { spawn } = require('child_process');
     const { shell } = require('electron');
     const port = Math.floor(Math.random() * (9000 - 3000) + 3000);
-    
+
     try {
       if (activeLiveServer) {
         if (process.platform === 'win32') {
@@ -503,16 +508,16 @@ function createWindow() {
       // Spawn npx live-server
       const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
       activeLiveServer = spawn(npxCmd, ['-y', 'live-server', `--port=${port}`, '--host=localhost', '--no-browser'], { cwd: projectPath, shell: true });
-      
+
       activeLiveServer.on('error', (err: any) => {
         console.error('[IPC] Failed to start live-server:', err);
       });
-      
+
       // Manually open the browser after a short delay
       setTimeout(() => {
         shell.openExternal(`http://localhost:${port}`);
       }, 2000);
-      
+
       return { success: true, port };
     } catch (e: any) {
       console.error('[IPC] Exception starting server:', e);

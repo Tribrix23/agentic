@@ -1,5 +1,5 @@
 {
-  "name": "quantix code",
+  "name": "quantix-code",
   "productName": "Quantix Code",
   "version": "1.0.0",
   "description": "QUANTIX CODE is an AI-powered Electron desktop coding assistant featuring multi-model support, agentic tool execution, full IDE capabilities, terminal integration, Git operations, and premium UI for enhanced pair programming experiences.",
@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make",
+    "make": "npm run package && electron-builder --prepackaged \"out/Quantix Code-win32-x64\" --win nsis --x64",
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx ."
   },
@@ -22,7 +22,6 @@
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",
     "@electron-forge/maker-rpm": "^7.11.2",
-    "@electron-forge/maker-squirrel": "^7.11.2",
     "@electron-forge/maker-zip": "^7.11.2",
     "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
     "@electron-forge/plugin-fuses": "^7.11.2",
@@ -37,6 +36,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.5.4",
     "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "eslint": "^8.57.1",
     "eslint-plugin-import": "^2.32.0",
     "postcss": "^8.5.20",
@@ -70,5 +70,37 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "xterm": "^5.3.0"
+  },
+  "build": {
+    "appId": "com.tribrix.quantixcode",
+    "productName": "Quantix Code",
+    "artifactName": "Quantix-Code-${version}-Setup.${ext}",
+    "directories": {
+      "output": "out/installer"
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Quantix Code",
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico",
+      "license": "assets/license.txt",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

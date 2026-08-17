@@ -1281,7 +1281,7 @@ IMPORTANT RULES:
             onClick={onOpenIde}
             className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
           >
-            <img src="/icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
+            <img src="./icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
             Open QUANTIX IDE
           </button>
           <button
