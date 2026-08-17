@@ -42,7 +42,7 @@ export const handler: ToolHandler = async (args, context) => {
     const escapedPath = outputPath.replace(/'/g, "''");
     const imageFormat = format === 'jpg' ? 'Jpeg' : 'Png';
     const screenshotCommand = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height; $graphics = [System.Drawing.Graphics]::FromImage($bmp); $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('${escapedPath}', [System.Drawing.Imaging.ImageFormat]::${imageFormat}); $graphics.Dispose(); $bmp.Dispose()"`;
-    const result = await (window as any).electron.runCommand(screenshotCommand, context.projectRoot);
+    const result = await (window as any).electron.runCommandCapture(screenshotCommand, context.projectRoot);
     
     if (result.error) {
       return { success: false, output: `Screenshot failed: ${result.error}` };

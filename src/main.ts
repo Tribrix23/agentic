@@ -126,9 +126,9 @@ try {
   $bitmap.Save($outputPath, $imageFormat)
   $graphics.Dispose()
   $bitmap.Dispose()
-  [uint32]$processId = 0
-  [void][WindowCaptureNative]::GetWindowThreadProcessId($target, [ref]$processId)
-  @{ success = $true; title = $matchedTitle; processId = $processId } | ConvertTo-Json -Compress
+  [uint32]$capturedProcessId = 0
+  [void][WindowCaptureNative]::GetWindowThreadProcessId($target, [ref]$capturedProcessId)
+  @{ success = $true; title = $matchedTitle; processId = $capturedProcessId } | ConvertTo-Json -Compress
 } finally {
   if ($wasMinimized) { [void][WindowCaptureNative]::ShowWindow($target, 6) }
 }`;
