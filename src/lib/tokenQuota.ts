@@ -134,6 +134,7 @@ export class TokenBillingSession {
   private charged = 0;
   private remaining: number | undefined;
   private started = false;
+  private promptConsumed = false;
   private stopped = false;
   private queue: Promise<void> = Promise.resolve();
 
@@ -156,12 +157,19 @@ export class TokenBillingSession {
       await deductTokens(this.userId, MINIMUM_START_CHARGE, this.target);
       this.started = true;
       this.charged = MINIMUM_START_CHARGE;
+      // The start charge covers the first usage checkpoint. Without this,
+      // consumePrompt can immediately issue a second identical deduction.
+      this.appliedStepCount = 1;
       this.remaining = remaining - MINIMUM_START_CHARGE;
       this.publishUpdate();
     });
   }
 
   async consumePrompt(messages: Array<{ content?: string; tool_calls?: unknown }>): Promise<void> {
+    // Agent iterations resend conversation history. Bill that input once for the
+    // user submission instead of charging the same prompt on every iteration.
+    if (this.promptConsumed) return;
+    this.promptConsumed = true;
     const serialized = messages.map(message => `${message.content || ''}${message.tool_calls ? JSON.stringify(message.tool_calls) : ''}`).join('\n');
     await this.consume(estimateTokens(serialized) * INPUT_TOKEN_WEIGHT);
   }

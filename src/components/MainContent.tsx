@@ -20,7 +20,7 @@ import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
-import { initializeTools, getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
+import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
 import { executeTool, clearToolCache } from '../lib/tools/executor';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
 import { updateTask, getTask } from '../lib/taskStore';
@@ -109,15 +109,6 @@ export const MainContent = ({
   const [inputValue, setInputValue] = useState('');
 
   const { agentState, setAgentState, pendingToolCall, pendingAskUser, submitPrompt, handleToolIntercepted, handleToolDecision, handleUserResponse } = useAgentLoop();
-
-  // ── Initialize Tools ─────────────────────────────────────────────────
-  useEffect(() => {
-    try {
-      initializeTools();
-    } catch (e) {
-      // Tools may already be registered
-    }
-  }, []);
 
   // ── Load project files when project changes ──────────────────────────
   useEffect(() => {
@@ -614,8 +605,7 @@ IMPORTANT RULES:
           for (let i = newMsgs.length - 1; i >= 0; i--) {
             if (newMsgs[i].role === 'assistant' && newMsgs[i].isStreaming && newMsgs[i].id === event.data.messageId) {
               const existingToolCalls = newMsgs[i].toolCalls || [];
-              const streamId = `live_stream_${event.data.toolName}_${event.data.filePath}`;
-              const liveLines: number = event.data.liveLines ?? 0;
+              const streamId = event.data.toolCallId;
 
               const existingIdx = existingToolCalls.findIndex(
                 tc => tc.id === streamId
@@ -637,9 +627,11 @@ IMPORTANT RULES:
                 arguments: {
                   TargetFile: event.data.filePath,
                   path: event.data.filePath,
-                  // Give FileEditCard enough content to count lines
-                  ReplacementContent: liveLines > 0 ? '\n'.repeat(liveLines - 1) : '',
-                  TargetContent: ''
+                  content: event.data.content,
+                  CodeContent: event.data.content,
+                  ReplacementContent: event.data.content,
+                  _liveAdded: event.data.added,
+                  _liveRemoved: event.data.removed
                 },
                 status: 'running' as const,
                 timestamp: Date.now()
@@ -833,6 +825,25 @@ IMPORTANT RULES:
     isStreamingRef.current = true;
     submitPrompt(content, aiConfig.agentMode);
 
+    // Capture the complete pre-turn worktree in a hidden Git branch without
+    // checking it out or changing the user's index/current branch.
+    if (convId) {
+      const projectPath = selectedProject?.path || '';
+      const checkpoint = projectPath
+        ? await (window as any).electron?.createGitCheckpoint(projectPath, convId, userMsg.id)
+        : null;
+      saveSnapshot({
+        userMessageId: userMsg.id,
+        conversationId: convId,
+        timestamp: Date.now(),
+        projectPath,
+        gitCheckpoint: checkpoint?.success ? checkpoint.commit : undefined,
+        gitRef: checkpoint?.success ? checkpoint.ref : undefined,
+        files: [],
+      });
+      setCurrentUserMessageId(userMsg.id);
+    }
+
     let billingSession = isSleepingAgent ? billingSessionRef.current : null;
     if (!billingSession) {
       billingSession = new TokenBillingSession(user.token, aiConfig.model);
@@ -864,18 +875,6 @@ IMPORTANT RULES:
     
     setAgentIteration(0);
     clearToolCache(); // Reset duplicate-call cache for this new run
-
-    // ── Snapshot: register this turn so the executor can capture files pre-edit
-    if (convId) {
-      saveSnapshot({
-        userMessageId: userMsg.id,
-        conversationId: convId,
-        timestamp: Date.now(),
-        projectPath: selectedProject?.path || '',
-        files: [],   // files are populated lazily by executor.ts before each write
-      });
-      setCurrentUserMessageId(userMsg.id);
-    }
 
     // Background title generation (preserved from original)
     if (isFirstMessage && convId) {
@@ -1332,11 +1331,21 @@ IMPORTANT RULES:
                   const userMsg = messages[idx];
                   const convId = activeConversationId;
 
-                  // ── 2. Restore files from snapshot log
-                  // We need to restore all snapshots from this message onward, in reverse order.
+                  // ── 2. Restore the pre-turn Git checkpoint. Older conversations
+                  // and non-Git projects continue to use the legacy inverse log.
                   if (convId) {
                     const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
-                    for (const snapshot of snapshotsToUndo) {
+                    const targetSnapshot = snapshotsToUndo[snapshotsToUndo.length - 1];
+                    if (targetSnapshot?.gitCheckpoint && targetSnapshot.projectPath) {
+                      const restoreResult = await (window as any).electron?.restoreGitCheckpoint(
+                        targetSnapshot.projectPath,
+                        targetSnapshot.gitCheckpoint,
+                      );
+                      if (!restoreResult?.success) {
+                        console.error('[undo] Git checkpoint restore failed:', restoreResult?.error);
+                        return;
+                      }
+                    } else for (const snapshot of snapshotsToUndo) {
                       // Reverse the files in the snapshot so we undo them in reverse order
                       for (const file of [...snapshot.files].reverse()) {
                         try {

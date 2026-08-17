@@ -42,6 +42,8 @@ import { SecurityInterceptor } from './SecurityInterceptor';
 import { createTask, updateTask, getTasksForConversation } from './taskStore';
 import { TaskGraph } from './taskGraph';
 import { ParallelToolExecutor } from './parallelExecutor';
+import { calculateLineChanges, IncrementalToolCallParser } from './incrementalToolCallParser';
+import type { StreamingFileToolCall } from './incrementalToolCallParser';
 
 // ── Agent Events ───────────────────────────────────────────────────────────
 
@@ -82,6 +84,10 @@ export interface AgentEvent {
 }
 
 export type AgentEventCallback = (event: AgentEvent) => void;
+
+function toLineCount(content: string): number {
+  return content ? content.replace(/\r\n/g, '\n').split('\n').length : 0;
+}
 
 // ── Agent State ────────────────────────────────────────────────────────────
 
@@ -363,11 +369,19 @@ function stripToolCallBlocks(text: string, parsedToolCalls?: ParsedToolCall[]): 
   cleaned = cleaned.replace(/^TOOL RESULT \([^)]+\):.*$/gim, '');
   cleaned = cleaned.replace(/^TOOL ACTION: \w+.*$/gim, '');
   cleaned = cleaned.replace(/^\[Actions taken in previous step\].*$/gim, '');
+  // New bracketed historical context format echoes
+  cleaned = cleaned.replace(/^\[HISTORICAL CONTEXT[^\]]*\].*$/gim, '');
+  cleaned = cleaned.replace(/^\[PAST_ACTION:[^\]]*\].*$/gim, '');
+  // HTML comment format echoes (new system_history format)
+  cleaned = cleaned.replace(/<!--[\s\S]*?-->/gi, '');
+  // Old system_history format echoes (XML)
+  cleaned = cleaned.replace(/<system_history>[\s\S]*?<\/system_history>/gi, '');
+  cleaned = cleaned.replace(/<system_history_tool[^>]*>[\s\S]*?<\/system_history_tool>/gi, '');
   // XML past_action / past_tool_result — match even if malformed/unclosed
   cleaned = cleaned.replace(/<past_action[\s\S]*?(?:<\/past_action>|$)/gi, '');
   cleaned = cleaned.replace(/<past_tool_result[\s\S]*?(?:<\/past_tool_result>|$)/gi, '');
   // Orphaned closing XML tags from mixed format echoes
-  cleaned = cleaned.replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call)>/gi, '');
+  cleaned = cleaned.replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call|system_history|system_history_tool)>/gi, '');
   // Format 6: Self-closing XML tool calls (e.g. <listDirectory path="..." />)
   cleaned = cleaned.replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '');
   // Format 7: Native <function=name> format
@@ -625,6 +639,7 @@ export class AgentLoop {
       
       // ── Agent iteration loop ─────────────────────────────────────────
       let continueLoop = true;
+      let malformedToolCallRetries = 0;
       this.executedToolNames.clear();
       this.successfulFileWrites = 0;
 
@@ -686,6 +701,10 @@ export class AgentLoop {
         const startTime = Date.now();
         const effectiveConfig = { ...this.config };
         let fullResponseText = '';
+        const streamingToolParser = new IncrementalToolCallParser();
+        const latestStreamingCalls = new Map<string, StreamingFileToolCall>();
+        const originalFileContents = new Map<string, Promise<string>>();
+        const resolvedOriginalFileContents = new Map<string, string>();
         this.isStreaming = true; // Set streaming flag before API call
         console.log('[AgentLoop] Starting API call, isStreaming set to true');
         
@@ -790,50 +809,64 @@ export class AgentLoop {
               
               assistantMsg.content = hideText ? '' : afterThink.trim();
               
-              // ── LIVE TOOL STREAMING DETECTION ──────────────────────────
-              // Scan the raw accumulated text for file write/edit tool calls.
-              // Only fires once the FULL filename is in the stream (</parameter> must be closed).
-              // Also re-emits on every chunk to update the live +N line count.
-              const FILE_WRITE_TOOLS = ['writeFile', 'createFile', 'write_to_file', 'editFile', 'replace_file_content', 'multi_replace_file_content'];
-              const liveToolRegexes = [
-                // <function=writeFile> ... <parameter=path>filename</parameter>  — requires closing tag
-                /<function=([a-zA-Z0-9_-]+)>(?:[\s\S]*?)<parameter=(?:path|TargetFile|file)>\s*([^\n<]+?)\s*<\/parameter>/i,
-                // call:writeFile{..."path":"filename"  — full quoted value required
-                /call:([a-zA-Z0-9_]+)\s*\{[\s\S]*?"(?:path|TargetFile|file)"\s*:\s*"([^"]+)"/i,
-                // {"name":"writeFile",..."path":"filename"  — full quoted value required
-                /"name"\s*:\s*"([a-zA-Z0-9_]+)"[\s\S]*?"(?:path|TargetFile|file)"\s*:\s*"([^"]+)"/i,
-              ];
-              for (const rx of liveToolRegexes) {
-                const m = fullResponseText.match(rx);
-                if (m) {
-                  const toolName = m[1];
-                  const filePath = m[2].trim();
-                  if (FILE_WRITE_TOOLS.includes(toolName)) {
-                    const streamKey = `${toolName}:${filePath}`;
-                    if (!(assistantMsg as any)._liveToolsEmitted) (assistantMsg as any)._liveToolsEmitted = new Set();
-                    
-                    // Try to read how many lines of content have streamed so far
-                    const contentMatch = fullResponseText.match(/<parameter=(?:ReplacementContent|CodeContent|file_content|content)>\s*([\s\S]*?)(?:<\/parameter>|$)/i)
-                      ?? fullResponseText.match(/"(?:ReplacementContent|CodeContent|file_content|content)"\s*:\s*"([\s\S]*?)(?:"|$)/i);
-                    const liveContent = contentMatch ? contentMatch[1] : '';
-                    const liveLines = liveContent ? liveContent.split('\n').length : 0;
-
-                    if (!(assistantMsg as any)._liveToolsEmitted.has(streamKey)) {
-                      // First time we see this complete filename — create the card
-                      (assistantMsg as any)._liveToolsEmitted.add(streamKey);
-                    }
-                    // Always emit (not just once) so the line count updates every chunk
-                    this.emit({
-                      type: 'agent:tool-streaming',
-                      data: {
-                        messageId: assistantMsg.id,
-                        toolName,
-                        filePath,
-                        liveLines,
-                      }
-                    });
+              // Feed only the new delta into a retained parser. This creates the
+              // UI step once function + path are known and updates it per chunk.
+              for (const liveCall of streamingToolParser.feed(chunk)) {
+                latestStreamingCalls.set(liveCall.id, liveCall);
+                const emitStreamingCall = (added: number, removed: number) => this.emit({
+                  type: 'agent:tool-streaming',
+                  data: {
+                    messageId: assistantMsg.id,
+                    toolCallId: liveCall.id,
+                    toolName: liveCall.name,
+                    filePath: liveCall.path,
+                    content: liveCall.content,
+                    added,
+                    removed,
+                    streamComplete: liveCall.complete,
                   }
-                  break;
+                });
+
+                if (liveCall.name === 'editFile') {
+                  const root = this.projectContext?.rootPath?.replace(/[\\/]$/, '') || '';
+                  const targetPath = /^(?:[a-zA-Z]:[\\/]|\/)/.test(liveCall.path)
+                    ? liveCall.path
+                    : `${root}/${liveCall.path}`;
+                  let originalPromise = originalFileContents.get(targetPath);
+                  if (!originalPromise) {
+                    originalPromise = Promise.resolve((window as any).electron?.readFileContent(targetPath))
+                      .then(value => typeof value === 'string' ? value : '')
+                      .catch(() => '');
+                    originalFileContents.set(targetPath, originalPromise);
+                  }
+                  const resolvedOriginal = resolvedOriginalFileContents.get(targetPath);
+                  if (resolvedOriginal !== undefined) {
+                    const stats = calculateLineChanges(resolvedOriginal, liveCall.content);
+                    emitStreamingCall(stats.added, stats.removed);
+                    continue;
+                  }
+
+                  // Show content progress immediately while the one-time original
+                  // file read is in flight, then replace it with exact diff stats.
+                  emitStreamingCall(toLineCount(liveCall.content), 0);
+                  originalPromise.then(original => {
+                    resolvedOriginalFileContents.set(targetPath, original);
+                    const latest = latestStreamingCalls.get(liveCall.id);
+                    if (!latest) return;
+                    const stats = calculateLineChanges(original, latest.content);
+                    this.emit({ type: 'agent:tool-streaming', data: {
+                      messageId: assistantMsg.id,
+                      toolCallId: latest.id,
+                      toolName: latest.name,
+                      filePath: latest.path,
+                      content: latest.content,
+                      added: stats.added,
+                      removed: stats.removed,
+                      streamComplete: latest.complete,
+                    }});
+                  });
+                } else {
+                  emitStreamingCall(toLineCount(liveCall.content), 0);
                 }
               }
 
@@ -967,6 +1000,22 @@ export class AgentLoop {
         
         let forceRetry = false;
         const hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
+
+        // A model may wrap a copied history record in <tool_call> without a
+        // <function=...> element. It is neither a valid tool call nor a useful
+        // final response, so hide it and request one corrected response.
+        const hasMalformedXmlToolCall = !hasToolCalls && /<tool_call\b[^>]*>/i.test(fullResponseText);
+        if (hasMalformedXmlToolCall && malformedToolCallRetries < 1) {
+          malformedToolCallRetries++;
+          assistantMsg.isHidden = true;
+          const correction = createUserMessage(
+            '[SYSTEM FORMAT ERROR] The previous <tool_call> block was invalid. Do not wrap action history or tool results in <tool_call>. Retry now using exactly <tool_call><function=TOOL_NAME><parameter=ARGUMENT_NAME>VALUE</parameter></function></tool_call>, or provide a normal final response.'
+          );
+          correction.isHidden = true;
+          updatedMessages.push(correction);
+          this.emit({ type: 'agent:message-added', data: correction });
+          forceRetry = true;
+        }
         
         // ── Detect duplicate tool call loops ───────────────────────────────────
         if (hasToolCalls) {

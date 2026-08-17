@@ -1,7 +1,7 @@
 import { ToolCall, ToolResult, ToolContext } from './types';
 import { getTool } from './registry';
 import { checkPermission, PermissionConfig } from '../permissions';
-import { addFileToSnapshot } from '../snapshotStore';
+import { addFileToSnapshot, getSnapshot } from '../snapshotStore';
 
 // ── Deduplication store ────────────────────────────────────────────────────
 // Tracks tool signatures executed this session. Resets when a write operation
@@ -69,6 +69,8 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   try {
     // ── Snapshot: capture inverse actions BEFORE tool execution ───────────────────
     if (currentUserMessageId) {
+      const turnSnapshot = getSnapshot(currentUserMessageId);
+      const usesGitCheckpoint = Boolean(turnSnapshot?.gitCheckpoint);
       const getFullPath = (p: string) => {
         if (!p) return '';
         if (!p.startsWith('/') && !/^[a-zA-Z]:(\\|\/)/.test(p) && context.projectRoot) {
@@ -87,7 +89,10 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
       const targetNewPath = getFullPath(newPathArg);
 
       try {
-        if (['writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'].includes(toolName)) {
+        if (usesGitCheckpoint) {
+          // The hidden Git checkpoint already contains the complete pre-turn tree,
+          // including files that were untracked at the time of capture.
+        } else if (['writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'].includes(toolName)) {
           if (targetPath) {
             try {
               const existing = await (window as any).electron?.readFileContent(targetPath);

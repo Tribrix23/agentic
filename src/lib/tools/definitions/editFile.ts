@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
+import { calculateLineChanges } from '../../incrementalToolCallParser';
 
 export const definition: ToolDefinition = {
   name: 'editFile',
@@ -112,10 +113,7 @@ export const handler: ToolHandler = async (args, context) => {
     const result = await (window as any).electron.saveFileContent(targetPath, newContent);
     
     if (result.success) {
-      const oldLines = content.split('\n').length;
-      const newLines = newContent.split('\n').length;
-      const added = Math.max(0, newLines - oldLines + replace.split('\n').length - search.split('\n').length);
-      const removed = Math.max(0, oldLines - newLines + search.split('\n').length - replace.split('\n').length);
+      const { added, removed } = calculateLineChanges(content, newContent);
       return { 
         success: true, 
         output: `Successfully edited ${targetPath}`,
@@ -123,8 +121,8 @@ export const handler: ToolHandler = async (args, context) => {
           type: 'file_change',
           path: targetPath,
           content: newContent,
-          added: replace.split('\n').length,
-          removed: search.split('\n').length
+          added,
+          removed
         }]
       };
     } else {

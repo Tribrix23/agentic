@@ -15,6 +15,8 @@ export interface TurnSnapshot {
   conversationId: string;
   timestamp: number;
   projectPath: string;
+  gitCheckpoint?: string;
+  gitRef?: string;
   files: FileSnapshot[];     // files captured BEFORE this turn's edits
 }
 

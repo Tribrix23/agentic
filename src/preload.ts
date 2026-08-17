@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('electron', {
   deleteFile: (path: string) => ipcRenderer.invoke('delete-file', path),
   backupPath: (sourcePath: string, projectRoot: string) => ipcRenderer.invoke('backup-path', sourcePath, projectRoot),
   restorePath: (backupPath: string, targetPath: string) => ipcRenderer.invoke('restore-path', backupPath, targetPath),
+  createGitCheckpoint: (projectRoot: string, conversationId: string, messageId: string) => ipcRenderer.invoke('create-git-checkpoint', projectRoot, conversationId, messageId),
+  restoreGitCheckpoint: (projectRoot: string, commit: string) => ipcRenderer.invoke('restore-git-checkpoint', projectRoot, commit),
   createFile: (parentPath: string, fileName: string) => ipcRenderer.invoke('create-file', parentPath, fileName),
   createFolder: (parentPath: string, folderName: string) => ipcRenderer.invoke('create-folder', parentPath, folderName),
   gitStatus: (cwd: string) => ipcRenderer.invoke('git-status', cwd),

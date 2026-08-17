@@ -1,4 +1,5 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
+import { calculateLineChanges } from '../../incrementalToolCallParser';
 
 export const definition: ToolDefinition = {
   name: 'writeFile',
@@ -68,11 +69,10 @@ export const handler: ToolHandler = async (args, context) => {
     
     // Step 2: Check if the file already existed (before we overwrite it)
     const fileExisted = await (window as any).electron.fileExists(targetPath).catch(() => false);
-    let previousLineCount = 0;
+    let previousContent = '';
     if (fileExisted) {
       try {
-        const existingContent = await (window as any).electron.readFileContent(targetPath);
-        previousLineCount = (existingContent || '').split('\n').length;
+        previousContent = await (window as any).electron.readFileContent(targetPath) || '';
       } catch (e) { /* ignore */ }
     }
     
@@ -107,7 +107,7 @@ export const handler: ToolHandler = async (args, context) => {
           }]
         };
       }
-      const newLineCount = content.split('\n').length;
+      const changes = calculateLineChanges(previousContent, content);
       return { 
         success: true, 
         output: `Successfully ${fileExisted ? 'updated' : 'created'} ${targetPath} (${content.length} characters)`,
@@ -116,8 +116,8 @@ export const handler: ToolHandler = async (args, context) => {
           path: targetPath,
           content,
           isNew: !fileExisted,
-          added: fileExisted ? Math.max(0, newLineCount - previousLineCount) : newLineCount,
-          removed: fileExisted ? Math.max(0, previousLineCount - newLineCount) : 0
+          added: changes.added,
+          removed: changes.removed
         }]
       };
     } else {

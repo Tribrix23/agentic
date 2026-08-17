@@ -16,6 +16,9 @@ const FILE_TOOLS  = [...WRITE_TOOLS, ...EDIT_TOOLS];
 
 /** Compute live +N -N from tool arguments (before execution) */
 function getLiveDiffStats(toolName: string, args: Record<string, any>): { added: number; removed: number } {
+  if (typeof args._liveAdded === 'number' || typeof args._liveRemoved === 'number') {
+    return { added: args._liveAdded || 0, removed: args._liveRemoved || 0 };
+  }
   if (WRITE_TOOLS.includes(toolName)) {
     // Support both CodeContent (native) and ReplacementContent (used by live streaming injector)
     const content = args.CodeContent || args.content || args.file_content || args.ReplacementContent || '';

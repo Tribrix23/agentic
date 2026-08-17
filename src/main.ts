@@ -26,6 +26,32 @@ let ptyProcess: any = null;
 let pty: any = null;
 let activeLiveServer: any = null;
 
+function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', args, {
+      cwd,
+      env: { ...process.env, ...env },
+      windowsHide: true,
+      shell: false,
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on('data', chunk => stdout.push(Buffer.from(chunk)));
+    child.stderr.on('data', chunk => stderr.push(Buffer.from(chunk)));
+    child.on('error', reject);
+    child.on('close', code => {
+      const output = Buffer.concat(stdout).toString('utf8');
+      if (code === 0) resolve(output);
+      else reject(new Error(Buffer.concat(stderr).toString('utf8').trim() || `git exited with code ${code}`));
+    });
+  });
+}
+
+function checkpointRef(conversationId: string): string {
+  const safeId = conversationId.replace(/[^a-zA-Z0-9._-]/g, '-');
+  return `refs/heads/quantix/checkpoints/${safeId}`;
+}
+
 const getPublicAssetPath = (...segments: string[]) => path.join(
   app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '../../public'),
   ...segments,
@@ -394,6 +420,79 @@ function createWindow() {
     } catch (e: any) {
       console.error('[IPC] Failed to restore path:', e);
       return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('create-git-checkpoint', async (_event, projectRoot: string, conversationId: string, messageId: string) => {
+    let temporaryIndex = '';
+    try {
+      const root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
+      const gitDir = (await runGit(['rev-parse', '--git-dir'], root)).trim();
+      const absoluteGitDir = path.isAbsolute(gitDir) ? gitDir : path.join(root, gitDir);
+      temporaryIndex = path.join(absoluteGitDir, `quantix-index-${process.pid}-${Date.now()}`);
+      const env = { GIT_INDEX_FILE: temporaryIndex };
+
+      try {
+        await runGit(['read-tree', 'HEAD'], root, env);
+      } catch {
+        await runGit(['read-tree', '--empty'], root, env);
+      }
+      await runGit(['add', '-A', '--', '.'], root, env);
+      const tree = (await runGit(['write-tree'], root, env)).trim();
+      const ref = checkpointRef(conversationId);
+
+      let parent = '';
+      try {
+        parent = (await runGit(['rev-parse', '--verify', ref], root)).trim();
+      } catch {
+        try { parent = (await runGit(['rev-parse', '--verify', 'HEAD'], root)).trim(); } catch { /* unborn repository */ }
+      }
+
+      const commitArgs = ['commit-tree', tree, '-m', `Quantix checkpoint ${messageId}`];
+      if (parent) commitArgs.splice(2, 0, '-p', parent);
+      const identityEnv = {
+        ...env,
+        GIT_AUTHOR_NAME: 'Quantix Checkpoint',
+        GIT_AUTHOR_EMAIL: 'checkpoint@quantix.local',
+        GIT_COMMITTER_NAME: 'Quantix Checkpoint',
+        GIT_COMMITTER_EMAIL: 'checkpoint@quantix.local',
+      };
+      const commit = (await runGit(commitArgs, root, identityEnv)).trim();
+      await runGit(['update-ref', ref, commit], root);
+      return { success: true, commit, ref };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    } finally {
+      if (temporaryIndex) fs.rmSync(temporaryIndex, { force: true });
+    }
+  });
+
+  ipcMain.handle('restore-git-checkpoint', async (_event, projectRoot: string, commit: string) => {
+    let temporaryIndex = '';
+    try {
+      const root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
+      await runGit(['cat-file', '-e', `${commit}^{commit}`], root);
+      const targetPaths = new Set(
+        (await runGit(['ls-tree', '-r', '--name-only', '-z', commit], root)).split('\0').filter(Boolean)
+      );
+      const currentPaths = (await runGit(['ls-files', '-co', '--exclude-standard', '-z'], root)).split('\0').filter(Boolean);
+      for (const relativePath of currentPaths) {
+        if (!targetPaths.has(relativePath)) {
+          fs.rmSync(path.join(root, relativePath), { recursive: true, force: true });
+        }
+      }
+
+      const gitDir = (await runGit(['rev-parse', '--git-dir'], root)).trim();
+      const absoluteGitDir = path.isAbsolute(gitDir) ? gitDir : path.join(root, gitDir);
+      temporaryIndex = path.join(absoluteGitDir, `quantix-restore-index-${process.pid}-${Date.now()}`);
+      const env = { GIT_INDEX_FILE: temporaryIndex };
+      await runGit(['read-tree', commit], root, env);
+      await runGit(['checkout-index', '--all', '--force'], root, env);
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    } finally {
+      if (temporaryIndex) fs.rmSync(temporaryIndex, { force: true });
     }
   });
 

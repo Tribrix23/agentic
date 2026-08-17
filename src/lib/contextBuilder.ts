@@ -263,9 +263,31 @@ export function buildContext(
     const isMsgNew = isNewMessage(i);
     const preserveNativeToolHistory = isGpt56Model(config.model) && Boolean(toolDefinitions?.length);
 
-    // Keep native tool-call history for GPT-5.6. Other compatibility backends
-    // receive readable plain-text history because some silently drop tool roles.
-    
+    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
+      const toolCallDesc = msg.toolCalls
+        .map((tc) => {
+          // Use a format that's clearly distinct from actual tool calls
+          // This is a RECORD of past actions, not a template for new ones
+          const argsStr = Object.entries(tc.arguments || {})
+            .map(([k, v]) => `${k}=${String(v)}`)
+            .join(', ')
+            .slice(0, 150);
+          let desc = `[PAST_ACTION: ${tc.name} with args=[${argsStr}]`;
+          if (tc.result) {
+            const snippet = tc.result.output.slice(0, 600) + (tc.result.output.length > 600 ? '...' : '');
+            desc += ` | RESULT: ${tc.result.success ? 'OK' : 'ERROR'} - ${snippet}`;
+          }
+          desc += ']';
+          return desc;
+        })
+        .join('\n');
+      // Mark this clearly as historical context
+      const historyNote = `[HISTORICAL CONTEXT - Previous tool executions for reference only]\n${toolCallDesc}`;
+      chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + historyNote : historyNote;
+      // Keep as assistant role since this represents what the assistant did
+      // The format is distinct enough that AI shouldn't mimic it
+    }
+
     if (msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
       chatMsg.role = 'user';
       // Plain-text marker — no XML that the AI might mimic.
@@ -292,35 +314,6 @@ export function buildContext(
       chatMsg.content = `TOOL RESULT (${msg.toolName}):\n${truncated}`;
       delete chatMsg.tool_call_id;
       delete chatMsg.name;
-    }
-
-    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
-      const toolCallDesc = msg.toolCalls
-        .map((tc) => {
-          // Plain text format — no XML, no brackets the AI will echo back.
-          // IMPORTANT: Do NOT use JSON.stringify here! If the AI sees JSON in its history,
-          // it will start outputting JSON instead of XML, poisoning its context.
-          const argsStr = Object.entries(tc.arguments || {})
-            .map(([k, v]) => `${k}=${String(v)}`)
-            .join(', ')
-            .slice(0, 150);
-          let desc = `TOOL ACTION: ${tc.name} [${argsStr}]`;
-          if (tc.result) {
-            const snippet = tc.result.output.slice(0, 600) + (tc.result.output.length > 600 ? '...' : '');
-            desc += ` → ${tc.result.success ? 'OK' : 'ERROR'}: ${snippet}`;
-          }
-          return desc;
-        })
-        .join('\n');
-      // Prepend a brief note so the AI knows this is history
-      const historyNote = `[Actions taken in previous step - DO NOT REPEAT THESE]\n${toolCallDesc}`;
-      chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + historyNote : historyNote;
-      // CHANGE ROLE TO USER: If we leave this as 'assistant', the LLM will learn by
-      // example to literally generate "[Actions taken...]" in its own responses.
-      // EXCEPTION: 'dispatcher v1' is fine-tuned to expect this as an assistant role.
-      if (!config.model.toLowerCase().includes('dispatcher v1')) {
-        chatMsg.role = 'user';
-      }
     }
 
     const msgTokens = estimateTokens(chatMsg.content) + 4;

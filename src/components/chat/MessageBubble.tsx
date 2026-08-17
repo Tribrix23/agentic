@@ -118,9 +118,14 @@ export function MessageBubble({
         .replace(/^TOOL RESULT \([^)]+\):.*$/gim, '')
         .replace(/^TOOL ACTION: \w+.*$/gim, '')
         .replace(/^\[Actions taken in previous step\].*$/gim, '')
+        .replace(/^\[HISTORICAL CONTEXT[^\]]*\].*$/gim, '')
+        .replace(/^\[PAST_ACTION:[^\]]*\].*$/gim, '')
+        .replace(/<!--[\s\S]*?-->/gi, '')
+        .replace(/<system_history>[\s\S]*?<\/system_history>/gi, '')
+        .replace(/<system_history_tool[^>]*>[\s\S]*?<\/system_history_tool>/gi, '')
         .replace(/<past_action[\s\S]*?(?:<\/past_action>|$)/gi, '')
         .replace(/<past_tool_result[\s\S]*?(?:<\/past_tool_result>|$)/gi, '')
-        .replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call)>/gi, '')
+        .replace(/<\/(?:past_action|past_tool_result|arg_value|arg_key|tool_call|system_history|system_history_tool)>/gi, '')
         .replace(/```(?:json)?\s*\{[\s\S]*?"tool_call"[\s\S]*?\}\s*```/gi, '')
         .replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '')
         .replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, '')
@@ -358,8 +363,8 @@ export function MessageBubble({
   }
 
   const aggregatedFileChanges = Array.from(fileChangesMap.values());
-  const totalAdded = aggregatedFileChanges.reduce((sum, f) => sum + (f.action === 'delete' ? 0 : f.added), 0);
-  const totalRemoved = aggregatedFileChanges.reduce((sum, f) => sum + (f.action === 'delete' ? 0 : f.removed), 0);
+  const totalAdded = aggregatedFileChanges.reduce((sum, f) => sum + f.added, 0);
+  const totalRemoved = aggregatedFileChanges.reduce((sum, f) => sum + f.removed, 0);
 
   const [filesExpanded, setFilesExpanded] = useState(false);
 
@@ -530,4 +535,5 @@ export function MessageBubble({
     </div>
   );
 }
+
 
