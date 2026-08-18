@@ -499,6 +499,57 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   await handleMockFallback(onChunk, onSuccess, checkIsStreaming);
 };
 
+export async function generateChatTitle(
+  config: AIConfig,
+  userPrompt: string,
+  conversationId?: string,
+): Promise<string> {
+  let generated = '';
+  let requestError: Error | null = null;
+
+  await callDispatcherAPI({
+    config: {
+      ...config,
+      stream: false,
+      enableThinking: false,
+      dynamicParameters: false,
+      maxTokens: 24,
+      temperature: 0.2,
+      maxRetries: 1,
+    },
+    messages: [
+      {
+        role: 'system',
+        content: 'Create a concise sidebar title for this chat. Return only the title, using 3 to 6 words with no quotes, markdown, or ending punctuation.',
+      },
+      { role: 'user', content: userPrompt },
+    ],
+    onChunk: chunk => { generated += chunk; },
+    onError: (error: Error) => { requestError = error; },
+    onSuccess: fullText => { generated = fullText || generated; },
+    checkIsStreaming: () => true,
+    conversationId: conversationId ? `${conversationId}_title` : undefined,
+  });
+
+  if (requestError) throw requestError;
+
+  const title = generated
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+    .replace(/^[\s"'`*_#-]+|[\s"'`*_#.!?:;-]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 6)
+    .join(' ')
+    .slice(0, 72)
+    .trim();
+
+  if (!title || /offline mode/i.test(title)) {
+    throw new Error('The title request did not return a usable title.');
+  }
+  return title;
+}
+
 // ── Stream Handler ─────────────────────────────────────────────────────────
 
 async function handleStreamingResponse(

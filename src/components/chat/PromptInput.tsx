@@ -124,6 +124,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   }, []);
 
   useEffect(() => {
+    const openModelPicker = () => setShowModelDropdown(true);
+    window.addEventListener('open-model-picker', openModelPicker);
+    return () => window.removeEventListener('open-model-picker', openModelPicker);
+  }, []);
+
+  useEffect(() => {
     if (!userId) {
       setTokenQuota(null);
       return;

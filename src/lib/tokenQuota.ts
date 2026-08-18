@@ -15,9 +15,9 @@ const DEDUCT_TOKENS_ENDPOINT = 'https://api.devctr.com/api/deduct-tokens';
 // Quota units are intentionally smaller than provider token counts. This keeps
 // the 250-unit weekly starter allowance useful for casual requests while still
 // charging long agent runs and reasoning-heavy models meaningfully.
-const INPUT_TOKEN_WEIGHT = 0.15;
+const INPUT_TOKEN_WEIGHT = 0.12;
 const MINIMUM_START_CHARGE = 5;
-const USAGE_CHECKPOINT = 500;
+const USAGE_CHECKPOINT = 625;
 const QUOTA_RESET_WINDOW_MS = 6 * 24 * 60 * 60 * 1000;
 
 export interface QuotaResetDetails {
@@ -122,7 +122,7 @@ function chargeStepsForUsage(weightedTokens: number): number[] {
   return Array.from({ length: checkpoints }, (_, index) => {
     // Keep deductions granular enough to stop promptly, with a modest
     // surcharge for exceptionally long runs rather than a sudden cliff.
-    return index < 10 ? 5 : index < 20 ? 10 : 15;
+    return index < 10 ? 4 : index < 20 ? 8 : 12;
   });
 }
 

@@ -9,6 +9,7 @@ import { ThinkingIndicator } from './ThinkingIndicator';
 import { AgentState } from '../../lib/types/AgentTypes';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { AskUserCard } from './AskUserCard';
+import { QuotaExhaustedNotice } from './QuotaExhaustedNotice';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -35,6 +36,10 @@ interface ChatContainerProps {
   inputValue?: string;
   onInputChange?: (val: string) => void;
   userId?: string;
+  quotaExhaustedMessage?: string | null;
+  onDismissQuota?: () => void;
+  onSelectAnotherModel?: () => void;
+  onUpgradePlan?: () => void;
 }
 
 export function ChatContainer({
@@ -60,7 +65,11 @@ export function ChatContainer({
   onUserResponse,
   inputValue,
   onInputChange,
-  userId
+  userId,
+  quotaExhaustedMessage,
+  onDismissQuota,
+  onSelectAnotherModel,
+  onUpgradePlan
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
   return (
     <div className={cn("relative flex flex-col h-full bg-transparent text-white")}>
@@ -80,6 +89,16 @@ export function ChatContainer({
       <div className="px-4 pb-4 bg-transparent w-full">
         <div className="w-full max-w-[900px] mx-auto flex flex-col items-center">
           {projectSelector}
+          {quotaExhaustedMessage && onDismissQuota && onSelectAnotherModel && onUpgradePlan && (
+            <div className="mb-2 flex w-full justify-center">
+              <QuotaExhaustedNotice
+                message={quotaExhaustedMessage}
+                onDismiss={onDismissQuota}
+                onSelectModel={onSelectAnotherModel}
+                onUpgrade={onUpgradePlan}
+              />
+            </div>
+          )}
           
           <div className="w-full flex flex-col items-center gap-2">
             {agentState === 'awaiting_tool_approval' && pendingToolCall && onToolDecision ? (

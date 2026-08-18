@@ -42,7 +42,7 @@ export function MessageBubble({
   if (!messages || messages.length === 0) {
     // If there are no messages (e.g. dummy group to keep Working accordion visible)
     // we still want to render the bubble if it's working.
-    const isWorking = isLatest && agentState && !['idle', 'done', 'error', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
+    const isWorking = isLatest && agentState && !['idle', 'done', 'error', 'quota_exhausted', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
     if (!isWorking) return null;
     
     return (
@@ -73,7 +73,7 @@ export function MessageBubble({
   const firstMessage = messages[0];
   const lastMessage = messages[messages.length - 1];
   
-  const isWorking = !isUser && isLatest && agentState && !['idle', 'done', 'error', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
+  const isWorking = !isUser && isLatest && agentState && !['idle', 'done', 'error', 'quota_exhausted', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
   
   let displayContent = '';
   const steps: AgentStep[] = [];
@@ -535,5 +535,6 @@ export function MessageBubble({
     </div>
   );
 }
+
 
 

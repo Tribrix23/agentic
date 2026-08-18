@@ -14,6 +14,7 @@ export type AgentState =
   | 'executing_parallel'     // Concurrent subagents running
   | 'synthesizing'           // Merging results
   | 'done'
+  | 'quota_exhausted'
   | 'error';
 
 /** Represents a single unit of work delegated to a subagent */

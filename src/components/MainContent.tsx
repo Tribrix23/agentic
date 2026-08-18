@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, User, Paperclip, Mic, Send, PanelLeft, ArrowLeft, ArrowRight, PanelRight, Folder, ChevronDown, Plus, HardDrive, Shield, ShieldAlert, ShieldCheck, X, GitBranch, Monitor, Lock, Trash2, PanelRightClose, PanelLeftClose, Cloud, Zap, Plug2, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
-import { callDispatcherAPI } from '../api';
+import { callDispatcherAPI, generateChatTitle } from '../api';
 
 // ── Agentic System Imports ─────────────────────────────────────────────────
 import { AIConfig, getAIConfig, setAIConfig } from '../lib/aiConfig';
@@ -30,7 +30,7 @@ import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
 import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
 import { setCurrentUserMessageId } from '../lib/tools/executor';
-import { TokenBillingSession } from '../lib/tokenQuota';
+import { isQuotaError, TokenBillingSession } from '../lib/tokenQuota';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
@@ -38,6 +38,7 @@ import { ArtifactViewer } from './chat/ArtifactViewer';
 import { ToolApprovalCard } from './chat/ToolApprovalCard';
 import { FileContextBadge } from './chat/FileContextBadge';
 import { PromptInput } from './chat/PromptInput';
+import { QuotaExhaustedNotice } from './chat/QuotaExhaustedNotice';
 
 interface ProjectFolder {
   path: string;
@@ -93,6 +94,7 @@ export const MainContent = ({
   const [tokenBudget, setTokenBudget] = useState<TokenBudget | undefined>();
   const [chatTitle, setChatTitle] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [quotaExhaustedMessage, setQuotaExhaustedMessage] = useState<string | null>(null);
 
   // Track active conversation for synchronous access in toolExecutor
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
@@ -109,6 +111,7 @@ export const MainContent = ({
   const billingSessionRef = useRef<TokenBillingSession | null>(null);
   const isStreamingRef = useRef(false);
   const isSubmittingRef = useRef(false);
+  const quotaExhaustedRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
 
   const { agentState, setAgentState, pendingToolCall, pendingAskUser, submitPrompt, handleToolIntercepted, handleToolDecision, handleUserResponse } = useAgentLoop();
@@ -795,8 +798,12 @@ IMPORTANT RULES:
       case 'agent:error':
         setIsAgentRunning(false);
         isStreamingRef.current = false;
-        setAgentStatus(`Error: ${event.data?.message || 'Unknown error'}`);
-        setAgentState('error');
+        if (quotaExhaustedRef.current) {
+          setAgentState('quota_exhausted');
+        } else {
+          setAgentStatus(`Error: ${event.data?.message || 'Unknown error'}`);
+          setAgentState('error');
+        }
         setMessages(prev => prev.map(m =>
           m.isStreaming ? { ...m, isStreaming: false } : m
         ));
@@ -834,6 +841,8 @@ IMPORTANT RULES:
     // against double-clicks and repeated Enter key events with a ref as well.
     if (isAgentRunning || isSubmittingRef.current) return;
     isSubmittingRef.current = true;
+    quotaExhaustedRef.current = false;
+    setQuotaExhaustedMessage(null);
 
     if (!user.token) {
       setAgentStatus('Error: No user ID is available for token billing.');
@@ -869,6 +878,30 @@ IMPORTANT RULES:
     isStreamingRef.current = true;
     submitPrompt(content, aiConfig.agentMode);
 
+    if (isFirstMessage && convId) {
+      const titleConversationId = convId;
+      const projectPath = selectedProject?.path || 'default';
+      void generateChatTitle(aiConfig, content, titleConversationId)
+        .then(title => {
+          let savedConvos: Record<string, Array<{ id: string; title: string }>> = {};
+          try {
+            const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+            if (!Array.isArray(parsed)) savedConvos = parsed;
+          } catch (_) {}
+
+          const projectConversations = savedConvos[projectPath] || [];
+          const existing = projectConversations.find(conversation => conversation.id === titleConversationId);
+          if (existing) existing.title = title;
+          else projectConversations.unshift({ id: titleConversationId, title });
+          savedConvos[projectPath] = projectConversations;
+          localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+
+          if (activeConversationIdRef.current === titleConversationId) setChatTitle(title);
+          window.dispatchEvent(new Event('conversationsUpdated'));
+        })
+        .catch(error => console.warn('[chat-title] Unable to generate title:', error));
+    }
+
     // Capture the complete pre-turn worktree in a hidden Git branch without
     // checking it out or changing the user's index/current branch.
     if (convId) {
@@ -897,8 +930,15 @@ IMPORTANT RULES:
       } catch (error) {
         billingSessionRef.current = null;
         const message = error instanceof Error ? error.message : 'Unable to verify the weekly token quota.';
-        setAgentStatus(`Error: ${message}`);
-        setAgentState('error');
+        if (isQuotaError(error)) {
+          quotaExhaustedRef.current = true;
+          setQuotaExhaustedMessage(message);
+          setAgentStatus(`Quota exhausted: ${message}`);
+          setAgentState('quota_exhausted');
+        } else {
+          setAgentStatus(`Error: ${message}`);
+          setAgentState('error');
+        }
         setIsAgentRunning(false);
         isStreamingRef.current = false;
         const errorMsg = createAssistantMessage(aiConfig.model);
@@ -919,34 +959,6 @@ IMPORTANT RULES:
     
     setAgentIteration(0);
     clearToolCache(); // Reset duplicate-call cache for this new run
-
-    // Background title generation (preserved from original)
-    if (isFirstMessage && convId) {
-      let savedConvos: any = {};
-      try {
-        const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-        if (!Array.isArray(parsed)) savedConvos = parsed;
-      } catch (e) {}
-      const projPath = selectedProject ? selectedProject.path : 'default';
-      const projConvos = savedConvos[projPath] || [];
-      let cleanTitle = content.trim().split(/\s+/).slice(0, 5).join(' ');
-      if (cleanTitle.length < content.trim().length) cleanTitle += '...';
-      if (!cleanTitle) cleanTitle = "New Conversation";
-
-      setChatTitle(cleanTitle);
-
-      if (!projConvos.some((c: any) => c.id === convId)) {
-        projConvos.unshift({ id: convId, title: cleanTitle });
-      } else {
-        const existing = projConvos.find((c: any) => c.id === convId);
-        if (existing) existing.title = cleanTitle;
-      }
-      savedConvos[projPath] = projConvos;
-      localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
-
-      // The local title avoids a second hidden model request and token deduction.
-      window.dispatchEvent(new Event('conversationsUpdated'));
-    }
 
     // ── Run Agent Loop ─────────────────────────────────────────────────
     if (aiConfig.agentMode) {
@@ -1079,17 +1091,22 @@ IMPORTANT RULES:
   useEffect(() => {
     const handleQuotaExhausted = (event: Event) => {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message || 'Weekly token quota is exhausted.';
+      quotaExhaustedRef.current = true;
       if (agentLoopRef.current) agentLoopRef.current.stop();
       subagentLoopsRef.current.forEach(loop => loop.stop());
       subagentLoopsRef.current.clear();
       isStreamingRef.current = false;
       setIsAgentRunning(false);
+      setQuotaExhaustedMessage(message);
       setAgentStatus(`Quota exhausted: ${message}`);
-      setAgentState('error');
+      setAgentState('quota_exhausted');
       setMessages(prev => prev.map(m => m.isStreaming ? {
         ...m,
         content: `${m.content}\n\n**Stopped:** ${message}`.trim(),
         isStreaming: false,
+        toolCalls: m.toolCalls?.map(toolCall => toolCall.status === 'running'
+          ? { ...toolCall, status: 'error' as const }
+          : toolCall),
       } : m));
     };
     window.addEventListener('token-quota-exhausted', handleQuotaExhausted);
@@ -1471,6 +1488,10 @@ IMPORTANT RULES:
                 inputValue={inputValue}
                 onInputChange={setInputValue}
                 userId={user.token}
+                quotaExhaustedMessage={quotaExhaustedMessage}
+                onDismissQuota={() => setQuotaExhaustedMessage(null)}
+                onSelectAnotherModel={() => window.dispatchEvent(new Event('open-model-picker'))}
+                onUpgradePlan={() => (window as any).electron?.openExternal?.('https://quantix.devctr.com/?source=desktop_app')}
               />
             </div>
             <AnimatePresence>
@@ -1503,6 +1524,16 @@ IMPORTANT RULES:
         )}>
 
           {messages.length === 0 && projectSelectorNode}
+          {messages.length === 0 && quotaExhaustedMessage && (
+            <div className="mb-2 flex w-full justify-center">
+              <QuotaExhaustedNotice
+                message={quotaExhaustedMessage}
+                onDismiss={() => setQuotaExhaustedMessage(null)}
+                onSelectModel={() => window.dispatchEvent(new Event('open-model-picker'))}
+                onUpgrade={() => (window as any).electron?.openExternal?.('https://quantix.devctr.com/?source=desktop_app')}
+              />
+            </div>
+          )}
           {/* ── Input Area (only shown when no messages OR always at bottom) ── */}
           {messages.length === 0 && (
             agentState === 'awaiting_tool_approval' && pendingToolCall ? (
