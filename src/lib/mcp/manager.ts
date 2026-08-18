@@ -105,10 +105,11 @@ export class McpClientManager {
 
   private async discover(record: ServerRecord): Promise<void> {
     const client: any = record.client;
+    const capabilities = client.getServerCapabilities?.() || {};
     record.tools = ((await client.listTools()).tools || []).map((tool: any): McpToolInfo => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema, permissions: classifyTool(tool.name, tool.description || ''), qualifiedName: `${record.id}:${tool.name}` }));
-    record.resources = (await client.listResources()).resources || [];
-    record.resourceTemplates = (await client.listResourceTemplates()).resourceTemplates || [];
-    record.prompts = (await client.listPrompts()).prompts || [];
+    record.resources = capabilities.resources ? ((await client.listResources()).resources || []) : [];
+    record.resourceTemplates = capabilities.resources ? ((await client.listResourceTemplates()).resourceTemplates || []) : [];
+    record.prompts = capabilities.prompts ? ((await client.listPrompts()).prompts || []) : [];
     record.tools.forEach(tool => this.emit({ type: 'tool_discovered', serverId: record.id, tool: tool.name, data: tool }));
   }
   private isAllowed(record: ServerRecord, tool: McpToolInfo): boolean { return tool.permissions.every(permission => (record.config.permissions || ['read']).includes(permission)); }

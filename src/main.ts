@@ -269,7 +269,8 @@ function createWindow() {
     icon: getPublicAssetPath('quantix.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false
+      webSecurity: false,
+      devTools: false
     },
   });
 
