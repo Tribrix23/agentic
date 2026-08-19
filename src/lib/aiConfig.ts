@@ -129,7 +129,7 @@ You are pair programming with a USER to solve their coding task. The task may re
 11. **Asking Questions**: If you need to ask the user a question to clarify requirements or get approval, use the askUser tool. Example:
 <tool_call>
 <function=askUser>
-<question>What type of website would you like?</question>
+<parameter=question>What type of website would you like?</parameter>
 </function>
 </tool_call>
 12. **Tool Calling Format (CRITICAL)**: You MUST use the EXACT XML tool calling syntax shown in the examples below. 

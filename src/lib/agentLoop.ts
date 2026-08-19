@@ -183,7 +183,7 @@ function getKnownToolNames(toolDefinitions: any[]): Set<string> {
  * Primary format: <tool_call><function=name><parameter=arg>value</parameter></function></tool_call>
  * All other formats are legacy fallbacks.
  */
-function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): ParsedToolCall[] {
+export function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
   let match: RegExpExecArray | null;
 
@@ -210,7 +210,9 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
       args[paramMatch[1].trim()] = val;
     }
 
-    // Fallback: If no <parameter=X> tags were found, try standard XML tags <X>val</X>
+    // Some models follow the older prompt contract and emit <question>...</question>
+    // instead of <parameter=question>...</parameter>. Handle that form explicitly so
+    // askUser cannot be mistaken for a text-only clarification response.
     if (Object.keys(args).length === 0) {
       const standardXmlRegex = /<([a-zA-Z0-9_-]+)>([\s\S]*?)<\/\1>/gi;
       let xmlMatch;
@@ -221,6 +223,14 @@ function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): Par
         else if (!isNaN(Number(val)) && val !== '') val = Number(val);
         args[xmlMatch[1].trim()] = val;
       }
+    }
+
+    if (name === 'askUser' && typeof args.question !== 'string') {
+      // A partially streamed or malformed askUser call must not be executed with
+      // an empty question, but it should still be surfaced as a parsed call so
+      // the agent can correct its format on the next iteration.
+      const questionMatch = /<question\s*>([\s\S]*?)<\/question\s*>/i.exec(argsStr);
+      if (questionMatch) args.question = questionMatch[1].trim();
     }
 
     if (isPlausibleToolName(name, knownToolNames)) {
@@ -580,7 +590,41 @@ export class AgentLoop {
           this.state.needsClarification = true;
           this.state.clarificationQuestion = clarification;
           this.emit({ type: 'agent:clarification-needed', data: { question: clarification } });
-          // Wait for user response (in real implementation, would pause here)
+
+          // The heuristic already determined that clarification is required. Do
+          // not merely emit an informational event and continue: that leaves the
+          // model free to describe asking a question without actually invoking
+          // the user-facing askUser tool.
+          if (this.toolExecutor) {
+            const clarificationCall: ToolCall = {
+              id: `ask_${Math.random().toString(36).substring(2, 9)}`,
+              name: 'askUser',
+              arguments: { question: clarification },
+              status: 'pending',
+              timestamp: Date.now(),
+              agentKind: this.options?.agentRole === 'subagent' ? 'subagent' : 'main',
+              agentRole: this.options?.agentRole,
+            };
+            const clarificationAssistant = createAssistantMessage(this.config.model);
+            clarificationAssistant.toolCalls = [clarificationCall];
+            clarificationAssistant.isHidden = true;
+            updatedMessages.push(clarificationAssistant);
+            this.emit({ type: 'agent:message-added', data: clarificationAssistant });
+            this.emit({ type: 'agent:tool-call', data: clarificationCall });
+
+            clarificationCall.status = 'running';
+            this.emit({ type: 'agent:tool-executing', data: clarificationCall });
+            const result = await this.toolExecutor(clarificationCall);
+            clarificationCall.result = result;
+            clarificationCall.status = result.success ? 'completed' : 'error';
+            clarificationCall.durationMs = Date.now() - clarificationCall.timestamp;
+            const clarificationResult = createToolMessage(clarificationCall.id, 'askUser', result);
+            updatedMessages.push(clarificationResult);
+            this.emit({ type: 'agent:tool-result', data: { toolCall: clarificationCall, result } });
+            this.emit({ type: 'agent:message-added', data: clarificationResult });
+            this.state.needsClarification = false;
+            this.state.clarificationQuestion = undefined;
+          }
         }
       }
 
@@ -672,6 +716,7 @@ export class AgentLoop {
       // ── Agent iteration loop ─────────────────────────────────────────
       let continueLoop = true;
       let malformedToolCallRetries = 0;
+      let clarificationToolRetries = 0;
       this.executedToolNames.clear();
       this.successfulFileWrites = 0;
 
@@ -1445,6 +1490,48 @@ export class AgentLoop {
           if (forceRetry) {
             continueLoop = true;
           } else {
+            // Some models describe the need for clarification in their
+            // response instead of emitting the askUser function call. Convert
+            // that explicit intent into the real user interaction once, so a
+            // text-only reasoning response cannot silently terminate the run.
+            const responseRequestsClarification =
+              clarificationToolRetries < 1 &&
+              this.toolExecutor &&
+              /(?:should|need to|must|have to)\s+(?:ask|clarif)|hasn't specified|not specified|need(?:s)? clarification/i.test(fullResponseText);
+
+            if (responseRequestsClarification) {
+              clarificationToolRetries++;
+              const clarificationCall: ToolCall = {
+                id: `ask_${Math.random().toString(36).substring(2, 9)}`,
+                name: 'askUser',
+                arguments: {
+                  question: /(?:file|content)/i.test(fullResponseText)
+                    ? 'What file should I create, and what content should it contain?'
+                    : 'Could you provide the missing details so I can continue?'
+                },
+                status: 'running',
+                timestamp: Date.now(),
+                agentKind: this.options?.agentRole === 'subagent' ? 'subagent' : 'main',
+                agentRole: this.options?.agentRole,
+              };
+              const clarificationAssistant = createAssistantMessage(this.config.model);
+              clarificationAssistant.toolCalls = [clarificationCall];
+              clarificationAssistant.isHidden = true;
+              updatedMessages.push(clarificationAssistant);
+              this.emit({ type: 'agent:message-added', data: clarificationAssistant });
+              this.emit({ type: 'agent:tool-call', data: clarificationCall });
+              this.emit({ type: 'agent:tool-executing', data: clarificationCall });
+
+              const result = await this.toolExecutor(clarificationCall);
+              clarificationCall.result = result;
+              clarificationCall.status = result.success ? 'completed' : 'error';
+              clarificationCall.durationMs = Date.now() - clarificationCall.timestamp;
+              const clarificationResult = createToolMessage(clarificationCall.id, 'askUser', result);
+              updatedMessages.push(clarificationResult);
+              this.emit({ type: 'agent:tool-result', data: { toolCall: clarificationCall, result } });
+              this.emit({ type: 'agent:message-added', data: clarificationResult });
+              continueLoop = result.success;
+            } else {
             // Check if there are still pending tasks in THIS conversation that haven't been delegated
             const convId = this.state.conversationId;
             const convTasks = convId ? getTasksForConversation(convId) : [];
@@ -1475,6 +1562,7 @@ export class AgentLoop {
             } else {
               console.log('[AgentLoop] Text-only response, stopping loop naturally.');
               continueLoop = false;
+            }
             }
           }
         }
