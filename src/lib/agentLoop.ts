@@ -39,10 +39,14 @@ import { estimateTokens, truncateToTokens } from './tokenCounter';
 import type { TokenBudget } from './tokenCounter';
 import { callDispatcherAPI } from '../api';
 import { TokenBillingSession } from './tokenQuota';
+import { AgentRuntimeError, throwIfAborted } from './agent/runtimeErrors';
+import { ProviderStreamAssembler } from './agent/streamAssembler';
+import { normalizeAssistantTurn } from './agent/turnNormalizer';
+import type { CoordinatedRunContext } from './agent/runCoordinator';
 import { SecurityInterceptor } from './SecurityInterceptor';
 import { createTask, updateTask, getTasksForConversation } from './taskStore';
 import { TaskGraph } from './taskGraph';
-import { ParallelToolExecutor } from './parallelExecutor';
+import { ActionScheduler } from './agent/actionScheduler';
 import { calculateLineChanges, IncrementalToolCallParser } from './incrementalToolCallParser';
 import type { StreamingFileToolCall } from './incrementalToolCallParser';
 import { parseMcpToolCalls } from './mcp/xml';
@@ -93,6 +97,9 @@ export type AgentEventType =
 export interface AgentEvent {
   type: AgentEventType;
   data?: any;
+  runId?: string;
+  conversationId?: string;
+  turnId?: string;
 }
 
 export type AgentEventCallback = (event: AgentEvent) => void;
@@ -155,16 +162,14 @@ function isPlausibleToolName(name: string, knownToolNames?: Set<string>): boolea
     return false;
   }
 
-  if (knownToolNames && knownToolNames.size > 0) {
-    return knownToolNames.has(name);
-  }
+
 
   if (HTML_TAG_NAMES.has(name.toLowerCase())) {
     return false;
   }
 
-  // Project tools use camelCase; reject all-lowercase names like "meta" or "script".
-  return /[A-Z]/.test(name);
+  // Allow lowercase tool names (e.g. "bash" aliases)
+  return true;
 }
 
 function getKnownToolNames(toolDefinitions: any[]): Set<string> {
@@ -428,16 +433,15 @@ export class AgentLoop {
   private eventCallback: AgentEventCallback;
   private abortController: AbortController | null = null;
   private state: AgentState;
-  private toolExecutor: ((toolCall: ToolCall) => Promise<ToolResult>) | null = null;
+  private toolExecutor: ((toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string }) => Promise<ToolResult>) | null = null;
   private toolDefinitions: any[] = [];
   private executedToolNames: Set<string> = new Set();
   private successfulFileWrites: number = 0;
   private planningRequired = false;
   private sequentialThoughts = new SequentialThoughtTrace();
   private options?: AgentLoopOptions;
-  /** Dependency-aware parallel executor for write tools — uses ParallelToolExecutor's
-   * file-dependency analysis to safely run independent writes concurrently. */
-  private parallelExecutor?: ParallelToolExecutor;
+  /** Executes model actions in canonical emitted order. */
+  private actionScheduler?: ActionScheduler;
   
   // Token optimization: cache static content
   private cachedSystemPrompt?: string;
@@ -469,6 +473,7 @@ export class AgentLoop {
     
     // Store the conversation ID for when state is re-initialized in run()
     this.conversationId = options?.conversationId;
+    this.userMessageId = options?.userMessageId;
   }
   
   private conversationId?: string;
@@ -478,6 +483,8 @@ export class AgentLoop {
   private pendingMessages: AgenticMessage[] = [];
   public activeSubagentCount = 0;
   private isStreaming = false; // Dedicated flag to track active streaming
+  private activeRunContext: CoordinatedRunContext | null = null;
+  private userMessageId?: string;
 
   /** Queue a message to be processed when the agent wakes up, without actually waking it up */
   addPendingMessage(msg: AgenticMessage): void {
@@ -535,14 +542,10 @@ export class AgentLoop {
   }
 
   /** Update tool definitions */
-  updateTools(definitions: any[], executor: (toolCall: ToolCall) => Promise<ToolResult>): void {
+  updateTools(definitions: any[], executor: (toolCall: ToolCall, signal: AbortSignal) => Promise<ToolResult>): void {
     this.toolDefinitions = definitions;
     this.toolExecutor = executor;
-    // (Re-)initialize the parallel executor whenever the tool executor changes
-    this.parallelExecutor = new ParallelToolExecutor(
-      executor as any, // ToolCall types are structurally identical — same re-export from messageTypes
-      { maxConcurrency: 4 }
-    );
+    this.actionScheduler = new ActionScheduler();
   }
 
   /**
@@ -552,7 +555,11 @@ export class AgentLoop {
    * @returns Updated messages array with all agent responses appended
    */
   async run(messages: AgenticMessage[]): Promise<AgenticMessage[]> {
+    if (this.state.isRunning) {
+      throw new AgentRuntimeError('validation', 'This agent loop is already running.', 'LOOP_ACTIVE');
+    }
     this.abortController = new AbortController();
+    this.actionScheduler = new ActionScheduler({ signal: this.abortController.signal });
     this.sequentialThoughts = new SequentialThoughtTrace();
     this.planningRequired = false;
     this.state = {
@@ -567,6 +574,20 @@ export class AgentLoop {
       stuckCount: 0,
       conversationId: this.conversationId,
     };
+
+    const runId = this.options?.runId;
+    const turnId = this.options?.turnId || `turn:${Date.now()}`;
+    if (runId && this.conversationId) {
+      this.activeRunContext = {
+        runId,
+        conversationId: this.conversationId,
+        signal: this.abortController.signal,
+        nextTurn: () => `turn:${Date.now()}`,
+        getSnapshot: () => ({ runId, conversationId: this.conversationId!, turnId, phase: 'executing', iteration: this.state.currentIteration, startedAt: this.state.startTime || Date.now(), updatedAt: Date.now() }),
+        transition: () => this.activeRunContext!.getSnapshot(),
+        emit: () => true,
+      };
+    }
 
     const updatedMessages = [...messages];
 
@@ -614,7 +635,7 @@ export class AgentLoop {
 
             clarificationCall.status = 'running';
             this.emit({ type: 'agent:tool-executing', data: clarificationCall });
-            const result = await this.toolExecutor(clarificationCall);
+            const result = await this.toolExecutor(clarificationCall, this.abortController.signal, { userMessageId: this.userMessageId });
             clarificationCall.result = result;
             clarificationCall.status = result.success ? 'completed' : 'error';
             clarificationCall.durationMs = Date.now() - clarificationCall.timestamp;
@@ -721,6 +742,7 @@ export class AgentLoop {
       this.successfulFileWrites = 0;
 
       while (continueLoop && this.state.isRunning) {
+        throwIfAborted(this.abortController.signal);
         this.state.currentIteration++;
         this.state.elapsedMs = Date.now() - (this.state.startTime || Date.now());
 
@@ -778,6 +800,10 @@ export class AgentLoop {
         const startTime = Date.now();
         const effectiveConfig = { ...this.config };
         let fullResponseText = '';
+        const streamIdentity = this.activeRunContext
+          ? { runId: this.activeRunContext.runId, conversationId: this.activeRunContext.conversationId, turnId: this.activeRunContext.getSnapshot().turnId }
+          : { runId: `legacy:${this.conversationId || 'unknown'}`, conversationId: this.conversationId || 'unknown', turnId: `turn:${this.state.currentIteration}` };
+        const streamAssembler = new ProviderStreamAssembler(streamIdentity);
         let responseFinishReason: string | undefined;
         let planningOrderViolation = false;
         const streamingToolParser = new IncrementalToolCallParser();
@@ -830,6 +856,7 @@ export class AgentLoop {
             billingSession: this.options?.billingSession,
             onChunk: (chunk: string) => {
               fullResponseText += chunk;
+              streamAssembler.accept({ ...streamIdentity, type: 'text-delta', text: chunk });
               assistantMsg.isStreaming = true;
               
               // Stateful real-time parser to separate thinking and hide JSON
@@ -915,7 +942,7 @@ export class AgentLoop {
                     : `${root}/${liveCall.path}`;
                   let originalPromise = originalFileContents.get(targetPath);
                   if (!originalPromise) {
-                    originalPromise = Promise.resolve((window as any).electron?.readFileContent(targetPath))
+                    originalPromise = Promise.resolve((window as any).electron?.readFileContent(targetPath, root))
                       .then(value => typeof value === 'string' ? value : '')
                       .catch(() => '');
                     originalFileContents.set(targetPath, originalPromise);
@@ -962,6 +989,14 @@ export class AgentLoop {
               });
             },
             onToolCall: (toolCall: ToolCall) => {
+              streamAssembler.accept({
+                ...streamIdentity,
+                type: 'tool-complete',
+                index: assistantMsg.toolCalls?.length || 0,
+                callId: toolCall.id,
+                name: toolCall.name,
+                argumentsText: JSON.stringify(toolCall.arguments ?? {}),
+              });
               const knownToolNames = getKnownToolNames(this.toolDefinitions);
               if (!isPlausibleToolName(toolCall.name, knownToolNames)) {
                 console.error('[AgentLoop] BLOCKED invalid tool format from API:', toolCall.name);
@@ -1000,6 +1035,7 @@ export class AgentLoop {
               this.isStreaming = false;
               responseFinishReason = finishReason;
               fullResponseText = fullText;
+              streamAssembler.accept({ ...streamIdentity, type: 'finish', reason: finishReason });
               
               let textToDisplay = fullResponseText;
               
@@ -1029,11 +1065,22 @@ export class AgentLoop {
               
               // Only push leaked text into thought bubble if there's actually a tool call!
               const knownToolNames = getKnownToolNames(this.toolDefinitions);
-              const parsedCalls = parseToolCallsFromText(afterThink, knownToolNames);
+              const normalizedTurn = normalizeAssistantTurn(streamAssembler.snapshot(), knownToolNames);
+              const nativeCallIds = new Set((assistantMsg.toolCalls || []).map(call => call.id));
+              const parsedCalls = normalizedTurn.actions.flatMap(action =>
+                action.kind === 'tool' && !nativeCallIds.has(action.callId)
+                  ? [{ name: action.name, arguments: action.arguments }]
+                  : []
+              );
               if (parsedCalls.length > 0) {
                 // Assign the parsed calls to assistantMsg
                 if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
                 for (const pc of parsedCalls) {
+                  // Alias bash to runCommand for open source models that hallucinate this
+                  if (pc.name === 'bash') {
+                    pc.name = 'runCommand';
+                  }
+
                   if (!isPlausibleToolName(pc.name, knownToolNames)) {
                     console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
                     continue;
@@ -1121,6 +1168,7 @@ export class AgentLoop {
           updatedMessages.push(correction);
           this.emit({ type: 'agent:message-added', data: correction });
           forceRetry = true;
+          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
         }
 
         if (planningOrderViolation || (hasToolCalls && assistantMsg.toolCalls!.some(toolCall => this.isBlockedByPlanningGate(toolCall)))) {
@@ -1134,6 +1182,7 @@ export class AgentLoop {
           updatedMessages.push(correction);
           this.emit({ type: 'agent:message-added', data: correction });
           forceRetry = true;
+          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
         }
 
         // A model may wrap a copied history record in <tool_call> without a
@@ -1150,6 +1199,7 @@ export class AgentLoop {
           updatedMessages.push(correction);
           this.emit({ type: 'agent:message-added', data: correction });
           forceRetry = true;
+          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
         }
         
         // ── Detect duplicate tool call loops ───────────────────────────────────
@@ -1213,17 +1263,6 @@ export class AgentLoop {
           this.toolExecutor &&
           this.state.isRunning
         ) {
-          // ── Classify tools: read-only (all can run in parallel) vs write/side-effect ──
-          // Expanded pool: any non-mutating tool is safe to parallelize.
-          const READ_ONLY_TOOLS = new Set([
-            'listDirectory', 'readFile', 'grepSearch', 'findByName',
-            'searchFiles', 'codeAnalysis', 'webSearch', 'readUrl',
-            'gitStatus', 'gitDiff', 'commandStatus',
-          ]);
-          const readOnlyTools = assistantMsg.toolCalls.filter(tc => READ_ONLY_TOOLS.has(tc.name));
-          const writeTools    = assistantMsg.toolCalls.filter(tc => !READ_ONLY_TOOLS.has(tc.name));
-
-          // Execute read-only tools in parallel for efficiency
           const executeToolInternal = async (toolCall: any) => {
             if (!this.state.isRunning) return;
 
@@ -1253,19 +1292,36 @@ export class AgentLoop {
               // SECURITY INTERCEPTOR: Check if tool needs manual UI approval
               let isApproved = true;
               if (SecurityInterceptor.requiresApproval(toolCall)) {
+                toolCall.status = 'pending';
+                this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
                 this.state.status = `Awaiting your approval for ${toolCall.name}...`;
                 this.emit({ type: 'agent:tool-approval-needed', data: toolCall });
                 
                 // Suspend execution and wait for UI event
                 isApproved = await new Promise<boolean>((resolve) => {
+                  if (this.abortController?.signal.aborted) {
+                    resolve(false);
+                    return;
+                  }
+                  const cleanup = () => {
+                    window.removeEventListener('tool-approval-response', handler);
+                    this.abortController?.signal.removeEventListener('abort', onAbort);
+                  };
                   const handler = (e: any) => {
                     if (e.detail.toolCallId === toolCall.id) {
-                      window.removeEventListener('tool-approval-response', handler);
+                      cleanup();
                       resolve(e.detail.approved);
                     }
                   };
+                  const onAbort = () => { cleanup(); resolve(false); };
                   window.addEventListener('tool-approval-response', handler);
+                  this.abortController?.signal.addEventListener('abort', onAbort, { once: true });
                 });
+
+                if (isApproved) {
+                  toolCall.status = 'running';
+                  this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
+                }
               }
 
               let result: ToolResult;
@@ -1289,7 +1345,7 @@ export class AgentLoop {
                 }
 
                 this.state.status = `Executing ${toolCall.name}...`;
-                result = await this.toolExecutor(toolCall);
+                result = await this.toolExecutor(toolCall, this.abortController.signal, { userMessageId: this.userMessageId });
                 // Attach the result before deriving the user-facing operation so
                 // writeFile can distinguish a new file from an existing file.
                 toolCall.result = result;
@@ -1413,37 +1469,11 @@ export class AgentLoop {
             }
           };
 
-          // Run read-only tools concurrently
-          await Promise.all(readOnlyTools.map(executeToolInternal));
-          
-          // Run sub-agent invocations concurrently (they are asynchronous triggers)
-          const invokeSubagentTools = writeTools.filter(tc => tc.name === 'invokeSubagent');
-          const actualWriteTools = writeTools.filter(tc => tc.name !== 'invokeSubagent');
-
-          await Promise.all(invokeSubagentTools.map(executeToolInternal));
-
-          // ── Smart parallel execution for independent write tools ──────────────────
-          // Use ParallelToolExecutor's dependency analysis to group tools by file
-          // conflicts. Tools in the same batch target different files and are safe
-          // to run concurrently. Batches are run sequentially (later batches may
-          // depend on earlier ones, e.g. editFile after createFile on the same path).
-          if (this.parallelExecutor && actualWriteTools.length > 1) {
-            const batches = this.parallelExecutor.getExecutionBatches(actualWriteTools as any);
-            console.log(`[AgentLoop] Parallel write execution: ${actualWriteTools.length} tools → ${batches.length} batch(es)`, batches.map(b => b.map(t => t.name)));
-            for (const batch of batches) {
-              if (batch.length === 1) {
-                await executeToolInternal(batch[0]);
-              } else {
-                // Multiple independent tools — run in parallel
-                await Promise.all(batch.map(executeToolInternal));
-              }
-            }
-          } else {
-            // Fallback: single tool or no parallel executor
-            for (const writeTool of actualWriteTools) {
-              await executeToolInternal(writeTool);
-            }
-          }
+          const scheduler = this.actionScheduler || new ActionScheduler({ signal: this.abortController?.signal });
+          await scheduler.executeInOrder(assistantMsg.toolCalls, async toolCall => {
+            await executeToolInternal(toolCall);
+            return toolCall.result || { success: false, output: 'Tool execution did not produce an observation.' };
+          });
 
           this.state.currentToolCall = undefined;
 
@@ -1522,7 +1552,7 @@ export class AgentLoop {
               this.emit({ type: 'agent:tool-call', data: clarificationCall });
               this.emit({ type: 'agent:tool-executing', data: clarificationCall });
 
-              const result = await this.toolExecutor(clarificationCall);
+              const result = await this.toolExecutor(clarificationCall, this.abortController.signal, { userMessageId: this.userMessageId });
               clarificationCall.result = result;
               clarificationCall.status = result.success ? 'completed' : 'error';
               clarificationCall.durationMs = Date.now() - clarificationCall.timestamp;
@@ -1725,9 +1755,15 @@ export class AgentLoop {
 
   private emit(event: AgentEvent): void {
     try {
-      this.eventCallback(event);
+      const identity = this.activeRunContext
+        ? this.activeRunContext.getSnapshot()
+        : undefined;
+      const enrichedEvent: AgentEvent = identity
+        ? { ...event, runId: identity.runId, conversationId: identity.conversationId, turnId: identity.turnId }
+        : event;
+      this.eventCallback(enrichedEvent);
       // Also dispatch to window for global listeners
-      window.dispatchEvent(new CustomEvent(event.type, { detail: event.data }));
+      window.dispatchEvent(new CustomEvent(enrichedEvent.type, { detail: enrichedEvent.data }));
     } catch (e) {
       console.error('[AgentLoop] Event callback error:', e);
     }
@@ -1909,12 +1945,17 @@ export class AgentLoop {
 // ── Factory ────────────────────────────────────────────────────────────────
 
 export interface AgentLoopOptions {
+  projectId?: string;
   projectContext?: ProjectContext;
-  toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
+  /** The loop owns cancellation; executors must receive the same signal. */
+  toolExecutor?: (toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string }) => Promise<ToolResult>;
   toolDefinitions?: any[];
   conversationId?: string;
+  userMessageId?: string;
   agentRole?: 'orchestrator' | 'subagent';
   billingSession?: TokenBillingSession;
+  runId?: string;
+  turnId?: string;
 }
 
 /** Create a new AgentLoop with current configuration */
@@ -1926,11 +1967,15 @@ export function createAgentLoop(
 ): AgentLoop {
   const config = getAIConfig(options?.projectId);
   return new AgentLoop(config, eventCallback, {
+    projectId: options?.projectId,
     projectContext: options?.projectContext,
     toolExecutor: options?.toolExecutor,
     toolDefinitions: options?.toolDefinitions,
     conversationId: options?.conversationId,
+    userMessageId: options?.userMessageId,
     agentRole: options?.agentRole,
     billingSession: options?.billingSession,
+    runId: options?.runId,
+    turnId: options?.turnId,
   });
 }

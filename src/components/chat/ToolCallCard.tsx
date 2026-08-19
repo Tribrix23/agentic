@@ -17,7 +17,12 @@ export function ToolCallCard({ toolCall, onApprove, onReject }: ToolCallCardProp
   const [expanded, setExpanded] = useState(false);
   
   if (toolCall.status === 'pending' && onApprove && onReject) {
-    return <ToolApprovalCard toolCall={toolCall} onApprove={onApprove} onReject={onReject} />;
+    return (
+      <ToolApprovalCard
+        toolCall={toolCall}
+        onDecision={(approved) => (approved ? onApprove(toolCall.id) : onReject(toolCall.id))}
+      />
+    );
   }
 
   const getIcon = () => {

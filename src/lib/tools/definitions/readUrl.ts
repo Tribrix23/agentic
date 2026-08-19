@@ -14,7 +14,8 @@ export const definition: ToolDefinition = {
   requiresApproval: false,
   dangerLevel: 'safe',
   timeout: 30000,
-  icon: 'Link'
+  icon: 'Link',
+  availability: () => false,
 };
 
 export const handler: ToolHandler = async (args, context) => {

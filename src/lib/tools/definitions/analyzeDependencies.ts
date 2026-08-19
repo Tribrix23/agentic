@@ -25,7 +25,7 @@ export const handler: ToolHandler = async (args, context) => {
     // Try to find package.json or requirements.txt
     let depFile = path;
     if (!depFile) {
-      const tree = await (window as any).electron.readProjectFiles(context.projectRoot);
+      const tree = await (window as any).electron.readProjectFiles(context.projectRoot, context.projectRoot);
       const findDepFile = (nodes: any[]): string | null => {
         for (const node of nodes) {
           if (node.type === 'file' && (node.name === 'package.json' || node.name === 'requirements.txt')) {
@@ -45,7 +45,10 @@ export const handler: ToolHandler = async (args, context) => {
       return { success: false, output: 'No dependency file found (package.json or requirements.txt)' };
     }
     
-    const content = await (window as any).electron.readFileContent(depFile);
+    const targetPath = depFile.startsWith('/') || /^[a-zA-Z]:\\/.test(depFile)
+      ? depFile
+      : `${context.projectRoot}/${depFile}`.replace(/\/+/g, '/');
+    const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const fileName = depFile.split('/').pop();
     
     let analysis = `Analyzing ${fileName}:\n\n`;

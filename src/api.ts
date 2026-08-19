@@ -58,6 +58,22 @@ const MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
 const GPT56_MODELS_ENDPOINT = 'https://api.devctr.com/api/models';
 const TEMP_API_KEY_ENDPOINT = 'https://api.devctr.com/api/calls';
 
+function waitWithAbort(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(new DOMException('Request aborted', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener('abort', onAbort);
+      reject(new DOMException('Request aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 // ── Temporary API Key Management ──────────────────────────────────────────────
 
 interface TempApiKeyResponse {
@@ -378,7 +394,12 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
 
     if (attempt > 0) {
       const delay = config.retryDelay * Math.pow(2, attempt - 1);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      try {
+        await waitWithAbort(delay, signal);
+      } catch (error: any) {
+        onError(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
     }
 
     try {
@@ -386,26 +407,31 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
+      const onUserAbort = () => controller.abort();
 
       // Chain signals: user abort + timeout
       if (signal) {
-        signal.addEventListener('abort', () => controller.abort());
+        signal.addEventListener('abort', onUserAbort, { once: true });
       }
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'close',
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+      let response: Response;
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'close',
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onUserAbort);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -494,9 +520,10 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     return;
   }
 
-  // ── All retries exhausted — fall back to mock ───────────────────────
-  console.warn('[API] All retries exhausted, falling back to mock response');
-  await handleMockFallback(onChunk, onSuccess, checkIsStreaming);
+  // A network failure must remain visible to the caller. A fabricated answer
+  // makes the UI look successful and can cause the agent to stop without doing
+  // any work.
+  onError(lastError || new Error('The AI request failed after all retries.'));
 };
 
 export async function generateChatTitle(

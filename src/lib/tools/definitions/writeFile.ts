@@ -65,7 +65,8 @@ export const handler: ToolHandler = async (args, context) => {
     // 3. On failure, the original file is untouched
     const branchPath = targetPath + '.agentic-branch';
 
-    const fileExistedBeforeWrite = await (window as any).electron.fileExists(targetPath).catch(() => false);
+    const boundaryRoot = isArtifact ? `${(window as any).electron.appDataDir || context.projectRoot}/.agentic/brain` : context.projectRoot;
+    const fileExistedBeforeWrite = await (window as any).electron.fileExists(targetPath, boundaryRoot).catch(() => false);
     if (!isArtifact && !fileExistedBeforeWrite && content.length > MAX_INITIAL_WRITE_CHARS) {
       return {
         success: false,
@@ -74,7 +75,7 @@ export const handler: ToolHandler = async (args, context) => {
     }
     
     // Step 1: Write content to the branch file
-    const branchResult = await (window as any).electron.saveFileContent(branchPath, content, { createDirs: true });
+    const branchResult = await (window as any).electron.saveFileContent(branchPath, content, { createDirs: true, projectRoot: boundaryRoot });
     
     if (!branchResult.success) {
       console.error('[writeFile] Branch write failed:', branchResult.error);
@@ -86,17 +87,17 @@ export const handler: ToolHandler = async (args, context) => {
     let previousContent = '';
     if (fileExisted) {
       try {
-        previousContent = await (window as any).electron.readFileContent(targetPath) || '';
+        previousContent = await (window as any).electron.readFileContent(targetPath, boundaryRoot) || '';
       } catch (e) { /* ignore */ }
     }
     
     // Step 3: Write to the actual target (branch validated the content was written successfully)
-    const result = await (window as any).electron.saveFileContent(targetPath, content, { createDirs: true });
+    const result = await (window as any).electron.saveFileContent(targetPath, content, { createDirs: true, projectRoot: boundaryRoot });
     
     // Step 3: Clean up branch file (best effort)
     try {
       if ((window as any).electron?.deleteFile) {
-        await (window as any).electron.deleteFile(branchPath);
+        await (window as any).electron.deleteFile(branchPath, boundaryRoot);
       } else {
         // If deleteFile doesn't exist, try to remove via file system API if available
         console.warn('[writeFile] deleteFile not available, branch file may remain:', branchPath);
@@ -109,7 +110,7 @@ export const handler: ToolHandler = async (args, context) => {
     
     if (result.success) {
       if (isArtifact) {
-        await (window as any).electron.saveFileContent(`${targetPath}.meta.json`, JSON.stringify(artifactMetadata), { createDirs: true });
+        await (window as any).electron.saveFileContent(`${targetPath}.meta.json`, JSON.stringify(artifactMetadata), { createDirs: true, projectRoot: boundaryRoot });
         
         return {
           success: true,

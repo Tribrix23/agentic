@@ -25,7 +25,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? path 
       : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
 
-    const content = await (window as any).electron.readFileContent(targetPath);
+    const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const ext = path.split('.').pop()?.toLowerCase();
     
     if (ext === 'json') {
@@ -35,7 +35,7 @@ export const handler: ToolHandler = async (args, context) => {
           const schemaTarget = schemaPath.startsWith('/') || /^[a-zA-Z]:\\/.test(schemaPath) 
             ? schemaPath 
             : `${context.projectRoot}/${schemaPath}`.replace(/\/+/g, '/');
-          const schemaContent = await (window as any).electron.readFileContent(schemaTarget);
+          const schemaContent = await (window as any).electron.readFileContent(schemaTarget, context.projectRoot);
           JSON.parse(schemaContent);
           return { success: true, output: 'JSON is valid. Schema is valid.' };
         }

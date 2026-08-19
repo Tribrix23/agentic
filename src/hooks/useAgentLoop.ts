@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AgentState } from '../lib/types/AgentTypes';
+import { sendNotification } from '../lib/notification';
 
 export function useAgentLoop() {
   const [agentState, setAgentState] = useState<AgentState>('idle');
@@ -16,6 +17,7 @@ export function useAgentLoop() {
     const handleAskUser = (e: any) => {
       setPendingAskUser(e.detail);
       setAgentState('awaiting_user_response');
+      sendNotification('Asking user', e.detail.question || 'User input needed');
     };
     window.addEventListener('agent-ask-user', handleAskUser);
     return () => window.removeEventListener('agent-ask-user', handleAskUser);

@@ -31,6 +31,10 @@ export interface ToolResult {
   data?: any;
   artifacts?: Artifact[];
   truncated?: boolean;
+  summary?: string;
+  diagnostics?: Array<{ category: string; message: string; details?: unknown }>;
+  artifactRef?: { id: string; mediaType: string; byteLength: number; createdAt: number; label?: string };
+  truncation?: { truncated: boolean; originalBytes: number; includedBytes: number; continuation?: string };
 }
 
 /** A single tool invocation within an assistant message */

@@ -10,7 +10,13 @@ const messages = [
 
 const assistantMsg = createAssistantMessage('Dispatcher v1');
 assistantMsg.content = "Thinking through the approach... \n```json\n{\"tool_call\": {\"name\": \"listDirectory\", \"arguments\": {\"path\": \".\"}}}\n```";
-assistantMsg.toolCalls = [{ id: '1', name: 'listDirectory', arguments: { path: '.' } }];
+assistantMsg.toolCalls = [{
+  id: '1',
+  name: 'listDirectory',
+  arguments: { path: '.' },
+  status: 'completed',
+  timestamp: Date.now(),
+}];
 
 messages.push(assistantMsg);
 

@@ -25,7 +25,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? path 
       : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
 
-    const tree = await (window as any).electron.readProjectFiles(targetPath);
+    const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     
     const collectFiles = (nodes: any[]): string[] => {
       let files: string[] = [];
@@ -44,7 +44,7 @@ export const handler: ToolHandler = async (args, context) => {
     
     for (const filePath of allFiles) {
       try {
-        const content = await (window as any).electron.readFileContent(filePath);
+        const content = await (window as any).electron.readFileContent(filePath, context.projectRoot);
         const fileName = filePath.split('/').pop();
         
         documentation += `## ${fileName}\n\n`;

@@ -1,32 +1,37 @@
 import type { McpServerSnapshot } from './types';
-import { formatMcpToolCallResult } from './xml';
 import type { ToolCall, ToolResult } from '../messageTypes';
+import { mcpDisplayAlias } from './identity';
+import { buildMcpCatalog, type McpCatalogEntry } from './catalog';
 
 export function toMcpAlias(serverId: string, toolName: string): string {
-  return `mcp__${serverId.replace(/[^a-zA-Z0-9_]/g, '_')}__${toolName.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  return mcpDisplayAlias({ serverId, toolName });
 }
 
 export function getMcpToolDefinitions(servers: McpServerSnapshot[]): any[] {
-  return servers.flatMap(server => server.status !== 'connected' ? [] : server.tools.map(tool => ({
-    type: 'function',
-    function: {
-      name: toMcpAlias(server.id, tool.name),
-      description: `[MCP ${server.name}] ${tool.description || tool.name}. XML identity: ${tool.qualifiedName}`,
-      parameters: tool.inputSchema || { type: 'object', properties: {} },
-    },
-    mcp: { serverId: server.id, toolName: tool.name, qualifiedName: tool.qualifiedName },
-  })));
+  return getMcpCatalogDefinitions(buildMcpCatalog(servers));
 }
 
-export async function executeMcpTool(toolCall: ToolCall, servers: McpServerSnapshot[]): Promise<ToolResult | null> {
-  const definition = getMcpToolDefinitions(servers).find(item => item.function.name === toolCall.name);
-  if (!definition) return null;
-  const { serverId, toolName } = definition.mcp;
-  try {
-    const result = await (window as any).electron.mcp.callTool(serverId, toolName, toolCall.arguments || {});
-    return { ...result, output: formatMcpToolCallResult(serverId, toolName, result) };
-  } catch (error: any) {
-    const result = { success: false, output: error?.message || String(error) };
-    return { ...result, output: formatMcpToolCallResult(serverId, toolName, result) };
+export async function executeMcpTool(toolCall: ToolCall, servers: McpServerSnapshot[], signal?: AbortSignal): Promise<ToolResult | null> {
+  const entry = buildMcpCatalog(servers).find(item => item.externalName === toolCall.name);
+  if (!entry) return null;
+  const { serverId, toolName } = entry.identity;
+  if (signal?.aborted) {
+    return { success: false, output: 'MCP tool call cancelled.', diagnostics: [{ category: 'cancelled', message: 'MCP tool call cancelled.' }] };
   }
+  const cancel = () => { void (window as any).electron.mcp.cancelCall(toolCall.id); };
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    return await (window as any).electron.mcp.callTool(serverId, toolName, toolCall.arguments || {}, {
+      callId: toolCall.id,
+      timeoutMs: entry.definition.timeout,
+    });
+  } catch (error: any) {
+    return { success: false, output: error?.message || String(error), diagnostics: [{ category: 'transport', message: error?.message || String(error) }] };
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+  }
+}
+
+export function getMcpCatalogDefinitions(entries: McpCatalogEntry[]): any[] {
+  return entries.map(entry => ({ type: 'function', function: { name: entry.externalName, description: entry.definition.description, parameters: entry.definition.parameters }, mcp: entry.identity }));
 }

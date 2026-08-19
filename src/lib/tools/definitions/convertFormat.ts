@@ -27,7 +27,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? path 
       : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
 
-    const content = await (window as any).electron.readFileContent(targetPath);
+    const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     let convertedContent: string;
     
     // Simple format conversions

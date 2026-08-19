@@ -404,7 +404,7 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
     const newPath = targetDirPath + separator + fileName;
     if (sourcePath === newPath) return;
 
-    const res = await (window as any).electron.renameFile(sourcePath, newPath);
+    const res = await (window as any).electron.renameFile(sourcePath, newPath, activeProject?.path);
     if (res.success) {
       if (!isUndoRedo) {
         setUndoStack(prev => [...prev, { type: 'move', sourcePath, targetPath: newPath }]);
@@ -419,7 +419,7 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
     const action = undoStack[undoStack.length - 1];
     setUndoStack(prev => prev.slice(0, -1));
     if (action.type === 'move') {
-      await (window as any).electron.renameFile(action.targetPath, action.sourcePath);
+      await (window as any).electron.renameFile(action.targetPath, action.sourcePath, activeProject?.path);
       setRedoStack(prev => [...prev, action]);
       fetchProjectFiles();
     }
@@ -430,7 +430,7 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
     const action = redoStack[redoStack.length - 1];
     setRedoStack(prev => prev.slice(0, -1));
     if (action.type === 'move') {
-      await (window as any).electron.renameFile(action.sourcePath, action.targetPath);
+      await (window as any).electron.renameFile(action.sourcePath, action.targetPath, activeProject?.path);
       setUndoStack(prev => [...prev, action]);
       fetchProjectFiles();
     }
@@ -476,7 +476,7 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
         return;
       }
       
-      const content = await (window as any).electron.readFileContent(node.path);
+      const content = await (window as any).electron.readFileContent(node.path, activeProject?.path);
       if (content !== undefined) {
         setOpenFiles(prev => [...prev, {
           path: node.path,
@@ -821,7 +821,7 @@ const handleSkip = () => {
                 // Refresh all open files from disk to drop unsaved discarded changes
                 const newOpenFiles = await Promise.all(openFiles.map(async file => {
                   try {
-                    const content = await (window as any).electron.readFileContent(file.path);
+                    const content = await (window as any).electron.readFileContent(file.path, activeProject?.path);
                     return { ...file, originalContent: content };
                   } catch (e) {
                     return file;
@@ -837,6 +837,7 @@ const handleSkip = () => {
             <>
               <div className="flex-1 flex flex-col overflow-hidden relative">
                 <EditorArea 
+                  projectRoot={activeProject?.path}
                   openFiles={openFiles}
                   activeFilePath={activeFilePath}
                   isLiveServerRunning={isLiveServerRunning}
@@ -1265,7 +1266,7 @@ const handleSkip = () => {
                   </button>
                   <button
                     onClick={async () => {
-                      const res = await (window as any).electron.deleteFile(nodeToDelete.path);
+                      const res = await (window as any).electron.deleteFile(nodeToDelete.path, activeProject?.path);
                       if (res.success) {
                         fetchProjectFiles();
                         setOpenFiles(prev => prev.filter(f => !f.path.startsWith(nodeToDelete.path)));
@@ -1321,8 +1322,8 @@ const handleSkip = () => {
                     if (e.key === 'Enter') {
                       if (!createValue.trim()) return;
                       const res = nodeToCreate.type === 'file'
-                        ? await (window as any).electron.createFile(nodeToCreate.parentNode.path, createValue.trim())
-                        : await (window as any).electron.createFolder(nodeToCreate.parentNode.path, createValue.trim());
+                        ? await (window as any).electron.createFile(nodeToCreate.parentNode.path, createValue.trim(), activeProject?.path)
+                        : await (window as any).electron.createFolder(nodeToCreate.parentNode.path, createValue.trim(), activeProject?.path);
                       
                       if (res.success) {
                         fetchProjectFiles();
@@ -1347,8 +1348,8 @@ const handleSkip = () => {
                     onClick={async () => {
                       if (!createValue.trim()) return;
                       const res = nodeToCreate.type === 'file'
-                        ? await (window as any).electron.createFile(nodeToCreate.parentNode.path, createValue.trim())
-                        : await (window as any).electron.createFolder(nodeToCreate.parentNode.path, createValue.trim());
+                        ? await (window as any).electron.createFile(nodeToCreate.parentNode.path, createValue.trim(), activeProject?.path)
+                        : await (window as any).electron.createFolder(nodeToCreate.parentNode.path, createValue.trim(), activeProject?.path);
                       
                       if (res.success) {
                         fetchProjectFiles();
@@ -1387,7 +1388,7 @@ const handleSkip = () => {
                   onKeyDown={async (e) => {
                     if (e.key === 'Enter' && renameValue && renameValue !== nodeToRename.name) {
                       const newPath = nodeToRename.path.substring(0, nodeToRename.path.lastIndexOf(nodeToRename.name)) + renameValue;
-                      await (window as any).electron.renameFile(nodeToRename.path, newPath);
+                      await (window as any).electron.renameFile(nodeToRename.path, newPath, activeProject?.path);
                       fetchProjectFiles();
                       setNodeToRename(null);
                     } else if (e.key === 'Escape') {
@@ -1408,7 +1409,7 @@ const handleSkip = () => {
                   onClick={async () => {
                     if (renameValue && renameValue !== nodeToRename.name) {
                       const newPath = nodeToRename.path.substring(0, nodeToRename.path.lastIndexOf(nodeToRename.name)) + renameValue;
-                      await (window as any).electron.renameFile(nodeToRename.path, newPath);
+                      await (window as any).electron.renameFile(nodeToRename.path, newPath, activeProject?.path);
                       fetchProjectFiles();
                       setNodeToRename(null);
                     }

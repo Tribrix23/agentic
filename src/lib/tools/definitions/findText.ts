@@ -37,7 +37,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? relativeOrAbsPath 
       : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
 
-    const tree = await (window as any).electron.readProjectFiles(targetPath);
+    const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     const searchRegex = new RegExp(
       caseSensitive ? query : new RegExp(query, 'i'),
       'g'
@@ -66,7 +66,7 @@ export const handler: ToolHandler = async (args, context) => {
       if (matchCount >= maxResults) break;
       
       try {
-        const content = await (window as any).electron.readFileContent(filePath);
+        const content = await (window as any).electron.readFileContent(filePath, context.projectRoot);
         const lines = content.split('\n');
         
         for (let i = 0; i < lines.length; i++) {

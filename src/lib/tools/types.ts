@@ -1,4 +1,5 @@
 import type { ToolCall, ToolResult, Artifact } from '../messageTypes';
+import type { ToolCapabilities } from './capabilities';
 
 export type { ToolCall, ToolResult, Artifact };
 
@@ -11,16 +12,32 @@ export interface ToolDefinition {
   dangerLevel: 'safe' | 'moderate' | 'dangerous';
   timeout: number;
   icon: string;
+  capabilities?: Partial<ToolCapabilities>;
+  availability?: ToolAvailabilityProbe;
+  metadata?: { source?: 'local' | 'mcp'; serverId?: string; toolName?: string };
 }
 
 export interface ToolContext {
   projectRoot: string;
   signal: AbortSignal;
   conversationId?: string;
+  /** User turn that owns snapshots and undo records for this execution. */
+  userMessageId?: string;
   parentLoop?: any; // AgentLoop instance for direct subagent management
   agentKind?: 'main' | 'subagent';
   agentRole?: string;
+  runId?: string;
+  turnId?: string;
+  callId?: string;
+  subagentManager?: import('../agent/subagentManager').SubagentManager;
 }
+
+export interface ToolAvailabilityContext {
+  projectRoot?: string;
+  electron?: Record<string, unknown>;
+}
+
+export type ToolAvailabilityProbe = (context: ToolAvailabilityContext) => boolean;
 
 export type ToolHandler = (args: Record<string, any>, context: ToolContext) => Promise<ToolResult>;
 

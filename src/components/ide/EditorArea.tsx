@@ -117,6 +117,7 @@ const EditorSkeleton = () => (
 import { OpenFile } from '../IdeContainer';
 
 interface EditorAreaProps {
+  projectRoot?: string;
   openFiles: OpenFile[];
   activeFilePath: string | null;
   isLiveServerRunning: boolean;
@@ -130,6 +131,7 @@ interface EditorAreaProps {
 }
 
 export const EditorArea: React.FC<EditorAreaProps> = ({
+  projectRoot,
   openFiles,
   activeFilePath,
   isLiveServerRunning,
@@ -212,7 +214,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   const handleSaveFile = async (): Promise<boolean> => {
     if (activeFilePath && isDirty) {
-      const res = await (window as any).electron.saveFileContent(activeFilePath, currentLocalContent);
+      const res = await (window as any).electron.saveFileContent(activeFilePath, currentLocalContent, { projectRoot });
       if (res.success) {
         onFileSaved(activeFilePath, currentLocalContent);
         return true;

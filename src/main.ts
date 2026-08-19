@@ -3,9 +3,11 @@ import path from 'node:path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import started from 'electron-squirrel-startup';
-import { TaskManager } from './lib/TaskManager';
+import { ProcessManager } from './lib/processManager';
 import { McpClientManager } from './lib/mcp/manager';
 import type { McpServerConfig } from './lib/mcp/types';
+import { readFileLineRange } from './lib/fileRangeReader';
+import { assertChildName, assertPathWithinWorkspace } from './lib/workspaceBoundary';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -28,6 +30,7 @@ let ptyProcess: any = null;
 let pty: any = null;
 let activeLiveServer: any = null;
 export const mcpClientManager = new McpClientManager();
+const activeMcpCalls = new Map<string, AbortController>();
 
 function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -197,6 +200,8 @@ if (!gotTheLock) {
     }
   });
 
+  app.name = 'QUANTIX CODE';
+  app.setAppUserModelId('QUANTIX CODE');
   app.on('ready', createWindow);
 
   app.on('window-all-closed', () => {
@@ -230,10 +235,10 @@ if (!gotTheLock) {
     }
   });
 
-  // Wire background task completion to frontend
-  TaskManager.getInstance().onTaskComplete = (taskId, status) => {
+  // Wire all managed process completion to frontend
+  ProcessManager.getInstance().onExit = (status) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('background-task-complete', { taskId, status });
+      mainWindow.webContents.send('background-task-complete', { taskId: status.id, status });
     }
   };
 }
@@ -350,7 +355,20 @@ function createWindow() {
   ipcMain.removeHandler('mcp-get-servers');
   ipcMain.handle('mcp-get-servers', () => mcpClientManager.getServers());
   ipcMain.removeHandler('mcp-call-tool');
-  ipcMain.handle('mcp-call-tool', (_event, serverId: string, tool: string, args: Record<string, any>) => mcpClientManager.callTool(serverId, tool, args));
+  ipcMain.handle('mcp-call-tool', async (_event, serverId: string, tool: string, args: Record<string, any>, options?: { callId?: string; timeoutMs?: number }) => {
+    const callId = options?.callId || `mcp-call:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    const controller = new AbortController();
+    activeMcpCalls.set(callId, controller);
+    try { return await mcpClientManager.callTool(serverId, tool, args, controller.signal, options?.timeoutMs); }
+    finally { activeMcpCalls.delete(callId); }
+  });
+  ipcMain.removeHandler('mcp-cancel-call');
+  ipcMain.handle('mcp-cancel-call', (_event, callId: string) => {
+    const controller = activeMcpCalls.get(callId);
+    if (!controller) return false;
+    controller.abort();
+    return true;
+  });
   ipcMain.removeHandler('mcp-list-resources');
   ipcMain.handle('mcp-list-resources', (_event, serverId: string) => mcpClientManager.listResources(serverId));
   ipcMain.removeHandler('mcp-read-resource');
@@ -416,16 +434,10 @@ function createWindow() {
       // ignore manual parse errors
     }
 
-    // Fallback 2: Execute command in shell
+    // Fallback 2: Ask Git directly without invoking a shell.
     if (!branch) {
       try {
-        const { execSync } = require('child_process');
-        branch = execSync('git rev-parse --abbrev-ref HEAD', {
-          cwd: folderPath,
-          stdio: ['ignore', 'pipe', 'ignore'],
-          timeout: 1000,
-          shell: true
-        }).toString().trim();
+        branch = (await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], folderPath)).trim();
       } catch (e) {
         // ignore command execution errors
       }
@@ -438,9 +450,15 @@ function createWindow() {
     };
   });
 
-  ipcMain.handle('read-project-files', async (_event, projectPath: string) => {
+  ipcMain.handle('read-project-files', async (_event, projectPath: string, projectRoot?: string) => {
     const fs = require('fs');
     const path = require('path');
+    try {
+      projectPath = projectRoot ? assertPathWithinWorkspace(projectRoot, projectPath) : path.resolve(projectPath);
+    } catch (error) {
+      console.error('[IPC] Rejected project tree path:', projectPath, error);
+      return [];
+    }
     console.log('[IPC] Reading project files for path:', projectPath);
 
     function getFiles(dir: string, depth = 0): any[] {
@@ -486,40 +504,52 @@ function createWindow() {
     return getFiles(projectPath);
   });
 
-  ipcMain.handle('read-file-content', async (_event, filePath: string) => {
+  ipcMain.handle('read-file-content', async (_event, filePath: string, projectRoot?: string) => {
     const fs = require('fs');
     try {
-      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const safePath = projectRoot ? assertPathWithinWorkspace(projectRoot, filePath) : filePath;
+      const ext = safePath.split('.').pop()?.toLowerCase() || '';
       if (['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
-        const buffer = fs.readFileSync(filePath);
+        const buffer = fs.readFileSync(safePath);
         const mimeType = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
         return `data:${mimeType};base64,${buffer.toString('base64')}`;
       }
-      return fs.readFileSync(filePath, 'utf8');
+      return fs.readFileSync(safePath, 'utf8');
     } catch (e) {
       console.error('[IPC] Failed to read file:', filePath, e);
       return null;
     }
   });
 
-  ipcMain.handle('file-exists', async (_event, filePath: string) => {
+  ipcMain.removeHandler('read-file-range');
+  ipcMain.handle('read-file-range', async (_event, filePath: string, startLine?: number, endLine?: number, projectRoot?: string) => {
+    try {
+      const safePath = projectRoot ? assertPathWithinWorkspace(projectRoot, filePath) : filePath;
+      return { success: true, ...(await readFileLineRange(safePath, startLine, endLine)) };
+    } catch (error: any) {
+      return { success: false, error: error?.message || String(error) };
+    }
+  });
+
+  ipcMain.handle('file-exists', async (_event, filePath: string, projectRoot?: string) => {
     const fs = require('fs');
     try {
-      return fs.existsSync(filePath);
+      return fs.existsSync(projectRoot ? assertPathWithinWorkspace(projectRoot, filePath) : filePath);
     } catch (e) {
       console.error('[IPC] Failed to check file existence:', filePath, e);
       return false;
     }
   });
 
-  ipcMain.handle('save-file-content', async (_event, filePath: string, content: string, options?: { createDirs?: boolean }) => {
+  ipcMain.handle('save-file-content', async (_event, filePath: string, content: string, options?: { createDirs?: boolean; projectRoot?: string }) => {
     const fs = require('fs');
     const path = require('path');
     try {
+      const safePath = options?.projectRoot ? assertPathWithinWorkspace(options.projectRoot, filePath) : filePath;
       if (options?.createDirs) {
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.mkdirSync(path.dirname(safePath), { recursive: true });
       }
-      fs.writeFileSync(filePath, content, 'utf8');
+      fs.writeFileSync(safePath, content, 'utf8');
       return { success: true };
     } catch (e: any) {
       console.error('[IPC] Failed to save file:', e);
@@ -531,10 +561,13 @@ function createWindow() {
     shell.showItemInFolder(itemPath);
   });
 
-  ipcMain.handle('rename-file', async (_event, oldPath: string, newPath: string) => {
+  ipcMain.handle('rename-file', async (_event, oldPath: string, newPath: string, projectRoot?: string) => {
     const fs = require('fs');
     try {
-      fs.renameSync(oldPath, newPath);
+      fs.renameSync(
+        projectRoot ? assertPathWithinWorkspace(projectRoot, oldPath) : oldPath,
+        projectRoot ? assertPathWithinWorkspace(projectRoot, newPath) : newPath,
+      );
       return { success: true };
     } catch (e: any) {
       console.error('[IPC] Failed to rename file:', e);
@@ -542,13 +575,14 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('delete-file', async (event, filePath) => {
+  ipcMain.handle('delete-file', async (_event, filePath: string, projectRoot?: string) => {
     try {
-      const stats = await fs.promises.stat(filePath);
+      const safePath = projectRoot ? assertPathWithinWorkspace(projectRoot, filePath) : filePath;
+      const stats = await fs.promises.stat(safePath);
       if (stats.isDirectory()) {
-        await fs.promises.rm(filePath, { recursive: true, force: true });
+        await fs.promises.rm(safePath, { recursive: true, force: true });
       } else {
-        await fs.promises.unlink(filePath);
+        await fs.promises.unlink(safePath);
       }
       return { success: true };
     } catch (error: any) {
@@ -559,14 +593,15 @@ function createWindow() {
 
   ipcMain.handle('backup-path', async (_event, sourcePath: string, projectRoot: string) => {
     try {
-      const trashDir = path.join(projectRoot, '.quantix_trash');
+      const safeSource = assertPathWithinWorkspace(projectRoot, sourcePath);
+      const trashDir = assertPathWithinWorkspace(projectRoot, path.join(projectRoot, '.quantix_trash'));
       if (!fs.existsSync(trashDir)) {
         fs.mkdirSync(trashDir, { recursive: true });
       }
       const timestamp = Date.now();
-      const baseName = path.basename(sourcePath);
+      const baseName = path.basename(safeSource);
       const backupPath = path.join(trashDir, `${timestamp}-${baseName}`);
-      fs.cpSync(sourcePath, backupPath, { recursive: true });
+      fs.cpSync(safeSource, backupPath, { recursive: true });
       return { success: true, backupPath };
     } catch (e: any) {
       console.error('[IPC] Failed to backup path:', e);
@@ -574,13 +609,15 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('restore-path', async (_event, backupPath: string, targetPath: string) => {
+  ipcMain.handle('restore-path', async (_event, backupPath: string, targetPath: string, projectRoot?: string) => {
     try {
-      if (fs.existsSync(targetPath)) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
+      const safeBackup = projectRoot ? assertPathWithinWorkspace(projectRoot, backupPath) : backupPath;
+      const safeTarget = projectRoot ? assertPathWithinWorkspace(projectRoot, targetPath) : targetPath;
+      if (fs.existsSync(safeTarget)) {
+        fs.rmSync(safeTarget, { recursive: true, force: true });
       }
-      fs.cpSync(backupPath, targetPath, { recursive: true });
-      fs.rmSync(backupPath, { recursive: true, force: true });
+      fs.cpSync(safeBackup, safeTarget, { recursive: true });
+      fs.rmSync(safeBackup, { recursive: true, force: true });
       return { success: true };
     } catch (e: any) {
       console.error('[IPC] Failed to restore path:', e);
@@ -714,16 +751,16 @@ function createWindow() {
       ptyProcess = null;
     }
   });
-
-  ipcMain.handle('create-file', async (_event, parentPath: string, fileName: string) => {
+  ipcMain.handle('create-file', async (_event, parentPath: string, fileName: string, projectRoot?: string) => {
     const fs = require('fs');
     const path = require('path');
     try {
-      const fullPath = path.join(parentPath, fileName);
-      if (fs.existsSync(fullPath)) {
+      const fullPath = path.join(parentPath, assertChildName(fileName));
+      const safePath = projectRoot ? assertPathWithinWorkspace(projectRoot, fullPath) : fullPath;
+      if (fs.existsSync(safePath)) {
         return { success: false, error: 'File already exists' };
       }
-      fs.writeFileSync(fullPath, '', 'utf8');
+      fs.writeFileSync(safePath, '', 'utf8');
       return { success: true };
     } catch (e: any) {
       console.error('[IPC] Failed to create file:', e);
@@ -731,15 +768,16 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('create-folder', async (_event, parentPath: string, folderName: string) => {
+  ipcMain.handle('create-folder', async (_event, parentPath: string, folderName: string, projectRoot?: string) => {
     const fs = require('fs');
     const path = require('path');
     try {
-      const fullPath = path.join(parentPath, folderName);
-      if (fs.existsSync(fullPath)) {
+      const fullPath = path.join(parentPath, assertChildName(folderName));
+      const safePath = projectRoot ? assertPathWithinWorkspace(projectRoot, fullPath) : fullPath;
+      if (fs.existsSync(safePath)) {
         return { success: false, error: 'Folder already exists' };
       }
-      fs.mkdirSync(fullPath, { recursive: true });
+      fs.mkdirSync(safePath, { recursive: true });
       return { success: true };
     } catch (e: any) {
       console.error('[IPC] Failed to create folder:', e);
@@ -971,101 +1009,40 @@ function createWindow() {
   });
 
   ipcMain.handle('git-status', async (event, cwd: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      exec('git status -s', { cwd }, (error: any, stdout: string) => {
-        if (error) {
-          resolve({ error: error.message });
-          return;
-        }
-        resolve({ data: stdout });
-      });
-    });
+    try { return { data: await runGit(['status', '-s'], cwd) }; }
+    catch (error: any) { return { error: error.message }; }
   });
 
   ipcMain.handle('git-add', async (event, cwd: string, file: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      exec(`git add "${file}"`, { cwd }, (error: any) => {
-        if (error) {
-          resolve({ error: error.message });
-          return;
-        }
-        resolve({ success: true });
-      });
-    });
+    try { await runGit(['add', '--', file], cwd); return { success: true }; }
+    catch (error: any) { return { error: error.message }; }
   });
 
   ipcMain.handle('git-commit', async (event, cwd: string, message: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      const safeMessage = message.replace(/"/g, '\\"');
-      exec(`git commit -m "${safeMessage}"`, { cwd }, (error: any, stdout: string) => {
-        if (error) {
-          resolve({ error: error.message });
-          return;
-        }
-        resolve({ success: true, data: stdout });
-      });
-    });
+    try { return { success: true, data: await runGit(['commit', '-m', message], cwd) }; }
+    catch (error: any) { return { error: error.message }; }
   });
 
   ipcMain.handle('git-log-structured', async (event, cwd: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      exec('git log --all --pretty=format:"%h|%p|%s|%an|%ar|%d" -n 50', { cwd }, (error: any, stdout: string) => {
-        if (error) {
-          resolve({ error: error.message });
-          return;
-        }
-        resolve({ data: stdout });
-      });
-    });
+    try { return { data: await runGit(['log', '--all', '--pretty=format:%h|%p|%s|%an|%ar|%d', '-n', '50'], cwd) }; }
+    catch (error: any) { return { error: error.message }; }
   });
 
   ipcMain.handle('git-commit-files', async (event, cwd: string, hash: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      // --name-status returns lines like "M\tfile.txt"
-      // --pretty=format:"" hides the commit message itself, leaving blank lines
-      exec(`git show --name-status --pretty=format:"" ${hash}`, { cwd }, (error: any, stdout: string) => {
-        if (error) {
-          resolve({ error: error.message });
-          return;
-        }
-        resolve({ data: stdout });
-      });
-    });
+    try { return { data: await runGit(['show', '--name-status', '--pretty=format:', hash], cwd) }; }
+    catch (error: any) { return { error: error.message }; }
   });
 
   // ── Agentic Tool System IPC Handlers ─────────────────────────────────────
 
   ipcMain.handle('run-command-capture', async (_event, command: string, cwd: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      const options = {
-        cwd: cwd || process.cwd(),
-        timeout: 30000,
-        maxBuffer: 1024 * 1024 * 5, // 5MB
-        shell: true,
-        env: { ...process.env, FORCE_COLOR: '0' },
-      };
-      exec(command, options, (error: any, stdout: string, stderr: string) => {
-        resolve({
-          success: !error,
-          stdout: stdout || '',
-          stderr: stderr || '',
-          exitCode: error ? error.code || 1 : 0,
-          error: error ? error.message : null,
-        });
-      });
-    });
+    return ProcessManager.getInstance().runCapture(command, cwd || process.cwd());
   });
 
   // ── Async Task Manager IPC Handlers ──────────────────────────────────────
   ipcMain.handle('task-spawn', (_event, command: string, cwd: string) => {
     try {
-      const taskId = TaskManager.getInstance().spawnTask(command, cwd || process.cwd());
+      const taskId = ProcessManager.getInstance().spawn(command, cwd || process.cwd());
       return { success: true, taskId };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -1074,9 +1051,9 @@ function createWindow() {
 
   ipcMain.handle('task-status', (_event, taskId: string, maxBytes: number) => {
     try {
-      const status = TaskManager.getInstance().getTaskStatus(taskId);
+      const status = ProcessManager.getInstance().get(taskId);
       if (!status) return { success: false, error: 'Task not found' };
-      const output = TaskManager.getInstance().getTaskOutput(taskId, maxBytes);
+      const output = ProcessManager.getInstance().output(taskId, maxBytes);
       return { success: true, status, output };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -1084,31 +1061,22 @@ function createWindow() {
   });
 
   ipcMain.handle('task-kill', (_event, taskId: string) => {
-    const success = TaskManager.getInstance().killTask(taskId);
+    const success = ProcessManager.getInstance().kill(taskId);
     return { success };
   });
 
   ipcMain.handle('task-send-input', (_event, taskId: string, input: string) => {
-    const success = TaskManager.getInstance().sendInput(taskId, input);
+    const success = ProcessManager.getInstance().input(taskId, input);
     return { success };
   });
 
   ipcMain.handle('task-list', (_event) => {
-    return TaskManager.getInstance().listTasks();
+    return ProcessManager.getInstance().list();
   });
 
   ipcMain.handle('git-diff', async (_event, cwd: string, file?: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      const cmd = file ? `git diff "${file}"` : 'git diff';
-      exec(cmd, { cwd, maxBuffer: 1024 * 1024 * 2 }, (error: any, stdout: string) => {
-        if (error) {
-          resolve({ error: error.message });
-          return;
-        }
-        resolve({ data: stdout });
-      });
-    });
+    try { return { data: await runGit(file ? ['diff', '--', file] : ['diff'], cwd) }; }
+    catch (error: any) { return { error: error.message }; }
   });
 
   ipcMain.handle('search-files', async (_event, projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => {
@@ -1170,14 +1138,13 @@ function createWindow() {
   });
 
   ipcMain.handle('git-discard', async (event, cwd: string, file: string) => {
-    const { exec } = require('child_process');
-    return new Promise((resolve) => {
-      exec(`git checkout -- "${file}"`, { cwd }, (error1: any) => {
-        exec(`git clean -f "${file}"`, { cwd }, (error2: any) => {
-          resolve({ success: true });
-        });
-      });
-    });
+    try {
+      try { await runGit(['checkout', '--', file], cwd); } catch { /* untracked path */ }
+      await runGit(['clean', '-f', '--', file], cwd);
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   });
 
   const emailCache = new Map<string, { email: string; timestamp: number }>();

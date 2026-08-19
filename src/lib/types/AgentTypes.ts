@@ -17,6 +17,10 @@ export type AgentState =
   | 'quota_exhausted'
   | 'error';
 
+// New runtime code should use the identity-bearing contracts in agent/runtimeTypes.
+// This alias remains for the existing UI state until the coordinator migration.
+export type { AgentRunSnapshot, RunPhase, RuntimeEvent } from '../agent/runtimeTypes';
+
 /** Represents a single unit of work delegated to a subagent */
 export interface SubagentTask {
   id: string;

@@ -7,7 +7,7 @@ import {
   McpEvent, McpPermission, McpServerConfig, McpServerSnapshot, McpServerStatus, McpToolInfo,
 } from './types';
 
-type ServerRecord = McpServerSnapshot & { config: McpServerConfig; client?: Client; transport?: Transport };
+type ServerRecord = McpServerSnapshot & { config: McpServerConfig; client?: Client; transport?: Transport; reconnectAttempt: number; reconnectTimer?: ReturnType<typeof setTimeout>; disconnectRequested?: boolean; generation: number };
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 const DANGEROUS = /(^|_)(write|delete|remove|create|update|execute|run|send|publish|insert|drop|kill|admin)/i;
@@ -41,7 +41,7 @@ export class McpClientManager {
   addServer(config: McpServerConfig): McpServerSnapshot {
     if (!/^[a-zA-Z0-9_-]+$/.test(config.id)) throw new Error('MCP server ids may only contain letters, numbers, underscores, and hyphens.');
     if (this.servers.has(config.id)) throw new Error(`MCP server already exists: ${config.id}`);
-    const record: ServerRecord = { id: config.id, name: config.name || config.id, status: 'disconnected', tools: [], resources: [], resourceTemplates: [], prompts: [], config };
+    const record: ServerRecord = { id: config.id, name: config.name || config.id, status: 'configured', tools: [], resources: [], resourceTemplates: [], prompts: [], config, reconnectAttempt: 0, generation: 0 };
     this.servers.set(config.id, record);
     return this.snapshot(record);
   }
@@ -53,7 +53,10 @@ export class McpClientManager {
 
   async connectServer(id: string): Promise<McpServerSnapshot> {
     const record = this.require(id);
-    if (record.status === 'connected') return this.snapshot(record);
+    if (record.status === 'ready') return this.snapshot(record);
+    if (record.status === 'connecting') throw new Error(`MCP server is already connecting: ${id}`);
+    const generation = ++record.generation;
+    record.disconnectRequested = false;
     record.status = 'connecting'; record.error = undefined;
     this.emit({ type: 'server_connecting', serverId: id });
     try {
@@ -61,18 +64,36 @@ export class McpClientManager {
         ? new StdioClientTransport({ command: record.config.transport.command, args: record.config.transport.args, cwd: record.config.transport.cwd, env: record.config.transport.env, stderr: 'pipe' })
         : new StreamableHTTPClientTransport(new URL(record.config.transport.url), { requestInit: { headers: record.config.transport.headers } });
       const client = new Client({ name: 'quantix-mcp-client', version: '1.0.0' });
-      transport.onerror = error => this.fail(record, error);
-      transport.onclose = () => { if (record.status === 'connected') { record.status = 'disconnected'; this.emit({ type: 'server_disconnected', serverId: id }); } };
+      transport.onerror = (error: Error): void => this.degrade(record, error);
+      transport.onclose = (): void => this.handleClose(record);
       await client.connect(transport);
-      record.client = client; record.transport = transport; record.status = 'connected';
+      if (!this.isCurrent(record, generation) || record.disconnectRequested) {
+        await client.close().catch((): undefined => undefined);
+        throw new Error(`MCP connection superseded: ${id}`);
+      }
+      record.client = client; record.transport = transport;
       await this.discover(record);
+      if (!this.isCurrent(record, generation) || record.disconnectRequested) {
+        await client.close().catch((): undefined => undefined);
+        throw new Error(`MCP discovery superseded: ${id}`);
+      }
+      record.status = 'ready'; record.reconnectAttempt = 0;
       this.emit({ type: 'server_connected', serverId: id, data: this.snapshot(record) });
       return this.snapshot(record);
-    } catch (error: any) { this.fail(record, error); throw error; }
+    } catch (error: any) {
+      if (this.isCurrent(record, generation)) {
+        this.fail(record, error);
+        this.scheduleReconnect(record);
+      }
+      throw error;
+    }
   }
 
   async disconnectServer(id: string): Promise<void> {
     const record = this.require(id);
+    ++record.generation;
+    record.disconnectRequested = true;
+    if (record.reconnectTimer) clearTimeout(record.reconnectTimer);
     try { await record.client?.close(); } catch (error) { this.fail(record, error); }
     record.client = undefined; record.transport = undefined; record.status = 'disconnected';
     this.emit({ type: 'server_disconnected', serverId: id });
@@ -80,7 +101,7 @@ export class McpClientManager {
 
   async reconnectServer(id: string): Promise<McpServerSnapshot> { await this.disconnectServer(id); return this.connectServer(id); }
 
-  async callTool(serverId: string, toolName: string, args: Record<string, any>, signal?: AbortSignal): Promise<{ success: boolean; output: string }> {
+  async callTool(serverId: string, toolName: string, args: Record<string, any>, signal?: AbortSignal, timeoutMs = 60000): Promise<{ success: boolean; output: string; data?: unknown; diagnostics?: Array<{ category: string; message: string }> }> {
     const record = this.requireConnected(serverId);
     const tool = record.tools.find(item => item.name === toolName);
     if (!tool) return { success: false, output: `MCP tool not found: ${serverId}:${toolName}` };
@@ -90,11 +111,16 @@ export class McpClientManager {
     try {
       const validate = ajv.compile(tool.inputSchema || { type: 'object' });
       if (!validate(args)) return { success: false, output: `Invalid arguments for ${serverId}:${toolName}: ${ajv.errorsText(validate.errors)}` };
-      const result = await record.client!.callTool({ name: toolName, arguments: args });
+      const result = await record.client!.callTool({ name: toolName, arguments: args }, undefined, { signal, timeout: timeoutMs, maxTotalTimeout: timeoutMs });
+      if (!result || !Array.isArray((result as any).content)) throw new Error('MCP server returned a malformed tool result.');
       const output = textFromResult(result);
       this.emit({ type: 'tool_call_completed', serverId, tool: toolName, data: result });
-      return { success: !Boolean((result as any).isError), output };
-    } catch (error: any) { this.emit({ type: 'tool_call_failed', serverId, tool: toolName, error: error.message }); return { success: false, output: error.message || 'MCP tool call failed.' }; }
+      return { success: !Boolean((result as any).isError), output, data: result };
+    } catch (error: any) {
+      const category = signal?.aborted || error?.name === 'AbortError' ? 'cancelled' : /timeout/i.test(error?.message || '') ? 'timeout' : 'transport';
+      this.emit({ type: 'tool_call_failed', serverId, tool: toolName, error: error.message });
+      return { success: false, output: error.message || 'MCP tool call failed.', diagnostics: [{ category, message: error.message || String(error) }] };
+    }
   }
 
   async listResources(serverId: string): Promise<any[]> { return this.requireConnected(serverId).resources; }
@@ -114,7 +140,27 @@ export class McpClientManager {
   }
   private isAllowed(record: ServerRecord, tool: McpToolInfo): boolean { return tool.permissions.every(permission => (record.config.permissions || ['read']).includes(permission)); }
   private require(id: string): ServerRecord { const record = this.servers.get(id); if (!record) throw new Error(`MCP server not configured: ${id}`); return record; }
-  private requireConnected(id: string): ServerRecord { const record = this.require(id); if (!record.client || record.status !== 'connected') throw new Error(`MCP server is not connected: ${id}`); return record; }
-  private snapshot(record: ServerRecord): McpServerSnapshot { const { config, client, transport, ...snapshot } = record; return JSON.parse(JSON.stringify(snapshot)); }
-  private fail(record: ServerRecord, error: any): void { record.status = 'error'; record.error = error?.message || String(error); this.emit({ type: 'server_error', serverId: record.id, error: record.error }); }
+  private requireConnected(id: string): ServerRecord { const record = this.require(id); if (!record.client || record.status !== 'ready') throw new Error(`MCP server is not ready: ${id} (${record.status})`); return record; }
+  private snapshot(record: ServerRecord): McpServerSnapshot { const { config, client, transport, reconnectAttempt, reconnectTimer, disconnectRequested, generation, ...snapshot } = record; return JSON.parse(JSON.stringify(snapshot)); }
+  private isCurrent(record: ServerRecord, generation: number): boolean { return this.servers.get(record.id) === record && record.generation === generation; }
+  private degrade(record: ServerRecord, error: any): void { if (record.status === 'ready') record.status = 'degraded'; record.error = error?.message || String(error); this.emit({ type: 'server_degraded', serverId: record.id, error: record.error }); }
+  private fail(record: ServerRecord, error: any): void { record.status = 'failed'; record.error = error?.message || String(error); this.emit({ type: 'server_error', serverId: record.id, error: record.error }); }
+  private handleClose(record: ServerRecord): void {
+    record.client = undefined; record.transport = undefined; record.status = 'disconnected';
+    this.emit({ type: 'server_disconnected', serverId: record.id });
+    if (!record.disconnectRequested) this.scheduleReconnect(record);
+  }
+  private scheduleReconnect(record: ServerRecord): void {
+    const policy = record.config.reconnect;
+    if (record.disconnectRequested || policy?.enabled === false) return;
+    const maxAttempts = policy?.maxAttempts ?? 5;
+    if (record.reconnectAttempt >= maxAttempts || record.reconnectTimer) return;
+    const attempt = ++record.reconnectAttempt;
+    const delay = Math.min(policy?.maxDelayMs ?? 30000, (policy?.baseDelayMs ?? 1000) * 2 ** (attempt - 1));
+    this.emit({ type: 'server_reconnecting', serverId: record.id, data: { attempt, delay } });
+    record.reconnectTimer = setTimeout(() => {
+      record.reconnectTimer = undefined;
+      this.connectServer(record.id).catch((): void => undefined);
+    }, delay);
+  }
 }

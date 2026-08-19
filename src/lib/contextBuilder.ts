@@ -12,6 +12,7 @@ import {
   TokenBudget,
   truncateToTokens,
 } from './tokenCounter';
+import { ContextLedger, type ContextLedgerSnapshot } from './contextLedger';
 
 /** Project context information injected into the LLM */
 export interface ProjectContext {
@@ -30,6 +31,7 @@ export interface BuiltContext {
   messages: ChatMessage[];
   tokenBudget: TokenBudget;
   toolDefinitions?: any[];
+  ledger: ContextLedgerSnapshot;
 }
 
 function isGpt56Model(model: string): boolean {
@@ -238,8 +240,12 @@ export function buildContext(
   // ── 4. Calculate Available Budget for History ────────────────────────
   const responseReserved = config.maxTokens;
   const contextBudget = config.contextWindowSize;
+  const ledger = new ContextLedger(contextBudget);
   const overhead = systemPromptTokens + toolsTokens + responseReserved;
   const historyBudget = Math.max(0, contextBudget - overhead);
+  ledger.record({ id: 'system', section: 'system', decision: 'included', requestedTokens: systemPromptTokens, includedTokens: systemPromptTokens });
+  ledger.record({ id: 'tools', section: 'tools', decision: 'included', requestedTokens: toolsTokens, includedTokens: toolsTokens });
+  ledger.record({ id: 'response', section: 'response', decision: 'reserved', requestedTokens: responseReserved, includedTokens: responseReserved });
 
   // ── 5. Build Conversation Messages ───────────────────────────────────
   const chatMessages: ChatMessage[] = [
@@ -307,9 +313,12 @@ export function buildContext(
         const sliced = chatMsg.content.slice(0, maxResult);
         // Estimate which line we stopped at so the AI knows the exact next startLine
         const linesRead = sliced.split('\n').length;
+        const artifactId = msg.toolCalls?.find(call => call.result?.artifactRef)?.result?.artifactRef?.id;
         truncated = sliced +
           `\n... [CONTEXT TRUNCATED at ${maxResult} chars / ~line ${linesRead}]` +
-          ` — call readFile again with startLine=${linesRead + 1} to read the next section.`;
+          (artifactId
+            ? ` — continue with readArtifact({ artifactId: "${artifactId}", offset: ${maxResult} }).`
+            : ' — rerun the originating tool with a narrower range or result limit.');
       }
       chatMsg.content = `TOOL RESULT (${msg.toolName}):\n${truncated}`;
       delete chatMsg.tool_call_id;
@@ -328,6 +337,9 @@ export function buildContext(
         chatMsg.content = truncateToTokens(chatMsg.content, remainingBudget - 20) + '\n...[TRUNCATED]';
         historyTokens += remainingBudget;
         historyMessages.unshift(chatMsg);
+        ledger.record({ id: msg.id, section: 'history', decision: 'truncated', requestedTokens: msgTokens, includedTokens: remainingBudget, reason: 'history budget exhausted' });
+      } else {
+        ledger.record({ id: msg.id, section: 'history', decision: 'dropped', requestedTokens: msgTokens, includedTokens: 0, reason: 'history budget exhausted' });
       }
       
       // Ensure the original user prompt is ALWAYS included
@@ -341,6 +353,7 @@ export function buildContext(
 
     historyTokens += msgTokens;
     historyMessages.unshift(chatMsg);
+    ledger.record({ id: msg.id, section: 'history', decision: 'included', requestedTokens: msgTokens, includedTokens: msgTokens });
   }
 
   chatMessages.push(...historyMessages);
@@ -366,6 +379,7 @@ export function buildContext(
     messages: chatMessages,
     tokenBudget,
     toolDefinitions,
+    ledger: ledger.snapshot(),
   };
 }
 

@@ -37,7 +37,7 @@ export const handler: ToolHandler = async (args, context) => {
       targetPath = cleaned === '.' ? root : `${root}/${cleaned}`;
     }
 
-    const tree = await (window as any).electron.readProjectFiles(targetPath);
+    const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
 
     // ── Format tree ─────────────────────────────────────────────────────
     // depth starts at 0 for top-level entries.

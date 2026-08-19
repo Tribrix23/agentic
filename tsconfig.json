@@ -12,5 +12,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "jsx": "react-jsx"
-  }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "*.ts", "*.tsx"],
+  "exclude": ["node_modules", "dist", "out", ".vite", "public/monaco", "agentic-mcp-server"]
 }

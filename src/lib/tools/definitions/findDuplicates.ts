@@ -26,7 +26,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? relativePath 
       : `${context.projectRoot}/${relativePath}`.replace(/\/+/g, '/');
 
-    const tree = await (window as any).electron.readProjectFiles(targetPath);
+    const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     
     const collectFiles = (nodes: any[]): string[] => {
       let files: string[] = [];
@@ -48,7 +48,7 @@ export const handler: ToolHandler = async (args, context) => {
     // Read all files and split into lines
     for (const filePath of allFiles) {
       try {
-        const content = await (window as any).electron.readFileContent(filePath);
+        const content = await (window as any).electron.readFileContent(filePath, context.projectRoot);
         fileContents[filePath] = content.split('\n');
       } catch (e) {
         // Skip unreadable files

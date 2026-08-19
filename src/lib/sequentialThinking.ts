@@ -145,7 +145,7 @@ export function requiresStructuredPlanning(goal: string): boolean {
   if (!normalized) return false;
 
   const wordCount = normalized.split(/\s+/).length;
-  const complexIntent = /\b(architect|architecture|build|create|implement|integrate|migrate|refactor|redesign|multi[- ]?agent|planner|orchestrat|workflow|across|multiple files)\b/i.test(normalized);
+  const complexIntent = /\b(architect|architecture|implement|integrate|migrate|refactor|redesign|multi[- ]?agent|planner|orchestrat|workflow|across|multiple files)\b/i.test(normalized);
   const multiStepLanguage = /\b(and then|after that|first|second|finally|end[- ]to[- ]end|step by step)\b/i.test(normalized);
   return wordCount >= 35 || complexIntent || multiStepLanguage;
 }

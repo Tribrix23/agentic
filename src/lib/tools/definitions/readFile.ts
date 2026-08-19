@@ -37,35 +37,18 @@ export const handler: ToolHandler = async (args, context) => {
       targetPath = `${root}/${cleaned}`;
     }
 
-    const raw = await (window as any).electron.readFileContent(targetPath);
-    const content = typeof raw === 'string' ? raw : (raw ?? '');
-    const lines = content.split('\n');
-    const totalLines = lines.length;
-    const totalChars = content.length;
-
-    let outputLines = lines;
-    let start = 0;
-    let end = totalLines;
-
-    if (startLine !== undefined || endLine !== undefined) {
-      start = Math.max(0, (startLine ?? 1) - 1);
-      end = endLine ?? totalLines;
-      outputLines = lines.slice(start, end);
-    } else if (totalLines > 500) {
-      // Default pagination for large files
-      end = 500;
-      outputLines = lines.slice(0, 500);
-    }
-
-    let output = outputLines.join('\n');
-    const header = `--- File: ${relPath} | Lines: ${totalLines} | Chars: ${totalChars} | Showing: ${start + 1}-${end} ---\n`;
+    const requestedStart = Math.max(1, Math.floor(startLine ?? 1));
+    const requestedEnd = Math.max(requestedStart, Math.floor(endLine ?? (requestedStart + 499)));
+    const range = await (window as any).electron.readFileRange(targetPath, requestedStart, requestedEnd, context.projectRoot);
+    if (!range?.success) throw new Error(range?.error || 'Range read failed');
+    const header = `--- File: ${relPath} | Lines: ${range.totalLines} | Bytes: ${range.totalBytes} | Showing: ${range.startLine}-${range.endLine} ---\n`;
     
     let footer = '';
-    if (end < totalLines) {
-      footer = `\n--- End of chunk. Next chunk: startLine=${end + 1}, endLine=${Math.min(end + 500, totalLines)} ---`;
+    if (range.hasMore) {
+      footer = `\n--- End of chunk. Next chunk: startLine=${range.nextStartLine}, endLine=${Math.min(range.nextStartLine + 499, range.totalLines)} ---`;
     }
 
-    return { success: true, output: header + output + footer };
+    return { success: true, output: header + range.content + footer, truncated: range.hasMore };
   } catch (error: any) {
     return { success: false, output: `Failed to read file: ${error?.message || String(error)}\nHINT: Make sure the path is relative to the project root.` };
   }

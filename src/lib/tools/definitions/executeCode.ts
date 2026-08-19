@@ -16,7 +16,8 @@ export const definition: ToolDefinition = {
   requiresApproval: true,
   dangerLevel: 'moderate',
   timeout: 10000,
-  icon: 'Code'
+  icon: 'Code',
+  availability: ({ electron }) => typeof electron?.runCodeSnippet === 'function',
 };
 
 export const handler: ToolHandler = async (args, context) => {

@@ -21,7 +21,7 @@ import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
 import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
-import { executeTool, clearToolCache } from '../lib/tools/executor';
+import { executeTool } from '../lib/tools/executor';
 import { executeMcpTool, getMcpToolDefinitions } from '../lib/mcp/renderer';
 import type { McpServerSnapshot } from '../lib/mcp/types';
 import { saveMessages, loadMessages } from '../lib/conversationStore';
@@ -29,8 +29,10 @@ import { updateTask, getTask } from '../lib/taskStore';
 import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
 import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
-import { setCurrentUserMessageId } from '../lib/tools/executor';
 import { isQuotaError, TokenBillingSession } from '../lib/tokenQuota';
+import { SubagentManager } from '../lib/agent/subagentManager';
+import { resultFromChildMessages } from '../lib/agent/subagentResult';
+import type { SubagentRequest, SubagentRunContext } from '../lib/agent/subagentTypes';
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
@@ -39,6 +41,8 @@ import { ToolApprovalCard } from './chat/ToolApprovalCard';
 import { FileContextBadge } from './chat/FileContextBadge';
 import { PromptInput } from './chat/PromptInput';
 import { QuotaExhaustedNotice } from './chat/QuotaExhaustedNotice';
+
+import { sendNotification } from '../lib/notification';
 
 interface ProjectFolder {
   path: string;
@@ -93,6 +97,8 @@ export const MainContent = ({
   const [agentIteration, setAgentIteration] = useState<number>(0);
   const [tokenBudget, setTokenBudget] = useState<TokenBudget | undefined>();
   const [chatTitle, setChatTitle] = useState<string | null>(null);
+  const chatTitleRef = useRef<string | null>(null);
+  useEffect(() => { chatTitleRef.current = chatTitle; }, [chatTitle]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [quotaExhaustedMessage, setQuotaExhaustedMessage] = useState<string | null>(null);
 
@@ -106,8 +112,12 @@ export const MainContent = ({
   const [activeArtifact, setActiveArtifact] = useState<string | null>(null);
 
   const agentLoopRef = useRef<ReturnType<typeof createAgentLoop> | null>(null);
+  // Events from a stopped/replaced loop can arrive after a new run starts.
+  // Keep ownership explicit so late callbacks cannot mutate the new run.
+  const activeRunIdRef = useRef<string | null>(null);
   const subagentLoopsRef = useRef<Map<string, ReturnType<typeof createAgentLoop>>>(new Map());
   const finalizedSubagentsRef = useRef<Set<string>>(new Set());
+  const subagentManagerRef = useRef<SubagentManager | null>(null);
   const billingSessionRef = useRef<TokenBillingSession | null>(null);
   const isStreamingRef = useRef(false);
   const isSubmittingRef = useRef(false);
@@ -279,7 +289,7 @@ export const MainContent = ({
       };
       
       // Create a tool executor for this subagent that scopes to its conversationId
-      const subagentToolExecutor = async (toolCall: ToolCall): Promise<ToolResult> => {
+      const subagentToolExecutor = async (toolCall: ToolCall, signal: AbortSignal): Promise<ToolResult> => {
         // Use actual security preset and rules for subagents
         const permConfig: any = {
           securityPreset: (aiConfig as any).securityPreset || 'full',
@@ -288,17 +298,16 @@ export const MainContent = ({
           allowedCommands: [],
           blockedCommands: [],
         };
-        const controller = new AbortController();
         const context: any = {
           projectRoot: selectedProject?.path || projectRoot || '',
-          signal: controller.signal,
+          signal,
           conversationId,
+          userMessageId: undefined,
           parentLoop: undefined, // Subagents don't spawn further subagents
           agentKind: 'subagent',
           agentRole: role,
         };
         const result = await executeTool(toolCall, context, permConfig);
-        controller.abort(); // Clean up the controller
         return result;
       };
 
@@ -389,6 +398,7 @@ export const MainContent = ({
           setMessages(prev => prev.map(m => m.id === msg.id ? { ...msg } : m));
         } else if (event.type === 'agent:tool-approval-needed') {
           handleToolIntercepted(event.data);
+          sendNotification('Requesting permission', event.data.name);
         } else if (event.type === 'agent:tool-executing' || event.type === 'agent:tool-result') {
           // Forward UI state updates for tool execution inside subagent messages
           setMessages(prev => prev.map(m => {
@@ -436,13 +446,13 @@ export const MainContent = ({
             
             // Check if the file exists before marking complete
             try {
-              const exists = await (window as any).electron?.fileExists(targetFile);
+              const exists = await (window as any).electron?.fileExists(targetFile, selectedProject?.path || e.detail?.projectRoot);
               if (!exists) {
                 console.error(`[Subagent] Task ${taskId} claimed completion but target file ${targetFile} does not exist. Marking as FAILED.`);
                 shouldMarkComplete = false;
                 updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: 'Target file not created' } });
               } else {
-                const content = await (window as any).electron?.readFileContent(targetFile);
+                const content = await (window as any).electron?.readFileContent(targetFile, selectedProject?.path || e.detail?.projectRoot);
                 const validation = typeof content === 'string'
                   ? await (window as any).electron?.validateCode(targetFile, content)
                   : { diagnostics: [{ message: 'Target file is not readable text.' }] };
@@ -595,7 +605,6 @@ IMPORTANT RULES:
     };
 
     window.addEventListener('background-task-complete', handleBackgroundTaskComplete);
-    window.addEventListener('spawn-subagent', handleSpawnSubagent);
     window.addEventListener('send-subagent-message', handleSendSubagentMessage);
     window.addEventListener('subagent-file-activity', handleSubagentFileActivity);
 
@@ -604,7 +613,6 @@ IMPORTANT RULES:
       window.removeEventListener('delete-conversation', handleDeleteChat);
       window.removeEventListener('new-conversation', handleNewChat);
       window.removeEventListener('background-task-complete', handleBackgroundTaskComplete);
-      window.removeEventListener('spawn-subagent', handleSpawnSubagent);
       window.removeEventListener('send-subagent-message', handleSendSubagentMessage);
       window.removeEventListener('subagent-file-activity', handleSubagentFileActivity);
       if (typeof removeBackgroundTaskListener === 'function') removeBackgroundTaskListener();
@@ -613,6 +621,7 @@ IMPORTANT RULES:
 
   // ── Agent Event Handler ──────────────────────────────────────────────
   const handleAgentEvent = useCallback((event: AgentEvent) => {
+    if (event.runId && event.runId !== activeRunIdRef.current) return;
     switch (event.type) {
       case 'agent:thinking':
         // Don't overwrite askUser or tool approval states — those are blocking UI states
@@ -705,6 +714,7 @@ IMPORTANT RULES:
       case 'agent:tool-approval-needed':
         setAgentStatus(`Awaiting approval for ${event.data.name}...`);
         handleToolIntercepted(event.data);
+        sendNotification('Requesting permission', event.data.name);
         break;
       case 'agent:tool-executing':
         setAgentStatus(`Executing ${event.data.name}...`);
@@ -773,6 +783,9 @@ IMPORTANT RULES:
           isStreamingRef.current = false;
           setAgentStatus('');
           setAgentState('idle');
+          if (event.data?.reason !== 'user_cancelled') {
+            sendNotification('Task complete', chatTitleRef.current || 'New Conversation');
+          }
         }
         // Mark all streaming messages as complete
         setMessages(prev => prev.map(m =>
@@ -812,22 +825,85 @@ IMPORTANT RULES:
   }, []);
 
   // ── Tool Executor ────────────────────────────────────────────────────
-  const toolExecutor = useCallback(async (toolCall: ToolCall): Promise<ToolResult> => {
+  const toolExecutor = useCallback(async (toolCall: ToolCall, signal: AbortSignal, runContext?: { userMessageId?: string }): Promise<ToolResult> => {
     const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
-    const mcpResult = await executeMcpTool(toolCall, mcpServers);
+    const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
     if (mcpResult) return mcpResult;
     const permConfig = getPermissionConfig(selectedProject?.path);
-    const controller = new AbortController();
     const context: any = {
       projectRoot: selectedProject?.path || '',
-      signal: controller.signal,
+      signal,
       conversationId: activeConversationIdRef.current || undefined,
+      userMessageId: runContext?.userMessageId,
       parentLoop: agentLoopRef.current || undefined,
+      subagentManager: subagentManagerRef.current || undefined,
+      agentKind: 'main',
     };
     const result = await executeTool(toolCall, context, permConfig);
-    controller.abort(); // Clean up the controller
     return result;
   }, [selectedProject?.path, activeConversationId]);
+
+  const runSubagent = useCallback(async (request: SubagentRequest, run: SubagentRunContext) => {
+    const conversationId = `subagent_${run.childId}`;
+    const role = request.role;
+    const messages: AgenticMessage[] = [];
+    const emitChildMessage = (message: AgenticMessage) => {
+      const visible = { ...message, id: `subagent_${conversationId}_${message.id}`, name: `Subagent (${role})` };
+      setMessages(previous => {
+        const index = previous.findIndex(item => item.id === visible.id);
+        if (index < 0) return [...previous, visible];
+        const next = [...previous];
+        next[index] = { ...next[index], ...visible };
+        return next;
+      });
+    };
+    const childExecutor = async (toolCall: ToolCall, signal: AbortSignal): Promise<ToolResult> => {
+      const permissions = getPermissionConfig(request.projectRoot);
+      const context: any = {
+        projectRoot: request.projectRoot,
+        signal,
+        conversationId,
+        userMessageId: undefined,
+        agentKind: 'subagent',
+        agentRole: role,
+        runId: run.childRunId,
+        subagentManager: undefined,
+      };
+      const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+      const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
+      return mcpResult || executeTool(toolCall, context, permissions);
+    };
+    const loop = createAgentLoop((event: AgentEvent) => {
+      if (event.type === 'agent:message-added' || event.type === 'agent:message-updated') {
+        emitChildMessage(event.data);
+      } else if (event.type === 'agent:streaming') {
+        emitChildMessage({ ...event.data, id: event.data.id, role: 'assistant' });
+      } else if (event.type === 'agent:coding-progress') {
+        window.dispatchEvent(new CustomEvent('subagent-file-activity', { detail: { ...event.data, taskId: request.taskId, conversationId, role } }));
+      }
+    }, {
+      projectId: request.projectRoot,
+      toolDefinitions: getToolsForSubagent(),
+      toolExecutor: childExecutor,
+      conversationId,
+      agentRole: 'subagent',
+      billingSession: billingSessionRef.current || undefined,
+      runId: run.childRunId,
+      turnId: `turn:${Date.now()}`,
+    });
+    loop.updateConfig({
+      ...aiConfig,
+      useDefaultSystemPrompt: false,
+      systemPrompt: `You are a ${role} sub-agent. Complete only this task: ${request.task}\n\nUse tools to perform the work. Do not delegate, create task lists, or merely describe changes. Write complete files and report a concise summary when finished.`,
+    });
+    const initialMessage = createUserMessage(`Please begin the task: ${request.task}`);
+    messages.push(initialMessage);
+    const finalMessages = await loop.run(messages.map(message => ({ ...message, role: message.role as any })));
+    return resultFromChildMessages(finalMessages);
+  }, [aiConfig, selectedProject?.path]);
+
+  if (!subagentManagerRef.current) subagentManagerRef.current = new SubagentManager(runSubagent);
+  else subagentManagerRef.current.setRunner(runSubagent);
 
   // ── Send Message Handler ─────────────────────────────────────────────
   const handleSendMessage = useCallback(async (
@@ -918,7 +994,6 @@ IMPORTANT RULES:
         gitRef: checkpoint?.success ? checkpoint.ref : undefined,
         files: [],
       });
-      setCurrentUserMessageId(userMsg.id);
     }
 
     let billingSession = isSleepingAgent ? billingSessionRef.current : null;
@@ -958,8 +1033,6 @@ IMPORTANT RULES:
     }
     
     setAgentIteration(0);
-    clearToolCache(); // Reset duplicate-call cache for this new run
-
     // ── Run Agent Loop ─────────────────────────────────────────────────
     if (aiConfig.agentMode) {
       // Build project context
@@ -976,6 +1049,8 @@ IMPORTANT RULES:
 
       // Instantiate AgentLoop directly for the main chat
       const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+      const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+      activeRunIdRef.current = runId;
       agentLoopRef.current = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
@@ -984,6 +1059,9 @@ IMPORTANT RULES:
         conversationId: convId,
         agentRole: 'orchestrator',
         billingSession,
+        runId,
+        turnId: `turn:${Date.now()}`,
+        userMessageId: userMsg.id,
       });
 
       agentLoopRef.current.updateConfig(aiConfig);
@@ -1070,12 +1148,14 @@ IMPORTANT RULES:
 
   // ── Stop Agent ───────────────────────────────────────────────────────
   const handleStopAgent = useCallback(() => {
+    activeRunIdRef.current = null;
     billingSessionRef.current?.stop();
     billingSessionRef.current = null;
     isSubmittingRef.current = false;
     if (agentLoopRef.current) {
       agentLoopRef.current.stop();
     }
+    subagentManagerRef.current?.cancelAll();
     // Forcefully stop all running sub-agents
     subagentLoopsRef.current.forEach(loop => loop.stop());
     subagentLoopsRef.current.clear();
@@ -1083,16 +1163,32 @@ IMPORTANT RULES:
     isStreamingRef.current = false;
     setIsAgentRunning(false);
     setAgentStatus('');
-    setMessages(prev => prev.map(m =>
-      m.isStreaming ? { ...m, isStreaming: false } : m
-    ));
-  }, []);
+    setAgentState('idle');
+    setMessages(prev => prev.map(m => {
+      let updated = m;
+      if (updated.isStreaming) {
+        updated = { ...updated, isStreaming: false };
+      }
+      if (updated.toolCalls && updated.toolCalls.some(tc => tc.status === 'running' || tc.status === 'pending')) {
+        updated = {
+          ...updated,
+          toolCalls: updated.toolCalls.map(tc => 
+            (tc.status === 'running' || tc.status === 'pending') 
+              ? { ...tc, status: 'error' as const, result: { success: false, output: 'Cancelled by user.', artifacts: [] } } 
+              : tc
+          )
+        };
+      }
+      return updated;
+    }));
+  }, [setAgentState]);
 
   useEffect(() => {
     const handleQuotaExhausted = (event: Event) => {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message || 'Weekly token quota is exhausted.';
       quotaExhaustedRef.current = true;
       if (agentLoopRef.current) agentLoopRef.current.stop();
+      subagentManagerRef.current?.cancelAll();
       subagentLoopsRef.current.forEach(loop => loop.stop());
       subagentLoopsRef.current.clear();
       isStreamingRef.current = false;
@@ -1414,22 +1510,22 @@ IMPORTANT RULES:
                           const f = file as any; // For backward compatibility with old snapshots
                           if (!f.type) {
                             if (f.content !== undefined && f.content !== null) {
-                              await (window as any).electron?.saveFileContent(f.path, f.content);
+                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: selectedProject?.path });
                             }
                             continue;
                           }
 
                           if (f.type === 'file_create' || f.type === 'folder_create') {
-                            await (window as any).electron?.deleteFile(f.path);
+                            await (window as any).electron?.deleteFile(f.path, selectedProject?.path);
                           } else if (f.type === 'rename') {
-                            await (window as any).electron?.renameFile(f.path, f.oldPath);
+                            await (window as any).electron?.renameFile(f.path, f.oldPath, selectedProject?.path);
                           } else if (f.type === 'file_modify') {
                             if (f.content !== undefined && f.content !== null) {
-                              await (window as any).electron?.saveFileContent(f.path, f.content);
+                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: selectedProject?.path });
                             }
                           } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
                             if (f.backupPath) {
-                              await (window as any).electron?.restorePath(f.backupPath, f.path);
+                              await (window as any).electron?.restorePath(f.backupPath, f.path, selectedProject?.path);
                             }
                           }
                         } catch (e) {

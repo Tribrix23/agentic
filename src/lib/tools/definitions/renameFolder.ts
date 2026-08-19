@@ -39,7 +39,7 @@ export const handler: ToolHandler = async (args, context) => {
     const targetNew = resolvePath(newPath);
 
     // renameFile on backend handles folders as well
-    const result = await (window as any).electron.renameFile(targetOld, targetNew);
+    const result = await (window as any).electron.renameFile(targetOld, targetNew, context.projectRoot);
     
     if (result.success) {
       return { 

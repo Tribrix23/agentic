@@ -2,7 +2,7 @@ export type McpServerTransport =
   | { type: 'stdio'; command: string; args?: string[]; cwd?: string; env?: Record<string, string> }
   | { type: 'streamable-http'; url: string; headers?: Record<string, string> };
 
-export type McpServerStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type McpServerStatus = 'configured' | 'connecting' | 'ready' | 'degraded' | 'disconnected' | 'failed';
 export type McpPermission = 'read' | 'write' | 'execute' | 'network';
 
 export interface McpServerConfig {
@@ -11,6 +11,7 @@ export interface McpServerConfig {
   transport: McpServerTransport;
   permissions?: McpPermission[];
   autoConnect?: boolean;
+  reconnect?: { enabled?: boolean; maxAttempts?: number; baseDelayMs?: number; maxDelayMs?: number };
 }
 
 export interface McpServerSnapshot {
@@ -30,11 +31,12 @@ export interface McpToolInfo {
   inputSchema?: Record<string, any>;
   permissions: McpPermission[];
   qualifiedName: string;
+  timeoutMs?: number;
 }
 
 export interface McpEvent {
   type:
-    | 'server_connecting' | 'server_connected' | 'server_disconnected' | 'tool_discovered'
+    | 'server_connecting' | 'server_connected' | 'server_degraded' | 'server_reconnecting' | 'server_disconnected' | 'tool_discovered'
     | 'tool_call_started' | 'tool_call_completed' | 'tool_call_failed'
     | 'resource_read_started' | 'resource_read_completed' | 'server_error';
   serverId: string;

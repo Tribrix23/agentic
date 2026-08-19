@@ -39,8 +39,8 @@ export const handler: ToolHandler = async (args, context) => {
     
     // Explicitly coerce to strings to avoid "Cannot read properties of undefined (reading 'replace')"
     // Fallback to common hallucinated property names for maximum robustness against agent mistakes
-    const rawSearch = args.search ?? args.find ?? args.target ?? args.TargetContent;
-    const rawReplace = args.replace ?? args.replacement ?? args.ReplacementContent;
+    const rawSearch = args.search ?? args.find ?? args.target ?? args.TargetContent ?? args.anchor;
+    const rawReplace = args.replace ?? args.replacement ?? args.ReplacementContent ?? args.content;
     
     let search = typeof rawSearch === 'string' ? rawSearch : String(rawSearch ?? '');
     let replace = typeof rawReplace === 'string' ? rawReplace : String(rawReplace ?? '');
@@ -53,7 +53,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? relativeOrAbsPath 
       : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
       
-    const content = await (window as any).electron.readFileContent(targetPath);
+    const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     
     let finalSearch = search;
     let finalReplace = replace;
@@ -93,7 +93,7 @@ export const handler: ToolHandler = async (args, context) => {
         ? `${finalSearch}${finalReplace}`
         : finalReplace;
     const newContent = fileContent.split(finalSearch).join(replacement);
-    const result = await (window as any).electron.saveFileContent(targetPath, newContent);
+    const result = await (window as any).electron.saveFileContent(targetPath, newContent, { projectRoot: context.projectRoot });
     
     if (result.success) {
       const { added, removed } = calculateLineChanges(content, newContent);

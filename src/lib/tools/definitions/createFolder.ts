@@ -32,7 +32,7 @@ export const handler: ToolHandler = async (args, context) => {
     const folderName = parts.pop() || '';
     const parentPath = parts.join('/') || context.projectRoot;
     
-    const result = await (window as any).electron.createFolder(parentPath, folderName);
+    const result = await (window as any).electron.createFolder(parentPath, folderName, context.projectRoot);
     
     if (result.success) {
       return { 

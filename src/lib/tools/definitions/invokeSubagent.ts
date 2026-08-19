@@ -1,4 +1,4 @@
-import { ToolDefinition, ToolHandler, ToolResult } from '../types';
+import { ToolDefinition, ToolHandler } from '../types';
 import { updateTask, getTask, getTasksForConversation } from '../../taskStore';
 
 export const definition: ToolDefinition = {
@@ -24,8 +24,6 @@ export const definition: ToolDefinition = {
 export const handler: ToolHandler = async (args, context) => {
   try {
     const { task, role, taskId, targetFile } = args;
-    const conversationId = 'sub_' + Math.random().toString(36).substring(2, 9);
-
     if (!taskId) {
       return { success: false, output: 'Cannot delegate without taskId. Create the complete task graph first, then delegate a ready task.' };
     }
@@ -58,35 +56,32 @@ export const handler: ToolHandler = async (args, context) => {
       }
     }
     
-    // Mark the task as delegated immediately
+    if (!context.subagentManager) return { success: false, output: 'Subagent runtime is unavailable.' };
+
+    // Mark the task as delegated immediately. The manager owns child lifecycle from here.
     updateTask(taskId, { 
       status: 'in_progress', 
-      delegatedTo: conversationId,
+      delegatedTo: 'pending-child-run',
       metadata: { ...(taskObj.metadata || {}), targetFile: claimedTarget }
     });
-
-    // Synchronously notify parent loop if available (fixes race condition)
-    if (context.parentLoop && typeof context.parentLoop.notifySubagentSpawned === 'function') {
-      context.parentLoop.notifySubagentSpawned();
-    }
-
-    // Dispatch event to MainContent to spin up a new AgentLoop
-    window.dispatchEvent(new CustomEvent('spawn-subagent', {
-      detail: {
-        conversationId,
-        role,
-        task,
-        projectRoot: context.projectRoot,
-        parentConversationId: context.conversationId,
-        taskId, // Pass taskId so MainContent can mark it completed when done
-        targetFile: claimedTarget // Pass the planned claim so the UI knows what it is working on
-        ,agentKind: 'subagent'
-      }
-    }));
-
-    return { 
-      success: true, 
-      output: `Sub-agent spawned successfully. Sub-agent ID: ${conversationId}. Role: ${role}. DO NOT use commandStatus or manageTask on this! Sub-agents are independent AI agents, not terminal commands. The main loop will automatically wake up when they finish. Go to sleep now.`
+    const child = context.subagentManager.start({
+      parentRunId: context.runId,
+      parentConversationId: context.conversationId || taskObj.conversationId,
+      taskId, task, role, projectRoot: context.projectRoot, targetFile: claimedTarget,
+    }, context.signal);
+    updateTask(taskId, { delegatedTo: child.handle.childId });
+    const outcome = await child.outcome;
+    updateTask(taskId, {
+      status: outcome.status === 'completed' ? 'completed' : 'failed',
+      metadata: { ...(getTask(taskId)?.metadata || {}), subagentOutcome: outcome, error: outcome.status === 'completed' ? undefined : outcome.summary },
+    });
+    return {
+      success: outcome.status === 'completed',
+      output: JSON.stringify(outcome, null, 2),
+      summary: outcome.summary,
+      data: outcome,
+      artifacts: outcome.artifacts,
+      diagnostics: outcome.diagnostics,
     };
   } catch (error: any) {
     return { success: false, output: `Failed to invoke sub-agent: ${error.message || String(error)}` };

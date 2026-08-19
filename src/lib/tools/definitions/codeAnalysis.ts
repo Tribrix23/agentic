@@ -25,7 +25,10 @@ export const definition: ToolDefinition = {
 export const handler: ToolHandler = async (args, context) => {
   try {
     const { path, type } = args;
-    const content = await (window as any).electron.readFileContent(path);
+    const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path)
+      ? path
+      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+    const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const lines = content.split('\n');
     let results: string[] = [];
     
@@ -61,10 +64,10 @@ export const handler: ToolHandler = async (args, context) => {
     }
     
     if (results.length === 0) {
-      return { success: true, output: `No ${type} found in ${path}` };
+      return { success: true, output: `No ${type} found in ${targetPath}` };
     }
     
-    return { success: true, output: `Found ${type} in ${path}:\n${results.join('\n')}` };
+    return { success: true, output: `Found ${type} in ${targetPath}:\n${results.join('\n')}` };
   } catch (error: any) {
     return { success: false, output: `Failed to analyze code: ${error.message || String(error)}` };
   }

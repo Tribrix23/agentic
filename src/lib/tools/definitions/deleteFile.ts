@@ -34,13 +34,13 @@ export const handler: ToolHandler = async (args, context) => {
 
     let lineCount = 0;
     try {
-      const existing = await (window as any).electron?.readFileContent(targetPath);
+      const existing = await (window as any).electron?.readFileContent(targetPath, context.projectRoot);
       if (existing) {
         lineCount = existing.split('\n').length;
       }
     } catch {}
 
-    const result = await (window as any).electron.deleteFile(targetPath);
+    const result = await (window as any).electron.deleteFile(targetPath, context.projectRoot);
     
     if (result.success) {
       return { 

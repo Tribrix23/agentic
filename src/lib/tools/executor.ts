@@ -4,19 +4,9 @@ import { checkPermission, PermissionConfig } from '../permissions';
 import { addFileToSnapshot, getSnapshot } from '../snapshotStore';
 import { withFileWriteLock } from '../fileWriteQueue';
 import { isSequentialThinkingTool, normalizeSequentialThinkingArguments } from '../sequentialThinking';
-
-// ── Deduplication store ────────────────────────────────────────────────────
-// Tracks tool signatures executed this session. Resets when a write operation
-// occurs (create/delete/write file/folder) since the filesystem has changed.
-
-const executedSignatures = new Set<string>();
-
-/** Tools that mutate the filesystem — reset the dedup store when called */
-const WRITE_TOOLS = new Set([
-  'writeFile', 'editFile', 'createFile', 'deleteFile',
-  'createFolder', 'deleteFolder', 'renameFolder', 'renameFile',
-  'runCommand', 'gitAdd', 'gitCommit',
-]);
+import { artifactStore } from './artifactStore';
+import { normalizeToolResult } from './result';
+import { formatValidationErrors, validateToolArguments } from './validation';
 
 const FILE_MUTATION_TOOLS = new Set([
   'writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content',
@@ -26,17 +16,6 @@ function resolveToolPath(toolCall: ToolCall, context: ToolContext): string {
   const value = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
   if (!value || value.startsWith('/') || /^[a-zA-Z]:(\\|\/)/.test(value)) return value;
   return context.projectRoot ? `${context.projectRoot}/${value}`.replace(/\/+/g, '/') : value;
-}
-
-/** Call at the start of each new agent run */
-export function clearToolCache(): void {
-  executedSignatures.clear();
-}
-
-/** The current user message ID — set by MainContent before each agent run */
-export let currentUserMessageId: string = '';
-export function setCurrentUserMessageId(id: string): void {
-  currentUserMessageId = id;
 }
 
 export async function executeTool(toolCall: ToolCall, context: ToolContext, permissionConfig: PermissionConfig): Promise<ToolResult> {
@@ -55,10 +34,26 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     };
   }
 
-  const tool = getTool(toolCall.name);
+  let toolName = toolCall.name;
+  if (toolName === 'bash') {
+    toolName = 'runCommand';
+    toolCall.name = 'runCommand'; // Update the call itself for UI consistency
+  }
+
+  const tool = getTool(toolName);
   if (!tool) {
     console.error('[executor] Tool not found in registry:', toolCall.name);
     return { success: false, output: `Tool not found: ${toolCall.name}. The tool may not be registered. Check the tool registry.` };
+  }
+
+  const validation = validateToolArguments(tool.definition.parameters, toolCall.arguments);
+  if (!validation.valid) {
+    const message = formatValidationErrors(validation.errors);
+    return normalizeToolResult({
+      success: false,
+      output: `Invalid arguments for tool "${toolCall.name}": ${message}`,
+      diagnostics: [{ category: 'validation', message, details: validation.errors }],
+    });
   }
 
   // ── Permission check ──────────────────────────────────────────────────
@@ -84,8 +79,9 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
 
   try {
     // ── Snapshot: capture inverse actions BEFORE tool execution ───────────────────
-    if (currentUserMessageId) {
-      const turnSnapshot = getSnapshot(currentUserMessageId);
+    const userMessageId = context.userMessageId;
+    if (userMessageId) {
+      const turnSnapshot = getSnapshot(userMessageId);
       const usesGitCheckpoint = Boolean(turnSnapshot?.gitCheckpoint);
       const getFullPath = (p: string) => {
         if (!p) return '';
@@ -111,28 +107,28 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
         } else if (['writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'].includes(toolName)) {
           if (targetPath) {
             try {
-              const existing = await (window as any).electron?.readFileContent(targetPath);
+              const existing = await (window as any).electron?.readFileContent(targetPath, context.projectRoot);
               if (existing !== undefined && existing !== null) {
-                addFileToSnapshot(currentUserMessageId, { type: 'file_modify', path: targetPath, content: existing });
+                addFileToSnapshot(userMessageId, { type: 'file_modify', path: targetPath, content: existing });
               }
             } catch {
-              addFileToSnapshot(currentUserMessageId, { type: 'file_create', path: targetPath });
+              addFileToSnapshot(userMessageId, { type: 'file_create', path: targetPath });
             }
           }
         } else if (toolName === 'createFolder') {
           if (targetPath) {
-            addFileToSnapshot(currentUserMessageId, { type: 'folder_create', path: targetPath });
+            addFileToSnapshot(userMessageId, { type: 'folder_create', path: targetPath });
           }
         } else if (toolName === 'renameFile' || toolName === 'renameFolder') {
           if (targetOldPath && targetNewPath) {
-            addFileToSnapshot(currentUserMessageId, { type: 'rename', path: targetNewPath, oldPath: targetOldPath });
+            addFileToSnapshot(userMessageId, { type: 'rename', path: targetNewPath, oldPath: targetOldPath });
           }
         } else if (toolName === 'deleteFile' || toolName === 'delete_file' || toolName === 'deleteFolder') {
           if (targetPath) {
             const backupRes = await (window as any).electron?.backupPath(targetPath, context.projectRoot);
             if (backupRes?.success && backupRes.backupPath) {
               const type = toolName === 'deleteFolder' ? 'folder_delete' : 'file_delete';
-              addFileToSnapshot(currentUserMessageId, { type, path: targetPath, backupPath: backupRes.backupPath });
+              addFileToSnapshot(userMessageId, { type, path: targetPath, backupPath: backupRes.backupPath });
             }
           }
         }
@@ -151,12 +147,21 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     if (result) {
       (result as any).durationMs = Date.now() - startTime;
     }
-    return result;
+    return applyOutputPolicy(normalizeToolResult(result || { success: false, output: 'Tool returned no result.' }), tool.definition.name, tool.definition.capabilities?.output);
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      return { success: false, output: `Tool execution timed out after ${tool.definition.timeout}ms` };
+      const cancelled = context.signal.aborted;
+      return normalizeToolResult({
+        success: false,
+        output: cancelled ? 'Tool execution cancelled.' : `Tool execution timed out after ${tool.definition.timeout}ms`,
+        diagnostics: [{ category: cancelled ? 'cancelled' : 'timeout', message: err.message || String(err) }],
+      });
     }
-    return { success: false, output: `Error executing tool: ${err.message}` };
+    return normalizeToolResult({
+      success: false,
+      output: `Error executing tool: ${err.message}`,
+      diagnostics: [{ category: 'internal', message: err.message || String(err) }],
+    });
   } finally {
     clearTimeout(timeoutId);
     // Clean up the abort listener to prevent memory leak
@@ -164,4 +169,30 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
       context.signal.removeEventListener('abort', onContextAbort);
     }
   }
+}
+
+function applyOutputPolicy(
+  result: ToolResult,
+  toolName: string,
+  policy?: { inlineMaxBytes: number; previewBytes: number; artifactOnOverflow: boolean },
+): ToolResult {
+  if (!policy) return result;
+  const originalBytes = new TextEncoder().encode(result.output).byteLength;
+  if (originalBytes <= policy.inlineMaxBytes) return result;
+  const artifactRef = policy.artifactOnOverflow
+    ? artifactStore.put(result.output, { label: `${toolName} output` })
+    : undefined;
+  const preview = result.output.slice(0, policy.previewBytes);
+  return {
+    ...result,
+    output: `${preview}\n\n[Output truncated.${artifactRef ? ` Full output stored as artifact ${artifactRef.id}.` : ''}]`,
+    artifactRef,
+    truncated: true,
+    truncation: {
+      truncated: true,
+      originalBytes,
+      includedBytes: new TextEncoder().encode(preview).byteLength,
+      continuation: artifactRef ? `readArtifact({ artifactId: "${artifactRef.id}", offset: ${preview.length} })` : undefined,
+    },
+  };
 }

@@ -47,7 +47,8 @@ export const handler: ToolHandler = async (args, context) => {
       targetDest = `${root}/${cleaned}`;
     }
 
-    await (window as any).electron.renameFile(targetSource, targetDest);
+    const result = await (window as any).electron.renameFile(targetSource, targetDest, context.projectRoot);
+    if (!result?.success) throw new Error(result?.error || 'Rename failed');
 
     return { 
       success: true, 

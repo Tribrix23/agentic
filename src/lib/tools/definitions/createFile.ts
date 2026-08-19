@@ -33,11 +33,11 @@ export const handler: ToolHandler = async (args, context) => {
     const fileName = parts.pop() || '';
     const parentPath = parts.join('/') || context.projectRoot;
     
-    const result = await (window as any).electron.createFile(parentPath, fileName);
+    const result = await (window as any).electron.createFile(parentPath, fileName, context.projectRoot);
     
     if (result.success) {
       if (content) {
-        const writeResult = await (window as any).electron.saveFileContent(fullPath, content);
+        const writeResult = await (window as any).electron.saveFileContent(fullPath, content, { projectRoot: context.projectRoot });
         if (!writeResult.success) {
           return { success: false, output: `Created file but failed to write content: ${writeResult.error}` };
         }

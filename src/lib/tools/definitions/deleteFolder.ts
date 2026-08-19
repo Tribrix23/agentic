@@ -33,7 +33,7 @@ export const handler: ToolHandler = async (args, context) => {
     }
 
     // deleteFile on backend handles folders properly via fs.rm(..., {recursive: true})
-    const result = await (window as any).electron.deleteFile(targetPath);
+    const result = await (window as any).electron.deleteFile(targetPath, context.projectRoot);
     
     if (result.success) {
       return { 
