@@ -13,19 +13,72 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-4.5.4-3178C6?logo=typescript)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](#)
 
+<br/>
+
+![Quantix Code Interface](public/screen.png)
+
 </div>
 
 ---
 
-## Overview
+## 📖 Table of Contents
+- [Overview](#-overview)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Model Support](#-model-support)
+- [Project Structure](#-project-structure)
+- [Getting Started](#-getting-started)
+- [License](#-license)
 
-QUANTIX CODE is a locally hosted desktop application that brings agentic AI directly into your development environment. It combines a full IDE — Monaco Editor, integrated terminal, Git, and live preview — with an autonomous agent loop that can read, write, execute, and refactor code on your behalf.
+---
+
+## 🌟 Overview
+
+**QUANTIX CODE** is a locally hosted desktop application that brings agentic AI directly into your development environment. It combines a full IDE — Monaco Editor, integrated terminal, Git, and live preview — with an autonomous agent loop that can read, write, execute, and refactor code on your behalf.
 
 Instead of copy-pasting between a chat window and your editor, QUANTIX CODE operates inside your project, understands your codebase, and executes tasks through a controlled, permission-aware tool layer.
 
 ---
 
-## Architecture
+## ✨ Features
+
+### 🤖 Agentic AI
+- **ReAct-style** iterative reasoning with 7+ tool call format support.
+- **Real-time streaming** with token-level UI updates.
+- **Multi-model dispatcher**: Dispatcher v1/v1.2/v2, GPT-5.6 Luna/Terra/Sol, DeepSeek v4, Kimi k2.7, GLM 5.2, Qwen 3.7, Claude Fable 5, and more.
+- **Sub-agent orchestration** with sleep/wakeup and sibling file manifest.
+- **Task graph** with topological sorting and critical path detection.
+- **Sequential thinking gate** for complex planning traces.
+- **Context summarization** when approaching token limits.
+
+### 💻 IDE Experience
+- **Monaco Editor** with syntax highlighting and theme support.
+- **Integrated terminal** via xterm + node-pty.
+- **Git integration**: status, diff, commit, branch, checkpoints.
+- **Live preview server** for web projects.
+- **File explorer** with context menus and undo/redo.
+- **Code validation** for TypeScript, HTML, and Python.
+
+### 🧰 Agent Tools
+Over **50+ tools** covering file operations, Git, terminal execution, web search, code intelligence, and system utilities. Tools are permission-classified by danger level and filtered per security preset.
+
+### 🛡️ Security
+- **Path-based and command-based blocking** to prevent dangerous operations.
+- **Configurable approval presets** (Full / Semi / Default / User-Guided).
+- **Automatic backup** before destructive operations (`.quantix_trash`).
+- **Git checkpoint system** for non-destructive rollback.
+- **Audit logging** in local storage.
+
+### 🎨 UI
+- **Glassmorphism design** with animated backgrounds.
+- **Three-pane layout**: conversations, IDE, and activity monitor.
+- **Collapsible sidebars** and a custom title bar.
+- **Real-time token budget visualization**.
+- **Agent activity timeline** with thinking blocks.
+
+---
+
+## 🏗️ Architecture
 
 ### System Overview
 
@@ -150,36 +203,36 @@ graph TD
 sequenceDiagram
     participant User
     participant UI as React UI
-    participant Loop as Agent Loop
+    participant AgentLoop as Agent Loop
     participant Ctx as Context Builder
     participant LLM as AI Provider
     participant Tools as Tool System
     participant FS as File System
 
     User->>UI: Submit message
-    UI->>Loop: handleUserMessage(text)
+    UI->>AgentLoop: handleUserMessage(text)
 
-    Loop->>Ctx: buildContext(messages, tools)
-    Ctx-->>Loop: context payload
+    AgentLoop->>Ctx: buildContext(messages, tools)
+    Ctx-->>AgentLoop: context payload
 
-    Loop->>LLM: streamResponse(context)
-    LLM-->>Loop: partial delta
+    AgentLoop->>LLM: streamResponse(context)
+    LLM-->>AgentLoop: partial delta
 
     loop Streaming
-        Loop-->>UI: onToken(token)
+        AgentLoop-->>UI: onToken(token)
         UI-->>User: Update UI
     end
 
-    LLM-->>Loop: tool_call: read_file
+    LLM-->>AgentLoop: tool_call: read_file
 
-    Loop->>Tools: executeTool(tool_call)
+    AgentLoop->>Tools: executeTool(tool_call)
     Tools->>FS: readFile(path)
     FS-->>Tools: file content
-    Tools-->>Loop: tool result
+    Tools-->>AgentLoop: tool result
 
-    Loop->>LLM: continue with result
-    LLM-->>Loop: final response
-    Loop-->>UI: complete
+    AgentLoop->>LLM: continue with result
+    LLM-->>AgentLoop: final response
+    AgentLoop-->>UI: complete
     UI-->>User: Display result
 ```
 
@@ -237,52 +290,24 @@ flowchart TD
 
 ---
 
-## Features
+## 🧠 Model Support
 
-### Agentic AI
-
-- ReAct-style iterative reasoning with 7+ tool call format support
-- Real-time streaming with token-level UI updates
-- Multi-model dispatcher: Dispatcher v1/v1.2/v2, GPT-5.6 Luna/Terra/Sol, DeepSeek v4, Kimi k2.7, GLM 5.2, Qwen 3.7, Claude Fable 5, and more
-- Sub-agent orchestration with sleep/wakeup and sibling file manifest
-- Task graph with topological sorting and critical path detection
-- Sequential thinking gate for complex planning traces
-- Context summarization when approaching token limits
-
-### IDE Experience
-
-- Monaco Editor with syntax highlighting and theme support
-- Integrated terminal via xterm + node-pty
-- Git integration: status, diff, commit, branch, checkpoints
-- Live preview server for web projects
-- File explorer with context menus and undo/redo
-- Code validation for TypeScript, HTML, Python
-
-### Agent Tools
-
-50+ tools covering file operations, Git, terminal execution, web search, code intelligence, and system utilities. Tools are permission-classified by danger level and filtered per security preset.
-
-### Security
-
-- Path-based and command-based blocking
-- Configurable approval presets (Full / Semi / Default / User-Guided)
-- Automatic backup before destructive operations
-- Git checkpoint system for non-destructive rollback
-- Audit logging in local storage
-
-### UI
-
-- Glassmorphism design with animated backgrounds
-- Three-pane layout: conversations, IDE, activity monitor
-- Collapsible sidebars and custom title bar
-- Real-time token budget visualization
-- Agent activity timeline with thinking blocks
+| Model | Context | Max Tokens | Notes |
+|-------|---------|------------|-------|
+| Dispatcher v1 / v1.2 / v2 | 1,000,000 | 32,768 | Default dispatcher |
+| GPT-5.6 Luna / Terra / Sol | 128,000 | 32,768 | Native function calling |
+| DeepSeek v4 Flash / Pro | 128,000 | 32,768 | Efficient alternatives |
+| Qwen 3.7 Flash / Plus / Max | — | — | Via model endpoint |
+| GPT-OSS High / Medium | — | — | Open-source tier |
+| Kimi k2.7 | 128,000 | 32,768 | Moonshot AI |
+| GLM 5.2 / Lite | 128,000 | 32,768 | Zhipu AI |
+| Claude Fable 5 | 200,000 | 32,768 | Anthropic |
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
-```
+```text
 src/
 ├── components/
 │   ├── chat/                 # Chat interface
@@ -310,42 +335,48 @@ src/
 
 ---
 
-## Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
-
-- Node.js v18+
+- [Node.js](https://nodejs.org/) v18+
 - npm v9+
 
 ### Installation
 
-```bash
-git clone https://github.com/tribrix23/agentic.git
-cd agentic
-npm install
-cd agentic-mcp-server
-npm install
-cd ..
-```
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/tribrix23/agentic.git
+   cd agentic
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Install MCP Server dependencies:**
+   ```bash
+   cd agentic-mcp-server
+   npm install
+   cd ..
+   ```
 
 ### Configuration
-
-Create a `.env` file in the root directory with your configuration values.
+Create a `.env` file in the root directory and add your required configuration values (such as API keys and Supabase credentials).
 
 ### Development
-
+Start the application in development mode:
 ```bash
 npm start
 ```
 
 ### Production Build
-
+Package the application for production:
 ```bash
 npm run make
 ```
 
-### Platform-Specific Builds
-
+**Platform-Specific Builds:**
 ```bash
 npm run make -- --platform=win32
 npm run make -- --platform=darwin
@@ -354,29 +385,14 @@ npm run make -- --platform=linux
 
 ---
 
-## Model Support
+## 📄 License
 
-| Model | Context | Max Tokens | Notes |
-|-------|---------|------------|-------|
-| Dispatcher v1 / v1.2 / v2 | 1,000,000 | 32,768 | Default dispatcher |
-| GPT-5.6 Luna / Terra / Sol | 128,000 | 32,768 | Native function calling |
-| DeepSeek v4 Flash / Pro | 128,000 | 32,768 | Efficient alternatives |
-| Qwen 3.7 Flash / Plus / Max | — | — | Via model endpoint |
-| GPT-OSS High / Medium | — | — | Open-source tier |
-| Kimi k2.7 | 128,000 | 32,768 | Moonshot AI |
-| GLM 5.2 / Lite | 128,000 | 32,768 | Zhipu AI |
-| Claude Fable 5 | 200,000 | 32,768 | Anthropic |
-
----
-
-## License
-
-MIT
+This project is licensed under the **MIT** License.
 
 ---
 
 <div align="center">
 
-Built for developers who want AI assistance without leaving their IDE.
+*Built for developers who want AI assistance without leaving their IDE.*
 
 </div>
