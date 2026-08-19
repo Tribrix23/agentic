@@ -6,9 +6,10 @@ function escapeXml(value: any): string {
 
 function parseValue(value: string): any {
   const trimmed = value.trim();
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-  if (trimmed !== '' && !Number.isNaN(Number(trimmed))) return Number(trimmed);
+  const unquoted = trimmed.replace(/^(['"])(.*)\1$/, '$2');
+  if (/^true$/i.test(unquoted)) return true;
+  if (/^false$/i.test(unquoted)) return false;
+  if (unquoted !== '' && !Number.isNaN(Number(unquoted))) return Number(unquoted);
   return trimmed;
 }
 

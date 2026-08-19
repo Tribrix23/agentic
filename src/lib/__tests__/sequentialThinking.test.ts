@@ -1,5 +1,6 @@
 import {
   parseSequentialThought,
+  isToolBlockedBeforeStructuredPlan,
   requiresStructuredPlanning,
   SequentialThoughtTrace,
 } from '../sequentialThinking';
@@ -22,6 +23,7 @@ function thoughtCall(arguments_: Record<string, any>): ToolCall {
 export function runSequentialThinkingTests(): void {
   const first = thoughtCall({ thought: 'Inspect architecture', thoughtNumber: 1, totalThoughts: 2, nextThoughtNeeded: true });
   assert(Boolean(parseSequentialThought(first)), 'A valid thought should parse');
+  assert(Boolean(parseSequentialThought(thoughtCall({ thought: 'String boolean', thoughtNumber: 1, totalThoughts: 1, nextThoughtNeeded: 'True' }))), 'String booleans should be normalized for MCP compatibility');
   assert(parseSequentialThought(thoughtCall({ thought: '', thoughtNumber: 1, totalThoughts: 2, nextThoughtNeeded: true })) === null, 'An empty thought should fail validation');
 
   const trace = new SequentialThoughtTrace();
@@ -40,6 +42,10 @@ export function runSequentialThinkingTests(): void {
 
   assert(requiresStructuredPlanning('Implement and integrate a multi-agent orchestration workflow'), 'Complex implementation should require planning');
   assert(!requiresStructuredPlanning('Rename this variable'), 'A narrow edit should not require structured planning');
+  assert(!isToolBlockedBeforeStructuredPlan('readFile'), 'Discovery tools should remain available before planning completes');
+  assert(!isToolBlockedBeforeStructuredPlan('mcp__sequential_thinking__sequentialthinking'), 'Sequential thinking must pass the planning gate');
+  assert(isToolBlockedBeforeStructuredPlan('writeFile'), 'File writes must be blocked before planning completes');
+  assert(isToolBlockedBeforeStructuredPlan('runCommand'), 'Execution tools must be blocked before planning completes');
 }
 
 if (typeof window === 'undefined') runSequentialThinkingTests();

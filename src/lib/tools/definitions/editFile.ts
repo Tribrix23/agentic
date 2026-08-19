@@ -3,7 +3,7 @@ import { calculateLineChanges } from '../../incrementalToolCallParser';
 
 export const definition: ToolDefinition = {
   name: 'editFile',
-  description: 'Edit an existing file using one exact, unique anchor. Replace the anchor, or insert content immediately before or after it. Read the file first. For HTML, insert before </body> or another stable structural anchor; never append blindly.',
+  description: 'Edit an existing file using one exact, unique anchor. Replace the anchor, or insert content immediately before or after it. Read the file first. When continuing a large generated file, add exactly one logical section per response and preserve an anchor for the next section. For HTML, insert before </body> or another stable structural anchor; never append blindly or resend the complete file.',
   category: 'filesystem',
   parameters: {
     type: 'object',

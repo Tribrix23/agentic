@@ -460,7 +460,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           const content = message.content || '';
           if (content && billingSession) await billingSession.consumeOutput(content);
           if (content) onChunk(content);
-          onSuccess(content);
+          onSuccess(content, data.choices?.[0]?.finish_reason);
         }
       }
 
@@ -556,7 +556,7 @@ async function handleStreamingResponse(
   response: Response,
   onChunk: (chunk: string) => void,
   onToolCall: ((toolCall: ToolCall) => void) | undefined,
-  onSuccess: (fullText: string) => void,
+  onSuccess: (fullText: string, finishReason?: string) => void,
   checkIsStreaming: () => boolean,
   chunkDelay: number
   ,billingSession?: TokenBillingSession
@@ -568,6 +568,7 @@ async function handleStreamingResponse(
   let pendingToolCalls: Record<number, { id?: string; name: string; arguments: string }> = {};
   let isReasoning = false;
   let streamCancelled = false;
+  let finishReason: string | undefined;
 
   try {
     while (true) {
@@ -654,8 +655,9 @@ async function handleStreamingResponse(
             }
 
             // Check for finish_reason to emit completed tool calls
-            const finishReason = data.choices?.[0]?.finish_reason;
-            if (finishReason === 'tool_calls' || finishReason === 'stop') {
+            const chunkFinishReason = data.choices?.[0]?.finish_reason;
+            if (chunkFinishReason) finishReason = chunkFinishReason;
+            if (chunkFinishReason === 'tool_calls' || chunkFinishReason === 'stop') {
               for (const [, tc] of Object.entries(pendingToolCalls)) {
                 if (tc.name && onToolCall) {
                   try {
@@ -693,7 +695,7 @@ async function handleStreamingResponse(
       fullContent += '\n</think>\n';
       onChunk('\n</think>\n');
     }
-    onSuccess(fullContent);
+    onSuccess(fullContent, finishReason);
   }
 }
 

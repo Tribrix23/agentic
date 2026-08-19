@@ -1,15 +1,20 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
 import { calculateLineChanges } from '../../incrementalToolCallParser';
 
+// A first write is deliberately small so a provider reaching its output limit
+// cannot leave the agent with an unusable partial tool call. Later sections are
+// added with editFile, which has no artificial content limit.
+export const MAX_INITIAL_WRITE_CHARS = 12000;
+
 export const definition: ToolDefinition = {
   name: 'writeFile',
-  description: 'Write content to a file. Used for creating project files OR creating rich Markdown Artifacts (like plans or reports).',
+  description: `Create or replace a file. For a large new file, write a valid skeleton plus at most one logical section (maximum ${MAX_INITIAL_WRITE_CHARS} characters), then continue in later responses with one editFile insertion per section. Never generate or resend a complete large file in one call. Also creates rich Markdown artifacts such as plans or reports.`,
   category: 'filesystem',
   parameters: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Path to the file or artifact name (e.g. implementation_plan.md)' },
-      content: { type: 'string', description: 'New content for the file' },
+      content: { type: 'string', description: `Complete content for this bounded write. New non-artifact files are limited to ${MAX_INITIAL_WRITE_CHARS} characters; use stable insertion anchors for later editFile calls.` },
       artifactMetadata: {
         type: 'object',
         description: 'Metadata that defines artifact properties. Required when creating an artifact file.',
@@ -59,6 +64,14 @@ export const handler: ToolHandler = async (args, context) => {
     // 2. On success, copy content to the real target
     // 3. On failure, the original file is untouched
     const branchPath = targetPath + '.agentic-branch';
+
+    const fileExistedBeforeWrite = await (window as any).electron.fileExists(targetPath).catch(() => false);
+    if (!isArtifact && !fileExistedBeforeWrite && content.length > MAX_INITIAL_WRITE_CHARS) {
+      return {
+        success: false,
+        output: `Initial write is too large (${content.length} characters; maximum ${MAX_INITIAL_WRITE_CHARS}). On the next response, create only a valid skeleton plus one logical section. Then use one editFile insertion per response for each remaining section. Do not resend the complete file.`,
+      };
+    }
     
     // Step 1: Write content to the branch file
     const branchResult = await (window as any).electron.saveFileContent(branchPath, content, { createDirs: true });
@@ -69,7 +82,7 @@ export const handler: ToolHandler = async (args, context) => {
     }
     
     // Step 2: Check if the file already existed (before we overwrite it)
-    const fileExisted = await (window as any).electron.fileExists(targetPath).catch(() => false);
+    const fileExisted = fileExistedBeforeWrite;
     let previousContent = '';
     if (fileExisted) {
       try {

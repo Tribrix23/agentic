@@ -25,6 +25,11 @@ export const SEQUENTIAL_THINKING_SERVER_ID = 'sequential-thinking';
 export const SEQUENTIAL_THINKING_TOOL_NAME = 'sequentialthinking';
 export const SEQUENTIAL_THINKING_ALIAS = 'mcp__sequential_thinking__sequentialthinking';
 
+const PLANNING_DISCOVERY_TOOLS = new Set([
+  'listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles',
+  'codeAnalysis', 'webSearch', 'readUrl', 'gitStatus', 'gitDiff', 'commandStatus',
+]);
+
 export function isSequentialThinkingTool(toolName: string): boolean {
   return toolName === SEQUENTIAL_THINKING_ALIAS || toolName === SEQUENTIAL_THINKING_TOOL_NAME;
 }
@@ -33,10 +38,34 @@ export function hasSequentialThinkingTool(definitions: any[]): boolean {
   return definitions.some(definition => isSequentialThinkingTool(definition?.function?.name ?? definition?.name));
 }
 
+export function isToolBlockedBeforeStructuredPlan(toolName: string): boolean {
+  return !isSequentialThinkingTool(toolName) && !PLANNING_DISCOVERY_TOOLS.has(toolName);
+}
+
+export function normalizeSequentialThinkingArguments(rawArgs: Record<string, any> = {}): Record<string, any> {
+  const normalizeBoolean = (value: any): any => {
+    if (typeof value !== 'string') return value;
+    const normalized = value.trim().replace(/^(['"])(.*)\1$/, '$2').toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+    return value;
+  };
+
+  return {
+    ...rawArgs,
+    nextThoughtNeeded: normalizeBoolean(rawArgs.nextThoughtNeeded),
+    isRevision: normalizeBoolean(rawArgs.isRevision),
+    needsMoreThoughts: normalizeBoolean(rawArgs.needsMoreThoughts),
+  };
+}
+
 export function parseSequentialThought(toolCall: ToolCall): SequentialThought | null {
   if (!isSequentialThinkingTool(toolCall.name)) return null;
 
-  const args = toolCall.arguments || {};
+  // Some XML-capable models serialize JSON booleans as strings (and sometimes
+  // use Python-style casing). Normalize only the known scalar fields here so
+  // the MCP transport remains JSON-correct while the agent can recover.
+  const args: Record<string, any> = normalizeSequentialThinkingArguments(toolCall.arguments || {});
   const thought = typeof args.thought === 'string' ? args.thought.trim() : '';
   const thoughtNumber = Number(args.thoughtNumber);
   const totalThoughts = Number(args.totalThoughts);
@@ -126,6 +155,7 @@ export function buildSequentialPlanningContract(alias: string = SEQUENTIAL_THINK
 This request requires structured planning. You may inspect the project with read-only tools first. Before calling createTodoListTasks, invokeSubagent, or any file-writing/execution tool, you MUST complete a Sequential Thinking trace using ${alias}.
 - Start with thoughtNumber 1 and a realistic bounded totalThoughts (normally 3-6).
 - Call the tool once per thought. If nextThoughtNeeded is true, your next planning action must be another Sequential Thinking call.
+- nextThoughtNeeded, isRevision, and needsMoreThoughts are booleans: emit lowercase true or false without quotes (never "True").
 - Use revisions or branches when evidence invalidates an earlier assumption.
 - On the final thought set nextThoughtNeeded to false and summarize the executable plan in that thought.
 - After the trace completes, create the durable task graph with createTodoListTasks and execute only dependency-ready tasks.

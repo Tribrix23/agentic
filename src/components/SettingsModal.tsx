@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
-import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, getAvailableModels, AIConfig } from '../lib/aiConfig';
+import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, AIConfig } from '../lib/aiConfig';
 import { fetchTokenQuota, getQuotaResetDetails, TokenQuotaSnapshot } from '../lib/tokenQuota';
 
 interface ProjectFolder {
@@ -732,21 +732,6 @@ export const SettingsModal = ({
 
             {activeTab === 'ai_settings' && (
               <div className="flex flex-col gap-6">
-                <div>
-                  <h3 className="text-white font-semibold text-[15px] mb-3">Model</h3>
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-5 flex items-start justify-between gap-4 hover:bg-white/[0.07] transition-colors">
-                    <div className="flex flex-col flex-1">
-                      <span className="text-white font-medium text-[14px]">Model Selection</span>
-                      <span className="text-[#8b8b93] text-[13px] mt-1">Choose the AI model for generations. Context window: {aiConfig.contextWindowSize}</span>
-                    </div>
-                    <CustomSelect
-                      value={aiConfig.model}
-                      onChange={val => handleAIConfigChange({ model: val })}
-                      options={getAvailableModels()}
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <h3 className="text-white font-semibold text-[15px] mb-3">Parameters</h3>
                   <div className="flex flex-col gap-4">

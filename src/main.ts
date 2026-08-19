@@ -270,7 +270,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: false,
-      devTools: false
+      devTools: true
     },
   });
 

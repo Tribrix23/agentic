@@ -51,6 +51,8 @@ import {
   buildSequentialPlanningContract,
   hasSequentialThinkingTool,
   isSequentialThinkingTool,
+  isToolBlockedBeforeStructuredPlan,
+  normalizeSequentialThinkingArguments,
   requiresStructuredPlanning,
   SequentialThoughtTrace,
 } from './sequentialThinking';
@@ -731,6 +733,8 @@ export class AgentLoop {
         const startTime = Date.now();
         const effectiveConfig = { ...this.config };
         let fullResponseText = '';
+        let responseFinishReason: string | undefined;
+        let planningOrderViolation = false;
         const streamingToolParser = new IncrementalToolCallParser();
         const latestStreamingCalls = new Map<string, StreamingFileToolCall>();
         const originalFileContents = new Map<string, Promise<string>>();
@@ -841,7 +845,9 @@ export class AgentLoop {
               
               // Feed only the new delta into a retained parser. This creates the
               // UI step once function + path are known and updates it per chunk.
-              for (const liveCall of streamingToolParser.feed(chunk)) {
+              for (const liveCall of (this.planningRequired && !this.sequentialThoughts.isComplete())
+                ? []
+                : streamingToolParser.feed(chunk)) {
                 latestStreamingCalls.set(liveCall.id, liveCall);
                 const emitStreamingCall = (added: number, removed: number) => this.emit({
                   type: 'agent:tool-streaming',
@@ -917,6 +923,18 @@ export class AgentLoop {
                 return;
               }
               
+              if (isSequentialThinkingTool(toolCall.name)) {
+                toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
+              }
+
+              // Reject at ingestion time so a forbidden action never appears in
+              // the UI as if it ran before the required planning trace.
+              if (this.isBlockedByPlanningGate(toolCall)) {
+                planningOrderViolation = true;
+                console.warn('[AgentLoop] Suppressed tool call before structured planning:', toolCall.name);
+                return;
+              }
+
               // Tag calls before emitting them so the UI can identify the
               // actor even while the call is still waiting or streaming.
               toolCall.agentKind = this.options?.agentRole === 'subagent' ? 'subagent' : 'main';
@@ -932,9 +950,10 @@ export class AgentLoop {
               this.emit({ type: 'agent:error', data: { message: error.message } });
               reject(error);
             },
-            onSuccess: (fullText: string) => {
+            onSuccess: (fullText: string, finishReason?: string) => {
               console.log('[AgentLoop] API onSuccess called, setting isStreaming to false');
               this.isStreaming = false;
+              responseFinishReason = finishReason;
               fullResponseText = fullText;
               
               let textToDisplay = fullResponseText;
@@ -972,6 +991,12 @@ export class AgentLoop {
                 for (const pc of parsedCalls) {
                   if (!isPlausibleToolName(pc.name, knownToolNames)) {
                     console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
+                    continue;
+                  }
+
+                  if (this.planningRequired && !this.sequentialThoughts.isComplete() && isToolBlockedBeforeStructuredPlan(pc.name)) {
+                    planningOrderViolation = true;
+                    console.warn('[AgentLoop] Suppressed parsed tool call before structured planning:', pc.name);
                     continue;
                   }
                   
@@ -1027,6 +1052,9 @@ export class AgentLoop {
             },
             checkIsStreaming: () => this.isStreaming,
             signal: this.abortController?.signal,
+            toolChoice: this.planningRequired && !this.sequentialThoughts.isComplete()
+              ? { type: 'function', function: { name: 'mcp__sequential_thinking__sequentialthinking' } }
+              : 'auto',
           });
         });
 
@@ -1035,7 +1063,33 @@ export class AgentLoop {
         // and returns them directly in assistantMsg.toolCalls.
         
         let forceRetry = false;
-        const hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
+        let hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
+
+        if (responseFinishReason === 'length') {
+          assistantMsg.isHidden = true;
+          assistantMsg.toolCalls = [];
+          hasToolCalls = false;
+          const correction = createUserMessage(
+            '[SYSTEM OUTPUT LIMIT] The previous response was truncated and no action from it was executed. Retry with a much smaller tool call. For a large new file, write only a valid skeleton plus the first logical section, then add later sections in separate editFile calls. Never resend the whole file.'
+          );
+          correction.isHidden = true;
+          updatedMessages.push(correction);
+          this.emit({ type: 'agent:message-added', data: correction });
+          forceRetry = true;
+        }
+
+        if (planningOrderViolation || (hasToolCalls && assistantMsg.toolCalls!.some(toolCall => this.isBlockedByPlanningGate(toolCall)))) {
+          assistantMsg.isHidden = true;
+          assistantMsg.toolCalls = [];
+          hasToolCalls = false;
+          const correction = createUserMessage(
+            '[SYSTEM PLANNING ORDER] The attempted action was suppressed before execution and was not shown as completed. Your next call must be the Sequential Thinking tool. Complete the trace with nextThoughtNeeded=false before writing, editing, delegating, creating tasks, or running commands.'
+          );
+          correction.isHidden = true;
+          updatedMessages.push(correction);
+          this.emit({ type: 'agent:message-added', data: correction });
+          forceRetry = true;
+        }
 
         // A model may wrap a copied history record in <tool_call> without a
         // <function=...> element. It is neither a valid tool call nor a useful
@@ -1255,7 +1309,12 @@ export class AgentLoop {
                   },
                 });
                 if (this.sequentialThoughts.isComplete()) {
+                  this.state.phase = 'executing';
+                  this.state.status = 'Structured plan complete. Executing tasks...';
                   this.emit({ type: 'agent:planning-complete', data: { structured: true, ...thoughtSummary } });
+                } else {
+                  this.state.phase = 'planning';
+                  this.state.status = `Planning step ${thoughtSummary.thoughtNumber} of ${thoughtSummary.totalThoughts}...`;
                 }
               }
 
@@ -1658,6 +1717,12 @@ export class AgentLoop {
 
   /** Reflection phase - evaluate progress and strategy */
   private async reflectOnProgress(): Promise<void> {
+    if (this.planningRequired && !this.sequentialThoughts.isComplete()) {
+      this.state.phase = 'planning';
+      this.state.status = 'Completing structured plan...';
+      return;
+    }
+
     this.state.phase = 'reflecting';
     this.state.status = 'Reflecting on progress...';
     this.emit({ type: 'agent:reflection-started' });
@@ -1698,13 +1763,7 @@ export class AgentLoop {
 
   private isBlockedByPlanningGate(toolCall: ToolCall): boolean {
     if (!this.planningRequired || this.sequentialThoughts.isComplete()) return false;
-    if (isSequentialThinkingTool(toolCall.name)) return false;
-
-    const discoveryTools = new Set([
-      'listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles',
-      'codeAnalysis', 'webSearch', 'readUrl', 'gitStatus', 'gitDiff', 'commandStatus',
-    ]);
-    return !discoveryTools.has(toolCall.name);
+    return isToolBlockedBeforeStructuredPlan(toolCall.name);
   }
 
   /** Validate if goal has been satisfied */

@@ -3,6 +3,7 @@ import { getTool } from './registry';
 import { checkPermission, PermissionConfig } from '../permissions';
 import { addFileToSnapshot, getSnapshot } from '../snapshotStore';
 import { withFileWriteLock } from '../fileWriteQueue';
+import { isSequentialThinkingTool, normalizeSequentialThinkingArguments } from '../sequentialThinking';
 
 // ── Deduplication store ────────────────────────────────────────────────────
 // Tracks tool signatures executed this session. Resets when a write operation
@@ -39,6 +40,10 @@ export function setCurrentUserMessageId(id: string): void {
 }
 
 export async function executeTool(toolCall: ToolCall, context: ToolContext, permissionConfig: PermissionConfig): Promise<ToolResult> {
+
+  if (isSequentialThinkingTool(toolCall.name)) {
+    toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
+  }
 
   // Validation: tool name format (alphanumeric + underscores, reasonable length)
   // This prevents obvious HTML tags and random text while allowing flexibility
