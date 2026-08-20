@@ -13,6 +13,18 @@ export class SecurityInterceptor {
     // Only block truly dangerous operations that should always require approval
     // writeFile and editFile are handled by the permissions system and tool definitions
     const dangerousTools = ['deleteFile', 'renameFile', 'runCommand'];
-    return dangerousTools.includes(toolCall.name);
+    if (dangerousTools.includes(toolCall.name)) return true;
+    
+    // Also block MCP-based terminal/shell commands which might have a prefix
+    if (toolCall.name.includes('runCommand') || toolCall.name.includes('execute_command')) {
+      return true;
+    }
+    
+    // Block literal commands explicitly
+    if (toolCall.arguments && (toolCall.arguments.literal === true || toolCall.arguments.literal === 'true')) {
+      return true;
+    }
+
+    return false;
   }
 }

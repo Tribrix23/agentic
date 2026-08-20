@@ -10,6 +10,7 @@ import { AgentState } from '../../lib/types/AgentTypes';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { AskUserCard } from './AskUserCard';
 import { QuotaExhaustedNotice } from './QuotaExhaustedNotice';
+import { isAgentRunActive } from '../../lib/agentPresentation';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -71,10 +72,12 @@ export function ChatContainer({
   onSelectAnotherModel,
   onUpgradePlan
 }: ChatContainerProps & { onArtifactClick?: (path: string) => void }) {
+  const isRunActive = isAgentRunActive(isAgentRunning, agentState);
+
   return (
     <div className={cn("relative flex flex-col h-full bg-transparent text-white")}>
       <div className="flex-1 overflow-hidden relative">
-        <MessageThread 
+        <MessageThread
           messages={messages}
           onApproveToolCall={onApproveToolCall}
           onRejectToolCall={onRejectToolCall}
@@ -99,11 +102,11 @@ export function ChatContainer({
               />
             </div>
           )}
-          
+
           <div className="w-full flex flex-col items-center gap-2">
             {agentState === 'awaiting_tool_approval' && pendingToolCall && onToolDecision ? (
-              <ToolApprovalCard 
-                toolCall={pendingToolCall} 
+              <ToolApprovalCard
+                toolCall={pendingToolCall}
                 onDecision={onToolDecision}
                 onSkip={() => onToolDecision(false)}
               />
@@ -113,19 +116,18 @@ export function ChatContainer({
                 options={pendingAskUser.options}
                 onSubmit={onUserResponse}
               />
-            ) : (
-              <PromptInput 
-                onSend={onSendMessage}
-                onStop={onStopAgent}
-                isAgentRunning={isAgentRunning}
-                config={config}
-                projectFiles={projectFiles}
-                onConfigChange={onConfigChange}
-                value={inputValue}
-                onChange={onInputChange}
-                userId={userId}
-              />
-            )}
+            ) : null}
+            <PromptInput
+              onSend={onSendMessage}
+              onStop={onStopAgent}
+              isAgentRunning={isRunActive}
+              config={config}
+              projectFiles={projectFiles}
+              onConfigChange={onConfigChange}
+              value={inputValue}
+              onChange={onInputChange}
+              userId={userId}
+            />
           </div>
         </div>
       </div>

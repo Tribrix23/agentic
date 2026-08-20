@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AgentStep, AgentProgressCard } from './AgentProgressCard';
 import { ChevronDown, ChevronRight, RefreshCw, Check, SquareTerminal, Brain, Activity } from 'lucide-react';
+import { AgentState } from '../../lib/types/AgentTypes';
+import { getAgentWaitingLabel, isAgentWaiting } from '../../lib/agentPresentation';
 
 interface AgentStepsGroupProps {
   steps: AgentStep[];
   isStreaming?: boolean;
   isWorking?: boolean;
+  agentState?: AgentState;
   onApproveToolCall?: (id: string) => void;
   onRejectToolCall?: (id: string) => void;
   onArtifactClick?: (path: string) => void;
@@ -75,10 +78,11 @@ function AccordionIcon({ isExpanded, icon: Icon, colorClass = "text-white" }: { 
   );
 }
 
-export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCall, onRejectToolCall, onArtifactClick }: AgentStepsGroupProps) {
+export function AgentStepsGroup({ steps, isStreaming, isWorking, agentState, onApproveToolCall, onRejectToolCall, onArtifactClick }: AgentStepsGroupProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const isRunning = isWorking || steps.some(s => s.status === 'running') || isStreaming;
+  const isWaiting = isAgentWaiting(agentState);
+  const isRunning = !isWaiting && (isWorking || steps.some(s => s.status === 'running') || isStreaming);
 
   useEffect(() => {
     if (!isRunning) {
@@ -88,10 +92,10 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
     }
   }, [isRunning]);
 
-  if ((!steps || steps.length === 0) && !isRunning) return null;
+  if ((!steps || steps.length === 0) && !isRunning && !isWaiting) return null;
 
-  const headerText = isRunning ? 'Working...' : 'Finished';
-  const HeaderIcon = isRunning ? Activity : Check;
+  const headerText = isWaiting ? getAgentWaitingLabel(agentState) : isRunning ? 'Working...' : 'Finished';
+  const HeaderIcon = isWaiting ? Activity : isRunning ? Activity : Check;
 
   // Build nested structure: Thinking -> Tools (siblings within an iteration)
   type Segment =
@@ -127,7 +131,21 @@ export function AgentStepsGroup({ steps, isStreaming, isWorking, onApproveToolCa
 
   return (
     <div className="w-full mt-2 mb-2 font-sans text-sm">
-      {!isRunning ? (
+      {isWaiting ? (
+        <div className="flex flex-col gap-2 pl-3">
+          <div className="flex items-center gap-2 py-1.5 px-2 rounded-md text-amber-300/80">
+            <Activity size={14} />
+            <span className="font-medium">{headerText}</span>
+          </div>
+          {segments.length > 0 && (
+            <div className="ml-2 pl-3 flex flex-col gap-2 opacity-70">
+              {segments.map((seg, segIdx) => (
+                <IterationBlock key={seg.thinking.id} thinkingStep={seg.thinking} toolSteps={seg.tools} isStreaming={!!isStreaming} isLastSegment={segIdx === segments.length - 1} onApproveToolCall={onApproveToolCall} onRejectToolCall={onRejectToolCall} onArtifactClick={onArtifactClick} />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : !isRunning ? (
         <>
           <div
             className="flex items-center gap-2 py-1.5 px-3 rounded-md cursor-pointer hover:bg-white/5 transition-colors group text-white/60 hover:text-white/80"

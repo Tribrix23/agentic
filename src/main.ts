@@ -169,7 +169,7 @@ try {
 }
 
 const getPublicAssetPath = (...segments: string[]) => path.join(
-  app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '../../public'),
+  app.isPackaged ? path.join(process.resourcesPath, 'public') : path.resolve(__dirname, '../../public'),
   ...segments,
 );
 
@@ -201,7 +201,7 @@ if (!gotTheLock) {
   });
 
   app.name = 'QUANTIX CODE';
-  app.setAppUserModelId('QUANTIX CODE');
+  app.setAppUserModelId('com.tribrix.quantixcode');
   app.on('ready', createWindow);
 
   app.on('window-all-closed', () => {
@@ -280,7 +280,10 @@ function createWindow() {
   });
 
   if (!mcpClientManager.getServer('sequential-thinking')) {
-    const serverEntry = require.resolve('@modelcontextprotocol/server-sequential-thinking/dist/index.js');
+    const isPackaged = app.isPackaged;
+    const serverEntry = isPackaged 
+      ? path.join(process.resourcesPath, 'agentic-mcp-server', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js')
+      : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js');
     mcpClientManager.addServer({
       id: 'sequential-thinking',
       name: 'Sequential Thinking',
@@ -294,6 +297,27 @@ function createWindow() {
       autoConnect: true,
     });
     void mcpClientManager.connectServer('sequential-thinking').catch(error => console.error('[MCP] Sequential Thinking failed to connect:', error));
+  }
+
+  if (!mcpClientManager.getServer('agentic-mcp-server')) {
+    const isPackaged = app.isPackaged;
+    const agenticPath = isPackaged 
+      ? path.join(process.resourcesPath, 'agentic-mcp-server', 'dist', 'index.js')
+      : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'dist', 'index.js');
+    
+    mcpClientManager.addServer({
+      id: 'agentic-mcp-server',
+      name: 'Agentic MCP Server',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [agenticPath],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('agentic-mcp-server').catch(error => console.error('[MCP] Agentic MCP Server failed to connect:', error));
   }
 
   const splashWindow = new BrowserWindow({

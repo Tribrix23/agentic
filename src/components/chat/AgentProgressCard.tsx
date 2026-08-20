@@ -7,6 +7,7 @@ import { ToolApprovalCard } from './ToolApprovalCard';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { FileIcon } from './FileIcon';
 import { getFileActivityPrefix } from '../../lib/fileActivity';
+import { getReviewArtifacts } from '../../lib/agentPresentation';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -205,9 +206,40 @@ export interface AgentProgressCardProps {
   onArtifactClick?: (path: string) => void;
 }
 
+function ReviewArtifacts({
+  artifacts,
+  onArtifactClick,
+}: {
+  artifacts: ReturnType<typeof getReviewArtifacts>;
+  onArtifactClick?: (path: string) => void;
+}) {
+  if (artifacts.length === 0) return null;
+
+  return (
+    <div className="p-3 border border-blue-500/20 rounded-md flex flex-col gap-2 bg-blue-500/5">
+      <div className="text-blue-400/80 font-semibold mb-1 text-[11px] uppercase tracking-wider">Review &amp; Changes</div>
+      {artifacts.map((artifact, index) => (
+        <button
+          key={`${artifact.path}-${index}`}
+          onClick={() => onArtifactClick?.(artifact.path!)}
+          className="text-left px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded border border-blue-500/20 transition-colors flex items-center gap-2"
+        >
+          <FileCode size={14} />
+          <div className="flex flex-col min-w-0">
+            <span className="font-semibold text-sm">{artifact.path!.split(/[/\\]/).pop()}</span>
+            {typeof artifact.metadata?.summary === 'string' && (
+              <span className="text-xs text-blue-300/70 truncate max-w-[400px]">{artifact.metadata.summary.split('\n')[0]}</span>
+            )}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }: AgentProgressCardProps) {
   const [expanded, setExpanded] = useState(step.status === 'running' || step.status === 'pending');
-  
+
   React.useEffect(() => {
     if (step.status === 'running' || step.status === 'pending') {
       setExpanded(true);
@@ -241,12 +273,12 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       }
       return { icon: <Brain size={14} />, text: 'Thinking through the approach...', color: 'text-purple-400' };
     }
-    
+
     if (step.toolCall) {
       const args = step.toolCall.arguments || {};
       const { cmd, argsStr } = getBashLikeCommand(step.toolCall.name, args);
       const actionWord = (step.status === 'running' || step.status === 'pending') ? 'Running' : 'Ran';
-      
+
       let displayStr = `${cmd} ${argsStr}`.trim();
       if (displayStr.length > 50) displayStr = displayStr.slice(0, 47) + '...';
 
@@ -260,7 +292,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
            const fileArtifact = step.toolCall.result?.artifacts?.find((a: any) => a.type === 'file_change');
            const isNew = fileArtifact ? (fileArtifact as any).isNew !== false : step.toolCall.name === 'createFile';
            const actionLabel = getFileActivityPrefix(step.toolCall);
-          return { 
+          return {
             icon: <SquareTerminal size={14} className="text-gray-400" />,
             text: (
               <span className="flex items-center gap-1.5">
@@ -296,7 +328,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
       return { icon: <SquareTerminal size={14} />, text: `${actionWord} ${displayStr}`, color: 'text-gray-400' };
     }
-    
+
     return { icon: <Wrench size={14} />, text: 'Working...', color: 'text-gray-400' };
   };
 
@@ -314,19 +346,20 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   const isRunning = step.status === 'running';
   let hasDetails = !!step.content || !!(step.toolCall && ((step.toolCall.arguments && Object.keys(step.toolCall.arguments).length > 0) || step.toolCall.result));
-  
+
   // Hide the expandable dropdown for internal orchestration tools to prevent showing raw system output
    if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', ...FILE_TOOLS].includes(step.toolCall.name)) {
     hasDetails = false;
   }
-  
+
   // Extract artifacts if any
   const artifacts = step.toolCall?.result?.artifacts || [];
+  const reviewArtifacts = getReviewArtifacts(artifacts);
 
   // Compute diff stats from file-edit artifacts
   const getDiffStats = (): { added: number; removed: number } | null => {
     if (!step.toolCall) return null;
-    
+
     // Bubble up diff stats from sub-agents
     const fileActivity = (step.toolCall as any).subagentFileActivity;
     if (step.toolCall.name === 'invokeSubagent' && fileActivity) {
@@ -336,7 +369,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     if (step.status !== 'completed') return null;
     const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content'];
     if (!editTools.includes(step.toolCall.name)) return null;
-    
+
     const diffArtifact = artifacts.find((a: any) => a.type === 'diff' && a.diff);
     if (diffArtifact?.diff) {
       const lines = String(diffArtifact.diff).split('\n');
@@ -344,7 +377,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       const removed = lines.filter((l: string) => l.startsWith('-') && !l.startsWith('---')).length;
       return { added, removed };
     }
-    
+
     // Fallback: try parsing the output text for diff info
     const output = step.toolCall.result?.output || '';
     const addMatch = String(output).match(/(\d+) insertion/);
@@ -355,7 +388,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
         removed: delMatch ? parseInt(delMatch[1]) : 0,
       };
     }
-    
+
     // If this is a create/write file step, try to read stats from artifact
     if (['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name)) {
       const fileArtifact = artifacts.find((a: any) => a.type === 'file_change');
@@ -364,7 +397,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       }
       return null;
     }
-    
+
     // Show +1 -1 as a minimum indicator when a file was edited (if not write/create)
     return { added: 1, removed: 1 };
   };
@@ -374,7 +407,12 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   // ── Dedicated file write/edit card (shown both while running AND completed) ──
   if (step.type === 'tool' && step.toolCall && FILE_TOOLS.includes(step.toolCall.name)) {
-    return <FileEditCard step={step} />;
+    return (
+      <div className="space-y-2">
+        <FileEditCard step={step} />
+        <ReviewArtifacts artifacts={reviewArtifacts} onArtifactClick={onArtifactClick} />
+      </div>
+    );
   }
 
   if (step.type === 'tool' && step.toolCall && !['writeFile', 'createFile', 'write_to_file', 'createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
@@ -387,18 +425,18 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     const linuxUser = rawName.includes('@') ? rawName.split('@')[0].toLowerCase() : rawName.toLowerCase().replace(/\s+/g, '');
 
     return (
-      <div 
-        className={cn(
+      <div
+          className={cn(
           "w-full my-2 shadow-xl shadow-black/30",
-          isRunning ? "running-border-wrapper" : "rounded-xl overflow-hidden"
+          isRunning || step.status === 'pending' ? "running-border-wrapper" : "rounded-xl overflow-hidden"
         )}
       >
-        <div 
+        <div
           className={cn(
             "font-mono text-[13px] min-h-[90px] flex flex-col w-full h-full",
-            isRunning ? "running-border-inner" : ""
+            isRunning || step.status === 'pending' ? "running-border-inner" : ""
           )}
-          style={!isRunning ? { background: '#212124' } : undefined}
+          style={!(isRunning || step.status === 'pending') ? { background: '#212124' } : undefined}
         >
         {/* Header */}
         <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 font-sans text-white/55 text-[11px]">
@@ -438,7 +476,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   return (
     <div className="w-full font-sans text-sm relative">
-      <div 
+      <div
         className={cn(
           "flex items-center justify-between py-1 px-2 rounded-md border border-transparent transition-colors relative overflow-hidden",
           hasDetails ? "cursor-pointer hover:bg-white/5" : "",
@@ -453,7 +491,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
             <div className="absolute inset-[1px] bg-[#0f0f13] rounded-md pointer-events-none z-0" />
           </>
         )}
-        
+
         <div className="flex items-center gap-3 relative z-10">
           <div className={color}>
             {icon}
@@ -471,14 +509,14 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
             </span>
           )}
         </div>
-        
+
         <div className="flex items-center gap-3 relative z-10 text-white/40">
           {!isRunning && getStatusIcon()}
           {step.durationMs && <span className="text-xs">{step.durationMs}ms</span>}
           {hasDetails && (expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />)}
         </div>
       </div>
-      
+
       <AnimatePresence>
         {expanded && hasDetails && (
           <motion.div
@@ -493,18 +531,19 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
                   <MarkdownRenderer content={step.content} isStreaming={isRunning} />
                 </div>
               )}
-              
+
               {step.type === 'tool' && step.toolCall && (
-                ['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name) ? (
-                  <div className="max-h-[400px] overflow-y-auto overflow-x-auto rounded-xl w-full">
-                    <CodeBlock 
-                      language={((step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split('.').pop() || 'text')} 
-                      code={step.toolCall.arguments?.content || step.toolCall.arguments?.CodeContent || ''} 
-                      filename={(step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split(/[/\\]/).pop()}
-                    />
-                  </div>
-                ) : (
-                  <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden flex flex-col">
+                <div className="space-y-2">
+                  {['writeFile', 'createFile', 'write_to_file'].includes(step.toolCall.name) ? (
+                    <div className="max-h-[400px] overflow-y-auto overflow-x-auto rounded-xl w-full">
+                      <CodeBlock
+                        language={((step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split('.').pop() || 'text')}
+                        code={step.toolCall.arguments?.content || step.toolCall.arguments?.CodeContent || ''}
+                        filename={(step.toolCall.arguments?.path || step.toolCall.arguments?.TargetFile || '').split(/[/\\]/).pop()}
+                      />
+                    </div>
+                  ) : (
+                    <div className="font-mono text-xs bg-black rounded-md border border-white/10 overflow-hidden flex flex-col">
                     <div className="p-3 border-b border-white/5 bg-white/[0.02]">
                       <span className="text-white/40 mr-2">$</span>
                       <span className="text-blue-400 font-medium">{getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {}).cmd}</span>
@@ -521,26 +560,10 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
                         )}
                       </div>
                     )}
-                    {artifacts.length > 0 && (
-                      <div className="p-3 border-t border-white/10 flex flex-col gap-2 bg-blue-500/5">
-                        <div className="text-blue-400/80 font-semibold mb-1 text-[11px] uppercase tracking-wider">Generated Artifacts</div>
-                        {artifacts.map((art: any, i: number) => (
-                          <button
-                            key={i}
-                            onClick={() => onArtifactClick && onArtifactClick(art.path)}
-                            className="text-left px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded border border-blue-500/20 transition-colors flex items-center gap-2"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-                            <div className="flex flex-col">
-                              <span className="font-semibold text-sm">{art.path.split(/[/\\]/).pop()}</span>
-                              {art.metadata?.Summary && <span className="text-xs text-blue-300/70 truncate max-w-[400px]">{art.metadata.Summary.split('\n')[0]}</span>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )
+                    </div>
+                  )}
+                  <ReviewArtifacts artifacts={reviewArtifacts} onArtifactClick={onArtifactClick} />
+                </div>
               )}
             </div>
           </motion.div>

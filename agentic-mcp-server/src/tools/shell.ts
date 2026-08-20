@@ -14,13 +14,29 @@ export function setupShellTools(registerTool: (def: any, handler: any) => void) 
         type: "object",
         properties: {
           command: { type: "string" },
+          literal: { type: "boolean", description: "If true, bypasses cross-platform Unix command translation (e.g. rm -> del). High danger level." }
         },
         required: ["command"],
       },
     },
-    async (args: { command: string }) => {
+    async (args: { command: string; literal?: boolean }) => {
       const taskId = "task-" + Math.random().toString(36).substr(2, 9);
-      const child = spawn(args.command, { shell: true });
+      let cmd = args.command;
+      
+      // Cross-platform aliases for Windows
+      if (process.platform === "win32" && !args.literal) {
+        const rmScript = `node -e "process.argv.slice(1).forEach(p=>require('fs').rmSync(p,{recursive:true,force:true}))"`;
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-rf\s+/g, `$1${rmScript} `);
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-r\s+/g, `$1${rmScript} `);
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-f\s+/g, `$1${rmScript} `);
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+(?!-)/g, `$1${rmScript} `);
+        
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)ls(\s+|$)/g, "$1dir$2");
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)cp\s+/g, "$1copy ");
+        cmd = cmd.replace(/(^|&&\s*|\|\s*|;\s*)mv\s+/g, "$1move ");
+      }
+
+      const child = spawn(cmd, { shell: true });
       
       activeTasks[taskId] = { pid: child.pid!, output: "", status: "running", process: child };
 

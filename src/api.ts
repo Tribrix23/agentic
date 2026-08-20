@@ -324,6 +324,23 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   // ── Check if this is a GPT-OSS, Qwen, or GPT-5.6 model and determine endpoint ─────────────
   const { endpoint, modelName, level } = getModelInfo(config.model);
 
+  // Extract image and video attachments from messages
+  const imageUrls: string[] = [];
+  const videoUrls: string[] = [];
+  if (messages) {
+    messages.forEach(msg => {
+      if (msg.attachments) {
+        msg.attachments.forEach(att => {
+          if (att.content?.startsWith('data:image/')) {
+            imageUrls.push(att.content);
+          } else if (att.content?.startsWith('data:video/')) {
+            videoUrls.push(att.content);
+          }
+        });
+      }
+    });
+  }
+
   // ── Build request payload ──────────────────────────────────────────
   const payload: Record<string, any> = {
     model: modelName,
@@ -333,8 +350,8 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     top_p: dynamicTopP,
     max_tokens: dynamicMaxTokens,
     stream: config.stream,
-    imageUrl: [] as string[],
-    videoUrl: [] as string[],
+    imageUrl: imageUrls,
+    videoUrl: videoUrls,
   };
 
   if (billingSession) {

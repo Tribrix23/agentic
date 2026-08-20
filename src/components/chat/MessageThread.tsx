@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { AgenticMessage } from '../../lib/messageTypes';
 import { MessageBubble } from './MessageBubble';
 import { AgentState } from '../../lib/types/AgentTypes';
+import { isAgentWaiting, isAgentWorking } from '../../lib/agentPresentation';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -65,9 +66,10 @@ export function MessageThread({
   // If the agent is currently working, but all its recent messages were hidden
   // (e.g. due to intercepted hallucinations), ensure there is an empty assistant
   // group at the end so the 'Working...' accordion stays visible and doesn't flash.
-  const isWorking = agentState && !['idle', 'done', 'error', 'quota_exhausted', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
+  const isWorking = isAgentWorking(agentState);
+  const isWaiting = isAgentWaiting(agentState);
   
-  if (isWorking) {
+  if (isWorking || isWaiting) {
     if (displayGroups.length === 0 || displayGroups[displayGroups.length - 1].isUser) {
       displayGroups.push({ isUser: false, messages: [] });
     }

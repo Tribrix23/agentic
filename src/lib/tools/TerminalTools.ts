@@ -9,23 +9,27 @@ export class TerminalTools {
     let finalCommand = args.command;
     
     // Cross-Platform Mapping Layer
-    if (process.platform === 'win32') {
+    const isWindows = typeof process !== 'undefined' ? process.platform === 'win32' : navigator.userAgent.toLowerCase().includes('windows');
+    if (isWindows) {
       // Non-destructive translations
-      if (finalCommand.startsWith('ls')) finalCommand = finalCommand.replace(/^ls/, 'dir');
-      if (finalCommand.startsWith('cat ')) finalCommand = finalCommand.replace(/^cat /, 'type ');
-      if (finalCommand.startsWith('touch ')) finalCommand = finalCommand.replace(/^touch /, 'type nul > ');
-      if (finalCommand.startsWith('cp ')) finalCommand = finalCommand.replace(/^cp /, 'copy ');
-      if (finalCommand.startsWith('mv ')) finalCommand = finalCommand.replace(/^mv /, 'move ');
-      if (finalCommand.startsWith('pwd')) finalCommand = finalCommand.replace(/^pwd/, 'cd');
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)ls(\s+|$)/g, '$1dir$2');
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)cat\s+/g, '$1type ');
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)touch\s+/g, '$1type nul > ');
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)cp\s+/g, '$1copy ');
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)mv\s+/g, '$1move ');
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)pwd(\s+|$)/g, '$1cd$2');
       
       // Destructive translations (Only executed if SecurityInterceptor let it pass or user approved)
-      if (finalCommand.startsWith('rm -rf ')) finalCommand = finalCommand.replace(/^rm -rf /, 'rmdir /s /q ');
-      else if (finalCommand.startsWith('rm ')) finalCommand = finalCommand.replace(/^rm /, 'del ');
+      const rmScript = `node -e "process.argv.slice(1).forEach(p=>require('fs').rmSync(p,{recursive:true,force:true}))"`;
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-rf\s+/g, `$1${rmScript} `);
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-r\s+/g, `$1${rmScript} `);
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-f\s+/g, `$1${rmScript} `);
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+(?!-)/g, `$1${rmScript} `);
     }
 
     try {
-        // Dispatch to Electron Backend via the existing IPC handler
-        const res = await (window as any).electron.invoke('run-command-capture', finalCommand, args.cwd);
+        // Dispatch to Electron Backend via the existing exposed method
+        const res = await (window as any).electron.runCommandCapture(finalCommand, args.cwd);
         
         // CONTEXT TRUNCATION: Prevent terminal outputs from blowing out the LLM context window
         let output = res.stdout || res.stderr || 'Command executed successfully.';

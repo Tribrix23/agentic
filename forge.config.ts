@@ -4,16 +4,20 @@ import { MakerDeb } from '@electron-forge/maker-deb';
 import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
+import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
 
-const iconPath = path.resolve(__dirname, 'public', 'quantix.ico');
+const iconPath = path.resolve(__dirname, 'assets', 'icon.ico');
 
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     icon: iconPath,
-    extraResource: [path.resolve(__dirname, 'public')],
+    extraResource: [
+      path.resolve(__dirname, 'public'),
+      path.resolve(__dirname, 'agentic-mcp-server')
+    ],
   },
 
   rebuildConfig: {},
@@ -25,6 +29,7 @@ const config: ForgeConfig = {
   ],
 
   plugins: [
+    new AutoUnpackNativesPlugin({}),
     new VitePlugin({
       build: [
         {
@@ -49,7 +54,7 @@ const config: ForgeConfig = {
 
     new FusesPlugin({
       version: FuseVersion.V1,
-      [FuseV1Options.RunAsNode]: false,
+      [FuseV1Options.RunAsNode]: true,
       [FuseV1Options.EnableCookieEncryption]: true,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,

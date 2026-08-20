@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server-sequential-thinking": "^2026.7.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

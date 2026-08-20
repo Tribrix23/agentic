@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { AgenticMessage } from '../../lib/messageTypes';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { Copy, Undo2, ChevronRight, ChevronDown, FileCode } from 'lucide-react';
+import { Copy, Undo2, ChevronRight, ChevronDown, FileCode, Download } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AgentProgressCard, AgentStep } from './AgentProgressCard';
 import { AgentStepsGroup } from './AgentStepsGroup';
 import { UndoConfirmModal, UndoFileChange } from './UndoConfirmModal';
 import { getSnapshot, getSnapshotsFrom } from '../../lib/snapshotStore';
 import { FileIcon } from './FileIcon';
+import { getReviewArtifacts, isAgentWaiting, isAgentWorking } from '../../lib/agentPresentation';
+import type { AgentState } from '../../lib/types/AgentTypes';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -15,7 +18,7 @@ interface MessageBubbleProps {
   onApproveToolCall: (id: string) => void;
   onRejectToolCall: (id: string) => void;
   isLatest?: boolean;
-  agentState?: string;
+  agentState?: AgentState;
   agentStatus?: string;
   agentIteration?: number;
   onStopAgent?: () => void;
@@ -25,9 +28,9 @@ interface MessageBubbleProps {
   onUndoToMessage?: (msgId: string) => void;
 }
 
-export function MessageBubble({ 
-  messages, 
-  onApproveToolCall, 
+export function MessageBubble({
+  messages,
+  onApproveToolCall,
   onRejectToolCall,
   isLatest,
   agentState,
@@ -39,19 +42,23 @@ export function MessageBubble({
   onUndoToMessage
 }: MessageBubbleProps) {
   const [showUndoModal, setShowUndoModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   if (!messages || messages.length === 0) {
     // If there are no messages (e.g. dummy group to keep Working accordion visible)
     // we still want to render the bubble if it's working.
-    const isWorking = isLatest && agentState && !['idle', 'done', 'error', 'quota_exhausted', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
-    if (!isWorking) return null;
-    
+    const isWorking = isLatest && isAgentWorking(agentState);
+    const isWaiting = isLatest && isAgentWaiting(agentState);
+    if (!isWorking && !isWaiting) return null;
+
     return (
       <div className="flex w-full justify-start">
         <div className="max-w-[85%] flex gap-3 flex-row">
           <div className="flex flex-col gap-2 min-w-0 max-w-full mt-2">
-            <AgentStepsGroup 
+            <AgentStepsGroup
               steps={[]}
-              isWorking={true}
+              isWorking={isWorking}
+              agentState={agentState}
             />
           </div>
         </div>
@@ -72,32 +79,32 @@ export function MessageBubble({
   const isUser = messages[0].role === 'user';
   const firstMessage = messages[0];
   const lastMessage = messages[messages.length - 1];
-  
-  const isWorking = !isUser && isLatest && agentState && !['idle', 'done', 'error', 'quota_exhausted', 'awaiting_plan_approval', 'awaiting_tool_approval'].includes(agentState);
-  
+
+  const isWorking = !isUser && isLatest && isAgentWorking(agentState);
+
   let displayContent = '';
   const steps: AgentStep[] = [];
-  
+
   if (!isUser) {
     // Process assistant messages
     messages.forEach((msg, idx) => {
       const isLastMessage = idx === messages.length - 1;
-      
+
       // Skip tool messages (their data is already embedded inside msg.toolCalls of the assistant message)
       if ((msg as any).role === 'tool') {
         return;
       }
-      
+
       // Skip hidden messages (like system error corrections and their associated hallucinated replies)
       if (msg.isHidden) {
         return;
       }
 
       let msgContent = msg.content || '';
-      
+
       let thinkingContent = msg.thinkingContent || '';
       let displayContentLocal = msgContent;
-      
+
       // Extract <think> content if it exists in the main content body
       if (!thinkingContent) {
         const thinkMatch = displayContentLocal.match(/<think(?:ing)?>([\s\S]*?)(?:<\/?think(?:ing)?>|$)/i);
@@ -109,7 +116,7 @@ export function MessageBubble({
           displayContentLocal = '';
         }
       }
-      
+
       const sanitize = (text: string) => text
         .replace(/\[Called tool:[^\]]*\]/gi, '')
         .replace(/\[Result:[^\]]*\]/gi, '')
@@ -138,7 +145,7 @@ export function MessageBubble({
       let actualThinkingContent = thinkingContent;
 
       // ── Phase 2: Core Isolation Engine - Reactive Stream Wiping ───────────
-      // If this message has tool calls, it is an intermediate step. 
+      // If this message has tool calls, it is an intermediate step.
       // We must DISCARD all conversational text outside the thinking block.
       if (msg.toolCalls && msg.toolCalls.length > 0) {
         displayContentLocal = '';
@@ -165,7 +172,7 @@ export function MessageBubble({
         const matchToolStr = (tName: string, str: string) => {
           // Prevent duplicates if it's already gracefully parsed into msg.toolCalls
           if (msg.toolCalls && msg.toolCalls.some(tc => tc.name === tName)) return;
-          
+
           // Extract common arguments for the live stats (using a broader match for multiline strings)
           const pathMatch = str.match(/"(?:TargetFile|path|file|Target)"\s*:\s*"([^"]+)"/);
           const addMatch = str.match(/"(?:ReplacementContent|CodeContent|file_content|content)"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*\})/);
@@ -197,7 +204,7 @@ export function MessageBubble({
           const nameMatch = jsonMatch[1].match(/"name"\s*:\s*"([^"]+)"/);
           if (nameMatch) matchToolStr(nameMatch[1], jsonMatch[1]);
         }
-        
+
         // Try XML format
         const xmlRegex = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/gi;
         let xmlMatch;
@@ -212,14 +219,14 @@ export function MessageBubble({
         while ((antigravityMatch = antigravityRegex.exec(rawContent)) !== null) {
           matchToolStr(antigravityMatch[1], antigravityMatch[2]);
         }
-        
+
         // Try Native <function=name> format (Gemini XML style)
         const functionRegex = /<function=([a-zA-Z0-9_-]+)>([\s\S]*?(?:<\/function>|$))/gi;
         let functionMatch;
         while ((functionMatch = functionRegex.exec(rawContent)) !== null) {
           const tName = functionMatch[1];
           const innerStr = functionMatch[2];
-          
+
           if (!msg.toolCalls || !msg.toolCalls.some(tc => tc.name === tName)) {
             const pathMatch = innerStr.match(/<parameter=(?:TargetFile|path|file|Target)>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
             const addMatch = innerStr.match(/<parameter=(?:ReplacementContent|CodeContent|file_content|content)>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
@@ -245,7 +252,7 @@ export function MessageBubble({
           }
         }
       }
-      
+
       // Then add tool calls AFTER thinking so they appear below the thought that triggered them
       // Add real completed tool calls from message.toolCalls
       if (msg.toolCalls) {
@@ -276,13 +283,13 @@ export function MessageBubble({
 
   // --- Aggregate File Changes ---
   const fileChangesMap = new Map<string, { path: string; added: number; removed: number; action: string; content?: string }>();
-  
+
   if (!isUser) {
     steps.forEach(step => {
       if (step.status !== 'completed' || !step.toolCall) return;
-      
+
       const tc = step.toolCall;
-      
+
       // Handle subagents
       if (tc.name === 'invokeSubagent') {
         const fileActivity = (tc as any).subagentFileActivity;
@@ -291,10 +298,10 @@ export function MessageBubble({
         // We'll skip complex subagent parsing here unless the structure contains file paths.
         return;
       }
-      
+
       const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content', 'write_to_file', 'run_command', 'deleteFile', 'delete_file'];
       if (!editTools.includes(tc.name)) return;
-      
+
       const args = tc.arguments || {};
       let targetPath = args.TargetFile || args.path || args.file || args.Target || '';
       let isDelete = false;
@@ -313,15 +320,15 @@ export function MessageBubble({
       }
 
       if (!targetPath) targetPath = 'Unknown File';
-      
+
       let added = 0;
       let removed = 0;
-      
+
       const artifacts = tc.result?.artifacts || [];
       // First check for a file_change artifact with explicit added/removed
       const fileChangeArtifact = artifacts.find((a: any) => a.type === 'file_change');
       const diffArtifact = artifacts.find((a: any) => a.type === 'diff' && a.diff);
-      
+
       if (fileChangeArtifact?.added !== undefined || fileChangeArtifact?.removed !== undefined) {
         added = fileChangeArtifact.added ?? 0;
         removed = fileChangeArtifact.removed ?? 0;
@@ -341,7 +348,7 @@ export function MessageBubble({
           added = typeof fileContent === 'string' ? fileContent.split('\n').length : 1;
         }
       }
-      
+
       const fileContent = fileChangeArtifact?.content || args.CodeContent || args.content || args.file_content || args.ReplacementContent || undefined;
 
       if (fileChangesMap.has(targetPath)) {
@@ -365,6 +372,11 @@ export function MessageBubble({
   const aggregatedFileChanges = Array.from(fileChangesMap.values());
   const totalAdded = aggregatedFileChanges.reduce((sum, f) => sum + f.added, 0);
   const totalRemoved = aggregatedFileChanges.reduce((sum, f) => sum + f.removed, 0);
+  const reviewArtifacts = getReviewArtifacts(
+    steps.flatMap(step => step.toolCall?.result?.artifacts || []),
+  ).filter((artifact, index, all) =>
+    all.findIndex(candidate => candidate.path === artifact.path) === index,
+  );
 
   const [filesExpanded, setFilesExpanded] = useState(false);
 
@@ -378,31 +390,76 @@ export function MessageBubble({
           "flex flex-col gap-2 relative group/bubble w-full min-w-0",
           isUser ? "items-end" : "items-start"
         )}>
-          {stepsToRender.length > 0 && (
-            <AgentStepsGroup 
+          {(stepsToRender.length > 0 || (isLatest && isAgentWaiting(agentState))) && (
+            <AgentStepsGroup
               steps={stepsToRender}
               isStreaming={lastMessage.isStreaming}
               isWorking={isWorking}
+              agentState={agentState}
               onApproveToolCall={onApproveToolCall}
               onRejectToolCall={onRejectToolCall}
               onArtifactClick={onArtifactClick}
             />
           )}
 
-          {displayContent ? (
+          {(displayContent || (isUser && firstMessage.attachments && firstMessage.attachments.length > 0)) ? (
             <div className={cn(
               "px-4 py-3 rounded-2xl",
-              isUser 
-                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full" 
+              isUser
+                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full"
                 : "text-white/90 mt-1 w-full min-w-0 break-words"
             )}>
-              <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} onArtifactClick={onArtifactClick} />
+              {displayContent ? (
+                <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} onArtifactClick={onArtifactClick} />
+              ) : null}
+
+              {isUser && firstMessage.attachments && firstMessage.attachments.length > 0 && (
+                <div className={cn("flex flex-wrap gap-3", displayContent ? "mt-3" : "")}>
+                  {firstMessage.attachments.map((att, i) => (
+                    att.content?.startsWith('data:image/') ? (
+                      <img
+                        key={i}
+                        src={att.content}
+                        alt={att.name}
+                        className="max-w-full sm:max-w-[400px] max-h-[300px] object-contain rounded-lg shadow-md border border-white/10 bg-black/20 cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setPreviewImage(att.content!)}
+                      />
+                    ) : null
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
 
+          {reviewArtifacts.length > 0 && (
+            <div className="w-full mt-2 border border-blue-500/20 rounded-md bg-blue-500/5 p-3">
+              <div className="text-blue-400/80 font-semibold mb-2 text-[11px] uppercase tracking-wider">
+                Review &amp; Changes
+              </div>
+              <div className="flex flex-col gap-2">
+                {reviewArtifacts.map((artifact, index) => (
+                  <button
+                    key={`${artifact.path}-${index}`}
+                    type="button"
+                    onClick={() => onArtifactClick?.(artifact.path!)}
+                    className="flex items-center gap-2 text-left px-3 py-2 rounded border border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 transition-colors"
+                  >
+                    <FileCode size={14} className="shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-semibold text-sm truncate">{artifact.path!.split(/[/\\]/).pop()}</span>
+                      {typeof artifact.metadata?.summary === 'string' && (
+                        <span className="text-xs text-blue-300/70 truncate">{artifact.metadata.summary.split('\n')[0]}</span>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {aggregatedFileChanges.length > 0 && (
             <div className="w-full mt-2 bg-[#121214] border border-white/5 rounded-xl overflow-hidden font-sans shadow-lg">
-              <div 
+              <div
                 className="flex items-center justify-between px-3 py-2.5 cursor-pointer hover:bg-white/5 transition-colors"
                 onClick={() => setFilesExpanded(!filesExpanded)}
               >
@@ -416,7 +473,7 @@ export function MessageBubble({
                   )}
                   {filesExpanded ? <ChevronDown size={14} className="text-white/40 ml-1" /> : <ChevronRight size={14} className="text-white/40 ml-1" />}
                 </div>
-                <button 
+                <button
                   className="text-xs px-2.5 py-1 rounded bg-white/5 text-white/70 hover:bg-white/10 hover:text-white transition-colors border border-white/5 flex items-center gap-1.5"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -429,13 +486,13 @@ export function MessageBubble({
                   <FileCode size={12} /> Review
                 </button>
               </div>
-              
+
               {filesExpanded && (
                 <div className="border-t border-white/5 bg-[#0a0a0c] p-2 flex flex-col gap-1">
                   {aggregatedFileChanges.map((file, idx) => {
                     const fileName = file.path.split(/[/\\]/).pop() || file.path;
                     return (
-                      <div 
+                      <div
                         key={idx}
                         onClick={() => {
                           window.dispatchEvent(new CustomEvent('open-sidebar-file', { detail: { path: file.path, content: (file as any).content, type: file.action } }));
@@ -532,9 +589,52 @@ export function MessageBubble({
           />
         );
       })()}
+
+      <AnimatePresence>
+        {previewImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => setPreviewImage(null)}
+          >
+            <div className="relative flex flex-col items-center bg-[#0f0f13] border border-white/10 rounded-2xl shadow-2xl w-fit h-fit min-w-[350px] max-w-[90vw] max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="w-full flex justify-end gap-3 p-4 pb-0 z-20">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetch(previewImage)
+                      .then(res => res.blob())
+                      .then(blob => navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]))
+                      .catch(() => alert('Failed to copy image'));
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors shadow-sm"
+                >
+                  <Copy size={14} />
+                  Copy Image
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const a = document.createElement('a');
+                    a.href = previewImage;
+                    a.download = 'image.png';
+                    a.click();
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors shadow-sm"
+                >
+                  <Download size={14} />
+                  Download Image
+                </button>
+              </div>
+              <div className="w-full flex-1 flex items-center justify-center p-6 pt-4 min-h-0">
+                <img src={previewImage} alt="Preview" className="max-w-full max-h-[calc(90vh-80px)] object-contain rounded-lg shadow-xl" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
-
-
