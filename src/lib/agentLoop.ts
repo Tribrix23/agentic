@@ -771,7 +771,10 @@ export class AgentLoop {
         // what tools are available. For models that don't support native tools
         // (supportsTools: false), the API layer will strip them from the payload
         // and the AI will use the JSON-fallback format in the system prompt instead.
-        const hasTools = this.config.agentMode && this.toolDefinitions.length > 0;
+        // Ask mode also runs the loop, but receives a read-only tool catalog and
+        // executor. The executor enforces the capability boundary; the loop
+        // should only decide whether a usable tool surface was supplied.
+        const hasTools = this.toolDefinitions.length > 0 && Boolean(this.toolExecutor);
         const context = buildContext(
           this.config,
           updatedMessages,

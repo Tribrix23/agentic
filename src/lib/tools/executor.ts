@@ -7,6 +7,7 @@ import { isSequentialThinkingTool, normalizeSequentialThinkingArguments } from '
 import { artifactStore } from './artifactStore';
 import { normalizeToolResult } from './result';
 import { formatValidationErrors, validateToolArguments } from './validation';
+import { isReadOnlyToolName } from './readOnly';
 
 const FILE_MUTATION_TOOLS = new Set([
   'writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content',
@@ -44,6 +45,14 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   if (!tool) {
     console.error('[executor] Tool not found in registry:', toolCall.name);
     return { success: false, output: `Tool not found: ${toolCall.name}. The tool may not be registered. Check the tool registry.` };
+  }
+
+  if (context.readOnly && !isReadOnlyToolName(toolName)) {
+    return {
+      success: false,
+      output: `Ask mode is read-only and cannot execute: ${toolName}`,
+      diagnostics: [{ category: 'permission', message: 'Tool is not in the Ask-mode read-only allow-list.' }],
+    };
   }
 
   const validation = validateToolArguments(tool.definition.parameters, toolCall.arguments);

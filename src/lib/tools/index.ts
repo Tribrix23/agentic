@@ -57,6 +57,7 @@ export * from './types';
 export * from './registry';
 export * from './executor';
 export * from './formatter';
+export * from './readOnly';
 
 export function initializeTools() {
   registerTool(readFileDef, readFileHandler);

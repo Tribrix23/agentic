@@ -23,6 +23,8 @@ export interface ToolContext {
   conversationId?: string;
   /** User turn that owns snapshots and undo records for this execution. */
   userMessageId?: string;
+  /** Restrict this execution to the read-only Ask-mode policy. */
+  readOnly?: boolean;
   parentLoop?: any; // AgentLoop instance for direct subagent management
   agentKind?: 'main' | 'subagent';
   agentRole?: string;

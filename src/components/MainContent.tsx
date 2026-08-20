@@ -20,7 +20,7 @@ import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
-import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools } from '../lib/tools';
+import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools, getReadOnlyToolDefinitions } from '../lib/tools';
 import { executeTool } from '../lib/tools/executor';
 import { executeMcpTool, getMcpToolDefinitions } from '../lib/mcp/renderer';
 import type { McpServerSnapshot } from '../lib/mcp/types';
@@ -825,7 +825,7 @@ IMPORTANT RULES:
   }, []);
 
   // ── Tool Executor ────────────────────────────────────────────────────
-  const toolExecutor = useCallback(async (toolCall: ToolCall, signal: AbortSignal, runContext?: { userMessageId?: string }): Promise<ToolResult> => {
+  const toolExecutor = useCallback(async (toolCall: ToolCall, signal: AbortSignal, runContext?: { userMessageId?: string; readOnly?: boolean }): Promise<ToolResult> => {
     const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
     const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
     if (mcpResult) return mcpResult;
@@ -835,6 +835,7 @@ IMPORTANT RULES:
       signal,
       conversationId: activeConversationIdRef.current || undefined,
       userMessageId: runContext?.userMessageId,
+      readOnly: runContext?.readOnly,
       parentLoop: agentLoopRef.current || undefined,
       subagentManager: subagentManagerRef.current || undefined,
       agentKind: 'main',
@@ -1034,7 +1035,7 @@ IMPORTANT RULES:
     
     setAgentIteration(0);
     // ── Run Agent Loop ─────────────────────────────────────────────────
-    if (aiConfig.agentMode) {
+    if (aiConfig.agentMode || !aiConfig.agentMode) {
       // Build project context
       let projectContext: ProjectContext | undefined;
       let fileTreeStr = '';
@@ -1048,14 +1049,20 @@ IMPORTANT RULES:
       }
 
       // Instantiate AgentLoop directly for the main chat
-      const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+       const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+       const readOnly = !aiConfig.agentMode;
+       const localToolDefinitions = readOnly
+         ? getReadOnlyToolDefinitions(getAllTools())
+         : getToolsForLLM();
       const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       activeRunIdRef.current = runId;
       agentLoopRef.current = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
-        toolDefinitions: [...getToolsForLLM(), ...getMcpToolDefinitions(mcpServers)],
-        toolExecutor,
+         // Ask deliberately excludes MCP tools until the server advertises a
+         // read-only capability; local tools are filtered by an allow-list.
+         toolDefinitions: [...localToolDefinitions, ...(readOnly ? [] : getMcpToolDefinitions(mcpServers))],
+         toolExecutor: (toolCall, signal, runContext) => toolExecutor(toolCall, signal, { ...runContext, readOnly }),
         conversationId: convId,
         agentRole: 'orchestrator',
         billingSession,
@@ -1074,60 +1081,6 @@ IMPORTANT RULES:
       } catch (e) {
         console.error('Agent loop failed:', e);
       }
-    } else {
-      // ── Simple Chat Mode (no tools) ──────────────────────────────────
-      const assistantMsg = createAssistantMessage(aiConfig.model);
-      setMessages(prev => [...prev, assistantMsg]);
-
-      const chatMessages = allMessages.map(m => ({
-        role: (m.role === 'tool' ? 'assistant' : m.role) as 'user' | 'assistant' | 'system',
-        content: m.content,
-      }));
-
-      callDispatcherAPI({
-        config: aiConfig,
-        messages: chatMessages,
-        onChunk: (chunk: string) => {
-          setMessages(prev => {
-            const newMsgs = [...prev];
-            const lastIndex = newMsgs.length - 1;
-            const last = newMsgs[lastIndex];
-            if (last.role === 'assistant') {
-              newMsgs[lastIndex] = { ...last, content: last.content + chunk, isStreaming: true };
-            }
-            return newMsgs;
-          });
-        },
-        onError: (err: Error) => {
-          billingSessionRef.current?.stop();
-          billingSessionRef.current = null;
-          setMessages(prev => {
-            const newMsgs = [...prev];
-            const last = newMsgs[newMsgs.length - 1];
-            if (last.role === 'assistant') {
-              newMsgs[newMsgs.length - 1] = {
-                ...last,
-                content: last.content + `\n\n**Error:** ${err.message}`,
-                isStreaming: false,
-              };
-            }
-            return newMsgs;
-          });
-          isStreamingRef.current = false;
-          setIsAgentRunning(false);
-        },
-        onSuccess: () => {
-          billingSessionRef.current?.stop();
-          billingSessionRef.current = null;
-          setMessages(prev => prev.map(m =>
-            m.isStreaming ? { ...m, isStreaming: false } : m
-          ));
-          isStreamingRef.current = false;
-          setIsAgentRunning(false);
-        },
-        checkIsStreaming: () => isStreamingRef.current,
-        billingSession,
-      });
     }
   }, [messages, activeConversationId, selectedProject, aiConfig, isAgentRunning, projectFiles, handleAgentEvent, toolExecutor]);
 

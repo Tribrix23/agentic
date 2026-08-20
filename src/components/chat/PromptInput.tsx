@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge } from 'lucide-react';
+import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -76,8 +76,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [selectedImages, setSelectedImages] = useState<{ url: string; file: File }[]>([]);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [hoveredCategoryPosition, setHoveredCategoryPosition] = useState<{ top: number; left: number } | null>(null);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
@@ -102,6 +106,19 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const agentDropdownRef = useRef<HTMLDivElement>(null);
+  const plusDropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        setSelectedImages(prev => [...prev, { url: e.target!.result as string, file }]);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const getModelIcon = (model: string) => {
     if (model.includes('GPT-OSS') || model.includes('GPT-5.6')) return <OpenAIIcon className="w-3.5 h-3.5 text-white" />;
@@ -118,6 +135,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       const target = event.target as Node;
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(target)) setShowModelDropdown(false);
       if (agentDropdownRef.current && !agentDropdownRef.current.contains(target)) setShowAgentDropdown(false);
+      if (plusDropdownRef.current && !plusDropdownRef.current.contains(target)) setShowPlusDropdown(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -170,14 +188,28 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
   }, [content]);
 
+  const handleSend = () => {
+    if (content.trim() || selectedImages.length > 0) {
+      onSend(
+        content.trim(),
+        selectedImages.length > 0 ? selectedImages.map(img => ({
+          name: img.file.name,
+          path: img.file.name,
+          content: img.url,
+          sizeBytes: img.file.size
+        })) : undefined,
+        mentionedFiles
+      );
+      setContent('');
+      setMentionedFiles([]);
+      setSelectedImages([]);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (content.trim()) {
-        onSend(content.trim(), undefined, mentionedFiles);
-        setContent('');
-        setMentionedFiles([]);
-      }
+      handleSend();
     }
   };
 
@@ -218,11 +250,41 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       )}
 
       <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
+        {selectedImages.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {selectedImages.map((img, i) => (
+              <div key={i} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 cursor-pointer" onClick={() => setPreviewImage(img.url)}>
+                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImages(prev => prev.filter((_, idx) => idx !== i));
+                  }}
+                  className="absolute top-1 right-1 w-4 h-4 bg-black/60 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={(e) => {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+              if (items[i].type.indexOf('image') !== -1) {
+                const file = items[i].getAsFile();
+                if (file) {
+                  e.preventDefault();
+                  handleImageUpload(file);
+                }
+              }
+            }
+          }}
           placeholder="Ask anything, @ to mention, / for actions"
           className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[40px] max-h-[200px]"
           rows={1}
@@ -230,6 +292,48 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
+            <div className="relative" ref={plusDropdownRef}>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageUpload(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                onClick={() => setShowPlusDropdown(!showPlusDropdown)}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[#8b8b93] hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <Plus size={16} />
+              </button>
+              <AnimatePresence>
+                {showPlusDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute bottom-full left-0 mb-2 w-48 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                  >
+                    <button
+                      className="w-full px-3 py-2 text-left text-xs text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+                      onClick={() => {
+                        setShowPlusDropdown(false);
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <ImageIcon size={14} />
+                      <span className="font-medium">Media</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <div className="relative" ref={agentDropdownRef}>
               <button
                 onClick={() => setShowAgentDropdown(!showAgentDropdown)}
@@ -459,10 +563,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 )}
                 <button
                   onClick={() => {
-                    if (content.trim() && hasProject) {
-                      onSend(content.trim(), undefined, mentionedFiles);
-                      setContent('');
-                      setMentionedFiles([]);
+                    if ((content.trim() || selectedImages.length > 0) && hasProject) {
+                      handleSend();
                     }
                   }}
                   disabled={!hasProject}
@@ -470,18 +572,63 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
                     !hasProject
                       ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-                      : content.trim().length > 0
+                      : (content.trim().length > 0 || selectedImages.length > 0)
                       ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
                       : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
                   )}
                 >
-                  {content.trim().length > 0 && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                  {(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
                 </button>
               </div>
             )}
           </div>
         </div>
       </div>
+      <AnimatePresence>
+        {previewImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => setPreviewImage(null)}
+          >
+            <div className="relative flex flex-col items-center bg-[#0f0f13] border border-white/10 rounded-2xl shadow-2xl w-fit h-fit min-w-[350px] max-w-[90vw] max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="w-full flex justify-end gap-3 p-4 pb-0 z-20">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetch(previewImage)
+                      .then(res => res.blob())
+                      .then(blob => navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]))
+                      .catch(() => alert('Failed to copy image'));
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors shadow-sm"
+                >
+                  <Copy size={14} />
+                  Copy Image
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const a = document.createElement('a');
+                    a.href = previewImage;
+                    a.download = 'image.png';
+                    a.click();
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors shadow-sm"
+                >
+                  <Download size={14} />
+                  Download Image
+                </button>
+              </div>
+              <div className="w-full flex-1 flex items-center justify-center p-6 pt-4 min-h-0">
+                <img src={previewImage} alt="Preview" className="max-w-full max-h-[calc(90vh-80px)] object-contain rounded-lg shadow-xl" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

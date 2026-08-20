@@ -7,7 +7,7 @@ import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
 
-const iconPath = path.resolve(__dirname, 'assets', 'icon.ico');
+const iconPath = path.resolve(__dirname, 'public', 'quantix.ico');
 
 const config: ForgeConfig = {
   packagerConfig: {
