@@ -272,26 +272,17 @@ export function buildContext(
     if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
       const toolCallDesc = msg.toolCalls
         .map((tc) => {
-          // Use a format that's clearly distinct from actual tool calls
-          // This is a RECORD of past actions, not a template for new ones
-          const argsStr = Object.entries(tc.arguments || {})
-            .map(([k, v]) => `${k}=${String(v)}`)
-            .join(', ')
-            .slice(0, 150);
-          let desc = `[PAST_ACTION: ${tc.name} with args=[${argsStr}]`;
-          if (tc.result) {
-            const snippet = tc.result.output.slice(0, 600) + (tc.result.output.length > 600 ? '...' : '');
-            desc += ` | RESULT: ${tc.result.success ? 'OK' : 'ERROR'} - ${snippet}`;
+          let xml = `<tool_call>\n<function=${tc.name}>\n`;
+          for (const [k, v] of Object.entries(tc.arguments || {})) {
+            xml += `<parameter=${k}>${typeof v === 'string' ? v : JSON.stringify(v)}</parameter>\n`;
           }
-          desc += ']';
-          return desc;
+          xml += `</function>\n</tool_call>`;
+          return xml;
         })
         .join('\n');
-      // Mark this clearly as historical context
-      const historyNote = `[HISTORICAL CONTEXT - Previous tool executions for reference only]\n${toolCallDesc}`;
-      chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + historyNote : historyNote;
-      // Keep as assistant role since this represents what the assistant did
-      // The format is distinct enough that AI shouldn't mimic it
+      chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + toolCallDesc : toolCallDesc;
+      // Remove native tool_calls since we injected them as XML text
+      delete chatMsg.tool_calls;
     }
 
     if (msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
