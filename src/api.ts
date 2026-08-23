@@ -500,7 +500,15 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
             }
           }
 
-          const content = message.content || '';
+          const content = typeof message.content === 'string'
+            ? message.content
+            : typeof data.choices?.[0]?.text === 'string'
+              ? data.choices[0].text
+              : typeof data.output === 'string'
+                ? data.output
+                : typeof data.response === 'string'
+                  ? data.response
+                  : '';
           if (content && billingSession) await billingSession.consumeOutput(content);
           if (content) onChunk(content);
           onSuccess(content, data.choices?.[0]?.finish_reason);

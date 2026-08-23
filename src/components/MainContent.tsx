@@ -20,7 +20,7 @@ import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
-import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools, getReadOnlyToolDefinitions } from '../lib/tools';
+import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools, getReadOnlyToolDefinitions, getPlanToolDefinitions, getInteractionMode, rejectPlanToolCall } from '../lib/tools';
 import { executeTool } from '../lib/tools/executor';
 import { executeMcpTool, getMcpToolDefinitions } from '../lib/mcp/renderer';
 import type { McpServerSnapshot } from '../lib/mcp/types';
@@ -36,7 +36,6 @@ import type { SubagentRequest, SubagentRunContext } from '../lib/agent/subagentT
 
 // ── Chat UI Components ─────────────────────────────────────────────────────
 import { ChatContainer } from './chat/ChatContainer';
-import { ArtifactViewer } from './chat/ArtifactViewer';
 import { ToolApprovalCard } from './chat/ToolApprovalCard';
 import { FileContextBadge } from './chat/FileContextBadge';
 import { PromptInput } from './chat/PromptInput';
@@ -109,7 +108,8 @@ export const MainContent = ({
   }, [activeConversationId]);
   const [projectFiles, setProjectFiles] = useState<any[]>([]);
   const [aiConfig, setAiConfigState] = useState<AIConfig>(() => getAIConfig(selectedProject?.path));
-  const [activeArtifact, setActiveArtifact] = useState<string | null>(null);
+  const aiConfigRef = useRef(aiConfig);
+  useEffect(() => { aiConfigRef.current = aiConfig; }, [aiConfig]);
 
   const agentLoopRef = useRef<ReturnType<typeof createAgentLoop> | null>(null);
   // Events from a stopped/replaced loop can arrive after a new run starts.
@@ -206,6 +206,8 @@ export const MainContent = ({
           setMessages([]);
         }
       }
+      setIsAgentRunning(false);
+      isStreamingRef.current = false;
     };
 
     const handleDeleteChat = (e: any) => {
@@ -238,6 +240,8 @@ export const MainContent = ({
       setActiveConversationId(null);
       setChatTitle(null);
       setMessages([]);
+      setIsAgentRunning(false);
+      isStreamingRef.current = false;
     };
 
     window.addEventListener('load-conversation', handleLoadChat);
@@ -621,7 +625,20 @@ IMPORTANT RULES:
 
   // ── Agent Event Handler ──────────────────────────────────────────────
   const handleAgentEvent = useCallback((event: AgentEvent) => {
-    if (event.runId && event.runId !== activeRunIdRef.current) return;
+    if (event.conversationId && event.conversationId !== activeConversationIdRef.current) {
+      // Keep background runs isolated. Persist late messages to their own
+      // conversation without rendering them in the currently selected chat.
+      if (event.type === 'agent:message-added' || event.type === 'agent:message-updated') {
+        const message = event.data as AgenticMessage;
+        const backgroundMessages = loadMessages(event.conversationId);
+        const index = backgroundMessages.findIndex(item => item.id === message.id);
+        if (index >= 0) backgroundMessages[index] = { ...backgroundMessages[index], ...message };
+        else backgroundMessages.push(message);
+        saveMessages(event.conversationId, backgroundMessages);
+      }
+      return;
+    }
+    if (event.runId && activeRunIdRef.current && event.runId !== activeRunIdRef.current) return;
     switch (event.type) {
       case 'agent:thinking':
         // Don't overwrite askUser or tool approval states — those are blocking UI states
@@ -825,24 +842,33 @@ IMPORTANT RULES:
   }, []);
 
   // ── Tool Executor ────────────────────────────────────────────────────
-  const toolExecutor = useCallback(async (toolCall: ToolCall, signal: AbortSignal, runContext?: { userMessageId?: string; readOnly?: boolean }): Promise<ToolResult> => {
+  const toolExecutor = useCallback(async (toolCall: ToolCall, signal: AbortSignal, runContext?: { userMessageId?: string; conversationId?: string; projectRoot?: string; readOnly?: boolean; interactionMode?: 'ask' | 'plan' | 'agent' }): Promise<ToolResult> => {
+    const interactionMode = runContext?.interactionMode || getInteractionMode(aiConfig);
+    if (interactionMode === 'plan') {
+      const rejected = rejectPlanToolCall(toolCall);
+      if (rejected) return rejected;
+    }
     const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
-    const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
-    if (mcpResult) return mcpResult;
+    if (interactionMode !== 'plan') {
+      const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
+      if (mcpResult) return mcpResult;
+    }
     const permConfig = getPermissionConfig(selectedProject?.path);
     const context: any = {
-      projectRoot: selectedProject?.path || '',
+      projectRoot: runContext?.projectRoot || selectedProject?.path || '',
       signal,
-      conversationId: activeConversationIdRef.current || undefined,
+      conversationId: runContext?.conversationId || activeConversationIdRef.current || undefined,
+      runProjectRoot: runContext?.projectRoot,
       userMessageId: runContext?.userMessageId,
       readOnly: runContext?.readOnly,
+      interactionMode,
       parentLoop: agentLoopRef.current || undefined,
       subagentManager: subagentManagerRef.current || undefined,
       agentKind: 'main',
     };
     const result = await executeTool(toolCall, context, permConfig);
     return result;
-  }, [selectedProject?.path, activeConversationId]);
+  }, [selectedProject?.path, activeConversationId, aiConfig]);
 
   const runSubagent = useCallback(async (request: SubagentRequest, run: SubagentRunContext) => {
     const conversationId = `subagent_${run.childId}`;
@@ -910,8 +936,10 @@ IMPORTANT RULES:
   const handleSendMessage = useCallback(async (
     content: string,
     attachments?: FileAttachment[],
-    mentionedFiles?: string[]
+    mentionedFiles?: string[],
+    executionPlan?: { executionPlanPath: string; executionPlanContent: string }
   ) => {
+    const runConfig = aiConfigRef.current;
     if (!content.trim()) return;
     
     // React state does not update synchronously, so guard the entire startup path
@@ -929,7 +957,7 @@ IMPORTANT RULES:
     }
 
     const isSleepingAgent = Boolean(
-      aiConfig.agentMode &&
+      runConfig.agentMode &&
       agentLoopRef.current &&
       agentLoopRef.current.getState().status === 'sleeping'
     );
@@ -949,34 +977,91 @@ IMPORTANT RULES:
     // Render the user's message and the Working shimmer before any quota or API
     // network request. This gives immediate visual confirmation of submission.
     const userMsg = createUserMessage(content, { attachments, mentionedFiles });
+    if (executionPlan) (userMsg as any).executionPlanPath = executionPlan.executionPlanPath;
+    const normalizedProjectRoot = (selectedProject?.path || '').replace(/\\/g, '/').replace(/\/$/, '');
+    const normalizedPlanPath = executionPlan?.executionPlanPath.replace(/\\/g, '/');
+    const readablePlanPath = normalizedPlanPath && normalizedProjectRoot && normalizedPlanPath.startsWith(`${normalizedProjectRoot}/`)
+      ? normalizedPlanPath.slice(normalizedProjectRoot.length + 1)
+      : normalizedPlanPath;
+    const executionPlanInstruction = executionPlan && readablePlanPath
+      ? `Execute the Implementation Plan. Canonical plan location:\n${executionPlan.executionPlanPath}\nRead the complete plan first from that exact location, then follow every step in order, modify the project, validate the changes, and report completion.\n\n<environment_details>\nWorking directory: ${selectedProject?.path || ''}\nWorkspace root folder: ${selectedProject?.path || ''}\n</environment_details>`
+      : undefined;
     const allMessages = [...messages, userMsg];
     setMessages(allMessages);
     setIsAgentRunning(true);
     isStreamingRef.current = true;
-    submitPrompt(content, aiConfig.agentMode);
+    submitPrompt(content, runConfig.agentMode);
 
     if (isFirstMessage && convId) {
       const titleConversationId = convId;
       const projectPath = selectedProject?.path || 'default';
-      void generateChatTitle(aiConfig, content, titleConversationId)
+
+      // Register the conversation before title generation so the sidebar never
+      // depends on the title API completing successfully.
+      let savedConvos: Record<string, Array<{ id: string; title: string }>> = {};
+      try {
+        const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+        if (!Array.isArray(parsed)) savedConvos = parsed;
+      } catch (_) {
+        savedConvos = {};
+      }
+      const projectConversations = savedConvos[projectPath] || [];
+      if (!projectConversations.some(conversation => conversation.id === titleConversationId)) {
+        projectConversations.unshift({ id: titleConversationId, title: 'New Conversation' });
+        savedConvos[projectPath] = projectConversations;
+        localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+        window.dispatchEvent(new Event('conversationsUpdated'));
+      }
+
+      void generateChatTitle(runConfig, content, titleConversationId)
         .then(title => {
-          let savedConvos: Record<string, Array<{ id: string; title: string }>> = {};
+          let titledConvos: Record<string, Array<{ id: string; title: string }>> = {};
           try {
             const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-            if (!Array.isArray(parsed)) savedConvos = parsed;
-          } catch (_) {}
+            if (!Array.isArray(parsed)) titledConvos = parsed;
+          } catch (_) {
+            titledConvos = {};
+          }
 
-          const projectConversations = savedConvos[projectPath] || [];
-          const existing = projectConversations.find(conversation => conversation.id === titleConversationId);
+          const titledProjectConversations = titledConvos[projectPath] || [];
+          const existing = titledProjectConversations.find(conversation => conversation.id === titleConversationId);
           if (existing) existing.title = title;
-          else projectConversations.unshift({ id: titleConversationId, title });
-          savedConvos[projectPath] = projectConversations;
-          localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
+          else titledProjectConversations.unshift({ id: titleConversationId, title });
+          titledConvos[projectPath] = titledProjectConversations;
+          localStorage.setItem('quantix_conversations', JSON.stringify(titledConvos));
 
           if (activeConversationIdRef.current === titleConversationId) setChatTitle(title);
           window.dispatchEvent(new Event('conversationsUpdated'));
         })
-        .catch(error => console.warn('[chat-title] Unable to generate title:', error));
+        .catch(error => {
+          console.warn('[chat-title] Unable to generate title:', error);
+
+          // The AI rename request was attempted. Keep the conversation usable
+          // when it fails by replacing the placeholder with a local title.
+          const fallbackTitle = content
+            .replace(/\s+/g, ' ')
+            .trim()
+            .split(/\s+/)
+            .slice(0, 6)
+            .join(' ')
+            .slice(0, 72)
+            .trim() || 'New Conversation';
+          let fallbackConvos: Record<string, Array<{ id: string; title: string }>> = {};
+          try {
+            const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+            if (!Array.isArray(parsed)) fallbackConvos = parsed;
+          } catch (_) {
+            fallbackConvos = {};
+          }
+          const fallbackProjectConversations = fallbackConvos[projectPath] || [];
+          const existing = fallbackProjectConversations.find(conversation => conversation.id === titleConversationId);
+          if (existing) existing.title = fallbackTitle;
+          else fallbackProjectConversations.unshift({ id: titleConversationId, title: fallbackTitle });
+          fallbackConvos[projectPath] = fallbackProjectConversations;
+          localStorage.setItem('quantix_conversations', JSON.stringify(fallbackConvos));
+          if (activeConversationIdRef.current === titleConversationId) setChatTitle(fallbackTitle);
+          window.dispatchEvent(new Event('conversationsUpdated'));
+        });
     }
 
     // Capture the complete pre-turn worktree in a hidden Git branch without
@@ -999,7 +1084,7 @@ IMPORTANT RULES:
 
     let billingSession = isSleepingAgent ? billingSessionRef.current : null;
     if (!billingSession) {
-      billingSession = new TokenBillingSession(user.token, aiConfig.model);
+      billingSession = new TokenBillingSession(user.token, runConfig.model);
       billingSessionRef.current = billingSession;
       try {
         await billingSession.start();
@@ -1017,7 +1102,7 @@ IMPORTANT RULES:
         }
         setIsAgentRunning(false);
         isStreamingRef.current = false;
-        const errorMsg = createAssistantMessage(aiConfig.model);
+        const errorMsg = createAssistantMessage(runConfig.model);
         errorMsg.content = `**Unable to start:** ${message}`;
         errorMsg.isStreaming = false;
         setMessages(prev => [...prev, errorMsg]);
@@ -1050,10 +1135,11 @@ IMPORTANT RULES:
 
       // Instantiate AgentLoop directly for the main chat
        const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
-       const readOnly = !aiConfig.agentMode;
-       const localToolDefinitions = readOnly
-         ? getReadOnlyToolDefinitions(getAllTools())
-         : getToolsForLLM();
+        const interactionMode = getInteractionMode(runConfig);
+        const readOnly = interactionMode === 'ask';
+        const localToolDefinitions = interactionMode === 'plan'
+          ? getPlanToolDefinitions(getAllTools())
+          : readOnly ? getReadOnlyToolDefinitions(getAllTools()) : getToolsForLLM();
       const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       activeRunIdRef.current = runId;
       agentLoopRef.current = createAgentLoop(handleAgentEvent, {
@@ -1061,28 +1147,62 @@ IMPORTANT RULES:
         projectContext,
          // Ask deliberately excludes MCP tools until the server advertises a
          // read-only capability; local tools are filtered by an allow-list.
-         toolDefinitions: [...localToolDefinitions, ...(readOnly ? [] : getMcpToolDefinitions(mcpServers))],
-         toolExecutor: (toolCall, signal, runContext) => toolExecutor(toolCall, signal, { ...runContext, readOnly }),
+          toolDefinitions: [...localToolDefinitions, ...(interactionMode === 'agent' ? getMcpToolDefinitions(mcpServers) : [])],
+          toolExecutor: (toolCall, signal, runContext) => toolExecutor(toolCall, signal, { ...runContext, readOnly, interactionMode }),
         conversationId: convId,
         agentRole: 'orchestrator',
         billingSession,
         runId,
         turnId: `turn:${Date.now()}`,
-        userMessageId: userMsg.id,
+         userMessageId: userMsg.id,
+          interactionMode,
+          executionPlanPath: executionPlan?.executionPlanPath,
+          executionPlanInstruction,
       });
 
-      agentLoopRef.current.updateConfig(aiConfig);
+      agentLoopRef.current.updateConfig(runConfig);
 
       try {
-        await agentLoopRef.current.run(allMessages.map(m => ({
-          ...m,
-          role: m.role as any, // agentLoop expects standard roles
-        })));
+        await agentLoopRef.current.run(allMessages.map((m, idx) => {
+          const mapped = { ...m, role: m.role as any };
+          // The UI bubble shows "Execute Implementation Plan" as a friendly label,
+          // but the model must receive the full detailed instruction so it knows
+          // where the plan lives and what to do with it.
+          if (idx === allMessages.length - 1 && executionPlanInstruction && m.role === 'user') {
+            mapped.content = executionPlanInstruction;
+          }
+          return mapped;
+        }));
       } catch (e) {
         console.error('Agent loop failed:', e);
       }
     }
   }, [messages, activeConversationId, selectedProject, aiConfig, isAgentRunning, projectFiles, handleAgentEvent, toolExecutor]);
+
+  useEffect(() => {
+    const handleProceedImplementation = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: string; content?: string }>).detail;
+      if (!detail?.path || isAgentRunning || aiConfigRef.current.interactionMode !== 'agent') return;
+      const executionKey = `implementation-executed:${activeConversationIdRef.current || 'unknown'}:${detail.path}:${detail.content?.length || 0}`;
+      if (localStorage.getItem(executionKey) === 'true') {
+        return;
+      }
+      localStorage.setItem(executionKey, 'true');
+      window.setTimeout(() => {
+        void handleSendMessage(
+          'Execute Implementation Plan',
+          undefined,
+          undefined,
+          {
+            executionPlanPath: detail.path,
+            executionPlanContent: detail.content || '',
+          },
+        );
+      }, 0);
+    };
+    window.addEventListener('proceed-implementation-plan', handleProceedImplementation);
+    return () => window.removeEventListener('proceed-implementation-plan', handleProceedImplementation);
+  }, [handleSendMessage, isAgentRunning, selectedProject?.path]);
 
   // ── Tool Call Approval Handlers ──────────────────────────────────────
   const handleApproveToolCall = useCallback((toolCallId: string) => {
@@ -1408,7 +1528,7 @@ IMPORTANT RULES:
 
         {/* ── Agentic Chat Interface ─────────────────────────────────── */}
         {messages.length > 0 && (
-          <div className={cn("flex-1 w-full mx-auto overflow-hidden flex pt-28 gap-4 transition-all duration-300", activeArtifact ? "max-w-[1400px]" : "max-w-[750px]")}>
+          <div className="flex-1 w-full max-w-[750px] mx-auto overflow-hidden flex pt-28 gap-4 transition-all duration-300">
             <div className="flex-1 min-w-0 flex flex-col h-full">
               <ChatContainer
                 messages={messages}
@@ -1425,9 +1545,13 @@ IMPORTANT RULES:
                 projectFiles={projectFiles}
                 onConfigChange={(partial) => {
                   const updated = setAIConfig(partial, selectedProject?.path);
+                  aiConfigRef.current = updated;
                   setAiConfigState(updated);
+                  if (updated.interactionMode) window.dispatchEvent(new CustomEvent('interaction-mode-changed', { detail: { mode: updated.interactionMode } }));
                 }}
-                onArtifactClick={(path: string) => setActiveArtifact(path)}
+                onArtifactClick={(path: string) => {
+                  window.dispatchEvent(new CustomEvent('open-implementation-plan', { detail: { path } }));
+                }}
                 pendingToolCall={pendingToolCall}
                 onToolDecision={handleToolDecision}
                 onUndoToMessage={async (msgId: string) => {
@@ -1441,6 +1565,17 @@ IMPORTANT RULES:
                   if (idx === -1) return;
                   const userMsg = messages[idx];
                   const convId = activeConversationId;
+                  if (userMsg.content === 'Execute Implementation Plan') {
+                    const planPath = (userMsg as any).executionPlanPath as string | undefined;
+                    if (planPath) {
+                      const matchingPrefix = `implementation-executed:${convId || 'unknown'}:${planPath}:`;
+                      for (let storageIndex = localStorage.length - 1; storageIndex >= 0; storageIndex--) {
+                        const key = localStorage.key(storageIndex);
+                        if (key?.startsWith(matchingPrefix)) localStorage.removeItem(key);
+                      }
+                      window.dispatchEvent(new CustomEvent('implementation-execution-reset', { detail: { path: planPath } }));
+                    }
+                  }
 
                   // ── 2. Restore the pre-turn Git checkpoint. Older conversations
                   // and non-Git projects continue to use the legacy inverse log.
@@ -1456,29 +1591,30 @@ IMPORTANT RULES:
                         console.error('[undo] Git checkpoint restore failed:', restoreResult?.error);
                         return;
                       }
-                    } else for (const snapshot of snapshotsToUndo) {
+                      } else for (const snapshot of snapshotsToUndo) {
+                        const snapshotProjectRoot = snapshot.projectPath || selectedProject?.path || '';
                       // Reverse the files in the snapshot so we undo them in reverse order
                       for (const file of [...snapshot.files].reverse()) {
                         try {
                           const f = file as any; // For backward compatibility with old snapshots
                           if (!f.type) {
                             if (f.content !== undefined && f.content !== null) {
-                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: selectedProject?.path });
+                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
                             }
                             continue;
                           }
 
                           if (f.type === 'file_create' || f.type === 'folder_create') {
-                            await (window as any).electron?.deleteFile(f.path, selectedProject?.path);
+                            await (window as any).electron?.deleteFile(f.path, snapshotProjectRoot);
                           } else if (f.type === 'rename') {
-                            await (window as any).electron?.renameFile(f.path, f.oldPath, selectedProject?.path);
+                            await (window as any).electron?.renameFile(f.path, f.oldPath, snapshotProjectRoot);
                           } else if (f.type === 'file_modify') {
                             if (f.content !== undefined && f.content !== null) {
-                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: selectedProject?.path });
+                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
                             }
                           } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
                             if (f.backupPath) {
-                              await (window as any).electron?.restorePath(f.backupPath, f.path, selectedProject?.path);
+                              await (window as any).electron?.restorePath(f.backupPath, f.path, snapshotProjectRoot);
                             }
                           }
                         } catch (e) {
@@ -1493,7 +1629,9 @@ IMPORTANT RULES:
                     deleteSnapshotsFrom(convId, msgId);
                   }
 
-                  // ── 4. Update messages - use functional update to ensure we have latest state
+                   const isUndoingFirstMessage = messages.findIndex(m => m.id === msgId) === 0;
+
+                   // ── 4. Update messages - use functional update to ensure we have latest state
                   setMessages(prevMessages => {
                     const currentIdx = prevMessages.findIndex(m => m.id === msgId);
                     if (currentIdx === -1) return prevMessages;
@@ -1517,7 +1655,6 @@ IMPORTANT RULES:
                           savedConvos[projPath] = savedConvos[projPath].filter((c: any) => c.id !== convId);
                           localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
                         }
-                        window.dispatchEvent(new Event('conversationsUpdated'));
                       }
                       setActiveConversationId(null);
                       setChatTitle(null);
@@ -1530,7 +1667,10 @@ IMPORTANT RULES:
                       }
                       return newMessages;
                     }
-                  });
+                   });
+                   if (isUndoingFirstMessage) {
+                     window.dispatchEvent(new Event('conversationsUpdated'));
+                   }
                 }}
                 pendingAskUser={pendingAskUser}
                 onUserResponse={handleUserResponse}
@@ -1543,26 +1683,6 @@ IMPORTANT RULES:
                 onUpgradePlan={() => (window as any).electron?.openExternal?.('https://quantix.devctr.com/?source=desktop_app')}
               />
             </div>
-            <AnimatePresence>
-              {activeArtifact && (
-                <motion.div
-                  initial={{ opacity: 0, width: 0, x: 20 }}
-                  animate={{ opacity: 1, width: 600, x: 0 }}
-                  exit={{ opacity: 0, width: 0, x: 20 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
-                  className="shrink-0 h-full overflow-hidden"
-                >
-                  <ArtifactViewer
-                    artifactPath={activeArtifact}
-                    onClose={() => setActiveArtifact(null)}
-                    onProceed={(msg: string) => {
-                      setActiveArtifact(null);
-                      submitPrompt(msg);
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
         )}
 
@@ -1601,7 +1721,9 @@ IMPORTANT RULES:
                 projectFiles={projectFiles}
                 onConfigChange={(partial) => {
                   const updated = setAIConfig(partial, selectedProject?.path);
+                  aiConfigRef.current = updated;
                   setAiConfigState(updated);
+                  if (updated.interactionMode) window.dispatchEvent(new CustomEvent('interaction-mode-changed', { detail: { mode: updated.interactionMode } }));
                 }}
                 value={inputValue}
                 onChange={setInputValue}

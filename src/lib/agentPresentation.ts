@@ -39,7 +39,7 @@ export function getAgentWaitingLabel(agentState?: string): string | undefined {
   }
 }
 
-/** Only file-backed, user-facing artifacts can be opened by ArtifactViewer. */
+/** Only file-backed, user-facing artifacts are shown in the review surface. */
 export function getReviewArtifacts(artifacts: Artifact[] | undefined): Artifact[] {
   return (artifacts || []).filter(artifact =>
     artifact.type === 'artifact_created' &&

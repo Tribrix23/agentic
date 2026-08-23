@@ -714,6 +714,17 @@ function createWindow() {
       const env = { GIT_INDEX_FILE: temporaryIndex };
       await runGit(['read-tree', commit], root, env);
       await runGit(['checkout-index', '--all', '--force'], root, env);
+      // checkout-index does not restore ignored/untracked files represented in
+      // the checkpoint tree unless they are materialized from the tree. Export
+      // every checkpoint path explicitly so undo removes newly created files
+      // and restores their exact contents.
+      const checkpointPaths = Array.from(targetPaths);
+      for (const relativePath of checkpointPaths) {
+        const target = path.join(root, relativePath);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        const bytes = await runGit(['show', `${commit}:${relativePath}`], root);
+        fs.writeFileSync(target, bytes, 'utf8');
+      }
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };

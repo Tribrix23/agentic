@@ -8,6 +8,7 @@ import { artifactStore } from './artifactStore';
 import { normalizeToolResult } from './result';
 import { formatValidationErrors, validateToolArguments } from './validation';
 import { isReadOnlyToolName } from './readOnly';
+import { normalizePlanToolCall, rejectPlanToolCall } from './planModePolicy';
 
 const FILE_MUTATION_TOOLS = new Set([
   'writeFile', 'editFile', 'createFile', 'replace_file_content', 'multi_replace_file_content',
@@ -20,6 +21,12 @@ function resolveToolPath(toolCall: ToolCall, context: ToolContext): string {
 }
 
 export async function executeTool(toolCall: ToolCall, context: ToolContext, permissionConfig: PermissionConfig): Promise<ToolResult> {
+
+  if (context.interactionMode === 'plan') {
+    const rejected = rejectPlanToolCall(toolCall);
+    if (rejected) return rejected;
+    toolCall = normalizePlanToolCall(toolCall);
+  }
 
   if (isSequentialThinkingTool(toolCall.name)) {
     toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
@@ -117,27 +124,29 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
           if (targetPath) {
             try {
               const existing = await (window as any).electron?.readFileContent(targetPath, context.projectRoot);
-              if (existing !== undefined && existing !== null) {
-                addFileToSnapshot(userMessageId, { type: 'file_modify', path: targetPath, content: existing });
+              if (typeof existing === 'string' && existing.startsWith('Error reading file:')) {
+                addFileToSnapshot(userMessageId, { type: 'file_create', path: targetPath }, context.conversationId);
+              } else if (existing !== undefined && existing !== null) {
+                addFileToSnapshot(userMessageId, { type: 'file_modify', path: targetPath, content: existing }, context.conversationId);
               }
             } catch {
-              addFileToSnapshot(userMessageId, { type: 'file_create', path: targetPath });
+              addFileToSnapshot(userMessageId, { type: 'file_create', path: targetPath }, context.conversationId);
             }
           }
         } else if (toolName === 'createFolder') {
           if (targetPath) {
-            addFileToSnapshot(userMessageId, { type: 'folder_create', path: targetPath });
+            addFileToSnapshot(userMessageId, { type: 'folder_create', path: targetPath }, context.conversationId);
           }
         } else if (toolName === 'renameFile' || toolName === 'renameFolder') {
           if (targetOldPath && targetNewPath) {
-            addFileToSnapshot(userMessageId, { type: 'rename', path: targetNewPath, oldPath: targetOldPath });
+            addFileToSnapshot(userMessageId, { type: 'rename', path: targetNewPath, oldPath: targetOldPath }, context.conversationId);
           }
         } else if (toolName === 'deleteFile' || toolName === 'delete_file' || toolName === 'deleteFolder') {
           if (targetPath) {
             const backupRes = await (window as any).electron?.backupPath(targetPath, context.projectRoot);
             if (backupRes?.success && backupRes.backupPath) {
               const type = toolName === 'deleteFolder' ? 'folder_delete' : 'file_delete';
-              addFileToSnapshot(userMessageId, { type, path: targetPath, backupPath: backupRes.backupPath });
+              addFileToSnapshot(userMessageId, { type, path: targetPath, backupPath: backupRes.backupPath }, context.conversationId);
             }
           }
         }

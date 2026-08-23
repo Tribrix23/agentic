@@ -29,6 +29,7 @@ import {
 } from './messageTypes';
 import { isFileTool, getFileOperation } from './fileActivity';
 import { buildContext, buildGpt56ToolPrompt, ProjectContext } from './contextBuilder';
+import { buildPlanModeContract } from './tools/planModePolicy';
 import {
   needsSummarization,
   buildSummaryRequest,
@@ -328,6 +329,23 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
   return toolCalls;
 }
 
+export function isStandaloneToolArgumentsJson(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return false;
+    if (parsed.name || parsed.tool_call || parsed.function) return false;
+    const keys = Object.keys(parsed);
+    return keys.includes('path') && keys.every(key => [
+      'path', 'startLine', 'endLine', 'search', 'replace', 'operation',
+      'expectedMatches', 'content', 'artifactMetadata',
+    ].includes(key));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Deduplicate tool calls by name and arguments to prevent redundant executions.
  * Returns a new array with duplicates removed (keeping only the first occurrence).
@@ -433,7 +451,7 @@ export class AgentLoop {
   private eventCallback: AgentEventCallback;
   private abortController: AbortController | null = null;
   private state: AgentState;
-  private toolExecutor: ((toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string }) => Promise<ToolResult>) | null = null;
+  private toolExecutor: ((toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string; conversationId?: string; projectRoot?: string; interactionMode?: 'ask' | 'plan' | 'agent' }) => Promise<ToolResult>) | null = null;
   private toolDefinitions: any[] = [];
   private executedToolNames: Set<string> = new Set();
   private successfulFileWrites: number = 0;
@@ -692,6 +710,12 @@ export class AgentLoop {
       if (this.planningRequired) {
         fullSystemPrompt += buildSequentialPlanningContract();
       }
+      if (this.options?.interactionMode === 'plan') {
+        fullSystemPrompt += '\n' + buildPlanModeContract();
+      }
+      if (this.options?.executionPlanInstruction) {
+        fullSystemPrompt += `\n<implementation_execution>\n${this.options.executionPlanInstruction}\n</implementation_execution>`;
+      }
 
       // The cached prompt is passed back into buildContext on every iteration.
       // Therefore the model-specific tool contract must be added while creating
@@ -738,6 +762,8 @@ export class AgentLoop {
       let continueLoop = true;
       let malformedToolCallRetries = 0;
       let clarificationToolRetries = 0;
+      let planToolRetries = 0;
+      let planArtifactSaved = false;
       this.executedToolNames.clear();
       this.successfulFileWrites = 0;
 
@@ -916,7 +942,7 @@ export class AgentLoop {
                 }
               }
               
-              assistantMsg.content = hideText ? '' : afterThink.trim();
+              assistantMsg.content = hideText || isStandaloneToolArgumentsJson(afterThink.trim()) ? '' : afterThink.trim();
               
               // Feed only the new delta into a retained parser. This creates the
               // UI step once function + path are known and updates it per chunk.
@@ -1138,6 +1164,9 @@ export class AgentLoop {
               }
               
               assistantMsg.content = afterThink.trim();
+              if (this.options?.interactionMode === 'plan' && /plan_mode_contract|writeImplementationPlan|<tool_call>|Invalid arguments for tool/i.test(assistantMsg.content)) {
+                assistantMsg.content = '';
+              }
               assistantMsg.isStreaming = false;
               assistantMsg.durationMs = Date.now() - startTime;
               assistantMsg.tokensUsed = estimateTokens(fullText);
@@ -1159,6 +1188,14 @@ export class AgentLoop {
         
         let forceRetry = false;
         let hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
+
+        if (this.options?.interactionMode === 'plan' && hasToolCalls) {
+          // Tool syntax, provider scratch text, and echoed policy are internal
+          // execution details. Preserve the iteration and its reasoning so Plan
+          // renders the same append-only Thought -> Tools sequence as Agent.
+          assistantMsg.content = '';
+          assistantMsg.isHidden = false;
+        }
 
         if (responseFinishReason === 'length') {
           assistantMsg.isHidden = true;
@@ -1231,8 +1268,23 @@ export class AgentLoop {
                 updatedMessages.push(errorMsg);
                 this.emit({ type: 'agent:message-added', data: errorMsg });
 
-                forceRetry = true;
-              }
+          forceRetry = true;
+        }
+
+        const hasStandaloneJsonArguments = !hasToolCalls && isStandaloneToolArgumentsJson(assistantMsg.content || '');
+        if (hasStandaloneJsonArguments && malformedToolCallRetries < 2) {
+          malformedToolCallRetries++;
+          assistantMsg.content = '';
+          assistantMsg.isHidden = true;
+          const correction = createUserMessage(
+            '[SYSTEM FORMAT ERROR] You emitted tool arguments as standalone JSON, so no tool was called. Retry the intended action using the required XML tool-call protocol. Do not print JSON or explain the format.'
+          );
+          correction.isHidden = true;
+          updatedMessages.push(correction);
+          this.emit({ type: 'agent:message-added', data: correction });
+          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
+          forceRetry = true;
+        }
             } else {
               this.state.consecutiveDuplicates = 0;
             }
@@ -1348,13 +1400,39 @@ export class AgentLoop {
                 }
 
                 this.state.status = `Executing ${toolCall.name}...`;
-                result = await this.toolExecutor(toolCall, this.abortController.signal, { userMessageId: this.userMessageId });
+                if (this.options?.interactionMode === 'plan' && (toolCall.name === 'writeFile' || toolCall.name === 'editFile')) {
+                  const inspectedDirectory = this.executedToolNames.has('listDirectory');
+                  const inspectedFile = this.executedToolNames.has('readFile');
+                  if (!inspectedDirectory || !inspectedFile) {
+                    result = {
+                      success: false,
+                      output: 'Plan mode requires successful listDirectory and readFile calls before writing the implementation plan.',
+                    };
+                  } else if (toolCall.name === 'writeFile' && planArtifactSaved) {
+                    result = {
+                      success: false,
+                      output: 'The canonical implementation plan already exists. Read it and use editFile with an exact anchor for revisions.',
+                    };
+                  } else if (toolCall.name === 'editFile' && !planArtifactSaved) {
+                    result = {
+                      success: false,
+                      output: 'Create the canonical implementation plan with writeFile before revising it with editFile.',
+                    };
+                  } else {
+                    result = await this.toolExecutor(toolCall, this.abortController.signal, { userMessageId: this.userMessageId, conversationId: this.conversationId, projectRoot: this.projectContext?.rootPath, interactionMode: 'plan' });
+                  }
+                } else {
+                  result = await this.toolExecutor(toolCall, this.abortController.signal, { userMessageId: this.userMessageId, conversationId: this.conversationId, projectRoot: this.projectContext?.rootPath, interactionMode: this.options?.interactionMode });
+                }
                 // Attach the result before deriving the user-facing operation so
                 // writeFile can distinguish a new file from an existing file.
                 toolCall.result = result;
                 
                 if (result.success) {
                   this.executedToolNames.add(toolCall.name);
+                  if (this.options?.interactionMode === 'plan' && toolCall.name === 'writeFile') {
+                    planArtifactSaved = true;
+                  }
                   
                   // Emit coding progress for successful file operations
                   if (isCodingOperation && filePath) {
@@ -1522,6 +1600,44 @@ export class AgentLoop {
           // No tool calls — LLM gave a pure text-only response.
           if (forceRetry) {
             continueLoop = true;
+          } else if (this.options?.interactionMode === 'plan' && planArtifactSaved) {
+            continueLoop = false;
+          } else if (this.options?.interactionMode === 'plan' && planToolRetries < 1) {
+            planToolRetries++;
+            const nudgeMsg = createUserMessage(
+              '[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call listDirectory with path ".", read the relevant files with readFile, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone.'
+            );
+            nudgeMsg.isHidden = true;
+            updatedMessages.push(nudgeMsg);
+            this.emit({ type: 'agent:message-added', data: nudgeMsg });
+            continueLoop = true;
+          } else if (this.options?.interactionMode === 'plan' && this.toolExecutor && this.executedToolNames.has('listDirectory') && this.executedToolNames.has('readFile')) {
+            // Do not allow Plan mode to finish with an unsaved chat-only plan.
+            // If the provider still ignored the tool contract after the retry,
+            // route its generated plan through the same canonical artifact tool.
+            const planCall: ToolCall = {
+              id: `plan_${Math.random().toString(36).slice(2, 9)}`,
+              name: 'writeFile',
+              arguments: { path: 'implementation_plan.md', content: fullResponseText.trim(), artifactMetadata: { requestFeedback: true, userFacing: true, summary: 'Conversation-scoped implementation plan for review before coding.' } },
+              status: 'running',
+              timestamp: Date.now(),
+              agentKind: 'main',
+              agentRole: this.options?.agentRole,
+            };
+            assistantMsg.toolCalls = [planCall];
+            this.emit({ type: 'agent:tool-call', data: planCall });
+            this.emit({ type: 'agent:tool-executing', data: planCall });
+            const planResult = await this.toolExecutor(planCall, this.abortController.signal, { userMessageId: this.userMessageId, interactionMode: 'plan' });
+            planCall.result = planResult;
+            planCall.status = planResult.success ? 'completed' : 'error';
+            planCall.durationMs = Date.now() - planCall.timestamp;
+            assistantMsg.isHidden = false;
+            assistantMsg.content = '';
+            const planToolMessage = createToolMessage(planCall.id, planCall.name, planResult);
+            updatedMessages.push(planToolMessage);
+            this.emit({ type: 'agent:tool-result', data: { toolCall: planCall, result: planResult } });
+            this.emit({ type: 'agent:message-added', data: planToolMessage });
+            continueLoop = false;
           } else {
             // Some models describe the need for clarification in their
             // response instead of emitting the askUser function call. Convert
@@ -1951,7 +2067,7 @@ export interface AgentLoopOptions {
   projectId?: string;
   projectContext?: ProjectContext;
   /** The loop owns cancellation; executors must receive the same signal. */
-  toolExecutor?: (toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string }) => Promise<ToolResult>;
+  toolExecutor?: (toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string; conversationId?: string; projectRoot?: string; interactionMode?: 'ask' | 'plan' | 'agent' }) => Promise<ToolResult>;
   toolDefinitions?: any[];
   conversationId?: string;
   userMessageId?: string;
@@ -1959,6 +2075,9 @@ export interface AgentLoopOptions {
   billingSession?: TokenBillingSession;
   runId?: string;
   turnId?: string;
+  interactionMode?: 'ask' | 'plan' | 'agent';
+  executionPlanPath?: string;
+  executionPlanInstruction?: string;
 }
 
 /** Create a new AgentLoop with current configuration */
@@ -1980,5 +2099,8 @@ export function createAgentLoop(
     billingSession: options?.billingSession,
     runId: options?.runId,
     turnId: options?.turnId,
+    interactionMode: options?.interactionMode,
+    executionPlanPath: options?.executionPlanPath,
+    executionPlanInstruction: options?.executionPlanInstruction,
   });
 }

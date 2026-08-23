@@ -1,4 +1,4 @@
-import { parseToolCallsFromText } from '../agentLoop';
+import { isStandaloneToolArgumentsJson, parseToolCallsFromText } from '../agentLoop';
 import { describe, it, expect } from 'vitest';
 
 const knownTools = new Set(['askUser', 'writeFile']);
@@ -28,5 +28,11 @@ describe('agent loop text tool parser', () => {
   it('does not parse ordinary XML outside a tool_call wrapper', () => {
     const ordinaryXml = parseToolCallsFromText('<question>This is ordinary response content.</question>', knownTools);
     expect(ordinaryXml).toHaveLength(0);
+  });
+
+  it('identifies leaked standalone tool arguments for an XML retry', () => {
+    expect(isStandaloneToolArgumentsJson('{"path":"for_loops.c","startLine":1,"endLine":200}')).toBe(true);
+    expect(isStandaloneToolArgumentsJson('{"name":"readFile","arguments":{"path":"for_loops.c"}}')).toBe(false);
+    expect(isStandaloneToolArgumentsJson('{"example":"ordinary response data"}')).toBe(false);
   });
 });

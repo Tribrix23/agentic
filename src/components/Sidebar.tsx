@@ -62,6 +62,22 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
   }, []);
 
   useEffect(() => {
+    const refreshConversations = () => {
+      const saved = localStorage.getItem('quantix_conversations');
+      if (!saved) return;
+      try {
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed)) setConversations(parsed);
+      } catch {
+        // Ignore malformed legacy storage and keep the current sidebar state.
+      }
+    };
+
+    window.addEventListener('conversationsUpdated', refreshConversations);
+    return () => window.removeEventListener('conversationsUpdated', refreshConversations);
+  }, []);
+
+  useEffect(() => {
     // Poll for changes in case MainContent updates local storage
     const interval = setInterval(() => {
       const saved = localStorage.getItem('quantix_projects');

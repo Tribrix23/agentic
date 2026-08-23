@@ -58,6 +58,7 @@ export * from './registry';
 export * from './executor';
 export * from './formatter';
 export * from './readOnly';
+export * from './planModePolicy';
 
 export function initializeTools() {
   registerTool(readFileDef, readFileHandler);

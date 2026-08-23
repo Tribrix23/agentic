@@ -580,6 +580,7 @@ export function MessageBubble({
           <UndoConfirmModal
             isOpen={showUndoModal}
             changes={fileChanges}
+            hasCheckpoint={Boolean(initialSnapshot?.gitCheckpoint)}
             onCancel={() => setShowUndoModal(false)}
             onConfirm={async () => {
               setShowUndoModal(false);

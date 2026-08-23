@@ -21,10 +21,12 @@ export interface ToolContext {
   projectRoot: string;
   signal: AbortSignal;
   conversationId?: string;
+  runProjectRoot?: string;
   /** User turn that owns snapshots and undo records for this execution. */
   userMessageId?: string;
   /** Restrict this execution to the read-only Ask-mode policy. */
   readOnly?: boolean;
+  interactionMode?: 'ask' | 'plan' | 'agent';
   parentLoop?: any; // AgentLoop instance for direct subagent management
   agentKind?: 'main' | 'subagent';
   agentRole?: string;

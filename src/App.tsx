@@ -210,7 +210,9 @@ const App = () => {
     };
 
     const handleOpenRightSidebar = () => setRightSidebarOpen(true);
+    const handleOpenImplementationPlan = () => setRightSidebarOpen(true);
     window.addEventListener('open-right-sidebar', handleOpenRightSidebar);
+    window.addEventListener('open-implementation-plan', handleOpenImplementationPlan);
 
     window.addEventListener('task-updated', handleTaskChange);
     window.addEventListener('tasks-cleared', handleTaskChange);
@@ -224,6 +226,7 @@ const App = () => {
 
     return () => {
       window.removeEventListener('open-right-sidebar', handleOpenRightSidebar);
+      window.removeEventListener('open-implementation-plan', handleOpenImplementationPlan);
       window.removeEventListener('task-updated', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);
       window.removeEventListener('load-conversation', handleConversationLoad);
@@ -234,10 +237,12 @@ const App = () => {
 
   // Listen for agent activity events
   React.useEffect(() => {
+    let activitySequence = 0;
+    const nextActivityId = (kind: string) => `act_${Date.now()}_${kind}_${activitySequence++}`;
     const handleAgentThinking = (e: CustomEvent) => {
       setIsAiRunning(true);
       setAgentActivity(prev => [...prev, {
-        id: `act_${Date.now()}`,
+        id: nextActivityId('thinking'),
         timestamp: Date.now(),
         type: 'thinking',
         description: 'Agent is thinking...',
@@ -252,7 +257,7 @@ const App = () => {
     const handleAgentToolCall = (e: CustomEvent) => {
       const toolCall = e.detail;
       setAgentActivity(prev => [...prev, {
-        id: `act_${Date.now()}`,
+        id: nextActivityId(`tool_${toolCall.id || toolCall.name}`),
         timestamp: Date.now(),
         type: 'tool_call',
         toolName: toolCall.name,
@@ -302,7 +307,7 @@ const App = () => {
     const handleCodingStarted = (e: CustomEvent) => {
       const { fileName, filePath, toolName } = e.detail;
       setAgentActivity(prev => [...prev, {
-        id: `act_${Date.now()}`,
+        id: nextActivityId(`coding_${filePath || fileName}`),
         timestamp: Date.now(),
         type: 'coding',
         toolName,

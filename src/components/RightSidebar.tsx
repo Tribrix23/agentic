@@ -10,6 +10,8 @@ import { TodoListPanel } from './chat/TodoListPanel';
 import { Task } from '../lib/taskStore';
 import { CodeBlock } from './chat/CodeBlock';
 import { FileIcon } from './chat/FileIcon';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export interface TokenBudget {
   total: number;
@@ -61,7 +63,7 @@ interface RightSidebarProps {
   onClearTasks?: () => void;
 }
 
-type TabType = 'activity' | 'files' | 'context' | 'tasks';
+type TabType = 'activity' | 'files' | 'implementation' | 'tasks';
 
 const getActivityIcon = (type: string, toolName?: string) => {
   const t = (toolName || type).toLowerCase();
@@ -85,6 +87,42 @@ export const RightSidebar = ({
 }: RightSidebarProps) => {
   const [activeTab, setActiveTab] = useState<TabType>('tasks');
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+  const [implementationPath, setImplementationPath] = useState<string | null>(null);
+  const [implementationContent, setImplementationContent] = useState('');
+  const [agentModeActive, setAgentModeActive] = useState(false);
+
+  useEffect(() => {
+    const handleOpenImplementation = async (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (!path) return;
+      setImplementationPath(path);
+      setActiveTab('implementation');
+      try {
+        const content = await (window as any).electron.readFileContent(path);
+        setImplementationContent(typeof content === 'string' ? content : 'Unable to read implementation plan.');
+      } catch {
+        setImplementationContent('Unable to read implementation plan.');
+      }
+    };
+    window.addEventListener('open-implementation-plan', handleOpenImplementation);
+    return () => window.removeEventListener('open-implementation-plan', handleOpenImplementation);
+  }, []);
+
+  useEffect(() => {
+    const handleModeChanged = (event: Event) => {
+      const isAgent = (event as CustomEvent<{ mode?: string }>).detail?.mode === 'agent';
+      setAgentModeActive(isAgent);
+      if (isAgent && implementationPath) {
+        window.dispatchEvent(new CustomEvent('proceed-implementation-plan', {
+          detail: { path: implementationPath, content: implementationContent },
+        }));
+      }
+    };
+    window.addEventListener('interaction-mode-changed', handleModeChanged);
+    return () => {
+      window.removeEventListener('interaction-mode-changed', handleModeChanged);
+    };
+  }, [implementationPath, implementationContent]);
 
   useEffect(() => {
     const handleOpenSidebarFile = (e: any) => {
@@ -145,13 +183,14 @@ export const RightSidebar = ({
               <FileCode className="w-4 h-4" />
               <span>Files</span>
             </button>
-            <button 
-              onClick={() => setActiveTab('context')}
-              className={cn("flex items-center space-x-2 pb-1 border-b-2 transition-colors", activeTab === 'context' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
+            {implementationPath && <button
+              onClick={() => setActiveTab('implementation')}
+              className={cn("flex items-center gap-2 pb-1 border-b-2 transition-colors", activeTab === 'implementation' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
             >
-              <Layers className="w-4 h-4" />
-              <span>Context</span>
-            </button>
+              <FileText className="w-4 h-4" />
+              <span className="max-w-[140px] truncate">Implementation</span>
+              <X size={12} onClick={(event) => { event.stopPropagation(); setImplementationPath(null); setActiveTab('tasks'); }} />
+            </button>}
           </div>
         </div>
 
@@ -286,73 +325,42 @@ export const RightSidebar = ({
               </motion.div>
             )}
 
-            {/* CONTEXT TAB */}
-            {activeTab === 'context' && (
-              <motion.div
-                key="context"
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col space-y-6"
-              >
-                {!tokenBudget ? (
-                  <div className="flex flex-col items-center justify-center text-white/40 mt-10">
-                    <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
-                    <p>No context data available</p>
+            {activeTab === 'implementation' && implementationPath && (
+              <motion.div key="implementation" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2 }}>
+                <div className="flex items-center justify-between mb-5 pb-3 border-b border-white/5">
+                  <span className="text-xs text-white/40 truncate">{implementationPath.split(/[/\\]/).pop()}</span>
+                  <button className="p-1 text-white/40 hover:text-white" title="Close implementation plan" onClick={() => { setImplementationPath(null); setActiveTab('tasks'); }}><X size={15} /></button>
+                </div>
+                <div className="font-sans text-[13px] leading-6 text-zinc-300">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({ children }) => <h1 className="text-xl leading-7 font-semibold text-white mb-4">{children}</h1>,
+                      h2: ({ children }) => <h2 className="text-base font-semibold text-white mt-7 mb-3 pb-2 border-b border-white/10">{children}</h2>,
+                      h3: ({ children }) => <h3 className="text-sm font-semibold text-violet-200 mt-5 mb-2">{children}</h3>,
+                      p: ({ children }) => <p className="mb-3 text-zinc-300">{children}</p>,
+                      ul: ({ children }) => <ul className="mb-4 pl-5 list-disc space-y-1 marker:text-violet-400">{children}</ul>,
+                      ol: ({ children }) => <ol className="mb-4 pl-5 list-decimal space-y-1 marker:text-violet-400">{children}</ol>,
+                      code: ({ children }) => <code className="font-mono text-[12px] text-blue-200 bg-blue-500/10 border border-blue-500/10 rounded px-1.5 py-0.5">{children}</code>,
+                      table: ({ children }) => <div className="my-4 overflow-x-auto rounded-lg border border-white/10"><table className="w-full min-w-[420px] border-collapse text-left text-xs">{children}</table></div>,
+                      thead: ({ children }) => <thead className="bg-white/5 text-white">{children}</thead>,
+                      th: ({ children }) => <th className="px-3 py-2 font-medium border-b border-white/10">{children}</th>,
+                      td: ({ children }) => <td className="px-3 py-2 align-top border-b border-white/5 text-zinc-300">{children}</td>,
+                      blockquote: ({ children }) => <blockquote className="my-4 border-l-2 border-violet-500 pl-3 text-zinc-400">{children}</blockquote>,
+                    }}
+                  >{implementationContent}</ReactMarkdown>
+                </div>
+                <div className="sticky bottom-0 -mx-4 mt-6 w-[calc(100%+2rem)] border-t border-white/10 bg-[#0f0f13] px-4 py-3 shadow-[0_-8px_20px_rgba(0,0,0,0.25)]">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-white">Change to Agentic Mode to start implementation</div>
+                      <div className="text-[10px] text-white/40 mt-1">Switching modes starts this plan once.</div>
+                    </div>
+                    <div aria-hidden="true" className="relative w-10 h-5 rounded-full bg-violet-500/30 border border-violet-400/30 pointer-events-none">
+                      <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-violet-400 transition-transform duration-300", agentModeActive ? "translate-x-[21px]" : "translate-x-0.5")} />
+                    </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="bg-[#141419] p-4 rounded-lg border border-white/5">
-                      <div className="flex justify-between items-end mb-2">
-                        <span className="text-white/70">Context Utilization</span>
-                        <span className={cn("text-lg", tokenBudget.utilizationPercent > 80 ? 'text-red-400' : tokenBudget.utilizationPercent > 50 ? 'text-yellow-400' : 'text-green-400')}>
-                          {tokenBudget.utilizationPercent.toFixed(1)}%
-                        </span>
-                      </div>
-                      
-                      {/* Stacked Bar */}
-                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex mt-4">
-                        <div style={{width: `${(tokenBudget.systemPrompt/tokenBudget.total)*100}%`}} className="bg-purple-500 h-full" title="System Prompt" />
-                        <div style={{width: `${(tokenBudget.tools/tokenBudget.total)*100}%`}} className="bg-blue-500 h-full" title="Tools" />
-                        <div style={{width: `${(tokenBudget.projectContext/tokenBudget.total)*100}%`}} className="bg-cyan-500 h-full" title="Project Context" />
-                        <div style={{width: `${(tokenBudget.conversationHistory/tokenBudget.total)*100}%`}} className="bg-green-500 h-full" title="History" />
-                        <div style={{width: `${(tokenBudget.responseReserved/tokenBudget.total)*100}%`}} className="bg-orange-500 h-full" title="Response Reserved" />
-                      </div>
-                      <div className="flex justify-between mt-2 text-xs text-white/40">
-                        <span>{formatTokenCount(tokenBudget.total - tokenBudget.available)}</span>
-                        <span>{formatTokenCount(tokenBudget.total)} max</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col space-y-2">
-                      <div className="flex items-center justify-between p-2 rounded bg-purple-500/10 text-purple-200">
-                        <span>System Prompt</span>
-                        <span>{formatTokenCount(tokenBudget.systemPrompt)}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded bg-blue-500/10 text-blue-200">
-                        <span>Tools</span>
-                        <span>{formatTokenCount(tokenBudget.tools)}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded bg-cyan-500/10 text-cyan-200">
-                        <span>Project Context</span>
-                        <span>{formatTokenCount(tokenBudget.projectContext)}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded bg-green-500/10 text-green-200">
-                        <span>History</span>
-                        <span>{formatTokenCount(tokenBudget.conversationHistory)}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded bg-orange-500/10 text-orange-200">
-                        <span>Reserved Response</span>
-                        <span>{formatTokenCount(tokenBudget.responseReserved)}</span>
-                      </div>
-                      <div className="flex items-center justify-between p-2 rounded bg-white/5 text-white/60">
-                        <span>Available</span>
-                        <span>{formatTokenCount(tokenBudget.available)}</span>
-                      </div>
-                    </div>
-                  </>
-                )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

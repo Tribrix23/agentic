@@ -41,6 +41,7 @@ export interface AIConfig {
 
   // === Agent Behavior ===
   agentMode: boolean;
+  interactionMode: 'ask' | 'plan' | 'agent';
   maxAgentIterations: number;
   autoApproveReads: boolean;
   autoApproveWrites: boolean;
@@ -83,6 +84,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   responseFormat: 'text',
 
   agentMode: true,
+  interactionMode: 'agent',
   maxAgentIterations: 25,
   autoApproveReads: true,
   autoApproveWrites: false,

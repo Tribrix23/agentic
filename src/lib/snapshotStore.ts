@@ -45,9 +45,9 @@ export function saveSnapshot(snapshot: TurnSnapshot): void {
 }
 
 /** Append a captured file to an existing snapshot (called when a write tool is about to run). */
-export function addFileToSnapshot(userMessageId: string, file: FileSnapshot): void {
+export function addFileToSnapshot(userMessageId: string, file: FileSnapshot, conversationId?: string): void {
   const all = loadAll();
-  const entry = all.find(s => s.userMessageId === userMessageId);
+  const entry = all.find(s => s.userMessageId === userMessageId && (!conversationId || s.conversationId === conversationId));
   if (!entry) return;
   // Only store the FIRST capture (original content before any edits this turn)
   if (!entry.files.find(f => f.path === file.path)) {

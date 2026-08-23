@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download } from 'lucide-react';
+import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -339,14 +339,14 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 onClick={() => setShowAgentDropdown(!showAgentDropdown)}
                 className={cn(
                   "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
-                  config.agentMode
+                  config.interactionMode === 'plan' ? "text-amber-300 bg-amber-500/15 border border-amber-500/30" : config.agentMode
                     ? "text-purple-300 bg-purple-500/15 border border-purple-500/30"
                     : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
                 )}
               >
-                {config.agentMode ? <Bot size={14} className="text-white" /> : <Mic size={14} />}
-                <span className={cn(config.agentMode ? "text-white font-bold tracking-wide" : "")}>
-                  {config.agentMode ? 'Agent' : 'Ask'}
+                {config.interactionMode === 'plan' ? <ClipboardList size={14} className="text-white" /> : config.agentMode ? <Bot size={14} className="text-white" /> : <Mic size={14} />}
+                <span className={cn(config.agentMode || config.interactionMode === 'plan' ? "text-white font-bold tracking-wide" : "")}>
+                  {config.interactionMode === 'plan' ? 'Plan' : config.agentMode ? 'Agent' : 'Ask'}
                 </span>
                 <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showAgentDropdown ? "rotate-180" : "")} />
               </button>
@@ -361,12 +361,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   >
                     <button
                       onClick={() => {
-                        updateConfig({ agentMode: true });
+                        updateConfig({ agentMode: true, interactionMode: 'agent' });
                         setShowAgentDropdown(false);
                       }}
                       className={cn(
                         "w-full px-3 py-2 text-left text-xs transition-colors",
-                        config.agentMode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                        config.interactionMode === 'agent' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
                       )}
                     >
                       <div className="flex items-center gap-2 mb-1">
@@ -377,12 +377,25 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     </button>
                     <button
                       onClick={() => {
-                        updateConfig({ agentMode: false });
+                        updateConfig({ agentMode: true, interactionMode: 'plan' });
                         setShowAgentDropdown(false);
                       }}
                       className={cn(
                         "w-full px-3 py-2 text-left text-xs transition-colors",
-                        !config.agentMode ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                        config.interactionMode === 'plan' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 mb-1"><ClipboardList size={14} /><span className="font-medium">Plan</span></div>
+                      <div className="text-[10px] text-white/50 pl-6">Inspect the project and maintain one reviewed plan</div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        updateConfig({ agentMode: false, interactionMode: 'ask' });
+                        setShowAgentDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full px-3 py-2 text-left text-xs transition-colors",
+                        config.interactionMode === 'ask' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
                       )}
                     >
                       <div className="flex items-center gap-2 mb-1">

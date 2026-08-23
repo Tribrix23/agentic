@@ -65,7 +65,10 @@ export const handler: ToolHandler = async (args, context) => {
     // 3. On failure, the original file is untouched
     const branchPath = targetPath + '.agentic-branch';
 
-    const boundaryRoot = isArtifact ? `${(window as any).electron.appDataDir || context.projectRoot}/.agentic/brain` : context.projectRoot;
+    // The security root must already exist because Electron canonicalizes it
+    // before creating descendants. The artifact target itself remains fixed
+    // under .agentic/brain/<conversationId> by the path construction above.
+    const boundaryRoot = isArtifact ? ((window as any).electron.appDataDir || context.projectRoot) : context.projectRoot;
     const fileExistedBeforeWrite = await (window as any).electron.fileExists(targetPath, boundaryRoot).catch(() => false);
     if (!isArtifact && !fileExistedBeforeWrite && content.length > MAX_INITIAL_WRITE_CHARS) {
       return {

@@ -1,5 +1,6 @@
 import { ToolDefinition, ToolHandler, ToolResult } from '../types';
 import { calculateLineChanges } from '../../incrementalToolCallParser';
+import { getImplementationPlanPath } from '../planModePolicy';
 
 export const definition: ToolDefinition = {
   name: 'editFile',
@@ -49,11 +50,17 @@ export const handler: ToolHandler = async (args, context) => {
       return { success: false, output: `Failed to edit file: Missing 'path' parameter.\n\nArguments received:\n${JSON.stringify(args, null, 2)}` };
     }
 
-    const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
-      ? relativeOrAbsPath 
-      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+    const isPlanArtifact = context.interactionMode === 'plan';
+    const targetPath = isPlanArtifact
+      ? getImplementationPlanPath(context)
+      : relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath)
+        ? relativeOrAbsPath
+        : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+    const boundaryRoot = isPlanArtifact
+      ? ((window as any).electron.appDataDir || context.projectRoot)
+      : context.projectRoot;
       
-    const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
+    const content = await (window as any).electron.readFileContent(targetPath, boundaryRoot);
     
     let finalSearch = search;
     let finalReplace = replace;
@@ -93,7 +100,7 @@ export const handler: ToolHandler = async (args, context) => {
         ? `${finalSearch}${finalReplace}`
         : finalReplace;
     const newContent = fileContent.split(finalSearch).join(replacement);
-    const result = await (window as any).electron.saveFileContent(targetPath, newContent, { projectRoot: context.projectRoot });
+    const result = await (window as any).electron.saveFileContent(targetPath, newContent, { projectRoot: boundaryRoot });
     
     if (result.success) {
       const { added, removed } = calculateLineChanges(content, newContent);
