@@ -77,7 +77,7 @@ export function MessageThread({
 
   return (
     <div ref={scrollRef} className={cn("h-full overflow-y-auto p-4 pb-12 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]")}>
-      <div className="w-full max-w-[900px] mx-auto flex flex-col gap-6">
+      <div className="w-full max-w-[900px] mx-auto flex flex-col gap-3">
         {displayGroups.map((group, idx) => (
           <MessageBubble 
             key={group.messages[0]?.id || `working-group-${idx}`} 

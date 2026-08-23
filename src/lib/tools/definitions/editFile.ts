@@ -4,22 +4,22 @@ import { getImplementationPlanPath } from '../planModePolicy';
 
 export const definition: ToolDefinition = {
   name: 'editFile',
-  description: 'Edit an existing file using one exact, unique anchor. Replace the anchor, or insert content immediately before or after it. Read the file first. When continuing a large generated file, add exactly one logical section per response and preserve an anchor for the next section. For HTML, insert before </body> or another stable structural anchor; never append blindly or resend the complete file.',
+  description: 'Edit files using exact anchor-based replacement or insertion. Read the file first to identify unique anchors. Supports replace (substitute anchor), before/after (insert while preserving anchor). For large files, add one logical section per response with stable anchors for continuation. Supports absolute and project-relative paths.',
   category: 'filesystem',
   parameters: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Path to the file' },
-      search: { type: 'string', description: 'Exact, unique anchor string to search for' },
-      replace: { type: 'string', description: 'Replacement or inserted content' },
+      path: { type: 'string', description: 'File path (relative like "src/lib/utils.ts" or absolute like "/full/path/to/file.ts").' },
+      search: { type: 'string', description: 'Exact, unique anchor string to search for. Must exist in the file.' },
+      replace: { type: 'string', description: 'Replacement content (for replace) or content to insert (for before/after).' },
       operation: {
         type: 'string',
         enum: ['replace', 'before', 'after'],
-        description: 'replace substitutes the anchor; before/after inserts content while preserving the anchor. Defaults to replace.'
+        description: 'Operation: replace substitutes the anchor; before/after inserts content while preserving the anchor. Default: replace.'
       },
       expectedMatches: {
         type: 'number',
-        description: 'Required number of exact anchor matches. Defaults to 1. Use a value above 1 only when intentionally editing every matching occurrence.'
+        description: 'Expected number of exact anchor matches. Default: 1. Use >1 only when intentionally editing all occurrences.'
       }
     },
     required: ['path', 'search', 'replace']

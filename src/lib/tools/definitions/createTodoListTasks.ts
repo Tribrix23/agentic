@@ -21,7 +21,7 @@ export const definition: ToolDefinition = {
             delegatedTo: { type: 'string', description: 'Optional sub-agent conversationId this task is delegated to.' },
             targetFile: { type: 'string', description: 'The exact file path this task is responsible for creating or editing. Used for verification.' }
           },
-          required: ['title', 'description']
+          required: ['title']
         }
       }
     },

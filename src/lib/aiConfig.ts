@@ -137,13 +137,13 @@ You are pair programming with a USER to solve their coding task. The task may re
     - DO NOT output raw JSON blocks (e.g., '{"path": "Main.java"}'). The system will NOT recognize them.
     - DO NOT just write natural language text like "I will read the file from line 200" without outputting the XML block. You must actually output the XML '<tool_call>'.
 
-13. **Reading Large Files**: If a file is too large and the output is truncated, DO NOT just call readFile again with no arguments, and DO NOT just write text saying you will read it. You MUST use the 'startLine' and 'endLine' parameters in the actual XML tool call to read the rest of the file in chunks.
+13. **Reading Large Files**: If a file is too large and the output is truncated, use the continuation instructions in the footer. The footer provides exact startLine/endLine for the next chunk. Always use these parameters in your next readFile call.
 
 Example format for reading a large file in chunks:
 <tool_call>
 <function=readFile>
 <path>src/Main.java</path>
-<startLine>200</startLine>
+<startLine>501</startLine>
 <endLine>1000</endLine>
 </function>
 </tool_call>
@@ -275,14 +275,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsStreaming: true,
     description: 'Balanced speed and capability',
   },
-  'Dispatcher v2': {
-    name: 'Dispatcher v2',
-    contextWindow: 1000000,
-    maxTokensDefault: 32768,
-    supportsTools: true,
-    supportsStreaming: true,
-    description: 'Most capable, largest context window',
-  },
+
   'GPT-5.6 Luna': {
     name: 'GPT-5.6 Luna',
     contextWindow: 128000,

@@ -89,7 +89,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
 
   const allModels = [
-    { id: 'dispatcher', name: 'Dispatcher', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: ['Dispatcher v1', 'Dispatcher v2'], isPro: false },
+    { id: 'dispatcher', name: 'Dispatcher v1', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: [], isPro: false },
     { id: 'gpt-oss', name: 'GPT-OSS 120B', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Medium', 'High'], isPro: false },
     { id: 'qwen', name: 'Qwen 3.7', icon: <QwenIcon className="w-3.5 h-3.5 text-[#FF6A00]" />, submodels: ['Flash', 'Plus', 'Max'], isPro: true },
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
@@ -220,7 +220,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
   };
 
-  const quotaTarget = getQuotaTarget(config.model || 'Dispatcher v2');
+  const quotaTarget = getQuotaTarget(config.model || 'Dispatcher v1');
   const quotaRemaining = tokenQuota?.[quotaTarget];
   const quotaMaximum = quotaTarget === 'token_remaining' ? tokenQuota?.max_token : tokenQuota?.other_ai_max;
   const quotaPercentage = quotaRemaining !== undefined && quotaMaximum && quotaMaximum > 0
@@ -416,8 +416,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 onClick={() => setShowModelDropdown(!showModelDropdown)}
                 className="flex items-center gap-1.5 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-[#202025] hover:bg-[#2a2a30] px-3 py-1.5 rounded-md border border-white/5"
               >
-                {getModelIcon(config.model || 'Dispatcher v2')}
-                <span className="font-medium text-white">{config.model || 'Dispatcher v2'}</span>
+                {getModelIcon(config.model || 'Dispatcher v1')}
+                <span className="font-medium text-white">{config.model || 'Dispatcher v1'}</span>
                 {quotaWarning && (
                   <span className="group/quota relative flex shrink-0 items-center" aria-label={quotaWarning.label}>
                     <Gauge size={13} className={quotaWarning.color} />

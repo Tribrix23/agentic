@@ -76,7 +76,7 @@ export function getModelUsageMultiplier(model: string): number {
   const normalized = model.toLowerCase();
   if (normalized.includes('dispatcher v1') && !normalized.includes('v1.2')) return 0.75;
   if (normalized.includes('dispatcher v1.2')) return 0.9;
-  if (normalized.includes('dispatcher v2')) return 1;
+
   if (normalized.includes('gpt-oss') && normalized.includes('high')) return 1.5;
   if (normalized.includes('gpt-oss')) return 1;
   if (normalized.includes('lite') || normalized.includes('flash')) return 1;

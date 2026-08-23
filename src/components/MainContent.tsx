@@ -965,13 +965,17 @@ IMPORTANT RULES:
     let isFirstMessage = false;
     let convId = activeConversationId;
     if (messages.length === 0) {
-      convId = Date.now().toString();
-      setActiveConversationId(convId);
-      activeConversationIdRef.current = convId; // Sync update for toolExecutor
-      setChatTitle("New Conversation");
-      isFirstMessage = true;
-      // Notify App.tsx so it can scope the task panel to this conversation
-      window.dispatchEvent(new CustomEvent('conversation-started', { detail: { id: convId } }));
+      // Generate a stable conversation ID only once for new conversations
+      // Use a more stable ID that won't conflict across sessions
+      if (!convId) {
+        convId = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        setActiveConversationId(convId);
+        activeConversationIdRef.current = convId; // Sync update for toolExecutor
+        setChatTitle("New Conversation");
+        isFirstMessage = true;
+        // Notify App.tsx so it can scope the task panel to this conversation
+        window.dispatchEvent(new CustomEvent('conversation-started', { detail: { id: convId } }));
+      }
     }
 
     // Render the user's message and the Working shimmer before any quota or API
@@ -1167,8 +1171,15 @@ IMPORTANT RULES:
           const mapped = { ...m, role: m.role as any };
           // The UI bubble shows "Execute Implementation Plan" as a friendly label,
           // but the model must receive the full detailed instruction so it knows
-          // where the plan lives and what to do with it.
-          if (idx === allMessages.length - 1 && executionPlanInstruction && m.role === 'user') {
+          // where the plan lives and what to do with it. This must apply to history too.
+          if (m.role === 'user' && mapped.content === 'Execute Implementation Plan') {
+            const planPath = (m as any).executionPlanPath;
+            if (planPath) {
+              mapped.content = `Execute the Implementation Plan. Canonical plan location:\n${planPath}\nRead the complete plan first from that exact location, then follow every step in order, modify the project, validate the changes, and report completion.\n\n<environment_details>\nWorking directory: ${selectedProject?.path || ''}\nWorkspace root folder: ${selectedProject?.path || ''}\n</environment_details>`;
+            } else if (idx === allMessages.length - 1 && executionPlanInstruction) {
+              mapped.content = executionPlanInstruction;
+            }
+          } else if (idx === allMessages.length - 1 && executionPlanInstruction && m.role === 'user') {
             mapped.content = executionPlanInstruction;
           }
           return mapped;

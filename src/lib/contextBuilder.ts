@@ -291,8 +291,8 @@ export function buildContext(
       // For new messages (delta), keep full output. For old messages, compress aggressively.
       // For consumed messages, compress even more aggressively.
       const MAX_TOOL_RESULT_NEW = 60000;      // ~45k tokens — enough for most large files
-      const MAX_TOOL_RESULT_OLD = 4000;       // Compressed for history
-      const MAX_TOOL_RESULT_CONSUMED = 500;   // Ultra-compressed for consumed messages
+      const MAX_TOOL_RESULT_OLD = 20000;       // Increased to 20k to avoid truncating small-medium files in history (fixes the 5KB truncation bug)
+      const MAX_TOOL_RESULT_CONSUMED = 1000;   // Ultra-compressed for consumed messages
 
       let maxResult = isMsgNew ? MAX_TOOL_RESULT_NEW : MAX_TOOL_RESULT_OLD;
       if (msg.wasConsumed) {

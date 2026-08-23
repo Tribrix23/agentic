@@ -369,7 +369,9 @@ export function MessageBubble({
     });
   }
 
-  const aggregatedFileChanges = Array.from(fileChangesMap.values());
+  const aggregatedFileChanges = Array.from(fileChangesMap.values()).filter(
+    (change) => change.path && change.path.split(/[/\\]/).pop() !== 'implementation_plan.md'
+  );
   const totalAdded = aggregatedFileChanges.reduce((sum, f) => sum + f.added, 0);
   const totalRemoved = aggregatedFileChanges.reduce((sum, f) => sum + f.removed, 0);
   const reviewArtifacts = getReviewArtifacts(
@@ -381,7 +383,7 @@ export function MessageBubble({
   const [filesExpanded, setFilesExpanded] = useState(false);
 
   return (
-    <div className={cn("flex w-full min-w-0 mb-2", isUser ? "justify-center" : "justify-start")}>
+    <div className={cn("flex w-full min-w-0", isUser ? "justify-center" : "justify-start")}>
       <div className={cn(
         "flex gap-3 w-full min-w-0",
         isUser ? "flex-row-reverse" : "flex-row"
@@ -420,8 +422,8 @@ export function MessageBubble({
                       <img
                         key={i}
                         src={att.content}
-                        alt={att.name}
-                        className="max-w-full sm:max-w-[400px] max-h-[300px] object-contain rounded-lg shadow-md border border-white/10 bg-black/20 cursor-pointer hover:opacity-90 transition-opacity"
+                        alt={att.name || 'Attachment'}
+                        className="w-16 h-16 object-cover rounded-lg shadow-sm border border-white/10 cursor-pointer hover:opacity-90 transition-opacity flex-shrink-0"
                         onClick={() => setPreviewImage(att.content!)}
                       />
                     ) : null
@@ -432,28 +434,25 @@ export function MessageBubble({
           ) : null}
 
           {reviewArtifacts.length > 0 && (
-            <div className="w-full mt-2 border border-blue-500/20 rounded-md bg-blue-500/5 p-3">
-              <div className="text-blue-400/80 font-semibold mb-2 text-[11px] uppercase tracking-wider">
-                Review &amp; Changes
-              </div>
-              <div className="flex flex-col gap-2">
-                {reviewArtifacts.map((artifact, index) => (
-                  <button
-                    key={`${artifact.path}-${index}`}
-                    type="button"
-                    onClick={() => onArtifactClick?.(artifact.path!)}
-                    className="flex items-center gap-2 text-left px-3 py-2 rounded border border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 transition-colors"
-                  >
-                    <FileCode size={14} className="shrink-0" />
-                    <div className="flex flex-col min-w-0">
-                      <span className="font-semibold text-sm truncate">{artifact.path!.split(/[/\\]/).pop()}</span>
-                      {typeof artifact.metadata?.summary === 'string' && (
-                        <span className="text-xs text-blue-300/70 truncate">{artifact.metadata.summary.split('\n')[0]}</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
+            <div className="w-full mt-2 flex flex-col gap-2">
+              {reviewArtifacts.map((artifact, index) => {
+                let displayName = artifact.path!.split(/[/\\]/).pop() || '';
+                if (displayName === 'implementation_plan.md') {
+                  displayName = 'Implementation Plan';
+                }
+                return (
+                  <div key={`${artifact.path}-${index}`} className="w-full bg-[#121214] border border-white/5 rounded-xl overflow-hidden font-sans shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => onArtifactClick?.(artifact.path!)}
+                      className="flex items-center gap-2 w-full text-left px-3 py-3.5 hover:bg-white/5 transition-colors text-white/80"
+                    >
+                      <FileCode size={14} className="shrink-0 text-blue-400" />
+                      <span className="font-medium text-[13px] truncate">{displayName}</span>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 

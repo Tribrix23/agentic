@@ -213,6 +213,9 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
       if (val === 'true') val = true;
       else if (val === 'false') val = false;
       else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+      else if ((val.startsWith('{') && val.endsWith('}')) || (val.startsWith('[') && val.endsWith(']'))) {
+        try { val = JSON.parse(val); } catch (e) { /* ignore */ }
+      }
       args[paramMatch[1].trim()] = val;
     }
 
@@ -227,6 +230,9 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
         if (val === 'true') val = true;
         else if (val === 'false') val = false;
         else if (!isNaN(Number(val)) && val !== '') val = Number(val);
+        else if ((val.startsWith('{') && val.endsWith('}')) || (val.startsWith('[') && val.endsWith(']'))) {
+          try { val = JSON.parse(val); } catch (e) { /* ignore */ }
+        }
         args[xmlMatch[1].trim()] = val;
       }
     }

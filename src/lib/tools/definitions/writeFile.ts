@@ -8,20 +8,20 @@ export const MAX_INITIAL_WRITE_CHARS = 12000;
 
 export const definition: ToolDefinition = {
   name: 'writeFile',
-  description: `Create or replace a file. For a large new file, write a valid skeleton plus at most one logical section (maximum ${MAX_INITIAL_WRITE_CHARS} characters), then continue in later responses with one editFile insertion per section. Never generate or resend a complete large file in one call. Also creates rich Markdown artifacts such as plans or reports.`,
+  description: `Create or replace files with intelligent chunking. For large files (>${MAX_INITIAL_WRITE_CHARS} chars), write a valid skeleton plus one logical section, then use editFile for subsequent sections. Never resend complete large files. Supports absolute paths and project-relative paths. Also creates rich Markdown artifacts with optional metadata.`,
   category: 'filesystem',
   parameters: {
     type: 'object',
     properties: {
-      path: { type: 'string', description: 'Path to the file or artifact name (e.g. implementation_plan.md)' },
-      content: { type: 'string', description: `Complete content for this bounded write. New non-artifact files are limited to ${MAX_INITIAL_WRITE_CHARS} characters; use stable insertion anchors for later editFile calls.` },
+      path: { type: 'string', description: 'File path (relative like "src/lib/utils.ts" or absolute like "/full/path/to/file.ts"). For artifacts, use the artifact name (e.g. "implementation_plan.md").' },
+      content: { type: 'string', description: `Complete content for this write. New non-artifact files limited to ${MAX_INITIAL_WRITE_CHARS} characters. For large files, use stable anchors for subsequent editFile calls.` },
       artifactMetadata: {
         type: 'object',
-        description: 'Metadata that defines artifact properties. Required when creating an artifact file.',
+        description: 'Artifact properties (required when creating artifacts).',
         properties: {
-          requestFeedback: { type: 'boolean', description: 'Set to true to request user feedback/approval.' },
-          summary: { type: 'string', description: 'Summary of the artifact file.' },
-          userFacing: { type: 'boolean', description: 'Set to true to present to user.' }
+          requestFeedback: { type: 'boolean', description: 'Request user feedback/approval for this artifact.' },
+          summary: { type: 'string', description: 'Brief summary of the artifact content.' },
+          userFacing: { type: 'boolean', description: 'Present this artifact to the user in the UI.' }
         }
       }
     },

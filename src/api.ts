@@ -240,9 +240,6 @@ function getModelInfo(model: string): {
   // Check for Dispatcher models
   if (lowerModel.includes('dispatcher')) {
     let modelName = 'dispatcher v1'; // default
-    if (lowerModel.includes('v2')) {
-      modelName = 'dispatcher v2';
-    }
     return {
       endpoint: DISPATCHER_ENDPOINT,
       modelName,

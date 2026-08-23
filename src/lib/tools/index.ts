@@ -26,6 +26,7 @@ import { definition as createFolderDef, handler as createFolderHandler } from '.
 import { definition as deleteFolderDef, handler as deleteFolderHandler } from './definitions/deleteFolder';
 import { definition as renameFolderDef, handler as renameFolderHandler } from './definitions/renameFolder';
 import { definition as findTextDef, handler as findTextHandler } from './definitions/findText';
+import { definition as searchDef, handler as searchHandler } from './definitions/search';
 import { definition as executeCodeDef, handler as executeCodeHandler } from './definitions/executeCode';
 import { definition as analyzeDependenciesDef, handler as analyzeDependenciesHandler } from './definitions/analyzeDependencies';
 import { definition as formatCodeDef, handler as formatCodeHandler } from './definitions/formatCode';
@@ -88,6 +89,7 @@ export function initializeTools() {
   registerTool(deleteFolderDef, deleteFolderHandler);
   registerTool(renameFolderDef, renameFolderHandler);
   registerTool(findTextDef, findTextHandler);
+  registerTool(searchDef, searchHandler);
   registerTool(executeCodeDef, executeCodeHandler);
   registerTool(analyzeDependenciesDef, analyzeDependenciesHandler);
   registerTool(formatCodeDef, formatCodeHandler);

@@ -327,10 +327,7 @@ export const RightSidebar = ({
 
             {activeTab === 'implementation' && implementationPath && (
               <motion.div key="implementation" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2 }}>
-                <div className="flex items-center justify-between mb-5 pb-3 border-b border-white/5">
-                  <span className="text-xs text-white/40 truncate">{implementationPath.split(/[/\\]/).pop()}</span>
-                  <button className="p-1 text-white/40 hover:text-white" title="Close implementation plan" onClick={() => { setImplementationPath(null); setActiveTab('tasks'); }}><X size={15} /></button>
-                </div>
+
                 <div className="font-sans text-[13px] leading-6 text-zinc-300">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
@@ -350,21 +347,32 @@ export const RightSidebar = ({
                     }}
                   >{implementationContent}</ReactMarkdown>
                 </div>
-                <div className="sticky bottom-0 -mx-4 mt-6 w-[calc(100%+2rem)] border-t border-white/10 bg-[#0f0f13] px-4 py-3 shadow-[0_-8px_20px_rgba(0,0,0,0.25)]">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold text-white">Change to Agentic Mode to start implementation</div>
-                      <div className="text-[10px] text-white/40 mt-1">Switching modes starts this plan once.</div>
-                    </div>
-                    <div aria-hidden="true" className="relative w-10 h-5 rounded-full bg-violet-500/30 border border-violet-400/30 pointer-events-none">
-                      <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-violet-400 transition-transform duration-300", agentModeActive ? "translate-x-[21px]" : "translate-x-0.5")} />
-                    </div>
-                  </div>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+        
+        {/* Fixed Footer */}
+        <AnimatePresence>
+          {activeTab === 'implementation' && implementationPath && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: 10 }} 
+              className="w-full border-t border-white/10 bg-[#0f0f13] px-4 py-3 shadow-[0_-8px_20px_rgba(0,0,0,0.25)] shrink-0 z-10"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-white">Change to Agentic Mode to start implementation</div>
+                  <div className="text-[10px] text-white/40 mt-1">Switching modes starts this plan once.</div>
+                </div>
+                <div aria-hidden="true" className="relative w-10 h-5 rounded-full bg-violet-500/30 border border-violet-400/30 pointer-events-none">
+                  <span className={cn("absolute top-0.5 w-4 h-4 rounded-full bg-violet-400 transition-transform duration-300", agentModeActive ? "translate-x-[21px]" : "translate-x-0.5")} />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

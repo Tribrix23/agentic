@@ -7,7 +7,6 @@ import { ToolApprovalCard } from './ToolApprovalCard';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { FileIcon } from './FileIcon';
 import { getFileActivityPrefix } from '../../lib/fileActivity';
-import { getReviewArtifacts } from '../../lib/agentPresentation';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -206,37 +205,6 @@ export interface AgentProgressCardProps {
   onArtifactClick?: (path: string) => void;
 }
 
-function ReviewArtifacts({
-  artifacts,
-  onArtifactClick,
-}: {
-  artifacts: ReturnType<typeof getReviewArtifacts>;
-  onArtifactClick?: (path: string) => void;
-}) {
-  if (artifacts.length === 0) return null;
-
-  return (
-    <div className="p-3 border border-blue-500/20 rounded-md flex flex-col gap-2 bg-blue-500/5">
-      <div className="text-blue-400/80 font-semibold mb-1 text-[11px] uppercase tracking-wider">Review &amp; Changes</div>
-      {artifacts.map((artifact, index) => (
-        <button
-          key={`${artifact.path}-${index}`}
-          onClick={() => onArtifactClick?.(artifact.path!)}
-          className="text-left px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 rounded border border-blue-500/20 transition-colors flex items-center gap-2"
-        >
-          <FileCode size={14} />
-          <div className="flex flex-col min-w-0">
-            <span className="font-semibold text-sm">{artifact.path!.split(/[/\\]/).pop()}</span>
-            {typeof artifact.metadata?.summary === 'string' && (
-              <span className="text-xs text-blue-300/70 truncate max-w-[400px]">{artifact.metadata.summary.split('\n')[0]}</span>
-            )}
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }: AgentProgressCardProps) {
   const [expanded, setExpanded] = useState(step.status === 'running' || step.status === 'pending');
 
@@ -354,7 +322,6 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   // Extract artifacts if any
   const artifacts = step.toolCall?.result?.artifacts || [];
-  const reviewArtifacts = getReviewArtifacts(artifacts);
 
   // Compute diff stats from file-edit artifacts
   const getDiffStats = (): { added: number; removed: number } | null => {
@@ -410,7 +377,6 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     return (
       <div className="space-y-2">
         <FileEditCard step={step} />
-        <ReviewArtifacts artifacts={reviewArtifacts} onArtifactClick={onArtifactClick} />
       </div>
     );
   }
@@ -562,7 +528,6 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
                     )}
                     </div>
                   )}
-                  <ReviewArtifacts artifacts={reviewArtifacts} onArtifactClick={onArtifactClick} />
                 </div>
               )}
             </div>
