@@ -1724,7 +1724,7 @@ IMPORTANT RULES:
               />
             ) : (
               <PromptInput 
-                onSend={(content, attachments, mentionedFiles) => handleSendMessage(content)}
+                onSend={(content, attachments, mentionedFiles) => handleSendMessage(content, attachments, mentionedFiles)}
                 onStop={handleStopAgent}
                 isAgentRunning={isAgentRunning}
                 config={aiConfig}

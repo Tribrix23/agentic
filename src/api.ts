@@ -5,6 +5,7 @@
 import { AIConfig, DEFAULT_AI_CONFIG, buildSystemPrompt, MODEL_PRESETS } from './lib/aiConfig';
 import { ToolCall, createToolCall } from './lib/messageTypes';
 import { isQuotaError, TokenBillingSession } from './lib/tokenQuota';
+import { extractImageUrls } from './lib/imageAttachments';
 
 // ── Legacy exports for backward compatibility ──────────────────────────────
 export interface ChatMessage {
@@ -20,6 +21,7 @@ export interface ChatMessage {
       arguments: string;
     };
   }[];
+  attachments?: Array<{ content: string }>;
 }
 
 // ── New API interfaces ─────────────────────────────────────────────────────
@@ -322,15 +324,13 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   const { endpoint, modelName, level } = getModelInfo(config.model);
 
   // Extract image and video attachments from messages
-  const imageUrls: string[] = [];
+  const imageUrls = extractImageUrls(messages);
   const videoUrls: string[] = [];
   if (messages) {
     messages.forEach(msg => {
       if (msg.attachments) {
         msg.attachments.forEach(att => {
-          if (att.content?.startsWith('data:image/')) {
-            imageUrls.push(att.content);
-          } else if (att.content?.startsWith('data:video/')) {
+          if (att.content?.startsWith('data:video/')) {
             videoUrls.push(att.content);
           }
         });

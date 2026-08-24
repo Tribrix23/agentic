@@ -630,7 +630,7 @@ export class AgentLoop {
           && requiresStructuredPlanning(userMessage.content);
         
         // Check for ambiguities that need clarification
-        const clarification = await this.detectAmbiguities(userMessage.content);
+        const clarification = await this.detectAmbiguities(userMessage);
         if (clarification) {
           this.state.needsClarification = true;
           this.state.clarificationQuestion = clarification;
@@ -1926,7 +1926,15 @@ export class AgentLoop {
   }
 
   /** Detect ambiguities in user request that need clarification */
-  private async detectAmbiguities(userMessage: string): Promise<string | null> {
+  private async detectAmbiguities(userMessage: AgenticMessage): Promise<string | null> {
+    // If the message contains attachments (like an image or file), the context is likely
+    // in the attachment, so skip ambiguity detection.
+    if (userMessage.attachments && userMessage.attachments.length > 0) {
+      return null;
+    }
+
+    const textContent = userMessage.content || '';
+
     // Simple heuristic-based ambiguity detection
     // Removed overly broad patterns that matched normal coding requests
     const ambiguityPatterns = [
@@ -1936,12 +1944,12 @@ export class AgentLoop {
     ];
 
     // Only trigger for very short, vague messages (less than 5 words)
-    if (userMessage.split(' ').length >= 5) {
+    if (textContent.split(' ').length >= 5) {
       return null;
     }
 
     for (const { pattern, message } of ambiguityPatterns) {
-      if (pattern.test(userMessage)) {
+      if (pattern.test(textContent)) {
         return message;
       }
     }

@@ -95,6 +95,7 @@ export interface ChatMessage {
       arguments: string;
     };
   }[];
+  attachments?: Array<{ content: string }>;
 }
 
 /** Convert a ChatMessage to an AgenticMessage */
@@ -132,6 +133,12 @@ export function agenticMessageToChatMessage(msg: AgenticMessage): ChatMessage {
   if (msg.role === 'tool') {
     chatMsg.tool_call_id = msg.toolCallId;
     chatMsg.name = msg.toolName;
+  }
+
+  if (msg.attachments && msg.attachments.length > 0) {
+    chatMsg.attachments = msg.attachments
+      .filter(att => att.content && att.content.startsWith('data:'))
+      .map(att => ({ content: att.content! }));
   }
 
   return chatMsg;

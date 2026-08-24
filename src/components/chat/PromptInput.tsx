@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList } from 'lucide-react';
+import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -78,6 +78,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const [selectedImages, setSelectedImages] = useState<{ url: string; file: File }[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isImageCopied, setIsImageCopied] = useState(false);
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
@@ -609,17 +610,52 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             <div className="relative flex flex-col items-center bg-[#0f0f13] border border-white/10 rounded-2xl shadow-2xl w-fit h-fit min-w-[350px] max-w-[90vw] max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="w-full flex justify-end gap-3 p-4 pb-0 z-20">
                 <button
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    fetch(previewImage)
-                      .then(res => res.blob())
-                      .then(blob => navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]))
-                      .catch(() => alert('Failed to copy image'));
+                    try {
+                      // We must pass a Promise directly to ClipboardItem to preserve the user gesture context
+                      const blobPromise = fetch(previewImage)
+                        .then(res => res.blob())
+                        .then(blob => {
+                          if (blob.type === 'image/png') return blob;
+                          return new Promise<Blob>((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            img.onload = () => {
+                              const canvas = document.createElement('canvas');
+                              canvas.width = img.width;
+                              canvas.height = img.height;
+                              const ctx = canvas.getContext('2d');
+                              ctx?.drawImage(img, 0, 0);
+                              canvas.toBlob(b => b ? resolve(b) : reject(new Error('Canvas failed')), 'image/png');
+                            };
+                            img.onerror = () => reject(new Error('Image load failed'));
+                            img.src = previewImage;
+                          });
+                        });
+                      
+                      await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blobPromise })
+                      ]);
+                      setIsImageCopied(true);
+                      setTimeout(() => setIsImageCopied(false), 2000);
+                    } catch (err: any) {
+                      alert('Failed to copy image: ' + (err?.message || err));
+                    }
                   }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 text-white text-xs font-semibold rounded-lg hover:bg-white/10 transition-colors shadow-sm w-32 justify-center"
                 >
-                  <Copy size={14} />
-                  Copy Image
+                  {isImageCopied ? (
+                    <>
+                      <Check size={14} className="text-green-400" />
+                      <span className="text-green-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={14} />
+                      Copy Image
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={(e) => {
