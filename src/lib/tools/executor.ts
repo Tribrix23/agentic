@@ -82,7 +82,7 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
   // NOTE: 'ask' approval is handled by the SecurityInterceptor in agentLoop.ts
   // (via the tool-approval-needed event). The executor does NOT show its own
   // approval UI — that caused duplicate approval cards.
-  // SecurityInterceptor now only blocks truly dangerous operations (deleteFile, renameFile, runCommand)
+  // SecurityInterceptor now only blocks truly dangerous operations (renameFile, runCommand)
   // while the permission system handles fine-grained control for other tools like writeFile/editFile.
 
 
@@ -141,7 +141,7 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
           if (targetOldPath && targetNewPath) {
             addFileToSnapshot(userMessageId, { type: 'rename', path: targetNewPath, oldPath: targetOldPath }, context.conversationId);
           }
-        } else if (toolName === 'deleteFile' || toolName === 'delete_file' || toolName === 'deleteFolder') {
+        } else if (toolName === 'deleteFolder') {
           if (targetPath) {
             const backupRes = await (window as any).electron?.backupPath(targetPath, context.projectRoot);
             if (backupRes?.success && backupRes.backupPath) {

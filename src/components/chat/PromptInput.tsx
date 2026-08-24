@@ -93,6 +93,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     { id: 'dispatcher', name: 'Dispatcher v1', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: [], isPro: false },
     { id: 'gpt-oss', name: 'GPT-OSS 120B', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Medium', 'High'], isPro: false },
     { id: 'qwen', name: 'Qwen 3.7', icon: <QwenIcon className="w-3.5 h-3.5 text-[#FF6A00]" />, submodels: ['Flash', 'Plus', 'Max'], isPro: true },
+    { id: 'qwen38', name: 'Qwen 3.8', icon: <QwenIcon className="w-3.5 h-3.5 text-[#623AE7]" />, submodels: [], isPro: true },
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
     { id: 'deepseek', name: 'DeepSeek v4', icon: <DeepSeekIcon className="w-3.5 h-3.5 text-[#4D6BFE]" />, submodels: ['Flash', 'Pro'], isPro: true },
     { id: 'kimi', name: 'Kimi k2.7', icon: <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />, submodels: [], isPro: true },

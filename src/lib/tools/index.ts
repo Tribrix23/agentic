@@ -3,7 +3,6 @@ import { definition as readFileDef, handler as readFileHandler } from './definit
 import { definition as writeFileDef, handler as writeFileHandler } from './definitions/writeFile';
 import { definition as editFileDef, handler as editFileHandler } from './definitions/editFile';
 import { definition as createFileDef, handler as createFileHandler } from './definitions/createFile';
-import { definition as deleteFileDef, handler as deleteFileHandler } from './definitions/deleteFile';
 import { definition as renameFileDef, handler as renameFileHandler } from './definitions/renameFile';
 import { definition as listDirectoryDef, handler as listDirectoryHandler } from './definitions/listDirectory';
 import { definition as searchFilesDef, handler as searchFilesHandler } from './definitions/searchFiles';
@@ -66,7 +65,6 @@ export function initializeTools() {
   registerTool(writeFileDef, writeFileHandler);
   registerTool(editFileDef, editFileHandler);
   registerTool(createFileDef, createFileHandler);
-  registerTool(deleteFileDef, deleteFileHandler);
   registerTool(renameFileDef, renameFileHandler);
   registerTool(listDirectoryDef, listDirectoryHandler);
   registerTool(searchFilesDef, searchFilesHandler);

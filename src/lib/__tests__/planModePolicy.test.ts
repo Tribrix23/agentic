@@ -19,7 +19,7 @@ describe('Plan mode policy', () => {
   });
 
   it('rejects every non-plan mutation', () => {
-    for (const name of ['deleteFile', 'renameFile', 'runCommand', 'invokeSubagent', 'mcp_mutate']) {
+    for (const name of ['renameFile', 'runCommand', 'invokeSubagent', 'mcp_mutate']) {
       expect(rejectPlanToolCall({ name, arguments: {} } as any)?.success).toBe(false);
     }
     expect(rejectPlanToolCall({ name: 'writeFile', arguments: {} } as any)).toBeUndefined();

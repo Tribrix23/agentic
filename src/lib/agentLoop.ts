@@ -840,7 +840,6 @@ export class AgentLoop {
           : { runId: `legacy:${this.conversationId || 'unknown'}`, conversationId: this.conversationId || 'unknown', turnId: `turn:${this.state.currentIteration}` };
         const streamAssembler = new ProviderStreamAssembler(streamIdentity);
         let responseFinishReason: string | undefined;
-        let planningOrderViolation = false;
         const streamingToolParser = new IncrementalToolCallParser();
         const latestStreamingCalls = new Map<string, StreamingFileToolCall>();
         const originalFileContents = new Map<string, Promise<string>>();
@@ -1042,14 +1041,6 @@ export class AgentLoop {
                 toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
               }
 
-              // Reject at ingestion time so a forbidden action never appears in
-              // the UI as if it ran before the required planning trace.
-              if (this.isBlockedByPlanningGate(toolCall)) {
-                planningOrderViolation = true;
-                console.warn('[AgentLoop] Suppressed tool call before structured planning:', toolCall.name);
-                return;
-              }
-
               // Tag calls before emitting them so the UI can identify the
               // actor even while the call is still waiting or streaming.
               toolCall.agentKind = this.options?.agentRole === 'subagent' ? 'subagent' : 'main';
@@ -1104,7 +1095,7 @@ export class AgentLoop {
               const nativeCallIds = new Set((assistantMsg.toolCalls || []).map(call => call.id));
               const parsedCalls = normalizedTurn.actions.flatMap(action =>
                 action.kind === 'tool' && !nativeCallIds.has(action.callId)
-                  ? [{ name: action.name, arguments: action.arguments }]
+                  ? [{ name: action.name, arguments: action.arguments, callId: action.callId }]
                   : []
               );
               if (parsedCalls.length > 0) {
@@ -1120,15 +1111,9 @@ export class AgentLoop {
                     console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
                     continue;
                   }
-
-                  if (this.planningRequired && !this.sequentialThoughts.isComplete() && isToolBlockedBeforeStructuredPlan(pc.name)) {
-                    planningOrderViolation = true;
-                    console.warn('[AgentLoop] Suppressed parsed tool call before structured planning:', pc.name);
-                    continue;
-                  }
                   
-                  // Generate an ID for the tool call
-                  const id = 'call_' + Math.random().toString(36).substring(2, 9);
+                  // Use the stable callId from the parser for reliable deduplication across chunks
+                  const id = pc.callId || 'call_' + Math.random().toString(36).substring(2, 9);
                   const newCall: ToolCall = {
                     id,
                     name: pc.name,
@@ -1188,7 +1173,7 @@ export class AgentLoop {
           });
         });
 
-        // ── Phase 1: Native Tool execution isolation ────────
+        // ── Native Tool execution isolation ────────
         // No text fallback parsing needed here; api.ts handles native tool calls
         // and returns them directly in assistantMsg.toolCalls.
         
@@ -1209,20 +1194,6 @@ export class AgentLoop {
           hasToolCalls = false;
           const correction = createUserMessage(
             '[SYSTEM OUTPUT LIMIT] The previous response was truncated and no action from it was executed. Retry with a much smaller tool call. For a large new file, write only a valid skeleton plus the first logical section, then add later sections in separate editFile calls. Never resend the whole file.'
-          );
-          correction.isHidden = true;
-          updatedMessages.push(correction);
-          this.emit({ type: 'agent:message-added', data: correction });
-          forceRetry = true;
-          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
-        }
-
-        if (planningOrderViolation || (hasToolCalls && assistantMsg.toolCalls!.some(toolCall => this.isBlockedByPlanningGate(toolCall)))) {
-          assistantMsg.isHidden = true;
-          assistantMsg.toolCalls = [];
-          hasToolCalls = false;
-          const correction = createUserMessage(
-            '[SYSTEM PLANNING ORDER] The attempted action was suppressed before execution and was not shown as completed. Your next call must be the Sequential Thinking tool. Complete the trace with nextThoughtNeeded=false before writing, editing, delegating, creating tasks, or running commands.'
           );
           correction.isHidden = true;
           updatedMessages.push(correction);

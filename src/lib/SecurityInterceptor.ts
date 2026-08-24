@@ -12,7 +12,7 @@ export class SecurityInterceptor {
   static requiresApproval(toolCall: ToolCall): boolean {
     // Only block truly dangerous operations that should always require approval
     // writeFile and editFile are handled by the permissions system and tool definitions
-    const dangerousTools = ['deleteFile', 'renameFile', 'runCommand'];
+    const dangerousTools = ['renameFile', 'runCommand'];
     if (dangerousTools.includes(toolCall.name)) return true;
     
     // Also block MCP-based terminal/shell commands which might have a prefix

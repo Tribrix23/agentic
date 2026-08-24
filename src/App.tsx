@@ -282,11 +282,6 @@ const App = () => {
             return [...prev, { path: filePath, type: 'created', content }];
           });
         }
-      } else if (result.success && ['deleteFile', 'delete_file'].includes(toolCall.name)) {
-        const filePath = toolCall.arguments?.path || toolCall.arguments?.TargetFile;
-        if (filePath) {
-          setFilesChanged(prev => [...prev, { path: filePath, type: 'deleted' }]);
-        }
       }
 
       setAgentActivity(prev => {

@@ -79,7 +79,7 @@ export class ParallelToolExecutor {
   }
 
   private hasWriteDependency(toolCall: ToolCall, otherFiles: string[]): boolean {
-    const writeTools = ['writeFile', 'editFile', 'createFile', 'deleteFile', 'renameFile'];
+    const writeTools = ['writeFile', 'editFile', 'createFile', 'renameFile'];
     const readTools = ['readFile', 'listDirectory', 'searchFiles'];
 
     if (writeTools.includes(toolCall.name)) {

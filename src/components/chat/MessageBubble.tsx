@@ -300,7 +300,7 @@ export function MessageBubble({
         return;
       }
 
-      const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content', 'write_to_file', 'run_command', 'deleteFile', 'delete_file'];
+      const editTools = ['editFile', 'writeFile', 'createFile', 'replace_file_content', 'multi_replace_file_content', 'write_to_file', 'run_command'];
       if (!editTools.includes(tc.name)) return;
 
       const args = tc.arguments || {};
@@ -316,8 +316,6 @@ export function MessageBubble({
         } else {
           return;
         }
-      } else if (['deleteFile', 'delete_file'].includes(tc.name)) {
-        isDelete = true;
       }
 
       if (!targetPath) targetPath = 'Unknown File';

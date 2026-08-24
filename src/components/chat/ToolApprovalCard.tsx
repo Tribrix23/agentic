@@ -37,8 +37,6 @@ export const ToolApprovalCard: React.FC<ToolApprovalCardProps> = ({
     
     if (name === 'renameFile' || name === 'rename_file') {
       argsDisplay = `Rename ${parsed.path || parsed.source} to ${parsed.newPath || parsed.destination}.`;
-    } else if (name === 'deleteFile' || name === 'delete_file') {
-      argsDisplay = `Delete file at ${parsed.path || parsed.targetFile}.`;
     } else if (name === 'runCommand' || name === 'run_command') {
       argsDisplay = `Execute command: \`${parsed.command || parsed.commandLine}\`.`;
     } else if (name === 'writeFile' || name === 'write_file' || name === 'write_to_file') {

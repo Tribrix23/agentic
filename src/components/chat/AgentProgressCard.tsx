@@ -152,8 +152,6 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
     case 'replace_file_content':
     case 'multi_replace_file_content':
       return { cmd: 'sed', argsStr: `-i ... ${args.path || args.TargetFile || ''}` };
-    case 'deleteFile':
-    case 'delete_file':
     case 'deleteFolder':
       return { cmd: 'rm', argsStr: args.path || '' };
     case 'renameFile':

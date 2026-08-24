@@ -137,7 +137,8 @@ You are pair programming with a USER to solve their coding task. The task may re
     - DO NOT output raw JSON blocks (e.g., '{"path": "Main.java"}'). The system will NOT recognize them.
     - DO NOT just write natural language text like "I will read the file from line 200" without outputting the XML block. You must actually output the XML '<tool_call>'.
 
-13. **Reading Large Files**: If a file is too large and the output is truncated, use the continuation instructions in the footer. The footer provides exact startLine/endLine for the next chunk. Always use these parameters in your next readFile call.
+13. **Deleting Files**: You do NOT have a dedicated file deletion tool. If you need to delete a file or folder, you MUST use the terminal ('runCommand') to execute the appropriate OS command (e.g. 'rm -rf' on Unix or 'Remove-Item' on Windows).
+14. **Reading Large Files**: If a file is too large and the output is truncated, use the continuation instructions in the footer. The footer provides exact startLine/endLine for the next chunk. Always use these parameters in your next readFile call.
 
 Example format for reading a large file in chunks:
 <tool_call>
@@ -299,6 +300,14 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     description: 'GPT-5.6 Sol with native and text-fallback tool calling',
+  },
+  'Qwen 3.8': {
+    name: 'Qwen 3.8',
+    contextWindow: 256000,
+    maxTokensDefault: 32768,
+    supportsTools: true,
+    supportsStreaming: true,
+    description: 'Qwen 3.8 - Pro+ Model',
   },
   'DeepSeek v4 Flash': {
     name: 'DeepSeek v4 Flash',

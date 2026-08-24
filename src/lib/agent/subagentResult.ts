@@ -24,7 +24,7 @@ export function resultFromChildMessages(messages: AgenticMessage[]): Pick<Subage
 }
 
 function changedPath(call: ToolCall): string[] {
-  if (!['writeFile', 'editFile', 'createFile', 'deleteFile', 'renameFile', 'createFolder', 'deleteFolder', 'renameFolder'].includes(call.name) || call.result?.success === false) return [];
+  if (!['writeFile', 'editFile', 'createFile', 'renameFile', 'createFolder', 'deleteFolder', 'renameFolder'].includes(call.name) || call.result?.success === false) return [];
   return [call.arguments.path, call.arguments.TargetFile, call.arguments.filePath, call.arguments.newPath].filter((value): value is string => typeof value === 'string' && value.length > 0);
 }
 

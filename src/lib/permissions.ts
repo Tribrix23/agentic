@@ -171,7 +171,6 @@ function getToolPermissionType(toolName: string): PermissionRule['type'] {
     writeFile: 'file_write',
     editFile: 'file_write',
     createFile: 'file_write',
-    deleteFile: 'file_write',
     renameFile: 'file_write',
     runCommand: 'terminal',
     gitStatus: 'git',
