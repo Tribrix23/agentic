@@ -44,6 +44,7 @@ export function getReviewArtifacts(artifacts: Artifact[] | undefined): Artifact[
   return (artifacts || []).filter(artifact =>
     artifact.type === 'artifact_created' &&
     typeof artifact.path === 'string' &&
-    artifact.path.trim().length > 0
+    artifact.path.trim().length > 0 &&
+    artifact.metadata?.kind !== 'image'
   );
 }

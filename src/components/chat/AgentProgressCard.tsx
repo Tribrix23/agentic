@@ -51,7 +51,7 @@ function FileEditCard({ step }: { step: AgentStep }) {
   const isError   = step.status === 'error';
 
   const filePath = args.TargetFile || args.path || args.file || '';
-  const fileName = filePath.split(/[\/\\]/).pop() || filePath;
+  const fileName = filePath.split(/[/\\]/).pop() || filePath;
   const ext = fileName.split('.').pop() || '';
 
   const isWrite = WRITE_TOOLS.includes(tc.name);
@@ -244,6 +244,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       const args = step.toolCall.arguments || {};
       const { cmd, argsStr } = getBashLikeCommand(step.toolCall.name, args);
       const actionWord = (step.status === 'running' || step.status === 'pending') ? 'Running' : 'Ran';
+      const isFailed = step.status === 'error' || step.status === 'rejected';
 
       let displayStr = `${cmd} ${argsStr}`.trim();
       if (displayStr.length > 50) displayStr = displayStr.slice(0, 47) + '...';
@@ -289,6 +290,14 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
           }
           return { icon: <Brain size={14} />, text: `${role} is Working...`, color: 'text-purple-400' };
         }
+        if (isFailed && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
+          const failureLabels: Record<string, string> = {
+            createTodoListTasks: 'Failed to create To-Do List Tasks',
+            updateTaskStatus: 'Failed to update Task Status',
+            invokeSubagent: 'Failed to invoke Sub-Agent',
+          };
+          return { icon: <AlertCircle size={14} />, text: failureLabels[step.toolCall.name], color: 'text-red-400' };
+        }
         return { icon: <Brain size={14} />, text: displayStr, color: 'text-purple-400' };
       }
 
@@ -315,7 +324,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   // Hide the expandable dropdown for internal orchestration tools to prevent showing raw system output
    if (step.toolCall && ['createTodoListTasks', 'updateTaskStatus', 'invokeSubagent', ...FILE_TOOLS].includes(step.toolCall.name)) {
-    hasDetails = false;
+     hasDetails = step.status === 'error' || step.status === 'rejected';
   }
 
   // Extract artifacts if any
@@ -432,6 +441,21 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
               <span className="animate-pulse">Waiting for response...</span>
             </div>
           ) : null}
+          {step.toolCall.result?.attachments?.map((att, i) => (
+            <div key={i} className="pl-5 pt-2">
+              {att.content?.startsWith('data:image') ? (
+                <div className="relative max-w-sm rounded-lg overflow-hidden border border-white/10 shadow-lg">
+                  <div className="absolute top-0 left-0 w-full p-1.5 bg-black/60 backdrop-blur-md text-[9px] font-mono text-white/70 flex items-center gap-1.5 z-10">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+                    Vision Analysis Active
+                  </div>
+                  <img src={att.content} alt={att.name || 'Screenshot preview'} className="w-full h-auto opacity-90 hover:opacity-100 transition-opacity" />
+                </div>
+              ) : (
+                <div className="text-xs text-[#858585] flex items-center gap-1"><FileCode size={12}/> {att.name}</div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

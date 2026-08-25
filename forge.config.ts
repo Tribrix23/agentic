@@ -8,7 +8,7 @@ import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-nati
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
 
-const iconPath = path.resolve(__dirname, 'assets', 'icon.ico');
+const iconPath = path.resolve(__dirname, 'assets', 'icon');
 
 const config: ForgeConfig = {
   packagerConfig: {

@@ -532,6 +532,7 @@ export const MainContent = ({
         toolExecutor: subagentToolExecutor,
         conversationId,
         agentRole: 'subagent',
+        toolProtocol: 'xml',
         billingSession: billingSessionRef.current || undefined,
       });
       
@@ -550,7 +551,11 @@ IMPORTANT RULES:
 - After completing the task, write a brief summary of what you accomplished.
 - Do NOT invoke more sub-agents. Do the work yourself.
 - Do NOT create to-do lists. Just do the task.
-- Do NOT try to run, compile, or execute code. Just write the files.`;
+- Do NOT try to run, compile, or execute code. Just write the files.
+- Use only canonical XML tool calls. Do not emit native function calls, JSON, or call:name syntax.
+- XML-escape parameter text exactly once: & becomes &amp;, < becomes &lt;, > becomes &gt;, " becomes &quot;, and ' becomes &apos;. The parser decodes these entities once before execution.
+- Write complete HTML or source code as the parameter value. Encode a source literal &lt; as &amp;lt; so the resulting file still contains &lt;.
+- Do not wrap parameter values in CDATA; CDATA is not valid in this tool protocol.`;
 
 
         // Disable default system prompt for subagents - they should be "doers", not orchestrators
@@ -894,6 +899,7 @@ IMPORTANT RULES:
         agentKind: 'subagent',
         agentRole: role,
         runId: run.childRunId,
+        readOnly: request.readOnly,
         subagentManager: undefined,
       };
       const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
@@ -913,7 +919,9 @@ IMPORTANT RULES:
       toolDefinitions: getToolsForSubagent(),
       toolExecutor: childExecutor,
       conversationId,
+      activityConversationId: request.parentConversationId,
       agentRole: 'subagent',
+      toolProtocol: 'xml',
       billingSession: billingSessionRef.current || undefined,
       runId: run.childRunId,
       turnId: `turn:${Date.now()}`,
@@ -921,7 +929,7 @@ IMPORTANT RULES:
     loop.updateConfig({
       ...aiConfig,
       useDefaultSystemPrompt: false,
-      systemPrompt: `You are a ${role} sub-agent. Complete only this task: ${request.task}\n\nUse tools to perform the work. Do not delegate, create task lists, or merely describe changes. Write complete files and report a concise summary when finished.`,
+      systemPrompt: `You are a ${role} sub-agent. Complete only this task: ${request.task}\n\n${request.readOnly ? 'This is read-only work. Do not mutate files.' : `You own only ${request.targetFile}. Create or edit that target and do not mutate other files.`}\nUse only canonical XML tool calls. Do not emit native function calls, JSON, or call:name syntax. XML-escape parameter text exactly once (& -> &amp;, < -> &lt;, > -> &gt;, " -> &quot;, ' -> &apos;); the parser decodes it once before execution. Write complete source code as the parameter value and encode a source literal &lt; as &amp;lt;. Do not wrap parameter values in CDATA. Do not delegate, create task lists, or merely describe changes. Report a concise summary when finished.`,
     });
     const initialMessage = createUserMessage(`Please begin the task: ${request.task}`);
     messages.push(initialMessage);

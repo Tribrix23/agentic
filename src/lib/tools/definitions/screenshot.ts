@@ -27,15 +27,35 @@ export const handler: ToolHandler = async (args, context) => {
     const defaultPath = `${context.projectRoot}/screenshot_${timestamp}.${format}`;
     const outputPath = savePath || defaultPath;
 
+    let attachments: any[] = [];
+    const attachImage = async () => {
+      try {
+        const base64data = await (window as any).electron.readFileContent(outputPath, context.projectRoot);
+        if (base64data && typeof base64data === 'string' && base64data.startsWith('data:image')) {
+          attachments = [{
+            name: `screenshot.${format}`,
+            path: outputPath,
+            content: base64data
+          }];
+        } else {
+          console.error('Invalid image data returned from readFileContent');
+        }
+      } catch (err) {
+        console.error('Failed to attach screenshot for vision:', err);
+      }
+    };
+
     if (windowTitle) {
       const result = await (window as any).electron.captureWindow({ windowTitle, savePath: outputPath, format });
       if (!result.success) {
         return { success: false, output: `Window screenshot failed: ${result.error}` };
       }
+      await attachImage();
       return {
         success: true,
-        output: `Captured only window "${result.title}" (PID ${result.processId}) to: ${outputPath}`,
+        output: `Captured only window "${result.title}" (PID ${result.processId}) to: ${outputPath}\nThe image has been automatically attached to this message so you can read it.`,
         artifacts: [{ type: 'artifact_created', path: outputPath, metadata: { kind: 'image', title: result.title, processId: result.processId } }],
+        attachments,
       };
     }
 
@@ -48,10 +68,12 @@ export const handler: ToolHandler = async (args, context) => {
       return { success: false, output: `Screenshot failed: ${result.error}` };
     }
     
+    await attachImage();
     return {
       success: true,
-      output: `Primary-screen screenshot saved to: ${outputPath}`,
+      output: `Primary-screen screenshot saved to: ${outputPath}\nThe image has been automatically attached to this message so you can read it.`,
       artifacts: [{ type: 'artifact_created', path: outputPath, metadata: { kind: 'image', title: 'Primary screen' } }],
+      attachments,
     };
   } catch (error: any) {
     return { success: false, output: `Failed to take screenshot: ${error.message || String(error)}` };

@@ -28,7 +28,7 @@ import {
   createUserMessage,
 } from './messageTypes';
 import { isFileTool, getFileOperation } from './fileActivity';
-import { buildContext, buildGpt56ToolPrompt, ProjectContext } from './contextBuilder';
+import { buildContext, buildGpt56ToolPrompt, buildXmlToolPrompt, ProjectContext } from './contextBuilder';
 import { buildPlanModeContract } from './tools/planModePolicy';
 import {
   needsSummarization,
@@ -45,7 +45,7 @@ import { ProviderStreamAssembler } from './agent/streamAssembler';
 import { normalizeAssistantTurn } from './agent/turnNormalizer';
 import type { CoordinatedRunContext } from './agent/runCoordinator';
 import { SecurityInterceptor } from './SecurityInterceptor';
-import { createTask, updateTask, getTasksForConversation } from './taskStore';
+import { getDurableTasksForConversation } from './taskStore';
 import { TaskGraph } from './taskGraph';
 import { ActionScheduler } from './agent/actionScheduler';
 import { calculateLineChanges, IncrementalToolCallParser } from './incrementalToolCallParser';
@@ -469,6 +469,7 @@ export class AgentLoop {
   
   // Token optimization: cache static content
   private cachedSystemPrompt?: string;
+  private cachedSystemPromptProtocol?: 'native' | 'xml';
   private lastSentMessageIndex = 0;
 
   constructor(
@@ -710,6 +711,7 @@ export class AgentLoop {
       
       // ── Token Optimization: Cache static system prompt + project context ──
       // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
+      const toolProtocol = this.options?.toolProtocol || 'native';
       const systemPromptText = buildSystemPrompt(this.config);
       let fullSystemPrompt = systemPromptText;
 
@@ -726,11 +728,14 @@ export class AgentLoop {
       // The cached prompt is passed back into buildContext on every iteration.
       // Therefore the model-specific tool contract must be added while creating
       // the cache; buildContext cannot add it later when a cached prompt exists.
-      if (
+      if (toolProtocol !== 'xml' &&
         this.toolDefinitions.length > 0 &&
         (this.config.model.toLowerCase().includes('gpt-5.6') || this.config.model.toLowerCase().includes('gpt56'))
       ) {
         fullSystemPrompt += '\n' + buildGpt56ToolPrompt(this.toolDefinitions);
+      }
+      if (toolProtocol === 'xml' && this.toolDefinitions.length > 0) {
+        fullSystemPrompt += '\n' + buildXmlToolPrompt(this.toolDefinitions);
       }
       
       if (this.projectContext) {
@@ -761,7 +766,9 @@ export class AgentLoop {
         fullSystemPrompt += '\n' + projectLines.join('\n');
       }
       
+      if (this.cachedSystemPromptProtocol !== toolProtocol) this.cachedSystemPrompt = undefined;
       this.cachedSystemPrompt = fullSystemPrompt;
+      this.cachedSystemPromptProtocol = toolProtocol;
       this.lastSentMessageIndex = 0; // Reset for new run
       
       // ── Agent iteration loop ─────────────────────────────────────────
@@ -813,11 +820,12 @@ export class AgentLoop {
           this.projectContext,
           hasTools ? this.toolDefinitions : undefined,
           this.cachedSystemPrompt, // Pass cached system prompt to avoid rebuilding
-          this.lastSentMessageIndex // Pass for delta message injection
+          this.lastSentMessageIndex, // Pass for delta message injection
+          toolProtocol
         );
         // shouldUseTools controls whether we pass native tools in the API payload.
         // We always pass them in context above; this only affects api.ts behavior.
-        const shouldUseTools = hasTools;
+        const shouldUseTools = hasTools && toolProtocol !== 'xml';
 
         this.emit({ type: 'agent:token-budget', data: context.tokenBudget });
         this.state.tokenBudget = context.tokenBudget;
@@ -1023,6 +1031,10 @@ export class AgentLoop {
               });
             },
             onToolCall: (toolCall: ToolCall) => {
+              if (toolProtocol === 'xml') {
+                console.warn('[AgentLoop] Rejected native tool call in XML protocol mode:', toolCall.name);
+                return;
+              }
               streamAssembler.accept({
                 ...streamIdentity,
                 type: 'tool-complete',
@@ -1091,7 +1103,7 @@ export class AgentLoop {
               
               // Only push leaked text into thought bubble if there's actually a tool call!
               const knownToolNames = getKnownToolNames(this.toolDefinitions);
-              const normalizedTurn = normalizeAssistantTurn(streamAssembler.snapshot(), knownToolNames);
+              const normalizedTurn = normalizeAssistantTurn(streamAssembler.snapshot(), knownToolNames, toolProtocol);
               const nativeCallIds = new Set((assistantMsg.toolCalls || []).map(call => call.id));
               const parsedCalls = normalizedTurn.actions.flatMap(action =>
                 action.kind === 'tool' && !nativeCallIds.has(action.callId)
@@ -1170,6 +1182,7 @@ export class AgentLoop {
             toolChoice: this.planningRequired && !this.sequentialThoughts.isComplete()
               ? { type: 'function', function: { name: 'mcp__sequential_thinking__sequentialthinking' } }
               : 'auto',
+            toolProtocol,
           });
         });
 
@@ -1283,11 +1296,6 @@ export class AgentLoop {
         // Notify UI immediately that this message now has tool calls (real-time display)
         this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
 
-        // Create execution records for each tool call.
-        if (assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0) {
-          this.createTasksFromToolCalls(assistantMsg.toolCalls);
-        }
-
         // ── Process tool calls ─────────────────────────────────────────
         if (
           assistantMsg.toolCalls &&
@@ -1305,7 +1313,6 @@ export class AgentLoop {
               };
               toolCall.result = result;
               toolCall.status = 'error';
-              this.updateTaskFromToolCall(toolCall, result);
               const toolMsg = createToolMessage(toolCall.id, toolCall.name, result);
               updatedMessages.push(toolMsg);
               this.emit({ type: 'agent:tool-result', data: { toolCall, result } });
@@ -1369,6 +1376,7 @@ export class AgentLoop {
                   this.emit({ 
                     type: 'agent:coding-started', 
                     data: { 
+                      callId: toolCall.id,
                       fileName: filePath.split('/').pop() || filePath,
                       filePath,
                       toolName: toolCall.name
@@ -1418,6 +1426,7 @@ export class AgentLoop {
                     this.emit({ 
                       type: 'agent:coding-progress', 
                       data: { 
+                        callId: toolCall.id,
                         fileName: filePath.split('/').pop() || filePath,
                         filePath,
                         added: addedLines,
@@ -1430,6 +1439,7 @@ export class AgentLoop {
                     this.emit({ 
                       type: 'agent:coding-complete', 
                       data: { 
+                        callId: toolCall.id,
                         fileName: filePath.split('/').pop() || filePath,
                         filePath,
                         toolName: toolCall.name,
@@ -1450,9 +1460,6 @@ export class AgentLoop {
               if (result.success && (toolCall.name === 'writeFile' || toolCall.name === 'createFile' || toolCall.name === 'editFile')) {
                 this.successfulFileWrites++;
               }
-
-              // Update the associated task status
-              this.updateTaskFromToolCall(toolCall, result);
 
               const thoughtSummary = this.sequentialThoughts.record(toolCall, result);
               if (thoughtSummary) {
@@ -1554,24 +1561,9 @@ export class AgentLoop {
             doneMsg.isStreaming = false;
             updatedMessages.push(doneMsg);
           } else {
-            // Check if we invoked sub-agents. If so, force sleep to prevent restless polling loops.
-            const invokedSubagents = assistantMsg.toolCalls.some(tc => tc.name === 'invokeSubagent');
-            if (invokedSubagents) {
-              console.log('[AgentLoop] Agent invoked subagents. Forcing sleep to prevent polling loop.');
-              // The notifySubagentSpawned() is called synchronously in invokeSubagent handler
-              // So activeSubagentCount should already be incremented
-              console.log(`[AgentLoop] activeSubagentCount after invokeSubagent: ${this.activeSubagentCount}`);
-              // If count is still 0, it means the tool didn't call notifySubagentSpawned
-              // This is a bug - force sleep anyway to prevent premature termination
-              if (this.activeSubagentCount === 0) {
-                console.warn('[AgentLoop] BUG: activeSubagentCount is 0 after invokeSubagent! Forcing increment.');
-                this.activeSubagentCount = assistantMsg.toolCalls.filter(tc => tc.name === 'invokeSubagent').length;
-              }
-              continueLoop = false;
-            } else {
-              // Continue loop to let LLM process tool results
-              continueLoop = true;
-            }
+            // Child outcomes are awaited by the scheduler wave. Continue so the
+            // parent model can synthesize them instead of entering legacy sleep.
+            continueLoop = true;
           }
         } else {
           // No tool calls — LLM gave a pure text-only response.
@@ -1658,14 +1650,13 @@ export class AgentLoop {
               this.emit({ type: 'agent:message-added', data: clarificationResult });
               continueLoop = result.success;
             } else {
-            // Check if there are still pending tasks in THIS conversation that haven't been delegated
+            // Check if there are still pending semantic tasks in THIS conversation.
             const convId = this.state.conversationId;
-            const convTasks = convId ? getTasksForConversation(convId) : [];
             
             // Find tasks that are ready to execute (dependencies satisfied, not delegated, not completed)
             // Rebuild graph from fresh task store data so status is current,
             // then use TaskGraph.getExecutableTasks() for proper dependency-aware scheduling.
-            const freshTasks = convId ? getTasksForConversation(convId) : [];
+            const freshTasks = convId ? getDurableTasksForConversation(convId) : [];
             const freshGraph = new TaskGraph(freshTasks);
             const readyTasks = freshGraph.getExecutableTasks().filter(t => !t.delegatedTo);
             
@@ -1679,7 +1670,7 @@ export class AgentLoop {
               // List the ready tasks in the nudge message
               const taskList = readyTasks.slice(0, 5).map(t => `- ${t.title} (ID: ${t.id})`).join('\n');
               const nudgeMsg = createUserMessage(
-                `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are ${readyTasks.length} tasks ready for execution:\n${taskList}\n\nYou MUST use your tools to actually complete these tasks. For each task:\n1. Create the necessary files using writeFile/createFile\n2. Then invoke sub-agents using invokeSubagent with the taskId\n\nDo not describe what you will do — actually call the tools NOW.`
+                `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are ${readyTasks.length} tasks ready for execution:\n${taskList}\n\nYou MUST use your tools to actually complete these tasks. Execute directly owned tasks with tools and status updates. Delegate selected ready tasks with invokeSubagent using the taskId. A delegated implementation task owns its target file, so never pre-create that child-owned file.\n\nDo not describe what you will do — actually call the tools NOW.`
               );
               nudgeMsg.isHidden = true;
               updatedMessages.push(nudgeMsg);
@@ -1858,41 +1849,12 @@ export class AgentLoop {
         ? { ...event, runId: identity.runId, conversationId: identity.conversationId, turnId: identity.turnId }
         : event;
       this.eventCallback(enrichedEvent);
-      // Also dispatch to window for global listeners
-      window.dispatchEvent(new CustomEvent(enrichedEvent.type, { detail: enrichedEvent.data }));
+      // Preserve the legacy payload shape while adding run identity for scoped listeners.
+      window.dispatchEvent(new CustomEvent(enrichedEvent.type, {
+        detail: { ...(enrichedEvent.data || {}), runId: enrichedEvent.runId, conversationId: this.options?.activityConversationId || enrichedEvent.conversationId, turnId: enrichedEvent.turnId },
+      }));
     } catch (e) {
       console.error('[AgentLoop] Event callback error:', e);
-    }
-  }
-
-  /** Create tasks from tool calls */
-  private createTasksFromToolCalls(toolCalls: ToolCall[]): void {
-    for (const toolCall of toolCalls) {
-      const taskTitle = `Execute ${toolCall.name}`;
-      const taskDescription = `Tool call with arguments: ${JSON.stringify(toolCall.arguments).substring(0, 100)}...`;
-      
-      const task = createTask({
-        title: taskTitle,
-        description: taskDescription,
-        priority: 'medium',
-        tags: ['tool-execution'],
-        metadata: { toolCallId: toolCall.id },
-        conversationId: this.state.conversationId,
-        projectId: this.projectContext?.rootPath,
-      });
-
-      // Store the task ID in the tool call for later updates
-      (toolCall as any).taskId = task.id;
-    }
-  }
-
-  /** Update task status based on tool call result */
-  private updateTaskFromToolCall(toolCall: ToolCall, result: ToolResult): void {
-    const taskId = (toolCall as any).taskId;
-    if (taskId) {
-      updateTask(taskId, {
-        status: result.success ? 'completed' : 'failed',
-      });
     }
   }
 
@@ -1932,7 +1894,7 @@ export class AgentLoop {
   private async planExecution(): Promise<TaskGraph> {
     // Use existing tasks from taskStore if they exist (created by createTodoListTasks)
     const convId = this.state.conversationId;
-    const existingTasks = convId ? getTasksForConversation(convId) : [];
+    const existingTasks = convId ? getDurableTasksForConversation(convId) : [];
     
     if (existingTasks.length > 0) {
       // Use the tasks already created by the LLM via createTodoListTasks
@@ -1955,8 +1917,8 @@ export class AgentLoop {
     this.state.status = 'Reflecting on progress...';
     this.emit({ type: 'agent:reflection-started' });
 
-    const tasks = this.state.conversationId ? getTasksForConversation(this.state.conversationId) : [];
-    const taskGraph = new TaskGraph(tasks.filter(task => !task.tags.includes('tool-execution')));
+    const tasks = this.state.conversationId ? getDurableTasksForConversation(this.state.conversationId) : [];
+    const taskGraph = new TaskGraph(tasks);
     const stats = taskGraph.getStats();
     const progress = stats.completedTasks / (stats.totalTasks || 1) * 100;
     const newProgress = Math.round(progress);
@@ -2019,8 +1981,7 @@ export class AgentLoop {
       };
     }
 
-    const convTasks = getTasksForConversation(convId);
-    const durableTasks = convTasks.filter(task => !task.tags.includes('tool-execution'));
+    const durableTasks = getDurableTasksForConversation(convId);
     const failedTasks = durableTasks.filter(task => task.status === 'failed');
     const completedTasks = durableTasks.filter(task => task.status === 'completed');
     const executionEvidence = this.executedToolNames.size > 0 || this.successfulFileWrites > 0;
@@ -2055,6 +2016,8 @@ export interface AgentLoopOptions {
   toolExecutor?: (toolCall: ToolCall, signal: AbortSignal, context?: { userMessageId?: string; conversationId?: string; projectRoot?: string; interactionMode?: 'ask' | 'plan' | 'agent' }) => Promise<ToolResult>;
   toolDefinitions?: any[];
   conversationId?: string;
+  /** Parent conversation used to scope global Activity for child loops. */
+  activityConversationId?: string;
   userMessageId?: string;
   agentRole?: 'orchestrator' | 'subagent';
   billingSession?: TokenBillingSession;
@@ -2063,6 +2026,7 @@ export interface AgentLoopOptions {
   interactionMode?: 'ask' | 'plan' | 'agent';
   executionPlanPath?: string;
   executionPlanInstruction?: string;
+  toolProtocol?: 'native' | 'xml';
 }
 
 /** Create a new AgentLoop with current configuration */
@@ -2087,5 +2051,6 @@ export function createAgentLoop(
     interactionMode: options?.interactionMode,
     executionPlanPath: options?.executionPlanPath,
     executionPlanInstruction: options?.executionPlanInstruction,
+    toolProtocol: options?.toolProtocol,
   });
 }

@@ -2,6 +2,8 @@
 // Message Types — Extended message model for agentic conversations
 // ============================================================================
 
+import { escapeXmlText } from './agent/xmlCodec';
+
 /** File attachment on a user message */
 export interface FileAttachment {
   name: string;
@@ -30,6 +32,7 @@ export interface ToolResult {
   output: string;
   data?: any;
   artifacts?: Artifact[];
+  attachments?: FileAttachment[];
   truncated?: boolean;
   summary?: string;
   diagnostics?: Array<{ category: string; message: string; details?: unknown }>;
@@ -108,7 +111,7 @@ export function chatMessageToAgenticMessage(msg: ChatMessage, index: number): Ag
   };
 }
 
-export function agenticMessageToChatMessage(msg: AgenticMessage): ChatMessage {
+export function agenticMessageToChatMessage(msg: AgenticMessage, toolProtocol: 'native' | 'xml' = 'native'): ChatMessage {
   let combinedContent = msg.content || '';
   if (msg.thinkingContent) {
     combinedContent = `${msg.thinkingContent}\n\n${combinedContent}`.trim();
@@ -119,7 +122,7 @@ export function agenticMessageToChatMessage(msg: AgenticMessage): ChatMessage {
     content: combinedContent,
   };
 
-  if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+  if (toolProtocol !== 'xml' && msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
     chatMsg.tool_calls = msg.toolCalls.map(tc => ({
       id: tc.id,
       type: 'function',
@@ -130,9 +133,25 @@ export function agenticMessageToChatMessage(msg: AgenticMessage): ChatMessage {
     }));
   }
 
+  if (toolProtocol === 'xml' && msg.role === 'assistant' && msg.toolCalls?.length) {
+    const toolCalls = msg.toolCalls.map(tc => {
+      const parameters = Object.entries(tc.arguments || {})
+        .map(([name, value]) => `<parameter=${name}>${escapeXmlText(typeof value === 'string' ? value : JSON.stringify(value))}</parameter>`)
+        .join('');
+      return `<tool_call><function=${escapeXmlText(tc.name)}>${parameters}</function></tool_call>`;
+    }).join('\n');
+    chatMsg.content = chatMsg.content ? `${chatMsg.content}\n\n${toolCalls}` : toolCalls;
+  }
+
   if (msg.role === 'tool') {
     chatMsg.tool_call_id = msg.toolCallId;
     chatMsg.name = msg.toolName;
+    if (toolProtocol === 'xml') {
+      chatMsg.role = 'user';
+      delete chatMsg.tool_call_id;
+      delete chatMsg.name;
+      chatMsg.content = `<tool_result name="${escapeXmlText(msg.toolName || 'unknown')}">\n${escapeXmlText(msg.content)}\n</tool_result>`;
+    }
   }
 
   if (msg.attachments && msg.attachments.length > 0) {
@@ -198,6 +217,7 @@ export function createToolMessage(
     timestamp: Date.now(),
     toolCallId,
     toolName,
+    attachments: result.attachments,
   };
 }
 

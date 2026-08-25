@@ -17,15 +17,15 @@ function signature(action: ToolAction): string {
   return `${action.name}:${JSON.stringify(action.arguments)}`;
 }
 
-export function normalizeAssistantTurn(provider: ProviderTurn, knownToolNames?: Set<string>): AssistantTurn {
-  const native = provider.toolCalls.map<ToolAction>(call => ({
+export function normalizeAssistantTurn(provider: ProviderTurn, knownToolNames?: Set<string>, mode: 'native' | 'xml' = 'native'): AssistantTurn {
+  const native = mode === 'xml' ? [] : provider.toolCalls.map<ToolAction>(call => ({
     kind: 'tool',
     callId: call.callId,
     name: call.name,
     arguments: parseNativeArguments(call.name, call.argumentsText),
     source: 'native',
   }));
-  const textual = parseTextToolProtocol(provider.text, knownToolNames);
+  const textual = parseTextToolProtocol(provider.text, knownToolNames, mode === 'xml' ? 'xml' : 'permissive');
   const seen = new Set<string>();
   const actions = [...native, ...textual.actions].filter(action => {
     const key = signature(action);

@@ -10,6 +10,7 @@ export interface SubagentRequest {
   role: string;
   projectRoot: string;
   targetFile?: string;
+  readOnly?: boolean;
 }
 
 export interface SubagentHandle {
@@ -17,6 +18,13 @@ export interface SubagentHandle {
   childRunId: string;
   status: SubagentStatus;
   createdAt: number;
+  taskId: string;
+  parentConversationId: string;
+  role: string;
+  targetFile?: string;
+  readOnly: boolean;
+  startedAt?: number;
+  completedAt?: number;
 }
 
 export interface SubagentOutcome extends SubagentHandle {

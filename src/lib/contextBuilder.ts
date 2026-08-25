@@ -67,6 +67,25 @@ export function buildGpt56ToolPrompt(toolDefinitions: any[]): string {
   ].join('\n');
 }
 
+export function buildXmlToolPrompt(toolDefinitions: any[]): string {
+  const tools = toolDefinitions.map((definition) => definition?.function ?? definition)
+    .filter((definition) => typeof definition?.name === 'string')
+    .map((tool) => ({ name: tool.name, description: tool.description || '', parameters: tool.parameters || {} }));
+  return [
+    '<xml_tool_protocol>',
+    'XML is the only permitted tool-call syntax in this sub-agent. Native function calling is unavailable.',
+    'Do not emit raw JSON, JSON inside a tool_call wrapper, call:name{...}, or a natural-language description instead of executing a tool.',
+    'Use exactly: <tool_call><function=TOOL_NAME><parameter=ARGUMENT_NAME>VALUE</parameter></function></tool_call>',
+    'Parameter values are text unless the schema says object or array. XML-escape text exactly once before placing it in a parameter: & becomes &amp;, < becomes &lt;, > becomes &gt;, " becomes &quot;, and \' becomes &apos;. The parser decodes these five entities exactly once before execution.',
+    'Write complete source as the parameter value. Example: <tool_call><function=writeFile><parameter=path>index.html</parameter><parameter=content>&lt;!doctype html&gt;\n&lt;html&gt;\n&lt;body&gt;&lt;h1 class=&quot;title&quot;&gt;Hello &amp; welcome&lt;/h1&gt;&lt;/body&gt;\n&lt;/html&gt;</parameter></function></tool_call>',
+    'Do not trim, summarize, replace, or omit source content. Encode a source literal &amp;lt; as &amp;amp;lt; so the resulting file contains &amp;lt;.',
+    'Do not wrap parameter values in CDATA. CDATA is not part of this tool protocol; use the entity escaping rule above.',
+    'Example: <tool_call><function=readFile><parameter=path>notes.txt</parameter></function></tool_call>',
+    `Available tools: ${JSON.stringify(tools)}`,
+    '</xml_tool_protocol>',
+  ].join('\n');
+}
+
 // ── Technology Detection ───────────────────────────────────────────────────
 
 const TECH_INDICATORS: Record<string, string[]> = {
@@ -177,7 +196,8 @@ export function buildContext(
   projectContext?: ProjectContext,
   toolDefinitions?: any[],
   cachedSystemPrompt?: string,
-  lastSentIndex?: number
+  lastSentIndex?: number,
+  toolProtocol: 'native' | 'xml' = 'native'
 ): BuiltContext {
   // ── 1. System Prompt ─────────────────────────────────────────────────
   // Use cached system prompt if provided, otherwise build it
@@ -189,6 +209,9 @@ export function buildContext(
   // usable through AgentLoop's validated text-tool fallback.
   if (toolDefinitions?.length && isGpt56Model(config.model) && !cachedSystemPrompt) {
     systemPromptParts.push(buildGpt56ToolPrompt(toolDefinitions));
+  }
+  if (toolProtocol === 'xml' && toolDefinitions?.length && !cachedSystemPrompt) {
+    systemPromptParts.push(buildXmlToolPrompt(toolDefinitions));
   }
 
   // ── 2. Project Context Injection ─────────────────────────────────────
@@ -265,11 +288,11 @@ export function buildContext(
 
   for (let i = nonSystemMessages.length - 1; i >= 0; i--) {
     const msg = nonSystemMessages[i];
-    const chatMsg = agenticMessageToChatMessage(msg);
+    const chatMsg = agenticMessageToChatMessage(msg, toolProtocol);
     const isMsgNew = isNewMessage(i);
-    const preserveNativeToolHistory = isGpt56Model(config.model) && Boolean(toolDefinitions?.length);
+    const preserveNativeToolHistory = toolProtocol !== 'xml' && isGpt56Model(config.model) && Boolean(toolDefinitions?.length);
 
-    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
+    if (toolProtocol !== 'xml' && msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
       const toolCallDesc = msg.toolCalls
         .map((tc) => {
           let xml = `<tool_call>\n<function=${tc.name}>\n`;
@@ -285,7 +308,7 @@ export function buildContext(
       delete chatMsg.tool_calls;
     }
 
-    if (msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
+    if (toolProtocol !== 'xml' && msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
       chatMsg.role = 'user';
       // Plain-text marker — no XML that the AI might mimic.
       // For new messages (delta), keep full output. For old messages, compress aggressively.

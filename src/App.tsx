@@ -12,8 +12,9 @@ import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
 import { IdeContainer } from './components/IdeContainer';
 import { ModelAnnouncementCard } from './components/ModelAnnouncementCard';
-import { getAllTasks, clearAllTasks, clearConversationTasks } from './lib/taskStore';
+import { getDurableTasksForConversation, clearAllTasks, clearConversationTasks } from './lib/taskStore';
 import { Task } from './lib/taskStore';
+import type { SubagentHandle } from './lib/agent/subagentTypes';
 
 export function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs));
@@ -135,6 +136,7 @@ const App = () => {
   const [showFullIde, setShowFullIde] = React.useState(false);
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [agentActivity, setAgentActivity] = React.useState<AgentActivity[]>([]);
+  const [subagents, setSubagents] = React.useState<SubagentHandle[]>([]);
   const [filesChanged, setFilesChanged] = React.useState<FileChange[]>([]);
   const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(null);
   const [isAiRunning, setIsAiRunning] = React.useState(false);
@@ -178,7 +180,7 @@ const App = () => {
   // When conversation changes, reload tasks scoped to that conversation
   React.useEffect(() => {
     if (currentConversationId) {
-      setTasks(getAllTasks({ conversationId: currentConversationId }));
+      setTasks(getDurableTasksForConversation(currentConversationId));
     } else {
       setTasks([]);
     }
@@ -188,10 +190,10 @@ const App = () => {
   React.useEffect(() => {
     const handleTaskChange = () => {
       if (currentConversationId) {
-        setTasks(getAllTasks({ conversationId: currentConversationId }));
+        setTasks(getDurableTasksForConversation(currentConversationId));
       } else {
         // No conversation scoping yet (first message) — show all agent-created tasks
-        setTasks(getAllTasks());
+        setTasks([]);
       }
     };
 
@@ -215,6 +217,7 @@ const App = () => {
     window.addEventListener('open-implementation-plan', handleOpenImplementationPlan);
 
     window.addEventListener('task-updated', handleTaskChange);
+    window.addEventListener('task-deleted', handleTaskChange);
     window.addEventListener('tasks-cleared', handleTaskChange);
     window.addEventListener('load-conversation', handleConversationLoad);
     window.addEventListener('new-conversation', handleNewConversation);
@@ -228,6 +231,7 @@ const App = () => {
       window.removeEventListener('open-right-sidebar', handleOpenRightSidebar);
       window.removeEventListener('open-implementation-plan', handleOpenImplementationPlan);
       window.removeEventListener('task-updated', handleTaskChange);
+      window.removeEventListener('task-deleted', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);
       window.removeEventListener('load-conversation', handleConversationLoad);
       window.removeEventListener('new-conversation', handleNewConversation);
@@ -237,37 +241,50 @@ const App = () => {
 
   // Listen for agent activity events
   React.useEffect(() => {
-    let activitySequence = 0;
-    const nextActivityId = (kind: string) => `act_${Date.now()}_${kind}_${activitySequence++}`;
+    const maxActivity = 200;
+    const belongsToConversation = (detail: any) => !detail?.conversationId || detail.conversationId === currentConversationId;
+    const bounded = (items: AgentActivity[]) => items.slice(-maxActivity);
     const handleAgentThinking = (e: CustomEvent) => {
+      if (!belongsToConversation(e.detail)) return;
       setIsAiRunning(true);
-      setAgentActivity(prev => [...prev, {
-        id: nextActivityId('thinking'),
+      setAgentActivity(prev => bounded([...prev.filter(item => !(item.type === 'thinking' && item.status === 'running' && item.runId === e.detail?.runId)), {
+        id: `thinking:${e.detail?.runId || 'current'}`,
         timestamp: Date.now(),
         type: 'thinking',
         description: 'Agent is thinking...',
         status: 'running',
-      }]);
+        runId: e.detail?.runId,
+        conversationId: e.detail?.conversationId,
+        turnId: e.detail?.turnId,
+      }]));
     };
 
     const handleAgentDone = () => {
       setIsAiRunning(false);
     };
 
-    const handleAgentToolCall = (e: CustomEvent) => {
+    const handleAgentToolExecuting = (e: CustomEvent) => {
       const toolCall = e.detail;
-      setAgentActivity(prev => [...prev, {
-        id: nextActivityId(`tool_${toolCall.id || toolCall.name}`),
+      if (!belongsToConversation(toolCall) || !toolCall?.id) return;
+      setAgentActivity(prev => bounded([...prev.filter(item => item.callId !== toolCall.id), {
+        id: `tool:${toolCall.runId || 'run'}:${toolCall.id}`,
+        callId: toolCall.id,
         timestamp: Date.now(),
         type: 'tool_call',
         toolName: toolCall.name,
-        description: `Calling ${toolCall.name}`,
+        description: `${toolCall.agentKind === 'subagent' ? `${toolCall.agentRole || 'Sub-agent'}: ` : ''}Running ${toolCall.name}`,
         status: 'running',
-      }]);
+        actorKind: toolCall.agentKind,
+        actorRole: toolCall.agentRole,
+        runId: toolCall.runId,
+        conversationId: toolCall.conversationId,
+        turnId: toolCall.turnId,
+      }]));
     };
 
     const handleAgentToolResult = (e: CustomEvent) => {
       const { toolCall, result } = e.detail;
+      if (!belongsToConversation(e.detail) || !toolCall?.id) return;
       
       // Update filesChanged list if it's a file operation
       if (result.success && ['writeFile', 'createFile', 'write_to_file', 'editFile', 'replace_file_content', 'multi_replace_file_content'].includes(toolCall.name)) {
@@ -286,7 +303,7 @@ const App = () => {
 
       setAgentActivity(prev => {
         const updated = prev.map(act => {
-          if (act.status === 'running' && act.toolName === toolCall.name) {
+          if (act.callId === toolCall.id) {
             return {
               ...act,
               status: result.success ? 'completed' as const : 'error' as const,
@@ -299,44 +316,18 @@ const App = () => {
       });
     };
 
-    const handleCodingStarted = (e: CustomEvent) => {
-      const { fileName, filePath, toolName } = e.detail;
-      setAgentActivity(prev => [...prev, {
-        id: nextActivityId(`coding_${filePath || fileName}`),
-        timestamp: Date.now(),
-        type: 'coding',
-        toolName,
-        description: `Coding ${fileName}`,
-        status: 'running',
-        fileName,
-        filePath,
-      }]);
-    };
-
     const handleCodingProgress = (e: CustomEvent) => {
-      const { fileName, added, removed } = e.detail;
+      if (!belongsToConversation(e.detail)) return;
+      const { callId, fileName, filePath, added, removed } = e.detail;
       setAgentActivity(prev => {
         const updated = prev.map(act => {
-          if (act.type === 'coding' && act.status === 'running' && act.fileName === fileName) {
+          if (act.callId === callId) {
             return {
               ...act,
-              description: `Coding ${fileName} +${added} -${removed}`,
-            };
-          }
-          return act;
-        });
-        return updated;
-      });
-    };
-
-    const handleCodingComplete = (e: CustomEvent) => {
-      const { fileName } = e.detail;
-      setAgentActivity(prev => {
-        const updated = prev.map(act => {
-          if (act.type === 'coding' && act.status === 'running' && act.fileName === fileName) {
-            return {
-              ...act,
-              status: 'completed' as const,
+              description: `${act.toolName || 'File operation'} ${fileName} +${added} -${removed}`,
+              fileName,
+              filePath,
+              progress: { added, removed },
             };
           }
           return act;
@@ -347,11 +338,9 @@ const App = () => {
 
     window.addEventListener('agent:thinking', handleAgentThinking as any);
     window.addEventListener('agent:done', handleAgentDone as any);
-    window.addEventListener('agent:tool-call', handleAgentToolCall as any);
+    window.addEventListener('agent:tool-executing', handleAgentToolExecuting as any);
     window.addEventListener('agent:tool-result', handleAgentToolResult as any);
-    window.addEventListener('agent:coding-started', handleCodingStarted as any);
     window.addEventListener('agent:coding-progress', handleCodingProgress as any);
-    window.addEventListener('agent:coding-complete', handleCodingComplete as any);
     
     const handleOpenSidebarFile = (e: CustomEvent) => {
       setRightSidebarOpen(true);
@@ -369,14 +358,12 @@ const App = () => {
     return () => {
       window.removeEventListener('agent:thinking', handleAgentThinking as any);
       window.removeEventListener('agent:done', handleAgentDone as any);
-      window.removeEventListener('agent:tool-call', handleAgentToolCall as any);
+      window.removeEventListener('agent:tool-executing', handleAgentToolExecuting as any);
       window.removeEventListener('agent:tool-result', handleAgentToolResult as any);
-      window.removeEventListener('agent:coding-started', handleCodingStarted as any);
       window.removeEventListener('agent:coding-progress', handleCodingProgress as any);
-      window.removeEventListener('agent:coding-complete', handleCodingComplete as any);
       window.removeEventListener('open-sidebar-file', handleOpenSidebarFile as any);
     };
-  }, []);
+  }, [currentConversationId]);
 
   React.useEffect(() => {
     // Listen for deep link authentication success
@@ -467,7 +454,8 @@ const App = () => {
         <RightSidebar 
           isOpen={rightSidebarOpen} 
           toggle={() => setRightSidebarOpen(false)}
-          tasks={tasks}
+        tasks={tasks}
+        subagents={subagents}
           onTaskClick={(task) => console.log('Task clicked:', task)}
           agentActivity={agentActivity}
           filesChanged={filesChanged}

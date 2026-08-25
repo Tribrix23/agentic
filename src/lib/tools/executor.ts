@@ -6,7 +6,7 @@ import { withFileWriteLock } from '../fileWriteQueue';
 import { isSequentialThinkingTool, normalizeSequentialThinkingArguments } from '../sequentialThinking';
 import { artifactStore } from './artifactStore';
 import { normalizeToolResult } from './result';
-import { formatValidationErrors, validateToolArguments } from './validation';
+import { formatValidationErrors, normalizeToolArguments, validateToolArguments } from './validation';
 import { isReadOnlyToolName } from './readOnly';
 import { normalizePlanToolCall, rejectPlanToolCall } from './planModePolicy';
 
@@ -62,6 +62,7 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     };
   }
 
+  toolCall.arguments = normalizeToolArguments(tool.definition.parameters, toolCall.arguments) as Record<string, any>;
   const validation = validateToolArguments(tool.definition.parameters, toolCall.arguments);
   if (!validation.valid) {
     const message = formatValidationErrors(validation.errors);
@@ -108,9 +109,9 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
       };
 
       const toolName = toolCall.name;
-      let pathArg = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
-      let oldPathArg = toolCall.arguments?.oldPath || '';
-      let newPathArg = toolCall.arguments?.newPath || '';
+      const pathArg = toolCall.arguments?.path || toolCall.arguments?.TargetFile || toolCall.arguments?.filePath || '';
+      const oldPathArg = toolCall.arguments?.oldPath || '';
+      const newPathArg = toolCall.arguments?.newPath || '';
 
       const targetPath = getFullPath(pathArg);
       const targetOldPath = getFullPath(oldPathArg);

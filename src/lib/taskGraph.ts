@@ -267,10 +267,11 @@ export class TaskGraph {
     inProgressTasks: number;
     completedTasks: number;
     failedTasks: number;
+    cancelledTasks: number;
     maxDepth: number;
     circularDependencies: number;
   } {
-    let pending = 0, inProgress = 0, completed = 0, failed = 0;
+    let pending = 0, inProgress = 0, completed = 0, failed = 0, cancelled = 0;
     let maxDepth = 0;
 
     for (const node of this.nodes.values()) {
@@ -279,6 +280,7 @@ export class TaskGraph {
         case 'in_progress': inProgress++; break;
         case 'completed': completed++; break;
         case 'failed': failed++; break;
+        case 'cancelled': cancelled++; break;
       }
       maxDepth = Math.max(maxDepth, node.depth);
     }
@@ -289,6 +291,7 @@ export class TaskGraph {
       inProgressTasks: inProgress,
       completedTasks: completed,
       failedTasks: failed,
+      cancelledTasks: cancelled,
       maxDepth,
       circularDependencies: this.detectCircularDependencies().length,
     };

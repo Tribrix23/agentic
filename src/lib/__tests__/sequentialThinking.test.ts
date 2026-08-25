@@ -5,6 +5,7 @@ import {
   SequentialThoughtTrace,
 } from '../sequentialThinking';
 import type { ToolCall } from '../messageTypes';
+import { describe, it } from 'vitest';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`Assertion failed: ${message}`);
@@ -20,7 +21,8 @@ function thoughtCall(arguments_: Record<string, any>): ToolCall {
   };
 }
 
-export function runSequentialThinkingTests(): void {
+describe('sequentialThinking', () => {
+  it('validates planning traces and tool gates', () => {
   const first = thoughtCall({ thought: 'Inspect architecture', thoughtNumber: 1, totalThoughts: 2, nextThoughtNeeded: true });
   assert(Boolean(parseSequentialThought(first)), 'A valid thought should parse');
   assert(Boolean(parseSequentialThought(thoughtCall({ thought: 'String boolean', thoughtNumber: 1, totalThoughts: 1, nextThoughtNeeded: 'True' }))), 'String booleans should be normalized for MCP compatibility');
@@ -46,6 +48,5 @@ export function runSequentialThinkingTests(): void {
   assert(!isToolBlockedBeforeStructuredPlan('mcp__sequential_thinking__sequentialthinking'), 'Sequential thinking must pass the planning gate');
   assert(isToolBlockedBeforeStructuredPlan('writeFile'), 'File writes must be blocked before planning completes');
   assert(isToolBlockedBeforeStructuredPlan('runCommand'), 'Execution tools must be blocked before planning completes');
-}
-
-if (typeof window === 'undefined') runSequentialThinkingTests();
+  });
+});

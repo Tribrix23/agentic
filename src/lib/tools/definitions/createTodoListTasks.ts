@@ -1,5 +1,6 @@
 import { ToolDefinition, ToolHandler } from '../types';
-import { createTask, updateTask } from '../../taskStore';
+import { createTaskBatch, getDurableTasksForConversation } from '../../taskStore';
+import { TaskGraph } from '../../taskGraph';
 
 export const definition: ToolDefinition = {
   name: 'createTodoListTasks',
@@ -14,6 +15,7 @@ export const definition: ToolDefinition = {
         items: {
           type: 'object',
           properties: {
+            id: { type: 'string', description: 'Optional unique local ID for this task.' },
             title: { type: 'string', description: 'The title of the task.' },
             description: { type: 'string', description: 'Detailed description of what needs to be done.' },
             priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'], description: 'The priority of the task.' },
@@ -52,37 +54,65 @@ export const handler: ToolHandler = async (args, context) => {
       return { success: false, output: 'No tasks provided in the array. You provided: ' + JSON.stringify(args.tasks) };
     }
     
-    const createdTasks = [];
-    const localIds = new Map<string, string>();
-    
-    for (let index = 0; index < tasks.length; index++) {
-      const t = tasks[index];
-      const task = createTask({
-        title: t.title,
-        description: t.description,
-        priority: t.priority || 'medium',
-        dependencies: [],
-        delegatedTo: t.delegatedTo || undefined,
-        tags: ['agent-created'],
-        conversationId: context.conversationId,
-        projectId: context?.projectRoot || '',
-        metadata: t.targetFile ? { targetFile: t.targetFile } : undefined,
-      });
-      createdTasks.push(task.id);
-      localIds.set(`task_${index + 1}`, task.id);
-      if (typeof t.id === 'string' && t.id.trim()) localIds.set(t.id.trim(), task.id);
+    const existing = context.conversationId ? getDurableTasksForConversation(context.conversationId) : [];
+    if (existing.length > 0) {
+      return { success: true, output: `A durable task graph already exists for this conversation (${existing.length} tasks). Use its existing task IDs; no duplicate graph was created.`, data: { tasks: existing, idMapping: {}, readyTaskIds: new TaskGraph(existing).getExecutableTasks().map(task => task.id) } };
     }
 
+    const localIds = new Map<string, number>();
     for (let index = 0; index < tasks.length; index++) {
-      const dependencies = Array.isArray(tasks[index].dependencies)
-        ? tasks[index].dependencies.map((dependency: string) => localIds.get(dependency) || dependency)
-        : [];
-      if (dependencies.length > 0) updateTask(createdTasks[index], { dependencies });
+      const aliases = [`task_${index + 1}`];
+      if (typeof tasks[index].id === 'string' && tasks[index].id.trim()) aliases.push(tasks[index].id.trim());
+      for (const alias of aliases) {
+        if (localIds.has(alias)) return { success: false, output: `Duplicate local task ID: ${alias}.` };
+        localIds.set(alias, index);
+      }
     }
+    const normalizedDependencies: number[][] = [];
+    for (let index = 0; index < tasks.length; index++) {
+      const dependencies = Array.isArray(tasks[index].dependencies) ? tasks[index].dependencies : [];
+      const resolved = dependencies.map((dependency: string) => {
+        const depIndex = localIds.get(String(dependency).trim());
+        if (depIndex === undefined) throw new Error(`Unknown dependency '${dependency}' for task_${index + 1}.`);
+        if (depIndex === index) throw new Error(`Task task_${index + 1} cannot depend on itself.`);
+        return depIndex;
+      });
+      normalizedDependencies.push(resolved);
+    }
+    const visiting = new Set<number>();
+    const visited = new Set<number>();
+    const visit = (index: number): void => {
+      if (visiting.has(index)) throw new Error(`Circular dependency detected at task_${index + 1}.`);
+      if (visited.has(index)) return;
+      visiting.add(index);
+      normalizedDependencies[index].forEach(dep => visit(dep));
+      visiting.delete(index);
+      visited.add(index);
+    };
+    tasks.forEach((_: unknown, index: number) => visit(index));
+
+    const created = createTaskBatch(tasks.map((t: any, index: number) => ({
+      title: String(t.title || '').trim(),
+      description: t.description || '',
+      priority: t.priority || 'medium',
+      dependencies: [] as string[],
+      delegatedTo: t.delegatedTo || undefined,
+      tags: ['agent-created'],
+      conversationId: context.conversationId,
+      projectId: context.projectRoot || '',
+      metadata: t.targetFile ? { targetFile: t.targetFile } : {},
+    })), normalizedDependencies);
+    const idMapping: Record<string, string> = {};
+    created.forEach((task, index) => {
+      idMapping[`task_${index + 1}`] = task.id;
+      if (typeof tasks[index].id === 'string' && tasks[index].id.trim()) idMapping[tasks[index].id.trim()] = task.id;
+    });
+    const finalTasks = created;
 
     return { 
       success: true, 
-      output: `Successfully created ${createdTasks.length} tasks. Task IDs: \n${createdTasks.map((id, index) => `- task_${index + 1} -> ${id}`).join('\n')}\n\nOnly currently ready tasks may be delegated. Use invokeSubagent with the taskId; after a wave completes, recompute the graph for the next wave.`
+      output: `Successfully created ${finalTasks.length} tasks. Task IDs: \n${finalTasks.map((task, index) => `- task_${index + 1} -> ${task.id}`).join('\n')}\n\nOnly currently ready tasks may be delegated. Use invokeSubagent with the taskId; after a wave completes, recompute the graph for the next wave.`,
+      data: { tasks: finalTasks, idMapping, readyTaskIds: new TaskGraph(finalTasks).getExecutableTasks().map(task => task.id) },
     };
   } catch (error: any) {
     return { success: false, output: `Failed to create tasks: ${error.message || String(error)}` };

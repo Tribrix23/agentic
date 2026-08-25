@@ -64,108 +64,37 @@ interface WindowCaptureOptions {
   format?: 'png' | 'jpg';
 }
 
-function captureNativeWindow(options: WindowCaptureOptions): Promise<{ success: boolean; error?: string; title?: string; processId?: number }> {
-  return new Promise((resolve) => {
-    if (process.platform !== 'win32') {
-      resolve({ success: false, error: 'Application-window capture is currently supported on Windows only.' });
-      return;
+async function captureNativeWindow(options: WindowCaptureOptions): Promise<{ success: boolean; error?: string; title?: string; processId?: number }> {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { desktopCapturer } = require('electron');
+
+    const sources = await desktopCapturer.getSources({
+      types: ['window'],
+      thumbnailSize: { width: 3840, height: 2160 }
+    });
+
+    const query = options.windowTitle.toLowerCase();
+    const source = sources.find((s: any) => s.name.toLowerCase().includes(query));
+
+    if (!source) {
+      return { success: false, error: `No visible window found matching '${options.windowTitle}'.` };
     }
 
-    const script = String.raw`
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Drawing
-Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class WindowCaptureNative {
-  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
-  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
-  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int command);
-  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdc, uint flags);
-  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
-}
-'@
-$query = $env:QUANTIX_CAPTURE_TITLE
-$target = [IntPtr]::Zero
-$matchedTitle = ''
-[WindowCaptureNative]::EnumWindows({
-  param($handle, $param)
-  if (-not [WindowCaptureNative]::IsWindowVisible($handle)) { return $true }
-  $text = New-Object System.Text.StringBuilder 1024
-  [void][WindowCaptureNative]::GetWindowText($handle, $text, $text.Capacity)
-  $title = $text.ToString()
-  if ($title -and $title.IndexOf($query, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
-    $script:target = $handle
-    $script:matchedTitle = $title
-    return $false
-  }
-  return $true
-}, [IntPtr]::Zero) | Out-Null
-if ($target -eq [IntPtr]::Zero) { throw "No visible window found matching '$query'. Use listWindows to get an exact title." }
-$wasMinimized = [WindowCaptureNative]::IsIconic($target)
-if ($wasMinimized) {
-  [void][WindowCaptureNative]::ShowWindow($target, 4)
-  Start-Sleep -Milliseconds 250
-}
-try {
-  $rect = New-Object WindowCaptureNative+RECT
-  if (-not [WindowCaptureNative]::GetWindowRect($target, [ref]$rect)) { throw 'Could not read the target window bounds.' }
-  $width = $rect.Right - $rect.Left
-  $height = $rect.Bottom - $rect.Top
-  if ($width -le 0 -or $height -le 0) { throw 'The target window has invalid dimensions.' }
-  $bitmap = New-Object System.Drawing.Bitmap $width, $height
-  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-  $hdc = $graphics.GetHdc()
-  try { $captured = [WindowCaptureNative]::PrintWindow($target, $hdc, 2) }
-  finally { $graphics.ReleaseHdc($hdc) }
-  if (-not $captured) { throw 'Windows could not render this application window. Protected or hardware-accelerated windows may block capture.' }
-  $outputPath = $env:QUANTIX_CAPTURE_PATH
-  $directory = [System.IO.Path]::GetDirectoryName($outputPath)
-  if ($directory) { [System.IO.Directory]::CreateDirectory($directory) | Out-Null }
-  $imageFormat = if ($env:QUANTIX_CAPTURE_FORMAT -eq 'jpg') { [System.Drawing.Imaging.ImageFormat]::Jpeg } else { [System.Drawing.Imaging.ImageFormat]::Png }
-  $bitmap.Save($outputPath, $imageFormat)
-  $graphics.Dispose()
-  $bitmap.Dispose()
-  [uint32]$capturedProcessId = 0
-  [void][WindowCaptureNative]::GetWindowThreadProcessId($target, [ref]$capturedProcessId)
-  @{ success = $true; title = $matchedTitle; processId = $capturedProcessId } | ConvertTo-Json -Compress
-} finally {
-  if ($wasMinimized) { [void][WindowCaptureNative]::ShowWindow($target, 6) }
-}`;
+    const savePath = path.resolve(options.savePath);
+    const directory = path.dirname(savePath);
+    if (!fs.existsSync(directory)) {
+      fs.mkdirSync(directory, { recursive: true });
+    }
 
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], {
-      windowsHide: true,
-      shell: false,
-      env: {
-        ...process.env,
-        QUANTIX_CAPTURE_TITLE: options.windowTitle,
-        QUANTIX_CAPTURE_PATH: path.resolve(options.savePath),
-        QUANTIX_CAPTURE_FORMAT: options.format === 'jpg' ? 'jpg' : 'png',
-      },
-    });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
-    child.on('error', error => resolve({ success: false, error: error.message }));
-    child.on('close', code => {
-      if (code !== 0) {
-        resolve({ success: false, error: stderr.trim() || `Window capture exited with code ${code}.` });
-        return;
-      }
-      try {
-        resolve(JSON.parse(stdout.trim()));
-      } catch {
-        resolve({ success: false, error: stdout.trim() || 'Window capture returned an invalid response.' });
-      }
-    });
-  });
+    const image = options.format === 'jpg' ? source.thumbnail.toJPEG(90) : source.thumbnail.toPNG();
+    fs.writeFileSync(savePath, image);
+
+    return { success: true, title: source.name, processId: 0 };
+  } catch (error: any) {
+    return { success: false, error: error.message || String(error) };
+  }
 }
 
 const getPublicAssetPath = (...segments: string[]) => path.join(
@@ -201,7 +130,7 @@ if (!gotTheLock) {
   });
 
   app.name = 'QUANTIX CODE';
-  app.setAppUserModelId('com.tribrix.quantixcode');
+  app.setAppUserModelId('com.tribrix.quantixcode.app');
   app.on('ready', createWindow);
 
   app.on('window-all-closed', () => {

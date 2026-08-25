@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, ListTodo, Clock, AlertCircle, ChevronDown, ChevronRight, Bot, Zap } from 'lucide-react';
+import { CheckCircle2, Circle, ListTodo, Clock, AlertCircle, ChevronDown, ChevronRight, Bot, Zap, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../App';
 import { Task } from '../../lib/taskStore';
 import { TaskGraph } from '../../lib/taskGraph';
+import type { SubagentHandle } from '../../lib/agent/subagentTypes';
 
 interface TodoListPanelProps {
   tasks: Task[];
+  subagents?: SubagentHandle[];
   onTaskClick?: (task: Task) => void;
   className?: string;
 }
 
-export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick, className }) => {
+export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, subagents = [], onTaskClick, className }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['pending', 'in_progress']));
   const [taskGraph, setTaskGraph] = useState<TaskGraph | null>(null);
 
@@ -47,6 +49,8 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
         return <Clock size={14} className="text-blue-400 animate-spin" />;
       case 'failed':
         return <AlertCircle size={14} className="text-red-400" />;
+      case 'cancelled':
+        return <Ban size={14} className="text-gray-500" />;
       default:
         return <Circle size={14} className="text-gray-400" />;
     }
@@ -66,16 +70,14 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
   };
 
   // Derive active sub-agents from delegated tasks
-  const delegatedTasks = tasks.filter(t => t.delegatedTo && t.status === 'in_progress');
-  const activeSubagents = Array.from(
-    new Map(delegatedTasks.map(t => [t.delegatedTo!, t])).values()
-  );
+  const activeSubagents = subagents.filter(child => child.status === 'queued' || child.status === 'running');
 
   const sections = [
     { id: 'in_progress', label: 'In Progress', tasks: getTasksByStatus('in_progress') },
     { id: 'pending', label: 'Pending', tasks: getTasksByStatus('pending') },
     { id: 'completed', label: 'Completed', tasks: getTasksByStatus('completed') },
     { id: 'failed', label: 'Failed', tasks: getTasksByStatus('failed') },
+    { id: 'cancelled', label: 'Cancelled', tasks: getTasksByStatus('cancelled') },
   ];
 
   const visibleSections = sections.filter(s => s.tasks.length > 0);
@@ -113,15 +115,16 @@ export const TodoListPanel: React.FC<TodoListPanelProps> = ({ tasks, onTaskClick
               </span>
             </div>
             <div className="p-2 space-y-1.5">
-              {activeSubagents.map(task => (
-                <div key={task.delegatedTo} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-blue-500/10 border border-blue-500/20">
+              {activeSubagents.map(child => {
+                const task = tasks.find(item => item.id === child.taskId);
+                return <div key={child.childId} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-blue-500/10 border border-blue-500/20">
                   <Zap size={12} className="text-blue-400 mt-0.5 shrink-0 animate-pulse" />
                   <div className="min-w-0">
-                    <div className="text-[10px] font-mono text-blue-300 truncate">{task.delegatedTo}</div>
-                    <div className="text-[10px] text-blue-200/70 truncate mt-0.5">{task.title}</div>
+                    <div className="text-[10px] font-mono text-blue-300 truncate">{child.role} · {child.status}</div>
+                    <div className="text-[10px] text-blue-200/70 truncate mt-0.5">{task?.title || child.taskId}</div>
                   </div>
-                </div>
-              ))}
+                </div>;
+              })}
             </div>
           </motion.div>
         )}

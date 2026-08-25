@@ -38,6 +38,8 @@ export interface TaskCreateInput {
   projectId?: string;
 }
 
+export interface TaskBatchCreateInput extends TaskCreateInput {}
+
 const STORAGE_KEY = 'quantix_tasks';
 const MAX_TASKS = 1000;
 
@@ -101,6 +103,46 @@ export function createTask(input: TaskCreateInput): Task {
   
   window.dispatchEvent(new CustomEvent('task-updated', { detail: task }));
   return task;
+}
+
+/** Create several tasks in one storage transaction. */
+export function createTaskBatch(inputs: TaskBatchCreateInput[], dependencyIndexes: number[][] = []): Task[] {
+  if (inputs.length === 0) return [];
+  const tasks = loadAll();
+  const now = Date.now();
+  const ids = inputs.map((_, index) => `task_${now.toString(36)}_${index}_${Math.random().toString(36).slice(2, 7)}`);
+  const created: Task[] = inputs.map((input, index) => ({
+    id: ids[index],
+    title: input.title,
+    description: input.description || '',
+    status: 'pending',
+    priority: input.priority || 'medium',
+    createdAt: now + index,
+    updatedAt: now + index,
+    parentId: input.parentId,
+    childrenIds: [] as string[],
+    dependencies: dependencyIndexes[index]
+      ? dependencyIndexes[index].map(depIndex => ids[depIndex]).filter((id): id is string => Boolean(id))
+      : [...(input.dependencies || [])],
+    assignedTo: input.assignedTo,
+    delegatedTo: input.delegatedTo,
+    scheduledFor: input.scheduledFor,
+    tags: [...(input.tags || [])],
+    metadata: { ...(input.metadata || {}) },
+    conversationId: input.conversationId,
+    projectId: input.projectId,
+  }));
+
+  if (tasks.length + created.length > MAX_TASKS) {
+    tasks.sort((a, b) => a.updatedAt - b.updatedAt);
+    tasks.splice(0, tasks.length + created.length - MAX_TASKS);
+  }
+  tasks.push(...created);
+  saveAll(tasks);
+  for (const task of created) {
+    window.dispatchEvent(new CustomEvent('task-updated', { detail: task }));
+  }
+  return created;
 }
 
 /** Get a task by ID */
@@ -180,6 +222,13 @@ export function getTasksForProject(projectId: string): Task[] {
 /** Get all tasks for a conversation */
 export function getTasksForConversation(conversationId: string): Task[] {
   return loadAll().filter(t => t.conversationId === conversationId);
+}
+
+/** Semantic tasks only; legacy tool-execution telemetry remains persisted but hidden. */
+export function getDurableTasksForConversation(conversationId: string): Task[] {
+  return getTasksForConversation(conversationId)
+    .filter(task => !task.tags.includes('tool-execution'))
+    .sort((a, b) => a.createdAt - b.createdAt);
 }
 
 /** Get tasks by status */

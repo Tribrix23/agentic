@@ -1,3 +1,5 @@
+import { decodeXmlEntities } from './agent/xmlCodec';
+
 export interface StreamingFileToolCall {
   id: string;
   name: string;
@@ -20,10 +22,10 @@ const PATH_NAMES = 'path|TargetFile|file';
 
 function readElement(source: string, names: string): string | undefined {
   const direct = source.match(new RegExp(`<(?:${names})>\\s*([\\s\\S]*?)<\\/(?:${names})>`, 'i'));
-  if (direct) return direct[1].trim();
+  if (direct) return decodeXmlEntities(direct[1].trim());
 
   const parameter = source.match(new RegExp(`<parameter=(?:${names})>\\s*([\\s\\S]*?)<\\/parameter>`, 'i'));
-  return parameter?.[1].trim();
+  return parameter ? decodeXmlEntities(parameter[1].trim()) : undefined;
 }
 
 function trimPartialClosingTag(value: string, closingTag: string): string {
@@ -54,7 +56,7 @@ function readStreamingContent(source: string): string | undefined {
     ? content.slice(0, closeIndex)
     : trimPartialClosingTag(content, closingTag);
 
-  return content.replace(/^\r?\n/, '');
+  return decodeXmlEntities(content.replace(/^\r?\n/, ''));
 }
 
 /** Reconstructs XML-like tool calls even when chunks split any tag. */

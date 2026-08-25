@@ -3,7 +3,7 @@ import { updateTask, getTask, getTasksForConversation } from '../../taskStore';
 
 export const definition: ToolDefinition = {
   name: 'invokeSubagent',
-  description: 'Invokes a sub-agent for a bounded analysis or implementation task when delegation materially improves speed or handles complexity. The sub-agent runs independently and reports back, then the main loop wakes automatically. Provide complete scope and context. Implementation tasks should identify the owned targetFile; read-only analysis tasks may omit targetFile and must not mutate files.',
+  description: 'Invokes a sub-agent for a bounded analysis or implementation task. Set readOnly true for analysis without a target file; implementation tasks must own the planned targetFile.',
   category: 'system',
   parameters: {
     type: 'object',
@@ -12,6 +12,7 @@ export const definition: ToolDefinition = {
       role: { type: 'string', description: 'The role of the sub-agent (e.g., Coder, Researcher, Designer)' },
       taskId: { type: 'string', description: 'Required task ID returned by createTodoListTasks. Only currently executable tasks may be delegated.' },
       targetFile: { type: 'string', description: 'For implementation tasks, the exact file path this sub-agent owns. Omit for read-only analysis.' }
+      ,readOnly: { type: 'boolean', description: 'Required true for read-only analysis. False requires the planned targetFile.' }
     },
     required: ['task', 'role', 'taskId']
   },
@@ -23,7 +24,7 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { task, role, taskId, targetFile } = args;
+    const { task, role, taskId, targetFile, readOnly } = args;
     if (!taskId) {
       return { success: false, output: 'Cannot delegate without taskId. Create the complete task graph first, then delegate a ready task.' };
     }
@@ -46,11 +47,16 @@ export const handler: ToolHandler = async (args, context) => {
     }
 
     const plannedTarget = taskObj.metadata?.targetFile;
-    const claimedTarget = targetFile || plannedTarget;
+    if (typeof readOnly !== 'boolean') return { success: false, output: 'Delegation must declare readOnly true or false.' };
+    if (readOnly && (targetFile || plannedTarget)) return { success: false, output: 'Read-only delegation cannot claim a target file.' };
+    if (!readOnly && !plannedTarget) return { success: false, output: 'Implementation delegation requires the task planned targetFile.' };
+    const normalizeTarget = (value: string) => String(value).replace(/\\/g, '/').replace(/\/\.\//g, '/').toLowerCase();
+    if (targetFile && plannedTarget && normalizeTarget(targetFile) !== normalizeTarget(plannedTarget)) return { success: false, output: `Cannot delegate task ${taskId}: targetFile differs from the planned target.` };
+    const claimedTarget = readOnly ? undefined : (targetFile || plannedTarget);
     const siblingTasks = context.conversationId ? getTasksForConversation(context.conversationId) : [];
     if (claimedTarget) {
-      const normalizedTarget = String(claimedTarget).replace(/\\/g, '/').toLowerCase();
-      const conflict = siblingTasks.find(sibling => sibling.id !== taskId && sibling.status === 'in_progress' && sibling.metadata?.targetFile && String(sibling.metadata.targetFile).replace(/\\/g, '/').toLowerCase() === normalizedTarget);
+      const normalizedTarget = normalizeTarget(claimedTarget);
+      const conflict = siblingTasks.find(sibling => sibling.id !== taskId && sibling.status === 'in_progress' && sibling.metadata?.targetFile && normalizeTarget(sibling.metadata.targetFile) === normalizedTarget);
       if (conflict) {
         return { success: false, output: `Cannot delegate task ${taskId}: target file is already owned by active task ${conflict.id}.` };
       }
@@ -66,17 +72,21 @@ export const handler: ToolHandler = async (args, context) => {
     });
     const child = context.subagentManager.start({
       parentRunId: context.runId,
-      parentConversationId: context.conversationId || taskObj.conversationId,
-      taskId, task, role, projectRoot: context.projectRoot, targetFile: claimedTarget,
+      parentConversationId: context.conversationId || taskObj.conversationId || '',
+      taskId, task, role, projectRoot: context.projectRoot, targetFile: claimedTarget, readOnly,
     }, context.signal);
     updateTask(taskId, { delegatedTo: child.handle.childId });
     const outcome = await child.outcome;
+    const expectedTarget = claimedTarget && normalizeTarget(claimedTarget);
+    const reportedTarget = outcome.changedFiles.map(normalizeTarget);
+    const evidenceValid = outcome.status === 'completed' && outcome.unresolvedItems.length === 0 && (!expectedTarget || reportedTarget.includes(expectedTarget));
+    const finalStatus = outcome.status === 'cancelled' ? 'cancelled' : evidenceValid ? 'completed' : 'failed';
     updateTask(taskId, {
-      status: outcome.status === 'completed' ? 'completed' : 'failed',
+      status: finalStatus,
       metadata: { ...(getTask(taskId)?.metadata || {}), subagentOutcome: outcome, error: outcome.status === 'completed' ? undefined : outcome.summary },
     });
     return {
-      success: outcome.status === 'completed',
+      success: finalStatus === 'completed',
       output: JSON.stringify(outcome, null, 2),
       summary: outcome.summary,
       data: outcome,

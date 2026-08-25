@@ -40,6 +40,7 @@ export interface DispatcherAPIParams {
   signal?: AbortSignal;
   conversationId?: string;
   billingSession?: TokenBillingSession;
+  toolProtocol?: 'native' | 'xml';
 }
 
 // ── Legacy-compatible interface (for existing code that hasn't migrated) ───
@@ -276,6 +277,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   let signal: AbortSignal | undefined;
   let conversationId: string | undefined;
   let billingSession: TokenBillingSession | undefined;
+  let toolProtocol: 'native' | 'xml' = 'native';
 
   if (isLegacy) {
     const p = params as LegacyDispatcherParams;
@@ -300,6 +302,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     signal = p.signal;
     conversationId = p.conversationId;
     billingSession = p.billingSession;
+    toolProtocol = p.toolProtocol || 'native';
   }
 
   let dynamicTemp = config.temperature;
@@ -385,14 +388,14 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   if (config.stopSequences.length > 0) {
     payload.stop = config.stopSequences;
   }
-  if (config.responseFormat === 'json') {
+  if (config.responseFormat === 'json' && toolProtocol !== 'xml') {
     payload.response_format = { type: 'json_object' };
   }
 
   // ── Tool definitions ────────────────────────────────────────────────
   // Native tools enabled for true MCP-style function calling.
   const supportsTools = MODEL_PRESETS[config.model]?.supportsTools ?? true;
-  if (supportsTools && tools && tools.length > 0) {
+  if (toolProtocol !== 'xml' && supportsTools && tools && tools.length > 0) {
     payload.tools = tools;
     payload.tool_choice = toolChoice || 'auto';
   }
@@ -423,6 +426,11 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
       const timeoutId = setTimeout(() => controller.abort(), config.timeoutMs);
       const onUserAbort = () => controller.abort();
 
+      const cleanupRequest = () => {
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onUserAbort);
+      };
+
       // Chain signals: user abort + timeout
       if (signal) {
         signal.addEventListener('abort', onUserAbort, { once: true });
@@ -442,36 +450,38 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           body: JSON.stringify(payload),
           signal: controller.signal,
         });
-      } finally {
-        clearTimeout(timeoutId);
-        signal?.removeEventListener('abort', onUserAbort);
+      } catch (error) {
+        cleanupRequest();
+        throw error;
       }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.message || errorData.error || response.statusText;
+      try {
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData.message || errorData.error || response.statusText;
 
-        if (response.status >= 500 && attempt < config.maxRetries) {
-          lastError = new Error(`Server error (${response.status}): ${errorMsg}`);
-          continue; // Retry on server errors
+          if (response.status >= 500 && attempt < config.maxRetries) {
+            lastError = new Error(`Server error (${response.status}): ${errorMsg}`);
+            continue; // Retry on server errors
+          }
+
+          onError(new Error(`API Error (${response.status}): ${errorMsg}`));
+          return;
         }
 
-        onError(new Error(`API Error (${response.status}): ${errorMsg}`));
-        return;
-      }
-
-      // ── Handle streaming response ────────────────────────────────────
-      if (config.stream && response.body) {
-        await handleStreamingResponse(
-          response,
-          onChunk,
-          onToolCall,
-          onSuccess,
-          checkIsStreaming,
-          config.streamChunkDelay
-          ,billingSession
-        );
-      } else {
+         // ── Handle streaming response ────────────────────────────────────
+        if (config.stream && response.body) {
+          await handleStreamingResponse(
+            response,
+            onChunk,
+            onToolCall,
+            onSuccess,
+            checkIsStreaming,
+            config.streamChunkDelay,
+            billingSession,
+            controller.signal
+          );
+        } else {
         // ── Handle non-streaming response ──────────────────────────────
         const data = await response.json();
         const message = data.choices?.[0]?.message;
@@ -510,9 +520,13 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           if (content) onChunk(content);
           onSuccess(content, data.choices?.[0]?.finish_reason);
         }
-      }
+        }
 
-      return; // Success — exit retry loop
+        return; // Success — exit retry loop
+      } finally {
+        // Keep the timeout alive until the response body has been consumed.
+        cleanupRequest();
+      }
 
     } catch (error: any) {
       if (isQuotaError(error)) {
@@ -522,6 +536,8 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
       if (error.name === 'AbortError') {
         if (signal?.aborted) {
           onError(new Error('Request aborted by user'));
+        } else if (error.message === 'Request aborted by caller') {
+          onError(error);
         } else {
           onError(new Error(`Request timed out after ${config.timeoutMs}ms`));
         }
@@ -607,8 +623,9 @@ async function handleStreamingResponse(
   onToolCall: ((toolCall: ToolCall) => void) | undefined,
   onSuccess: (fullText: string, finishReason?: string) => void,
   checkIsStreaming: () => boolean,
-  chunkDelay: number
-  ,billingSession?: TokenBillingSession
+  chunkDelay: number,
+  billingSession?: TokenBillingSession,
+  signal?: AbortSignal,
 ): Promise<void> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder('utf-8');
@@ -628,20 +645,29 @@ async function handleStreamingResponse(
         await reader.cancel();
         // Also cancel the response body to fully release the connection
         try { await response.body?.cancel(); } catch (_) { }
-        break;
+        throw new DOMException('Request aborted by caller', 'AbortError');
+      }
+
+      if (signal?.aborted) {
+        streamCancelled = true;
+        throw new DOMException('Request aborted', 'AbortError');
       }
 
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        buffer += decoder.decode();
+        if (!buffer) break;
+        buffer += '\n';
+      } else {
+        buffer += decoder.decode(value, { stream: true });
+      }
 
-      const chunk = decoder.decode(value, { stream: true });
-      buffer += chunk;
       const lines = buffer.split('\n');
       buffer = lines.pop() || ''; // Keep the last incomplete line for the next chunk
 
       for (const line of lines) {
-        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-          const dataStr = line.replace('data: ', '').trim();
+        if (line.startsWith('data:') && line.trim() !== 'data: [DONE]') {
+          const dataStr = line.slice(5).trim();
           if (!dataStr || dataStr === 'keep-alive' || dataStr === ': keep-alive') continue;
 
           try {
@@ -713,7 +739,7 @@ async function handleStreamingResponse(
                     const args = tc.arguments ? JSON.parse(tc.arguments) : {};
                     onToolCall(createToolCall(tc.name, args, tc.id));
                   } catch (e) {
-                    console.warn('[API] Failed to parse streamed tool call args:', e);
+                    throw new Error(`Stream Error: Failed to parse streamed tool call arguments: ${e instanceof Error ? e.message : String(e)}`);
                   }
                 }
               }

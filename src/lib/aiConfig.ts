@@ -256,6 +256,7 @@ export interface ModelPreset {
   maxTokensDefault: number;
   supportsTools: boolean;
   supportsStreaming: boolean;
+  supportsVision: boolean;
   description: string;
 }
 

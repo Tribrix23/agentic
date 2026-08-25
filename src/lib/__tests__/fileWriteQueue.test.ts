@@ -1,5 +1,5 @@
 import { strict as assert } from 'assert';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { clearFileWriteQueues, normalizeFilePath, withFileWriteLock } from '../fileWriteQueue';
 
 describe('fileWriteQueue', () => {

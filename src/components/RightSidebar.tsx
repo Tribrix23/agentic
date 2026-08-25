@@ -12,6 +12,7 @@ import { CodeBlock } from './chat/CodeBlock';
 import { FileIcon } from './chat/FileIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { SubagentHandle } from '../lib/agent/subagentTypes';
 
 export interface TokenBudget {
   total: number;
@@ -40,6 +41,13 @@ export interface AgentActivity {
   durationMs?: number;
   fileName?: string;
   filePath?: string;
+  callId?: string;
+  actorKind?: 'main' | 'subagent';
+  actorRole?: string;
+  conversationId?: string;
+  runId?: string;
+  turnId?: string;
+  progress?: { added?: number; removed?: number };
 }
 
 export interface FileChange {
@@ -58,6 +66,7 @@ interface RightSidebarProps {
   onOpenFile?: (path: string) => void;
   onClearFile?: (path: string) => void;
   tasks?: Task[];
+  subagents?: SubagentHandle[];
   onTaskClick?: (task: Task) => void;
   conversationId?: string;
   onClearTasks?: () => void;
@@ -83,7 +92,7 @@ const formatTime = (ts: number) => {
 };
 
 export const RightSidebar = ({ 
-  isOpen, toggle, agentActivity = [], filesChanged = [], tokenBudget, onRevertFile, onOpenFile, onClearFile, tasks = [], onTaskClick, conversationId, onClearTasks
+  isOpen, toggle, agentActivity = [], filesChanged = [], tokenBudget, onRevertFile, onOpenFile, onClearFile, tasks = [], subagents = [], onTaskClick, conversationId, onClearTasks
 }: RightSidebarProps) => {
   const [activeTab, setActiveTab] = useState<TabType>('tasks');
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
@@ -209,6 +218,7 @@ export const RightSidebar = ({
               >
                 <TodoListPanel 
                   tasks={tasks} 
+                  subagents={subagents}
                   onTaskClick={onTaskClick}
                   className="space-y-2"
                 />
