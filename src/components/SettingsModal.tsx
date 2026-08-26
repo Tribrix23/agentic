@@ -360,20 +360,6 @@ export const SettingsModal = ({
             <Cpu size={14} className="shrink-0" />
             Model
           </button>
-          <button
-            onClick={() => setActiveTab('ai_settings')}
-            className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'ai_settings' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
-          >
-            <Cpu size={14} className="shrink-0" />
-            AI Settings
-          </button>
-          <button
-            onClick={() => setActiveTab('agent_settings')}
-            className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'agent_settings' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
-          >
-            <Bot size={14} className="shrink-0" />
-            Agent Settings
-          </button>
 
           <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mt-6 mb-1 uppercase tracking-wider">Projects</div>
           {projects.map(p => (
@@ -1010,32 +996,6 @@ export const SettingsModal = ({
                       </div>
                       <button className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-white transition-colors">
                         Open
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 5. Customizations */}
-                <div>
-                  <h3 className="text-white font-semibold text-[15px] mb-3">Customizations</h3>
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-3">
-                    <p className="text-[#8b8b93] text-[13px]">
-                      The breakdown below shows token usage from customizations like skills, rules, and MCP. If the budget is exceeded, large customizations will be truncated automatically.
-                    </p>
-                    <p className="text-xs text-white font-medium">71.5% of the customization budget is available.</p>
-
-                    {/* Progress Bar */}
-                    <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                      <div className="bg-[#3b82f6] h-full w-[28.5%]" />
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1">
-                      <div className="flex items-center gap-2 text-xs text-[#8b8b93]">
-                        <div className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-                        <span>Skills (28.5%) 5,700</span>
-                      </div>
-                      <button className="text-xs text-[#3b82f6] hover:underline">
-                        Show 41 breakdowns
                       </button>
                     </div>
                   </div>
