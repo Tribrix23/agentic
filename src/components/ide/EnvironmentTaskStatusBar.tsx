@@ -28,7 +28,7 @@ export const EnvironmentTaskStatusBar: React.FC = () => {
           {operations.length === 0 && <div className="p-2">No environment operations yet.</div>}
           {operations.map(operation => (
             <div key={operation.id} className="p-2 border-t border-white/5 flex items-start gap-2">
-              {operation.status === 'failed' ? <XCircle size={13} className="text-red-400 mt-0.5" /> : operation.status === 'completed' ? <CheckCircle2 size={13} className="text-emerald-400 mt-0.5" /> : <LoaderCircle size={13} className="text-blue-400 animate-spin mt-0.5" />}
+              {operation.status === 'failed' ? <XCircle size={13} className="text-red-400 mt-0.5" /> : operation.status === 'cancelled' ? <XCircle size={13} className="text-[#a8a8b1] mt-0.5" /> : operation.status === 'completed' ? <CheckCircle2 size={13} className="text-emerald-400 mt-0.5" /> : <LoaderCircle size={13} className="text-blue-400 animate-spin mt-0.5" />}
               <div className="min-w-0 flex-1"><div className="text-white">{operation.provider} {operation.version} · {operation.phase}</div><div className="mt-0.5 break-words">{operation.progress.message}</div></div>
               {(operation.status === 'queued' || operation.status === 'running') && <button aria-label="Cancel operation" title="Cancel operation" onClick={() => void window.electron.environment.cancelOperation(operation.id)} className="p-1 hover:text-white"><X size={12} /></button>}
             </div>

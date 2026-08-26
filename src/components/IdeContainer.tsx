@@ -852,6 +852,20 @@ const handleSkip = () => {
                 }
                 setActiveFilePath(path);
               }}
+              onOpenJavaTab={() => {
+                const path = 'ide://java-env';
+                if (!openFiles.find(f => f.path === path)) {
+                  setOpenFiles(prev => [...prev, { path, name: 'Java', originalContent: '' }]);
+                }
+                setActiveFilePath(path);
+              }}
+              onOpenJavaFXTab={() => {
+                const path = 'ide://javafx-env';
+                if (!openFiles.find(f => f.path === path)) {
+                  setOpenFiles(prev => [...prev, { path, name: 'JavaFX', originalContent: '' }]);
+                }
+                setActiveFilePath(path);
+              }}
             />
           )}
         </div>

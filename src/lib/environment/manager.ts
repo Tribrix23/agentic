@@ -4,6 +4,7 @@ import path from 'node:path';
 import { EnvironmentStore } from './store';
 import { buildInstallPlan, CURATED_PROVIDERS } from './providers';
 import { PythonProvider } from './pythonProvider';
+import { JavaProvider } from './javaProvider';
 import type {
   CatalogItem,
   EnvironmentInfo,
@@ -26,11 +27,13 @@ export class EnvironmentManager {
   private operationListener?: (operation: EnvironmentOperation) => void;
   private processing = false;
   readonly pythonProvider: PythonProvider;
+  readonly javaProvider: JavaProvider;
 
   constructor(options: { userDataPath: string }) {
     this.userDataPath = options.userDataPath;
     this.store = new EnvironmentStore(options.userDataPath);
     this.pythonProvider = new PythonProvider(this.store);
+    this.javaProvider = new JavaProvider(this.store);
     for (const operation of this.store.snapshot.operations) this.operations.set(operation.id, operation);
   }
 
@@ -56,7 +59,12 @@ export class EnvironmentManager {
     let offline = false;
     try {
       const pythonReleases = await this.pythonProvider.fetchReleases();
-      catalog = catalog.map(item => item.provider === 'python' ? { ...item, releases: pythonReleases, refreshedAt } : { ...item, refreshedAt });
+      const javaReleases = await this.javaProvider.fetchReleases();
+      catalog = catalog.map(item => {
+        if (item.provider === 'python') return { ...item, releases: pythonReleases, refreshedAt };
+        if (item.provider === 'jdk') return { ...item, releases: javaReleases, refreshedAt };
+        return { ...item, refreshedAt };
+      });
     } catch {
       offline = true;
       catalog = catalog.map(item => ({ ...item, refreshedAt }));
@@ -114,11 +122,13 @@ export class EnvironmentManager {
       fs.mkdirSync(tempRoot, { recursive: true });
       this.transition(operation, 'running', 'downloading', 10, 'Downloading Python...');
       const installerPath = await this.pythonProvider.downloadArtifact(artifact, tempRoot, percentage => {
+        if (operation.status === 'cancelled') return false;
         this.transition(operation, 'running', 'downloading', percentage ?? 10, `Downloading Python ${plan.version}...`);
         onProgress?.(percentage);
       });
       this.transition(operation, 'running', 'installing', 60, 'Installing Python...');
-      const executable = await this.pythonProvider.installArtifact(artifact, path.join(this.userDataPath, 'python-installs', plan.version), plan.target.projectRoot);
+      const executable = await this.pythonProvider.installArtifact(artifact, path.join(this.userDataPath, 'python-installs', plan.version), installerPath, plan.target.projectRoot);
+      fs.rmSync(installerPath, { force: true });
       if (plan.target.projectRoot) {
         this.transition(operation, 'running', 'configuring', 85, 'Creating project virtual environment...');
         const venvExecutable = await this.pythonProvider.createVenv(executable, plan.target.projectRoot);
@@ -130,7 +140,37 @@ export class EnvironmentManager {
       await this.runCapture(executable, ['--version']);
       this.transition(operation, 'completed', 'completed', 100, `Python ${plan.version} installed successfully.`);
     } catch (error) {
+      if (operation.status === 'cancelled') return operation;
       operation.error = { code: 'PYTHON_INSTALL_FAILED', message: error instanceof Error ? error.message : String(error), recoverable: true };
+      this.transition(operation, 'failed', 'failed', operation.progress.percentage, operation.error.message);
+    }
+    return operation;
+  }
+
+  async startJavaInstall(plan: InstallPlan, onProgress?: (percentage?: number) => void): Promise<EnvironmentOperation> {
+    const operation = this.startInstall(plan);
+    try {
+      const artifact = plan.target.executablePath
+        ? { ...plan.artifact!, url: plan.target.executablePath }
+        : plan.artifact;
+      if (!artifact) throw new Error('Java artifact metadata is missing.');
+      const tempRoot = path.join(this.userDataPath, 'java-install-temp');
+      if (!fs.existsSync(tempRoot)) fs.mkdirSync(tempRoot, { recursive: true });
+      this.transition(operation, 'running', 'downloading', 10, 'Downloading Java...');
+      const installerPath = await this.javaProvider.downloadArtifact(artifact, tempRoot, percentage => {
+        if (operation.status === 'cancelled') return false;
+        this.transition(operation, 'running', 'downloading', percentage ?? 10, `Downloading Java ${plan.version}...`);
+        onProgress?.(percentage);
+      });
+      this.transition(operation, 'running', 'installing', 60, 'Installing Java...');
+      const executable = await this.javaProvider.installArtifact(artifact, path.join(this.userDataPath, 'java-installs'), installerPath, plan.target.projectRoot);
+      fs.rmSync(installerPath, { force: true });
+      this.transition(operation, 'running', 'testing', 95, 'Validating installation...');
+      await this.runCapture(executable, ['-version']);
+      this.transition(operation, 'completed', 'completed', 100, `Java ${plan.version} installed successfully.`);
+    } catch (error) {
+      if (operation.status === 'cancelled') return operation;
+      operation.error = { code: 'JAVA_INSTALL_FAILED', message: error instanceof Error ? error.message : String(error), recoverable: true };
       this.transition(operation, 'failed', 'failed', operation.progress.percentage, operation.error.message);
     }
     return operation;

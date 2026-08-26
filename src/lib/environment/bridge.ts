@@ -11,6 +11,7 @@ export interface EnvironmentBridgeApi {
   previewInstall(input: { provider: string; version: string; scope: EnvironmentTarget['scope']; projectRoot?: string; installRoot?: string; executablePath?: string }): Promise<InstallPlan>;
   startInstall(plan: InstallPlan): Promise<EnvironmentOperation>;
   startPythonInstall(plan: InstallPlan): Promise<EnvironmentOperation>;
+  startJavaInstall(plan: InstallPlan): Promise<EnvironmentOperation>;
   cancelOperation(operationId: string): Promise<boolean>;
   listOperations(): Promise<EnvironmentOperation[]>;
   selectProject(projectRoot: string, target: EnvironmentTarget): Promise<EnvironmentInfo>;

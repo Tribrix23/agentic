@@ -1,0 +1,12 @@
+﻿[
+  {"name": "javafx-controls", "version": "21.0.1", "summary": "JavaFX Controls UI component library.", "projectUrl": "https://openjfx.io/"},
+  {"name": "javafx-fxml", "version": "21.0.1", "summary": "JavaFX FXML markup language parser and runtime.", "projectUrl": "https://openjfx.io/"},
+  {"name": "javafx-graphics", "version": "21.0.1", "summary": "JavaFX Graphics engine.", "projectUrl": "https://openjfx.io/"},
+  {"name": "javafx-media", "version": "21.0.1", "summary": "JavaFX Media playback APIs.", "projectUrl": "https://openjfx.io/"},
+  {"name": "javafx-web", "version": "21.0.1", "summary": "JavaFX WebKit integration.", "projectUrl": "https://openjfx.io/"},
+  {"name": "controlsfx", "version": "11.2.0", "summary": "High quality UI controls and other tools to complement the core JavaFX distribution.", "projectUrl": "https://fxexperience.com/controlsfx/"},
+  {"name": "jfoenix", "version": "9.0.10", "summary": "JavaFX Material Design Library.", "projectUrl": "https://github.com/sshahine/JFoenix"},
+  {"name": "tilesfx", "version": "17.1.31", "summary": "JavaFX Dashboard Widgets.", "projectUrl": "https://github.com/HanSolo/tilesfx"},
+  {"name": "ikonli", "version": "12.3.1", "summary": "Icon packs for Java applications.", "projectUrl": "https://kordamp.org/ikonli/"},
+  {"name": "fxgl", "version": "17.3", "summary": "JavaFX Game Development Framework.", "projectUrl": "https://almasb.github.io/FXGL/"}
+]

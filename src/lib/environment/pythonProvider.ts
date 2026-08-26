@@ -64,17 +64,17 @@ export class PythonProvider {
     };
   }
 
-  async downloadArtifact(artifact: ArtifactDescriptor, targetDirectory: string, onProgress?: (percentage?: number) => void): Promise<string> {
+  async downloadArtifact(artifact: ArtifactDescriptor, targetDirectory: string, onProgress?: (percentage?: number) => boolean | void): Promise<string> {
     const fileName = path.basename(new URL(artifact.url).pathname);
     const targetPath = path.join(targetDirectory, fileName);
     await downloadFile(artifact.url, targetPath, onProgress);
     return targetPath;
   }
 
-  async installArtifact(artifact: ArtifactDescriptor, targetDirectory: string, projectRoot?: string): Promise<string> {
+  async installArtifact(artifact: ArtifactDescriptor, targetDirectory: string, downloadedPath: string, projectRoot?: string): Promise<string> {
     const installRoot = path.join(targetDirectory, `python-${artifact.version}`);
     fs.mkdirSync(installRoot, { recursive: true });
-    const executable = await installPythonExecutable(artifact, installRoot, projectRoot);
+    const executable = await installPythonExecutable(artifact, installRoot, downloadedPath, projectRoot);
     return executable;
   }
 
@@ -235,7 +235,7 @@ function fetchJson(url: string): Promise<any> {
   });
 }
 
-function downloadFile(url: string, targetPath: string, onProgress?: (percentage?: number) => void): Promise<void> {
+function downloadFile(url: string, targetPath: string, onProgress?: (percentage?: number) => boolean | void): Promise<void> {
   return new Promise((resolve, reject) => {
     const client = url.startsWith('https') ? https : http;
     const request = client.get(url, response => {
@@ -251,13 +251,27 @@ function downloadFile(url: string, targetPath: string, onProgress?: (percentage?
         received += chunk.length;
         if (total > 0 && onProgress) {
           const percentage = Math.round((received / total) * 100);
-          onProgress(Math.min(percentage, 100));
+          try {
+            const keepGoing = onProgress(Math.min(percentage, 100));
+            if (keepGoing === false) {
+              response.destroy();
+              fileStream.close();
+              reject(new Error('CANCELLED'));
+              return;
+            }
+          } catch (e) {
+            response.destroy();
+            fileStream.close();
+            reject(e);
+            return;
+          }
         }
       });
       fileStream.on('finish', () => {
-        fileStream.close();
-        onProgress?.(100);
-        resolve();
+        fileStream.close(() => {
+          onProgress?.(100);
+          resolve();
+        });
       });
     });
     request.on('error', reject);
@@ -288,20 +302,17 @@ function runCapture(executable: string, args: string[]): Promise<{ stdout: strin
   });
 }
 
-async function installPythonExecutable(artifact: ArtifactDescriptor, installRoot: string, projectRoot?: string): Promise<string> {
+async function installPythonExecutable(artifact: ArtifactDescriptor, installRoot: string, downloadedPath: string, projectRoot?: string): Promise<string> {
   if (process.platform !== 'win32') throw new Error('Python installation is currently supported on Windows only.');
-  const tempInstaller = path.join(installRoot, 'python-installer.exe');
-  await downloadFile(artifact.url, tempInstaller);
   const executableName = process.arch === 'x64' ? 'python.exe' : 'python.exe';
   const targetExecutable = path.join(installRoot, executableName);
-  await runCommand(tempInstaller, [
+  await runCommand(downloadedPath, [
     '/quiet',
     'InstallAllUsers=1',
     `TargetDir=${installRoot}`,
-    'PrependPath=0',
+    'PrependPath=1',
     'Include_test=0',
     'Include_launcher=1',
   ], projectRoot || process.cwd());
-  fs.rmSync(tempInstaller, { force: true });
   return targetExecutable;
 }

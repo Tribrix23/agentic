@@ -8,6 +8,7 @@ import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 import { PythonEnvironmentTab } from './PythonEnvironmentTab';
+import { JavaEnvironmentTab } from './JavaEnvironmentTab';
 
 self.MonacoEnvironment = {
   getWorker(_, label) {
@@ -415,6 +416,10 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       <div className="flex-1 overflow-hidden bg-[#1e1e1e] relative">
         {activeFilePath === 'ide://python-env' ? (
           <PythonEnvironmentTab projectRoot={projectRoot} />
+        ) : activeFilePath === 'ide://java-env' ? (
+          <JavaEnvironmentTab type="java" />
+        ) : activeFilePath === 'ide://javafx-env' ? (
+          <JavaEnvironmentTab type="javafx" />
         ) : currentLocalContent.startsWith('data:image/') ? (
           <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
             <img src={currentLocalContent} alt={selectedFileName} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />

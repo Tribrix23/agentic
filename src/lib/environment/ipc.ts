@@ -5,7 +5,7 @@ import type { EnvironmentTarget, InstallPlan } from './types';
 
 const CHANNELS = [
   'environment-info', 'environment-catalog', 'environment-refresh', 'environment-scan', 'environment-scan-python',
-  'environment-preview-install', 'environment-start-install', 'environment-start-python-install',
+  'environment-preview-install', 'environment-start-install', 'environment-start-python-install', 'environment-start-java-install',
   'environment-cancel-operation', 'environment-list-operations', 'environment-select-project', 'environment-select-python-project',
   'environment-open-official-link', 'environment-search-python-packages', 'environment-get-python-installed-packages',
   'environment-install-python-package', 'environment-uninstall-python-package', 'environment-get-python-project-manifest',
@@ -22,6 +22,7 @@ export function registerEnvironmentIpc(manager: EnvironmentManager, getWindow: (
   ipcMain.handle('environment-preview-install', (_event, input) => manager.previewInstall(input));
   ipcMain.handle('environment-start-install', (_event, plan: InstallPlan) => manager.startInstall(plan));
   ipcMain.handle('environment-start-python-install', (_event, plan: InstallPlan) => manager.startPythonInstall(plan));
+  ipcMain.handle('environment-start-java-install', (_event, plan: InstallPlan) => manager.startJavaInstall(plan));
   ipcMain.handle('environment-cancel-operation', (_event, operationId: string) => manager.cancel(operationId));
   ipcMain.handle('environment-list-operations', () => manager.getOperations());
   ipcMain.handle('environment-select-project', (_event, projectRoot: string, target: EnvironmentTarget) => {

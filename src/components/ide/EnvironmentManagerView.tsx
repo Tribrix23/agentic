@@ -22,15 +22,21 @@ import type {
   PythonPackage,
 } from '../../lib/environment/types';
 import popularPackagesData from './popularPackages.json';
+import popularJavaPackagesData from './popularJavaPackages.json';
+import popularJavaFXPackagesData from './popularJavaFXPackages.json';
 
 type Tab = 'environments' | 'libraries' | 'manifest';
+
+import { FaJava } from 'react-icons/fa';
 
 interface EnvironmentManagerViewProps {
   projectRoot?: string;
   onOpenPythonTab?: () => void;
+  onOpenJavaTab?: () => void;
+  onOpenJavaFXTab?: () => void;
 }
 
-export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ projectRoot, onOpenPythonTab }) => {
+export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ projectRoot, onOpenPythonTab, onOpenJavaTab, onOpenJavaFXTab }) => {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [installed, setInstalled] = useState<InstalledRuntime[]>([]);
   const [pythonInstalled, setPythonInstalled] = useState<Array<{ version: string; executablePath: string; installRoot: string }>>([]);
@@ -49,8 +55,7 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
   const [selectedProvider, setSelectedProvider] = useState<string>('python');
   const [showProviderDropdown, setShowProviderDropdown] = useState(false);
   
-  // Get unique providers that are actually installed
-  const installedProviders = useMemo(() => Array.from(new Set(installed.map(i => i.provider))), [installed]);
+  const libraryProviders = ['python', 'java', 'javafx'];
 
   const selectedPython = useMemo(() => {
     return installed.find(i => i.provider === selectedProvider && i.source === 'project') || 
@@ -97,7 +102,11 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
     
     // 1. Instant local fuzzy filter
     const queryStr = packageQuery.toLowerCase().trim();
-    let localResults = popularPackagesData as any[];
+    let baseData = popularPackagesData as any[];
+    if (selectedProvider === 'java') baseData = popularJavaPackagesData as any[];
+    if (selectedProvider === 'javafx') baseData = popularJavaFXPackagesData as any[];
+    
+    let localResults = baseData;
     if (queryStr) {
       localResults = localResults.filter(pkg => 
         pkg.name.toLowerCase().includes(queryStr) || 
@@ -114,7 +123,7 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
     setPackages(hydrated);
 
     // 2. Network PyPI fetch for exact name (if query exists) with 150ms debounce
-    if (!queryStr) return;
+    if (!queryStr || selectedProvider !== 'python') return;
     let cancelled = false;
     const timeout = setTimeout(async () => {
       try {
@@ -256,10 +265,22 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
           {error && <div className="p-3 text-xs text-[#f48771] border border-red-500/20 rounded">{error}</div>}
 
           <section className="border border-white/5 rounded bg-black/10">
-            <button onClick={() => onOpenPythonTab && onOpenPythonTab()} className="w-full flex items-center gap-2 p-3 text-left hover:bg-white/5 transition-colors">
+            <button onClick={() => onOpenPythonTab && onOpenPythonTab()} className="w-full flex items-center gap-2 p-3 text-left hover:bg-white/5 transition-colors border-b border-white/5">
               <PythonLogo className="w-8 h-8 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-semibold text-white">Python</div>
+              </div>
+            </button>
+            <button onClick={() => onOpenJavaTab && onOpenJavaTab()} className="w-full flex items-center gap-2 p-3 text-left hover:bg-white/5 transition-colors border-b border-white/5">
+              <FaJava className="w-8 h-8 shrink-0 text-[#f8981d]" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-white">Java</div>
+              </div>
+            </button>
+            <button onClick={() => onOpenJavaFXTab && onOpenJavaFXTab()} className="w-full flex items-center gap-2 p-3 text-left hover:bg-white/5 transition-colors">
+              <FaJava className="w-8 h-8 shrink-0 text-[#5382a1]" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-white">JavaFX</div>
               </div>
             </button>
           </section>
@@ -311,7 +332,7 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
                     transition={{ duration: 0.15 }}
                     className="absolute left-0 top-full mt-1 w-full bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 max-h-60 overflow-y-auto custom-scrollbar"
                   >
-                    {installedProviders.map(p => (
+                    {libraryProviders.map(p => (
                       <button
                         key={p}
                         onClick={() => {
@@ -323,7 +344,7 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
                         {p.charAt(0).toUpperCase() + p.slice(1)}
                       </button>
                     ))}
-                    {installedProviders.length === 0 && (
+                    {libraryProviders.length === 0 && (
                       <div className="px-3 py-2 text-xs text-[#5b5b63]">No runtimes installed</div>
                     )}
                   </motion.div>
@@ -365,9 +386,9 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
                 </div>
                 <div className="flex justify-end gap-1">
                   {packageItem.isInstalled ? (
-                    <button disabled={!selectedPython || operationStatus !== null} onClick={() => void uninstallPackage(packageItem)} className="h-7 px-3 text-[10px] font-semibold bg-white/5 hover:bg-white/10 disabled:opacity-40 rounded flex items-center gap-1"><Trash2 size={12} /> Uninstall</button>
+                    <button disabled={selectedProvider !== 'python' || !selectedPython || operationStatus !== null} onClick={() => void uninstallPackage(packageItem)} className="h-7 px-3 text-[10px] font-semibold bg-white/5 hover:bg-white/10 disabled:opacity-40 rounded flex items-center gap-1"><Trash2 size={12} /> Uninstall</button>
                   ) : (
-                    <button disabled={!selectedPython || operationStatus !== null} onClick={() => void installPackage(packageItem)} className="h-7 px-3 text-[10px] font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded flex items-center gap-1"><Download size={12} /> Install</button>
+                    <button disabled={selectedProvider !== 'python' || !selectedPython || operationStatus !== null} onClick={() => void installPackage(packageItem)} className="h-7 px-3 text-[10px] font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-40 rounded flex items-center gap-1"><Download size={12} /> Install</button>
                   )}
                 </div>
               </div>
