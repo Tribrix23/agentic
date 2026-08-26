@@ -8,6 +8,8 @@ import { McpClientManager } from './lib/mcp/manager';
 import type { McpServerConfig } from './lib/mcp/types';
 import { readFileLineRange } from './lib/fileRangeReader';
 import { assertChildName, assertPathWithinWorkspace } from './lib/workspaceBoundary';
+import { EnvironmentManager } from './lib/environment/manager';
+import { registerEnvironmentIpc } from './lib/environment/ipc';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -204,7 +206,8 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       webSecurity: false,
-      devTools: true
+      devTools: true,
+      webviewTag: true
     },
   });
 
@@ -581,7 +584,17 @@ function createWindow() {
   ipcMain.handle('create-git-checkpoint', async (_event, projectRoot: string, conversationId: string, messageId: string) => {
     let temporaryIndex = '';
     try {
-      const root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
+      let root = '';
+      try {
+        root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
+      } catch (e: any) {
+        if (e.message && e.message.includes('not a git repository')) {
+          await runGit(['init'], projectRoot);
+          root = projectRoot;
+        } else {
+          throw e;
+        }
+      }
       const gitDir = (await runGit(['rev-parse', '--git-dir'], root)).trim();
       const absoluteGitDir = path.isAbsolute(gitDir) ? gitDir : path.join(root, gitDir);
       temporaryIndex = path.join(absoluteGitDir, `quantix-index-${process.pid}-${Date.now()}`);
@@ -619,6 +632,42 @@ function createWindow() {
       return { success: false, error: e.message };
     } finally {
       if (temporaryIndex) fs.rmSync(temporaryIndex, { force: true });
+    }
+  });
+
+  let environmentManager: EnvironmentManager;
+  try {
+    environmentManager = new EnvironmentManager({ userDataPath: app.getPath('userData') });
+    registerEnvironmentIpc(environmentManager, () => mainWindow);
+  } catch (e) {
+    console.error('Failed to initialize EnvironmentManager:', e);
+  }
+
+  ipcMain.handle('get-git-checkpoint-manifest', async (_event, projectRoot: string, commit: string) => {
+    try {
+      const root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
+      const files: Array<{ path: string; status: 'added' | 'modified' | 'deleted' | 'untracked' }> = [];
+      
+      const diffOutput = await runGit(['diff', '--name-status', '-z', commit], root);
+      const diffParts = diffOutput.split('\0').filter(Boolean);
+      for (let i = 0; i < diffParts.length; i += 2) {
+        const statusChar = diffParts[i][0];
+        const filePath = diffParts[i + 1];
+        let status: 'added' | 'modified' | 'deleted' | 'untracked' = 'modified';
+        if (statusChar === 'A') status = 'added';
+        else if (statusChar === 'D') status = 'deleted';
+        files.push({ path: filePath, status });
+      }
+
+      const untrackedOutput = await runGit(['ls-files', '--others', '--exclude-standard', '-z'], root);
+      const untrackedParts = untrackedOutput.split('\0').filter(Boolean);
+      for (const filePath of untrackedParts) {
+        files.push({ path: filePath, status: 'untracked' });
+      }
+
+      return { success: true, files };
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   });
 
@@ -1140,6 +1189,22 @@ function createWindow() {
       }
     } catch (err: any) {
       return { error: err.message || String(err) };
+    }
+  });
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isDevToolsShortcut = 
+      (input.control && input.shift && input.key.toLowerCase() === 'i') || 
+      (input.meta && input.alt && input.key.toLowerCase() === 'i') ||
+      (input.key === 'F12');
+      
+    if (isDevToolsShortcut) {
+      if (mainWindow?.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow?.webContents.openDevTools({ mode: 'detach' });
+      }
+      event.preventDefault();
     }
   });
 

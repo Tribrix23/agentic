@@ -31,7 +31,8 @@ interface ChatContainerProps {
   onConfigChange?: (partial: Partial<AIConfig>) => void;
   pendingToolCall?: any;
   onToolDecision?: (approved: boolean, feedback?: string) => void;
-  onUndoToMessage?: (msgId: string) => void;
+  onUndoToMessage?: (msgId: string) => Promise<boolean> | boolean;
+  conversationId?: string | null;
   pendingAskUser?: { id: string; question: string; options?: string[] } | null;
   onUserResponse?: (response: string) => void;
   inputValue?: string;
@@ -62,6 +63,7 @@ export function ChatContainer({
   pendingToolCall,
   onToolDecision,
   onUndoToMessage,
+  conversationId,
   pendingAskUser,
   onUserResponse,
   inputValue,
@@ -87,6 +89,7 @@ export function ChatContainer({
           onStopAgent={onStopAgent}
           onArtifactClick={onArtifactClick}
           onUndoToMessage={onUndoToMessage}
+          conversationId={conversationId}
         />
       </div>
       <div className="px-4 pb-4 bg-transparent w-full">

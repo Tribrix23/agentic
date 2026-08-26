@@ -1,4 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { GitCheckpointManifestResult, GitCheckpointResult } from './lib/gitCheckpointTypes';
+import type { EnvironmentBridgeApi } from './lib/environment/bridge';
+import type { EnvironmentOperation, PythonDependencyManifest, PythonPackage } from './lib/environment/types';
 
 contextBridge.exposeInMainWorld('electron', {
   windowControls: {
@@ -7,6 +10,31 @@ contextBridge.exposeInMainWorld('electron', {
     close: () => ipcRenderer.send('window-close'),
   },
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
+  environment: {
+    getInfo: (projectRoot?: string) => ipcRenderer.invoke('environment-info', projectRoot),
+    getCatalog: () => ipcRenderer.invoke('environment-catalog'),
+    refreshCatalog: () => ipcRenderer.invoke('environment-refresh'),
+    scanInstalled: (projectRoot?: string) => ipcRenderer.invoke('environment-scan', projectRoot),
+    scanPythonInstalled: () => ipcRenderer.invoke('environment-scan-python'),
+    previewInstall: (input) => ipcRenderer.invoke('environment-preview-install', input),
+    startInstall: (plan) => ipcRenderer.invoke('environment-start-install', plan),
+    startPythonInstall: (plan) => ipcRenderer.invoke('environment-start-python-install', plan),
+    cancelOperation: (operationId: string) => ipcRenderer.invoke('environment-cancel-operation', operationId),
+    listOperations: () => ipcRenderer.invoke('environment-list-operations'),
+    selectProject: (projectRoot, target) => ipcRenderer.invoke('environment-select-project', projectRoot, target),
+    selectPythonProjectEnvironment: (projectRoot, executablePath) => ipcRenderer.invoke('environment-select-python-project', projectRoot, executablePath),
+    openOfficialLink: (url: string) => ipcRenderer.invoke('environment-open-official-link', url),
+    searchPythonPackages: (query: string) => ipcRenderer.invoke('environment-search-python-packages', query),
+    getPythonInstalledPackages: (projectRoot: string) => ipcRenderer.invoke('environment-get-python-installed-packages', projectRoot),
+    installPythonPackage: (pythonExecutable, packageName, projectRoot) => ipcRenderer.invoke('environment-install-python-package', pythonExecutable, packageName, projectRoot),
+    uninstallPythonPackage: (pythonExecutable, packageName, projectRoot) => ipcRenderer.invoke('environment-uninstall-python-package', pythonExecutable, packageName, projectRoot),
+    getPythonProjectManifest: (projectRoot: string) => ipcRenderer.invoke('environment-get-python-project-manifest', projectRoot),
+    onProgress: (callback: (operation: EnvironmentOperation) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, operation: EnvironmentOperation) => callback(operation);
+      ipcRenderer.on('environment-operation-progress', listener);
+      return () => ipcRenderer.removeListener('environment-operation-progress', listener);
+    },
+  } satisfies EnvironmentBridgeApi,
   mcp: {
     addServer: (config: any) => ipcRenderer.invoke('mcp-add-server', config),
     removeServer: (id: string) => ipcRenderer.invoke('mcp-remove-server', id),
@@ -30,7 +58,9 @@ contextBridge.exposeInMainWorld('electron', {
   getRecentProjects: () => ipcRenderer.invoke('get-recent-projects'),
   startTerminal: (cwd: string) => ipcRenderer.invoke('start-terminal', cwd),
   onTerminalData: (callback: (data: string) => void) => {
-    ipcRenderer.on('terminal-data', (_event, data) => callback(data));
+    const listener = (_event: Electron.IpcRendererEvent, data: string) => callback(data);
+    ipcRenderer.on('terminal-data', listener);
+    return () => ipcRenderer.removeListener('terminal-data', listener);
   },
   sendTerminalData: (data: string) => ipcRenderer.invoke('send-terminal-data', data),
   resizeTerminal: (cols: number, rows: number) => ipcRenderer.invoke('resize-terminal', { cols, rows }),
@@ -44,13 +74,14 @@ contextBridge.exposeInMainWorld('electron', {
   stopLiveServer: () => ipcRenderer.invoke('stop-live-server'),
   checkLiveServer: () => ipcRenderer.invoke('check-live-server'),
   runCodeFile: (filePath: string, cwd: string) => ipcRenderer.invoke('run-code-file', filePath, cwd),
-  validateCode: (filePath: string, content: string) => ipcRenderer.invoke('validate-code', filePath, content),
+  validateCode: (filePath: string, content: string, projectRoot?: string) => ipcRenderer.invoke('validate-code', filePath, content, projectRoot),
   showItemInFolder: (path: string) => ipcRenderer.send('show-item-in-folder', path),
   renameFile: (oldPath: string, newPath: string, projectRoot?: string) => ipcRenderer.invoke('rename-file', oldPath, newPath, projectRoot),
   deleteFile: (path: string, projectRoot?: string) => ipcRenderer.invoke('delete-file', path, projectRoot),
   backupPath: (sourcePath: string, projectRoot: string) => ipcRenderer.invoke('backup-path', sourcePath, projectRoot),
   restorePath: (backupPath: string, targetPath: string, projectRoot?: string) => ipcRenderer.invoke('restore-path', backupPath, targetPath, projectRoot),
-  createGitCheckpoint: (projectRoot: string, conversationId: string, messageId: string) => ipcRenderer.invoke('create-git-checkpoint', projectRoot, conversationId, messageId),
+  createGitCheckpoint: (projectRoot: string, conversationId: string, messageId: string): Promise<GitCheckpointResult> => ipcRenderer.invoke('create-git-checkpoint', projectRoot, conversationId, messageId),
+  getGitCheckpointManifest: (projectRoot: string, commit: string): Promise<GitCheckpointManifestResult> => ipcRenderer.invoke('get-git-checkpoint-manifest', projectRoot, commit),
   restoreGitCheckpoint: (projectRoot: string, commit: string) => ipcRenderer.invoke('restore-git-checkpoint', projectRoot, commit),
   createFile: (parentPath: string, fileName: string, projectRoot?: string) => ipcRenderer.invoke('create-file', parentPath, fileName, projectRoot),
   createFolder: (parentPath: string, folderName: string, projectRoot?: string) => ipcRenderer.invoke('create-folder', parentPath, folderName, projectRoot),

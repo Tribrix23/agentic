@@ -45,20 +45,20 @@ export const TerminalWidget: React.FC<TerminalWidgetProps> = ({ cwd }) => {
     fitAddonRef.current = fitAddon;
 
     // Connect to node-pty
-    (window as any).electron.startTerminal(cwd);
+    window.electron.startTerminal(cwd);
 
     const onData = (data: string) => {
       term.write(data);
     };
 
-    (window as any).electron.onTerminalData(onData);
+    const removeTerminalDataListener = window.electron.onTerminalData(onData);
 
     term.onData((data) => {
-      (window as any).electron.sendTerminalData(data);
+      window.electron.sendTerminalData(data);
     });
 
     term.onResize((size) => {
-      (window as any).electron.resizeTerminal(size.cols, size.rows);
+      window.electron.resizeTerminal(size.cols, size.rows);
     });
 
     const resizeObserver = new ResizeObserver(() => {
@@ -68,7 +68,8 @@ export const TerminalWidget: React.FC<TerminalWidgetProps> = ({ cwd }) => {
 
     return () => {
       resizeObserver.disconnect();
-      (window as any).electron.killTerminal();
+      removeTerminalDataListener();
+      window.electron.killTerminal();
       term.dispose();
     };
   }, [cwd]);

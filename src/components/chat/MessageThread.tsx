@@ -15,7 +15,8 @@ interface MessageThreadProps {
   agentIteration?: number;
   onStopAgent?: () => void;
   onArtifactClick?: (path: string) => void;
-  onUndoToMessage?: (msgId: string) => void;
+  onUndoToMessage?: (msgId: string) => Promise<boolean> | boolean;
+  conversationId?: string | null;
 }
 
 export function MessageThread({ 
@@ -27,7 +28,8 @@ export function MessageThread({
   agentIteration,
   onStopAgent,
   onArtifactClick,
-  onUndoToMessage
+  onUndoToMessage,
+  conversationId
 }: MessageThreadProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -83,6 +85,7 @@ export function MessageThread({
             key={group.messages[0]?.id || `working-group-${idx}`} 
             messages={group.messages} 
             allMessages={messages}
+            conversationId={conversationId}
             onApproveToolCall={onApproveToolCall}
             onRejectToolCall={onRejectToolCall}
             isLatest={idx === displayGroups.length - 1}

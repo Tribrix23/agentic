@@ -94,3 +94,5 @@ out/
 .devin/
 
 .kilo/
+
+__tests__/

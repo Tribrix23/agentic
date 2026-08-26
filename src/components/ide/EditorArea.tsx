@@ -7,6 +7,7 @@ import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
 import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+import { PythonEnvironmentTab } from './PythonEnvironmentTab';
 
 self.MonacoEnvironment = {
   getWorker(_, label) {
@@ -190,7 +191,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       const model = editorRef.current?.getModel();
       if (!model || model.uri.path.toLowerCase().endsWith(selectedFileName.toLowerCase()) === false) return;
       try {
-        const result = await (window as any).electron.validateCode(activeFilePath, currentLocalContent);
+        const result = await window.electron.validateCode(activeFilePath, currentLocalContent, projectRoot);
         const markers: monaco.editor.IMarkerData[] = (result.diagnostics || []).map((diagnostic: any) => ({
           severity: monaco.MarkerSeverity.Error,
           message: diagnostic.message,
@@ -412,7 +413,9 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
       </div>
 
       <div className="flex-1 overflow-hidden bg-[#1e1e1e] relative">
-        {currentLocalContent.startsWith('data:image/') ? (
+        {activeFilePath === 'ide://python-env' ? (
+          <PythonEnvironmentTab projectRoot={projectRoot} />
+        ) : currentLocalContent.startsWith('data:image/') ? (
           <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
             <img src={currentLocalContent} alt={selectedFileName} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
           </div>

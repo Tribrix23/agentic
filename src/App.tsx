@@ -226,6 +226,10 @@ const App = () => {
       setCurrentConversationId(e.detail?.id || null);
     };
     window.addEventListener('conversation-started', handleConversationStarted);
+    const handleProjectRestore = (e: CustomEvent) => {
+      if (!e.detail?.conversationId || e.detail.conversationId === currentConversationId) setFilesChanged([]);
+    };
+    window.addEventListener('project-files-restored', handleProjectRestore as any);
 
     return () => {
       window.removeEventListener('open-right-sidebar', handleOpenRightSidebar);
@@ -236,6 +240,7 @@ const App = () => {
       window.removeEventListener('load-conversation', handleConversationLoad);
       window.removeEventListener('new-conversation', handleNewConversation);
       window.removeEventListener('conversation-started', handleConversationStarted);
+      window.removeEventListener('project-files-restored', handleProjectRestore as any);
     };
   }, [currentConversationId]);
 

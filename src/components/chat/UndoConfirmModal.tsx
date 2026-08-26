@@ -17,9 +17,11 @@ interface UndoConfirmModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   hasCheckpoint?: boolean;
+  checkpointError?: boolean;
+  error?: string;
 }
 
-export function UndoConfirmModal({ isOpen, changes, onConfirm, onCancel, hasCheckpoint = false }: UndoConfirmModalProps) {
+export function UndoConfirmModal({ isOpen, changes, onConfirm, onCancel, hasCheckpoint = false, checkpointError = false, error }: UndoConfirmModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -61,14 +63,15 @@ export function UndoConfirmModal({ isOpen, changes, onConfirm, onCancel, hasChec
             <div className="px-5 pb-5 flex flex-col gap-4">
               <p className="text-sm text-white/50 leading-relaxed">
                 {changes.length === 0 
-                  ? hasCheckpoint ? "Confirming this undo action will remove this and all subsequent messages, then restore the complete project checkpoint." : "Confirming this undo action will remove this and all subsequent messages. No file changes will be reverted."
+                  ? hasCheckpoint ? "Confirming this undo action will remove this and all subsequent messages, then restore the complete project checkpoint." : checkpointError ? "The project checkpoint was unavailable, so this undo can only remove the messages." : "Confirming this undo action will remove this and all subsequent messages. No file changes will be reverted."
                   : "Confirming this undo action will remove this and all subsequent messages, and revert the following file changes:"}
               </p>
+              {error && <p className="text-xs text-red-400">{error}</p>}
 
               {/* File list */}
               <div className="flex flex-col gap-1.5 bg-[#0f0f13] border border-white/5 rounded-lg p-3">
                 {changes.length === 0 ? (
-                  <p className="text-xs text-white/30 text-center py-2">{hasCheckpoint ? 'Complete Git checkpoint will be restored' : 'No file changes to undo'}</p>
+                  <p className="text-xs text-white/30 text-center py-2">{hasCheckpoint ? 'Complete Git checkpoint will be restored' : checkpointError ? 'File restoration unavailable' : 'No file changes to undo'}</p>
                 ) : (
                   changes.map((c, i) => {
                     const filename = c.path.split(/[/\\]/).pop() || c.path;

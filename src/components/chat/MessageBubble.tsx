@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AgenticMessage } from '../../lib/messageTypes';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { Copy, Undo2, ChevronRight, ChevronDown, FileCode, Download, Check } from 'lucide-react';
@@ -6,7 +6,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AgentProgressCard, AgentStep } from './AgentProgressCard';
 import { AgentStepsGroup } from './AgentStepsGroup';
 import { UndoConfirmModal, UndoFileChange } from './UndoConfirmModal';
-import { getSnapshot, getSnapshotsFrom } from '../../lib/snapshotStore';
+import { getSnapshotForMessage, getSnapshotsFrom } from '../../lib/snapshotStore';
+import { checkpointChangesToUndoChanges, legacySnapshotsToUndoChanges } from '../../lib/undoModalData';
+import type { GitCheckpointManifestResult } from '../../lib/gitCheckpointTypes';
 import { FileIcon } from './FileIcon';
 import { getReviewArtifacts, isAgentWaiting, isAgentWorking } from '../../lib/agentPresentation';
 import type { AgentState } from '../../lib/types/AgentTypes';
@@ -25,7 +27,8 @@ interface MessageBubbleProps {
   onArtifactClick?: (path: string) => void;
   // All messages in the thread so undo can look at subsequent assistant messages
   allMessages?: AgenticMessage[];
-  onUndoToMessage?: (msgId: string) => void;
+  conversationId?: string | null;
+  onUndoToMessage?: (msgId: string) => Promise<boolean> | boolean;
 }
 
 export function MessageBubble({
@@ -39,11 +42,46 @@ export function MessageBubble({
   onStopAgent,
   onArtifactClick,
   allMessages,
+  conversationId,
   onUndoToMessage
 }: MessageBubbleProps) {
   const [showUndoModal, setShowUndoModal] = useState(false);
+  const [checkpointChanges, setCheckpointChanges] = useState<UndoFileChange[] | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isImageCopied, setIsImageCopied] = useState(false);
+
+  const firstMessage = messages[0];
+  const isUser = firstMessage?.role === 'user';
+
+  useEffect(() => {
+    if (showUndoModal) setUndoError(null);
+  }, [showUndoModal]);
+
+  useEffect(() => {
+    if (!showUndoModal || !isUser || !conversationId || !firstMessage) return;
+    let cancelled = false;
+    const snapshot = getSnapshotForMessage(conversationId, firstMessage.id);
+    if (!snapshot) {
+      setCheckpointChanges([]);
+      return;
+    }
+    if (!snapshot.gitCheckpoint) {
+      setCheckpointChanges(legacySnapshotsToUndoChanges(getSnapshotsFrom(conversationId, firstMessage.id)));
+      return;
+    }
+    setCheckpointChanges(snapshot.checkpointManifest ? checkpointChangesToUndoChanges(snapshot.checkpointManifest) : null);
+    (async () => {
+      const result = await (window as any).electron?.getGitCheckpointManifest?.(snapshot.projectPath, snapshot.gitCheckpoint) as GitCheckpointManifestResult | undefined;
+      if (cancelled || !result) return;
+      if (result.success && result.changes) {
+        setCheckpointChanges(checkpointChangesToUndoChanges(result.changes));
+      } else if (!snapshot.checkpointManifest) {
+        setCheckpointChanges([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showUndoModal, isUser, conversationId, firstMessage?.id]);
 
   if (!messages || messages.length === 0) {
     // If there are no messages (e.g. dummy group to keep Working accordion visible)
@@ -77,8 +115,6 @@ export function MessageBubble({
     );
   }
 
-  const isUser = messages[0].role === 'user';
-  const firstMessage = messages[0];
   const lastMessage = messages[messages.length - 1];
 
   const isWorking = !isUser && isLatest && isAgentWorking(agentState);
@@ -548,42 +584,21 @@ export function MessageBubble({
 
       {/* Undo Confirmation Modal */}
       {isUser && (() => {
-        // Pull file changes from the persistent snapshot store for this and all subsequent turns
-        let fileChanges: UndoFileChange[] = [];
-        const initialSnapshot = getSnapshot(firstMessage.id);
-        if (initialSnapshot?.conversationId) {
-          const snapshots = getSnapshotsFrom(initialSnapshot.conversationId, firstMessage.id);
-          snapshots.forEach(s => {
-            s.files.forEach(f => {
-              const existing = fileChanges.find(c => c.path === f.path);
-              if (!existing) {
-                const fc = f as any;
-                let added: number | undefined;
-                let removed: number | undefined;
-                // For file_modify: snapshot content is the OLD content that will be restored.
-                // removed = lines in current (new) state; added = lines in old (snapshot) state.
-                // We only have snapshot content here, so we show the lines being restored.
-                if (fc.type === 'file_modify' && fc.content) {
-                  const oldLines = String(fc.content).split('\n').length;
-                  // We don't have current content here, so show old line count as what will be restored
-                  added = oldLines;
-                }
-                fileChanges.push({ path: f.path, type: fc.type, added, removed });
-              }
-            });
-          });
-        }
+        const initialSnapshot = conversationId ? getSnapshotForMessage(conversationId, firstMessage.id) : undefined;
+        const fileChanges = checkpointChanges ?? [];
 
         return (
           <UndoConfirmModal
             isOpen={showUndoModal}
             changes={fileChanges}
             hasCheckpoint={Boolean(initialSnapshot?.gitCheckpoint)}
+            checkpointError={Boolean(initialSnapshot?.checkpointError && !initialSnapshot?.gitCheckpoint)}
+            error={undoError || undefined}
             onCancel={() => setShowUndoModal(false)}
             onConfirm={async () => {
-              setShowUndoModal(false);
-              // Delegate everything (file restore + UI reset) to parent
-              onUndoToMessage?.(firstMessage.id);
+              const success = await onUndoToMessage?.(firstMessage.id);
+              if (success === false) setUndoError('Unable to restore the checkpoint. No messages or snapshots were removed.');
+              else setShowUndoModal(false);
             }}
           />
         );

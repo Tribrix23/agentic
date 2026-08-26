@@ -2,6 +2,8 @@
 // Snapshot Store — Captures file state before each agent turn for undo support
 // ============================================================================
 
+import type { CheckpointChange } from './gitCheckpointTypes';
+
 export interface FileSnapshot {
   type: 'file_modify' | 'file_create' | 'folder_create' | 'rename' | 'file_delete' | 'folder_delete';
   path: string;
@@ -17,6 +19,9 @@ export interface TurnSnapshot {
   projectPath: string;
   gitCheckpoint?: string;
   gitRef?: string;
+  checkpointManifest?: CheckpointChange[];
+  checkpointError?: string;
+  checkpointManifestCapturedAt?: number;
   files: FileSnapshot[];     // files captured BEFORE this turn's edits
 }
 
@@ -70,6 +75,22 @@ export function getSnapshot(userMessageId: string): TurnSnapshot | undefined {
   return loadAll().find(s => s.userMessageId === userMessageId);
 }
 
+export function getSnapshotForMessage(conversationId: string, userMessageId: string): TurnSnapshot | undefined {
+  return loadAll().find(s => s.conversationId === conversationId && s.userMessageId === userMessageId);
+}
+
+export function updateSnapshot(
+  conversationId: string,
+  userMessageId: string,
+  updates: Partial<Pick<TurnSnapshot, 'checkpointManifest' | 'checkpointError' | 'checkpointManifestCapturedAt'>>,
+): void {
+  const all = loadAll();
+  const entry = all.find(s => s.conversationId === conversationId && s.userMessageId === userMessageId);
+  if (!entry) return;
+  Object.assign(entry, updates);
+  saveAll(all);
+}
+
 /** Delete all snapshots for a conversation (call after deleting conversation). */
 export function deleteConversationSnapshots(conversationId: string): void {
   const filtered = loadAll().filter(s => s.conversationId !== conversationId);
@@ -83,5 +104,5 @@ export function deleteSnapshotsFrom(conversationId: string, fromUserMessageId: s
   const fromIdx = convSnapshots.findIndex(s => s.userMessageId === fromUserMessageId);
   if (fromIdx === -1) return;
   const toDelete = new Set(convSnapshots.slice(fromIdx).map(s => s.userMessageId));
-  saveAll(all.filter(s => !toDelete.has(s.userMessageId)));
+  saveAll(all.filter(s => s.conversationId !== conversationId || !toDelete.has(s.userMessageId)));
 }

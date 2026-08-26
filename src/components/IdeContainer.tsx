@@ -5,6 +5,8 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { TitleBar } from './TitleBar';
 import { EditorArea } from './ide/EditorArea';
 import { ActivityBar } from './ide/ActivityBar';
+import { EnvironmentManagerView } from './ide/EnvironmentManagerView';
+import { EnvironmentTaskStatusBar } from './ide/EnvironmentTaskStatusBar';
 import { ContextMenu, ContextMenuItem } from './ide/ContextMenu';
 import { TerminalWidget } from './ide/TerminalWidget';
 import { SourceControl } from './ide/SourceControl';
@@ -227,7 +229,7 @@ const BottomPanel: React.FC<{
 
 export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
-  const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'source-control'>('explorer');
+  const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'source-control' | 'environment'>('explorer');
   const [activeProject, setActiveProject] = useState<ProjectFolder | null>(() => {
     const saved = localStorage.getItem('quantix_active_project');
     return saved ? JSON.parse(saved) : null;
@@ -392,6 +394,12 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
 
   useEffect(() => {
     fetchProjectFiles();
+  }, [activeProject]);
+
+  useEffect(() => {
+    const handleRestore = () => { fetchProjectFiles(); };
+    window.addEventListener('project-files-restored', handleRestore);
+    return () => window.removeEventListener('project-files-restored', handleRestore);
   }, [activeProject]);
 
   const handleMoveFile = async (sourcePath: string, targetDirPath: string, isUndoRedo = false) => {
@@ -811,7 +819,7 @@ const handleSkip = () => {
             )}
           </div>
             </>
-          ) : (
+          ) : activeSidebarView === 'source-control' ? (
             <SourceControl 
               projectPath={activeProject?.path} 
               gitStatusMap={gitStatusMap}
@@ -828,6 +836,21 @@ const handleSkip = () => {
                   }
                 }));
                 setOpenFiles(newOpenFiles);
+              }}
+            />
+          ) : (
+            <EnvironmentManagerView 
+              projectRoot={activeProject?.path} 
+              onOpenPythonTab={() => {
+                const path = 'ide://python-env';
+                if (!openFiles.find(f => f.path === path)) {
+                  setOpenFiles(prev => [...prev, {
+                    path,
+                    name: 'Python',
+                    originalContent: ''
+                  }]);
+                }
+                setActiveFilePath(path);
               }}
             />
           )}
@@ -928,6 +951,8 @@ const handleSkip = () => {
           )}
         </div>
       </div>
+
+      <EnvironmentTaskStatusBar />
 
       {/* Persistent Live Server Indicator */}
       <AnimatePresence>

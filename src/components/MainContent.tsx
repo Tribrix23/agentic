@@ -28,7 +28,7 @@ import { saveMessages, loadMessages } from '../lib/conversationStore';
 import { updateTask, getTask } from '../lib/taskStore';
 import { useAgentLoop } from '../hooks/useAgentLoop';
 import { AgentState } from '../lib/types/AgentTypes';
-import { saveSnapshot, getSnapshot, getSnapshotsFrom, deleteSnapshotsFrom } from '../lib/snapshotStore';
+import { saveSnapshot, getSnapshotForMessage, getSnapshotsFrom, deleteSnapshotsFrom, updateSnapshot } from '../lib/snapshotStore';
 import { isQuotaError, TokenBillingSession } from '../lib/tokenQuota';
 import { SubagentManager } from '../lib/agent/subagentManager';
 import { resultFromChildMessages } from '../lib/agent/subagentResult';
@@ -137,6 +137,18 @@ export const MainContent = ({
       setAiConfigState(getAIConfig(selectedProject.path));
     }
   }, [selectedProject?.path]);
+
+  useEffect(() => {
+    const handleRestore = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string }>).detail;
+      if (detail?.conversationId !== activeConversationId || !selectedProject?.path) return;
+      (window as any).electron?.readProjectFiles?.(selectedProject.path)
+        .then((files: any[]) => setProjectFiles(files || []))
+        .catch(() => setProjectFiles([]));
+    };
+    window.addEventListener('project-files-restored', handleRestore);
+    return () => window.removeEventListener('project-files-restored', handleRestore);
+  }, [activeConversationId, selectedProject?.path]);
 
   // ── Listen for config changes ────────────────────────────────────────
   useEffect(() => {
@@ -1083,6 +1095,9 @@ IMPORTANT RULES:
       const checkpoint = projectPath
         ? await (window as any).electron?.createGitCheckpoint(projectPath, convId, userMsg.id)
         : null;
+      if (projectPath && !checkpoint?.success) {
+        console.error('[undo] Git checkpoint creation failed', { projectPath, conversationId: convId, userMessageId: userMsg.id, error: checkpoint?.error });
+      }
       saveSnapshot({
         userMessageId: userMsg.id,
         conversationId: convId,
@@ -1090,6 +1105,7 @@ IMPORTANT RULES:
         projectPath,
         gitCheckpoint: checkpoint?.success ? checkpoint.commit : undefined,
         gitRef: checkpoint?.success ? checkpoint.ref : undefined,
+        checkpointError: checkpoint?.success ? undefined : checkpoint?.error || (projectPath ? 'Git checkpoint unavailable' : undefined),
         files: [],
       });
     }
@@ -1175,7 +1191,7 @@ IMPORTANT RULES:
       agentLoopRef.current.updateConfig(runConfig);
 
       try {
-        await agentLoopRef.current.run(allMessages.map((m, idx) => {
+         await agentLoopRef.current.run(allMessages.map((m, idx) => {
           const mapped = { ...m, role: m.role as any };
           // The UI bubble shows "Execute Implementation Plan" as a friendly label,
           // but the model must receive the full detailed instruction so it knows
@@ -1190,9 +1206,23 @@ IMPORTANT RULES:
           } else if (idx === allMessages.length - 1 && executionPlanInstruction && m.role === 'user') {
             mapped.content = executionPlanInstruction;
           }
-          return mapped;
-        }));
-      } catch (e) {
+           return mapped;
+         }));
+         const completedSnapshot = convId ? getSnapshotForMessage(convId, userMsg.id) : undefined;
+         if (completedSnapshot?.gitCheckpoint && completedSnapshot.projectPath) {
+           const manifest = await (window as any).electron?.getGitCheckpointManifest?.(
+             completedSnapshot.projectPath,
+             completedSnapshot.gitCheckpoint,
+           );
+           if (manifest?.success) {
+             updateSnapshot(convId, userMsg.id, {
+               checkpointManifest: manifest.changes || [],
+               checkpointManifestCapturedAt: Date.now(),
+               checkpointError: undefined,
+             });
+           }
+         }
+       } catch (e) {
         console.error('Agent loop failed:', e);
       }
     }
@@ -1560,7 +1590,8 @@ IMPORTANT RULES:
                 agentIteration={agentIteration}
                 agentState={agentState}
                 tokenBudget={tokenBudget}
-                config={aiConfig}
+                 config={aiConfig}
+                 conversationId={activeConversationId}
                 projectFiles={projectFiles}
                 onConfigChange={(partial) => {
                   const updated = setAIConfig(partial, selectedProject?.path);
@@ -1573,7 +1604,7 @@ IMPORTANT RULES:
                 }}
                 pendingToolCall={pendingToolCall}
                 onToolDecision={handleToolDecision}
-                onUndoToMessage={async (msgId: string) => {
+                 onUndoToMessage={async (msgId: string) => {
                   // ── 0. Stop the agent if it's currently running
                   if (isAgentRunning) {
                     handleStopAgent();
@@ -1598,50 +1629,54 @@ IMPORTANT RULES:
 
                   // ── 2. Restore the pre-turn Git checkpoint. Older conversations
                   // and non-Git projects continue to use the legacy inverse log.
-                  if (convId) {
-                    const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
-                    const targetSnapshot = snapshotsToUndo[snapshotsToUndo.length - 1];
-                    if (targetSnapshot?.gitCheckpoint && targetSnapshot.projectPath) {
+                   if (convId) {
+                     const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
+                     const targetSnapshot = getSnapshotForMessage(convId, msgId);
+                     let restoreSucceeded = true;
+                     if (targetSnapshot?.gitCheckpoint && targetSnapshot.projectPath) {
                       const restoreResult = await (window as any).electron?.restoreGitCheckpoint(
                         targetSnapshot.projectPath,
                         targetSnapshot.gitCheckpoint,
                       );
-                      if (!restoreResult?.success) {
-                        console.error('[undo] Git checkpoint restore failed:', restoreResult?.error);
-                        return;
-                      }
-                      } else for (const snapshot of snapshotsToUndo) {
-                        const snapshotProjectRoot = snapshot.projectPath || selectedProject?.path || '';
-                      // Reverse the files in the snapshot so we undo them in reverse order
-                      for (const file of [...snapshot.files].reverse()) {
-                        try {
-                          const f = file as any; // For backward compatibility with old snapshots
-                          if (!f.type) {
-                            if (f.content !== undefined && f.content !== null) {
-                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
-                            }
-                            continue;
-                          }
+                       if (!restoreResult?.success) {
+                         console.error('[undo] Git checkpoint restore failed:', restoreResult?.error);
+                         return false;
+                       }
+                     } else {
+                       for (const snapshot of snapshotsToUndo) {
+                         const snapshotProjectRoot = snapshot.projectPath || selectedProject?.path || '';
+                         for (const file of [...snapshot.files].reverse()) {
+                           const f = file as any; // For backward compatibility with old snapshots
+                           if (!f.type) {
+                             if (f.content !== undefined && f.content !== null) {
+                               const result = await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
+                               if (!result?.success) restoreSucceeded = false;
+                             }
+                             continue;
+                           }
 
-                          if (f.type === 'file_create' || f.type === 'folder_create') {
-                            await (window as any).electron?.deleteFile(f.path, snapshotProjectRoot);
-                          } else if (f.type === 'rename') {
-                            await (window as any).electron?.renameFile(f.path, f.oldPath, snapshotProjectRoot);
-                          } else if (f.type === 'file_modify') {
-                            if (f.content !== undefined && f.content !== null) {
-                              await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
-                            }
-                          } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
-                            if (f.backupPath) {
-                              await (window as any).electron?.restorePath(f.backupPath, f.path, snapshotProjectRoot);
-                            }
-                          }
-                        } catch (e) {
-                          console.error('[undo] Failed to reverse action for file:', file.path, e);
-                        }
-                      }
-                    }
-                  }
+                           if (f.type === 'file_create' || f.type === 'folder_create') {
+                             const result = await (window as any).electron?.deleteFile(f.path, snapshotProjectRoot);
+                             if (!result?.success) restoreSucceeded = false;
+                           } else if (f.type === 'rename') {
+                             const result = await (window as any).electron?.renameFile(f.path, f.oldPath, snapshotProjectRoot);
+                             if (!result?.success) restoreSucceeded = false;
+                           } else if (f.type === 'file_modify') {
+                             if (f.content !== undefined && f.content !== null) {
+                               const result = await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
+                               if (!result?.success) restoreSucceeded = false;
+                             }
+                           } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
+                             if (f.backupPath) {
+                               const result = await (window as any).electron?.restorePath(f.backupPath, f.path, snapshotProjectRoot);
+                               if (!result?.success) restoreSucceeded = false;
+                             }
+                           }
+                         }
+                       }
+                     }
+                     if (!restoreSucceeded) return false;
+                   }
 
                   // ── 3. Delete snapshots from this turn onward
                   if (convId) {
@@ -1688,9 +1723,11 @@ IMPORTANT RULES:
                     }
                    });
                    if (isUndoingFirstMessage) {
-                     window.dispatchEvent(new Event('conversationsUpdated'));
+                      window.dispatchEvent(new Event('conversationsUpdated'));
                    }
-                }}
+                   window.dispatchEvent(new CustomEvent('project-files-restored', { detail: { conversationId: convId } }));
+                   return true;
+                 }}
                 pendingAskUser={pendingAskUser}
                 onUserResponse={handleUserResponse}
                 inputValue={inputValue}

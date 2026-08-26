@@ -1,7 +1,7 @@
 import { ToolCall, ToolResult, ToolContext } from './types';
 import { getTool } from './registry';
 import { checkPermission, PermissionConfig } from '../permissions';
-import { addFileToSnapshot, getSnapshot } from '../snapshotStore';
+import { addFileToSnapshot, getSnapshotForMessage } from '../snapshotStore';
 import { withFileWriteLock } from '../fileWriteQueue';
 import { isSequentialThinkingTool, normalizeSequentialThinkingArguments } from '../sequentialThinking';
 import { artifactStore } from './artifactStore';
@@ -98,7 +98,9 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     // ── Snapshot: capture inverse actions BEFORE tool execution ───────────────────
     const userMessageId = context.userMessageId;
     if (userMessageId) {
-      const turnSnapshot = getSnapshot(userMessageId);
+      const turnSnapshot = context.conversationId
+        ? getSnapshotForMessage(context.conversationId, userMessageId)
+        : undefined;
       const usesGitCheckpoint = Boolean(turnSnapshot?.gitCheckpoint);
       const getFullPath = (p: string) => {
         if (!p) return '';

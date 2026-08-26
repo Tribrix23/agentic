@@ -267,6 +267,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'Fast responses, large context window',
   },
   'Dispatcher v1.2': {
@@ -275,6 +276,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'Balanced speed and capability',
   },
 
@@ -284,6 +286,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'GPT-5.6 Luna with native and text-fallback tool calling',
   },
   'GPT-5.6 Terra': {
@@ -292,6 +295,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'GPT-5.6 Terra with native and text-fallback tool calling',
   },
   'GPT-5.6 Sol': {
@@ -300,6 +304,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'GPT-5.6 Sol with native and text-fallback tool calling',
   },
   'Qwen 3.8': {
@@ -308,6 +313,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'Qwen 3.8 - Pro+ Model',
   },
   'DeepSeek v4 Flash': {
@@ -316,6 +322,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'DeepSeek v4 Flash - fast and efficient',
   },
   'DeepSeek v4 Pro': {
@@ -324,6 +331,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'DeepSeek v4 Pro - most capable',
   },
   'Kimi k2.7': {
@@ -332,6 +340,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'Kimi k2.7 - Moonshot AI',
   },
   'GLM 5.2': {
@@ -340,6 +349,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'GLM 5.2 - Zhipu AI',
   },
   'GLM 5.2 Lite': {
@@ -348,6 +358,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
+    supportsVision: false,
     description: 'GLM 5.2 Lite - Zhipu AI',
   },
 };
