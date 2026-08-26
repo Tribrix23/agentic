@@ -87,7 +87,7 @@ export class EnvironmentManager {
       }
     }
     try {
-      const pythonInstalled = await this.pythonProvider.scanInstalled();
+      const pythonInstalled = await this.scanPythonInstalled();
       for (const item of pythonInstalled) {
         if (!installed.some(existing => existing.executablePath === item.executablePath)) {
           installed.push({ provider: 'python', version: item.version, executablePath: item.executablePath, source: 'path' });
@@ -148,11 +148,47 @@ export class EnvironmentManager {
   }
 
   async installPythonPackage(pythonExecutable: string, packageName: string, projectRoot: string): Promise<void> {
-    await this.pythonProvider.installPackage(pythonExecutable, packageName, projectRoot);
+    const now = new Date().toISOString();
+    const operation: EnvironmentOperation = {
+      id: `operation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      planId: `install-${packageName}`, provider: 'python', version: packageName, status: 'running', phase: 'installing',
+      createdAt: now, updatedAt: now, progress: { message: `Installing ${packageName}...`, percentage: 50 },
+      resumable: false, projectRoot,
+    };
+    this.operations.set(operation.id, operation);
+    this.store.saveOperation(operation);
+    this.operationListener?.({ ...operation, progress: { ...operation.progress } });
+
+    try {
+      await this.pythonProvider.installPackage(pythonExecutable, packageName, projectRoot);
+      this.transition(operation, 'completed', 'completed', 100, `Successfully installed ${packageName}.`);
+    } catch (error) {
+      operation.error = { code: 'INSTALL_FAILED', message: error instanceof Error ? error.message : String(error), recoverable: false };
+      this.transition(operation, 'failed', 'failed', undefined, operation.error.message);
+      throw error;
+    }
   }
 
   async uninstallPythonPackage(pythonExecutable: string, packageName: string, projectRoot: string): Promise<void> {
-    await this.pythonProvider.uninstallPackage(pythonExecutable, packageName, projectRoot);
+    const now = new Date().toISOString();
+    const operation: EnvironmentOperation = {
+      id: `operation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      planId: `uninstall-${packageName}`, provider: 'python', version: packageName, status: 'running', phase: 'installing',
+      createdAt: now, updatedAt: now, progress: { message: `Uninstalling ${packageName}...`, percentage: 50 },
+      resumable: false, projectRoot,
+    };
+    this.operations.set(operation.id, operation);
+    this.store.saveOperation(operation);
+    this.operationListener?.({ ...operation, progress: { ...operation.progress } });
+
+    try {
+      await this.pythonProvider.uninstallPackage(pythonExecutable, packageName, projectRoot);
+      this.transition(operation, 'completed', 'completed', 100, `Successfully uninstalled ${packageName}.`);
+    } catch (error) {
+      operation.error = { code: 'UNINSTALL_FAILED', message: error instanceof Error ? error.message : String(error), recoverable: false };
+      this.transition(operation, 'failed', 'failed', undefined, operation.error.message);
+      throw error;
+    }
   }
 
   async getPythonProjectManifest(projectRoot: string): Promise<PythonDependencyManifest | null> {
@@ -164,7 +200,22 @@ export class EnvironmentManager {
   }
 
   async scanPythonInstalled(): Promise<Array<{ version: string; executablePath: string; installRoot: string }>> {
-    return this.pythonProvider.scanInstalled();
+    const installed = await this.pythonProvider.scanInstalled();
+    const installsDir = path.join(this.userDataPath, 'python-installs');
+    if (fs.existsSync(installsDir)) {
+      const dirs = fs.readdirSync(installsDir);
+      for (const dir of dirs) {
+        // e.g. 3.14.7
+        const installRoot = path.join(installsDir, dir, `python-${dir}`);
+        const executablePath = path.join(installRoot, process.platform === 'win32' ? 'python.exe' : 'bin/python');
+        if (fs.existsSync(executablePath)) {
+          if (!installed.some(i => i.executablePath === executablePath)) {
+            installed.push({ version: dir, executablePath, installRoot });
+          }
+        }
+      }
+    }
+    return installed;
   }
 
   startInstall(plan: InstallPlan): EnvironmentOperation {

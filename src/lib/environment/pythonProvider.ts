@@ -141,7 +141,7 @@ export class PythonProvider {
           license: data.info.license,
           projectUrl: data.info.project_url || data.info.home_page,
           documentationUrl: data.info.project_urls?.Documentation,
-          iconUrl: `https://pypi.org/static/images/logo-small.86de3b1f.svg`,
+          iconUrl: undefined,
           installedVersion: installedVersion,
           isInstalled: Boolean(installedVersion),
           latestVersion: data.info.version,

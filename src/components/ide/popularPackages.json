@@ -1,0 +1,2702 @@
+[
+  {
+    "name": "Flask",
+    "version": "3.1.3",
+    "summary": "A simple framework for building complex web applications.",
+    "projectUrl": "https://pypi.org/project/Flask/"
+  },
+  {
+    "name": "celery",
+    "version": "5.6.3",
+    "summary": "Distributed Task Queue.",
+    "projectUrl": "https://pypi.org/project/celery/"
+  },
+  {
+    "name": "beautifulsoup4",
+    "version": "4.15.0",
+    "summary": "Screen-scraping library",
+    "projectUrl": "https://pypi.org/project/beautifulsoup4/"
+  },
+  {
+    "name": "seaborn",
+    "version": "0.13.2",
+    "summary": "Statistical data visualization",
+    "projectUrl": "https://pypi.org/project/seaborn/"
+  },
+  {
+    "name": "pylint",
+    "version": "4.0.7",
+    "summary": "python code static checker",
+    "projectUrl": "https://pypi.org/project/pylint/"
+  },
+  {
+    "name": "PyYAML",
+    "version": "6.0.3",
+    "summary": "YAML parser and emitter for Python",
+    "projectUrl": "https://pypi.org/project/PyYAML/"
+  },
+  {
+    "name": "pytest",
+    "version": "9.1.1",
+    "summary": "pytest: simple powerful testing with Python",
+    "projectUrl": "https://pypi.org/project/pytest/"
+  },
+  {
+    "name": "requests",
+    "version": "2.34.2",
+    "summary": "Python HTTP for Humans.",
+    "projectUrl": "https://pypi.org/project/requests/"
+  },
+  {
+    "name": "Jinja2",
+    "version": "3.1.6",
+    "summary": "A very fast and expressive template engine.",
+    "projectUrl": "https://pypi.org/project/Jinja2/"
+  },
+  {
+    "name": "Werkzeug",
+    "version": "3.1.8",
+    "summary": "The comprehensive WSGI web application library.",
+    "projectUrl": "https://pypi.org/project/Werkzeug/"
+  },
+  {
+    "name": "typing-extensions",
+    "version": "4.16.0",
+    "summary": "Backported and Experimental Type Hints for Python 3.9+",
+    "projectUrl": "https://pypi.org/project/typing-extensions/"
+  },
+  {
+    "name": "click",
+    "version": "8.4.2",
+    "summary": "Composable command line interface toolkit",
+    "projectUrl": "https://pypi.org/project/click/"
+  },
+  {
+    "name": "idna",
+    "version": "3.19",
+    "summary": "Internationalized Domain Names in Applications (IDNA)",
+    "projectUrl": "https://pypi.org/project/idna/"
+  },
+  {
+    "name": "fastapi",
+    "version": "0.141.1",
+    "summary": "FastAPI framework, high performance, easy to learn, fast to code, ready for production",
+    "projectUrl": "https://pypi.org/project/fastapi/"
+  },
+  {
+    "name": "urllib3",
+    "version": "2.7.0",
+    "summary": "HTTP library with thread-safe connection pooling, file post, and more.",
+    "projectUrl": "https://pypi.org/project/urllib3/"
+  },
+  {
+    "name": "certifi",
+    "version": "2026.7.22",
+    "summary": "Python package for providing Mozilla's CA Bundle.",
+    "projectUrl": "https://pypi.org/project/certifi/"
+  },
+  {
+    "name": "python-dateutil",
+    "version": "2.9.0.post0",
+    "summary": "Extensions to the standard Python datetime module",
+    "projectUrl": "https://pypi.org/project/python-dateutil/"
+  },
+  {
+    "name": "colorama",
+    "version": "0.4.6",
+    "summary": "Cross-platform colored terminal text.",
+    "projectUrl": "https://pypi.org/project/colorama/"
+  },
+  {
+    "name": "Django",
+    "version": "6.1",
+    "summary": "A high-level Python web framework that encourages rapid development and clean, pragmatic design.",
+    "projectUrl": "https://pypi.org/project/Django/"
+  },
+  {
+    "name": "rsa",
+    "version": "4.9.1",
+    "summary": "Pure-Python RSA implementation",
+    "projectUrl": "https://pypi.org/project/rsa/"
+  },
+  {
+    "name": "six",
+    "version": "1.17.0",
+    "summary": "Python 2 and 3 compatibility utilities",
+    "projectUrl": "https://pypi.org/project/six/"
+  },
+  {
+    "name": "jmespath",
+    "version": "1.1.0",
+    "summary": "JSON Matching Expressions",
+    "projectUrl": "https://pypi.org/project/jmespath/"
+  },
+  {
+    "name": "s3transfer",
+    "version": "0.19.2",
+    "summary": "An Amazon S3 Transfer Manager",
+    "projectUrl": "https://pypi.org/project/s3transfer/"
+  },
+  {
+    "name": "docutils",
+    "version": "0.23",
+    "summary": "Docutils -- Python Documentation Utilities",
+    "projectUrl": "https://pypi.org/project/docutils/"
+  },
+  {
+    "name": "pycparser",
+    "version": "3.0",
+    "summary": "C parser in Python",
+    "projectUrl": "https://pypi.org/project/pycparser/"
+  },
+  {
+    "name": "pyasn1",
+    "version": "0.6.4",
+    "summary": "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)",
+    "projectUrl": "https://pypi.org/project/pyasn1/"
+  },
+  {
+    "name": "transformers",
+    "version": "5.15.1",
+    "summary": "Transformers: the model-definition framework for state-of-the-art machine learning models in text, vision, audio, and multimodal models, for both inference and training.",
+    "projectUrl": "https://pypi.org/project/transformers/"
+  },
+  {
+    "name": "pyparsing",
+    "version": "3.3.2",
+    "summary": "pyparsing - Classes and methods to define and execute parsing grammars",
+    "projectUrl": "https://pypi.org/project/pyparsing/"
+  },
+  {
+    "name": "toml",
+    "version": "0.10.2",
+    "summary": "Python Library for Tom's Obvious, Minimal Language",
+    "projectUrl": "https://pypi.org/project/toml/"
+  },
+  {
+    "name": "packaging",
+    "version": "26.3",
+    "summary": "Core utilities for Python packages",
+    "projectUrl": "https://pypi.org/project/packaging/"
+  },
+  {
+    "name": "tomli",
+    "version": "2.4.1",
+    "summary": "A lil' TOML parser",
+    "projectUrl": "https://pypi.org/project/tomli/"
+  },
+  {
+    "name": "wheel",
+    "version": "0.48.0",
+    "summary": "Command line tool for manipulating wheel files",
+    "projectUrl": "https://pypi.org/project/wheel/"
+  },
+  {
+    "name": "torch",
+    "version": "2.13.0",
+    "summary": "Tensors and Dynamic neural networks in Python with strong GPU acceleration",
+    "projectUrl": "https://pypi.org/project/torch/"
+  },
+  {
+    "name": "MarkupSafe",
+    "version": "3.0.3",
+    "summary": "Safely add untrusted strings to HTML/XML markup.",
+    "projectUrl": "https://pypi.org/project/MarkupSafe/"
+  },
+  {
+    "name": "pip",
+    "version": "26.2.1",
+    "summary": "The PyPA recommended tool for installing Python packages.",
+    "projectUrl": "https://pypi.org/project/pip/"
+  },
+  {
+    "name": "flake8",
+    "version": "7.3.0",
+    "summary": "the modular source code checker: pep8 pyflakes and co",
+    "projectUrl": "https://pypi.org/project/flake8/"
+  },
+  {
+    "name": "scikit-learn",
+    "version": "1.9.0",
+    "summary": "A set of python modules for machine learning and data mining",
+    "projectUrl": "https://pypi.org/project/scikit-learn/"
+  },
+  {
+    "name": "pytz",
+    "version": "2026.3.post1",
+    "summary": "World timezone definitions, modern and historical",
+    "projectUrl": "https://pypi.org/project/pytz/"
+  },
+  {
+    "name": "isort",
+    "version": "8.0.1",
+    "summary": "A Python utility / library to sort Python imports.",
+    "projectUrl": "https://pypi.org/project/isort/"
+  },
+  {
+    "name": "black",
+    "version": "26.5.1",
+    "summary": "The uncompromising code formatter.",
+    "projectUrl": "https://pypi.org/project/black/"
+  },
+  {
+    "name": "uvicorn",
+    "version": "0.52.4",
+    "summary": "The lightning-fast ASGI server.",
+    "projectUrl": "https://pypi.org/project/uvicorn/"
+  },
+  {
+    "name": "virtualenv",
+    "version": "21.7.5",
+    "summary": "Virtual Python Environment builder",
+    "projectUrl": "https://pypi.org/project/virtualenv/"
+  },
+  {
+    "name": "gunicorn",
+    "version": "26.2.0",
+    "summary": "WSGI HTTP Server for UNIX",
+    "projectUrl": "https://pypi.org/project/gunicorn/"
+  },
+  {
+    "name": "tensorflow",
+    "version": "2.21.0",
+    "summary": "TensorFlow is an open source machine learning framework for everyone.",
+    "projectUrl": "https://pypi.org/project/tensorflow/"
+  },
+  {
+    "name": "tox",
+    "version": "4.60.1",
+    "summary": "tox is a generic virtualenv management and test command line tool",
+    "projectUrl": "https://pypi.org/project/tox/"
+  },
+  {
+    "name": "networkx",
+    "version": "3.6.1",
+    "summary": "Python package for creating and manipulating graphs and networks",
+    "projectUrl": "https://pypi.org/project/networkx/"
+  },
+  {
+    "name": "statsmodels",
+    "version": "0.14.6",
+    "summary": "Statistical computations and models for Python",
+    "projectUrl": "https://pypi.org/project/statsmodels/"
+  },
+  {
+    "name": "xgboost",
+    "version": "3.4.1",
+    "summary": "XGBoost Python Package",
+    "projectUrl": "https://pypi.org/project/xgboost/"
+  },
+  {
+    "name": "lightgbm",
+    "version": "4.7.0",
+    "summary": "LightGBM Python-package",
+    "projectUrl": "https://pypi.org/project/lightgbm/"
+  },
+  {
+    "name": "h5py",
+    "version": "3.16.0",
+    "summary": "Read and write HDF5 files from Python",
+    "projectUrl": "https://pypi.org/project/h5py/"
+  },
+  {
+    "name": "catboost",
+    "version": "1.2.10",
+    "summary": "CatBoost Python Package",
+    "projectUrl": "https://pypi.org/project/catboost/"
+  },
+  {
+    "name": "nltk",
+    "version": "3.10.3",
+    "summary": "Natural Language Toolkit",
+    "projectUrl": "https://pypi.org/project/nltk/"
+  },
+  {
+    "name": "pandas",
+    "version": "3.0.5",
+    "summary": "Powerful data structures for data analysis, time series, and statistics",
+    "projectUrl": "https://pypi.org/project/pandas/"
+  },
+  {
+    "name": "scipy",
+    "version": "1.18.1",
+    "summary": "Fundamental algorithms for scientific computing in Python",
+    "projectUrl": "https://pypi.org/project/scipy/"
+  },
+  {
+    "name": "setuptools",
+    "version": "84.0.0",
+    "summary": "Most extensible Python build backend with support for C/C++ extension modules",
+    "projectUrl": "https://pypi.org/project/setuptools/"
+  },
+  {
+    "name": "pydantic",
+    "version": "2.13.4",
+    "summary": "Data validation using Python type hints",
+    "projectUrl": "https://pypi.org/project/pydantic/"
+  },
+  {
+    "name": "charset-normalizer",
+    "version": "3.5.1",
+    "summary": "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet.",
+    "projectUrl": "https://pypi.org/project/charset-normalizer/"
+  },
+  {
+    "name": "plotly",
+    "version": "7.0.0",
+    "summary": "An open-source interactive data visualization library for Python",
+    "projectUrl": "https://pypi.org/project/plotly/"
+  },
+  {
+    "name": "gensim",
+    "version": "4.4.0",
+    "summary": "Python framework for fast Vector Space Modelling",
+    "projectUrl": "https://pypi.org/project/gensim/"
+  },
+  {
+    "name": "altair",
+    "version": "6.2.2",
+    "summary": "Vega-Altair: A declarative statistical visualization library for Python.",
+    "projectUrl": "https://pypi.org/project/altair/"
+  },
+  {
+    "name": "dash",
+    "version": "4.4.1",
+    "summary": "A Python framework for building reactive web-apps. Developed by Plotly.",
+    "projectUrl": "https://pypi.org/project/dash/"
+  },
+  {
+    "name": "pyarrow",
+    "version": "25.0.1",
+    "summary": "Python library for Apache Arrow",
+    "projectUrl": "https://pypi.org/project/pyarrow/"
+  },
+  {
+    "name": "alembic",
+    "version": "1.19.1",
+    "summary": "A database migration tool for SQLAlchemy.",
+    "projectUrl": "https://pypi.org/project/alembic/"
+  },
+  {
+    "name": "ImageIO",
+    "version": "2.37.4",
+    "summary": "Read and write images and video across all major formats. Supports scientific and volumetric data.",
+    "projectUrl": "https://pypi.org/project/ImageIO/"
+  },
+  {
+    "name": "bokeh",
+    "version": "3.10.0",
+    "summary": "Interactive plots and applications in the browser from Python",
+    "projectUrl": "https://pypi.org/project/bokeh/"
+  },
+  {
+    "name": "streamlit",
+    "version": "1.62.0",
+    "summary": "A faster way to build and share data apps",
+    "projectUrl": "https://pypi.org/project/streamlit/"
+  },
+  {
+    "name": "PyMySQL",
+    "version": "1.2.0",
+    "summary": "Pure Python MySQL Driver",
+    "projectUrl": "https://pypi.org/project/PyMySQL/"
+  },
+  {
+    "name": "matplotlib",
+    "version": "3.11.1",
+    "summary": "Python plotting package",
+    "projectUrl": "https://pypi.org/project/matplotlib/"
+  },
+  {
+    "name": "trio",
+    "version": "0.34.0",
+    "summary": "A friendly Python library for async concurrency and I/O",
+    "projectUrl": "https://pypi.org/project/trio/"
+  },
+  {
+    "name": "httpx",
+    "version": "0.28.1",
+    "summary": "The next generation HTTP client.",
+    "projectUrl": "https://pypi.org/project/httpx/"
+  },
+  {
+    "name": "motor",
+    "version": "3.7.1",
+    "summary": "Non-blocking MongoDB driver for Tornado or asyncio",
+    "projectUrl": "https://pypi.org/project/motor/"
+  },
+  {
+    "name": "jsonschema",
+    "version": "4.26.0",
+    "summary": "An implementation of JSON Schema validation for Python",
+    "projectUrl": "https://pypi.org/project/jsonschema/"
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1",
+    "summary": "Foreign Function Interface for Python calling C code.",
+    "projectUrl": "https://pypi.org/project/cffi/"
+  },
+  {
+    "name": "python-dotenv",
+    "version": "1.2.3",
+    "summary": "Read key-value pairs from a .env file and set them as environment variables",
+    "projectUrl": "https://pypi.org/project/python-dotenv/"
+  },
+  {
+    "name": "anyio",
+    "version": "4.14.2",
+    "summary": "High-level concurrency and networking framework on top of asyncio or Trio",
+    "projectUrl": "https://pypi.org/project/anyio/"
+  },
+  {
+    "name": "marshmallow",
+    "version": "4.3.1",
+    "summary": "A lightweight library for converting complex datatypes to and from native Python datatypes.",
+    "projectUrl": "https://pypi.org/project/marshmallow/"
+  },
+  {
+    "name": "Pygments",
+    "version": "2.21.0",
+    "summary": "Pygments is a syntax highlighting package written in Python.",
+    "projectUrl": "https://pypi.org/project/Pygments/"
+  },
+  {
+    "name": "Markdown",
+    "version": "3.10.3",
+    "summary": "Python implementation of John Gruber's Markdown.",
+    "projectUrl": "https://pypi.org/project/Markdown/"
+  },
+  {
+    "name": "mypy",
+    "version": "2.3.1",
+    "summary": "Optional static typing for Python",
+    "projectUrl": "https://pypi.org/project/mypy/"
+  },
+  {
+    "name": "jupyter",
+    "version": "1.1.1",
+    "summary": "Jupyter metapackage. Install all the Jupyter components in one go.",
+    "projectUrl": "https://pypi.org/project/jupyter/"
+  },
+  {
+    "name": "notebook",
+    "version": "7.6.2",
+    "summary": "Jupyter Notebook - A web-based notebook environment for interactive computing",
+    "projectUrl": "https://pypi.org/project/notebook/"
+  },
+  {
+    "name": "openpyxl",
+    "version": "3.1.5",
+    "summary": "A Python library to read/write Excel 2010 xlsx/xlsm files",
+    "projectUrl": "https://pypi.org/project/openpyxl/"
+  },
+  {
+    "name": "ipywidgets",
+    "version": "8.1.9",
+    "summary": "Jupyter interactive widgets",
+    "projectUrl": "https://pypi.org/project/ipywidgets/"
+  },
+  {
+    "name": "psycopg2-binary",
+    "version": "2.9.12",
+    "summary": "psycopg2 - Python-PostgreSQL Database Adapter",
+    "projectUrl": "https://pypi.org/project/psycopg2-binary/"
+  },
+  {
+    "name": "boto3",
+    "version": "1.43.80",
+    "summary": "The AWS SDK for Python",
+    "projectUrl": "https://pypi.org/project/boto3/"
+  },
+  {
+    "name": "loguru",
+    "version": "0.7.3",
+    "summary": "Python logging made (stupidly) simple",
+    "projectUrl": "https://pypi.org/project/loguru/"
+  },
+  {
+    "name": "prometheus-client",
+    "version": "0.26.0",
+    "summary": "Python client for the Prometheus monitoring system.",
+    "projectUrl": "https://pypi.org/project/prometheus-client/"
+  },
+  {
+    "name": "tqdm",
+    "version": "4.70.0",
+    "summary": "Fast, Extensible Progress Meter",
+    "projectUrl": "https://pypi.org/project/tqdm/"
+  },
+  {
+    "name": "cryptography",
+    "version": "50.0.1",
+    "summary": "cryptography is a package which provides cryptographic recipes and primitives to Python developers.",
+    "projectUrl": "https://pypi.org/project/cryptography/"
+  },
+  {
+    "name": "rich",
+    "version": "15.0.0",
+    "summary": "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal",
+    "projectUrl": "https://pypi.org/project/rich/"
+  },
+  {
+    "name": "kombu",
+    "version": "5.6.2",
+    "summary": "Messaging library for Python.",
+    "projectUrl": "https://pypi.org/project/kombu/"
+  },
+  {
+    "name": "ipython",
+    "version": "9.16.1",
+    "summary": "IPython: Productive Interactive Computing",
+    "projectUrl": "https://pypi.org/project/ipython/"
+  },
+  {
+    "name": "opencv-python",
+    "version": "5.0.0.93",
+    "summary": "Wrapper package for OpenCV python bindings.",
+    "projectUrl": "https://pypi.org/project/opencv-python/"
+  },
+  {
+    "name": "sentry-sdk",
+    "version": "2.68.1",
+    "summary": "Python client for Sentry (https://sentry.io)",
+    "projectUrl": "https://pypi.org/project/sentry-sdk/"
+  },
+  {
+    "name": "spacy",
+    "version": "3.8.16",
+    "summary": "Industrial-strength Natural Language Processing (NLP) in Python",
+    "projectUrl": "https://pypi.org/project/spacy/"
+  },
+  {
+    "name": "pillow",
+    "version": "12.3.0",
+    "summary": "Python Imaging Library (fork)",
+    "projectUrl": "https://pypi.org/project/pillow/"
+  },
+  {
+    "name": "numpy",
+    "version": "2.5.2",
+    "summary": "Fundamental package for array computing in Python",
+    "projectUrl": "https://pypi.org/project/numpy/"
+  },
+  {
+    "name": "protobuf",
+    "version": "7.36.0",
+    "summary": null,
+    "projectUrl": "https://pypi.org/project/protobuf/"
+  },
+  {
+    "name": "websockets",
+    "version": "17.0.1",
+    "summary": "An implementation of the WebSocket Protocol (RFC 6455 & 7692)",
+    "projectUrl": "https://pypi.org/project/websockets/"
+  },
+  {
+    "name": "SQLAlchemy",
+    "version": "2.0.52",
+    "summary": "Database Abstraction Library",
+    "projectUrl": "https://pypi.org/project/SQLAlchemy/"
+  },
+  {
+    "name": "redis",
+    "version": "8.1.0",
+    "summary": "Python client for Redis database and key-value store",
+    "projectUrl": "https://pypi.org/project/redis/"
+  },
+  {
+    "name": "pymongo",
+    "version": "4.17.0",
+    "summary": "PyMongo - the Official MongoDB Python driver",
+    "projectUrl": "https://pypi.org/project/pymongo/"
+  },
+  {
+    "name": "coverage",
+    "version": "7.15.4",
+    "summary": "Code coverage measurement for Python",
+    "projectUrl": "https://pypi.org/project/coverage/"
+  },
+  {
+    "name": "grpcio",
+    "version": "1.83.0",
+    "summary": "HTTP/2-based RPC framework",
+    "projectUrl": "https://pypi.org/project/grpcio/"
+  },
+  {
+    "name": "aiohttp",
+    "version": "3.14.3",
+    "summary": "Async http client/server framework (asyncio)",
+    "projectUrl": "https://pypi.org/project/aiohttp/"
+  },
+  {
+    "name": "lxml",
+    "version": "6.1.2",
+    "summary": "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.",
+    "projectUrl": "https://pypi.org/project/lxml/"
+  },
+  {
+    "name": "html5lib",
+    "version": "1.1",
+    "summary": "HTML parser based on the WHATWG HTML specification",
+    "projectUrl": "https://pypi.org/project/html5lib/"
+  },
+  {
+    "name": "pypiwin32",
+    "version": "223",
+    "summary": "",
+    "projectUrl": "https://pypi.org/project/pypiwin32/"
+  },
+  {
+    "name": "grequests",
+    "version": "0.7.0",
+    "summary": "Requests + Gevent",
+    "projectUrl": "https://pypi.org/project/grequests/"
+  },
+  {
+    "name": "socketio",
+    "version": "0.2.1",
+    "summary": "",
+    "projectUrl": "https://pypi.org/project/socketio/"
+  },
+  {
+    "name": "fpdf",
+    "version": "1.7.2",
+    "summary": "Simple PDF generation for Python",
+    "projectUrl": "https://pypi.org/project/fpdf/"
+  },
+  {
+    "name": "textblob",
+    "version": "0.20.1",
+    "summary": "Simple, Pythonic text processing. Sentiment analysis, part-of-speech tagging, noun phrase parsing, and more.",
+    "projectUrl": "https://pypi.org/project/textblob/"
+  },
+  {
+    "name": "dynaconf",
+    "version": "3.3.5",
+    "summary": "The dynamic configurator for your Python Project",
+    "projectUrl": "https://pypi.org/project/dynaconf/"
+  },
+  {
+    "name": "pyspark",
+    "version": "4.2.0",
+    "summary": "Apache Spark Python API",
+    "projectUrl": "https://pypi.org/project/pyspark/"
+  },
+  {
+    "name": "Genshi",
+    "version": "0.7.11",
+    "summary": "A toolkit for generation of output for the web",
+    "projectUrl": "https://pypi.org/project/Genshi/"
+  },
+  {
+    "name": "keras",
+    "version": "3.15.1",
+    "summary": "Multi-backend Keras",
+    "projectUrl": "https://pypi.org/project/keras/"
+  },
+  {
+    "name": "inquirer",
+    "version": "3.4.1",
+    "summary": "Collection of common interactive command line user interfaces, based on Inquirer.js",
+    "projectUrl": "https://pypi.org/project/inquirer/"
+  },
+  {
+    "name": "salt",
+    "version": "3008.2",
+    "summary": "Portable, distributed, remote execution and configuration management system",
+    "projectUrl": "https://pypi.org/project/salt/"
+  },
+  {
+    "name": "dramatiq",
+    "version": "2.2.0",
+    "summary": "Background Processing for Python 3.",
+    "projectUrl": "https://pypi.org/project/dramatiq/"
+  },
+  {
+    "name": "arcade",
+    "version": "3.3.3",
+    "summary": "Arcade Game Development Library",
+    "projectUrl": "https://pypi.org/project/arcade/"
+  },
+  {
+    "name": "poetry",
+    "version": "2.4.1",
+    "summary": "Python dependency management and packaging made easy.",
+    "projectUrl": "https://pypi.org/project/poetry/"
+  },
+  {
+    "name": "xlsxwriter",
+    "version": "3.2.9",
+    "summary": "A Python module for creating Excel XLSX files.",
+    "projectUrl": "https://pypi.org/project/xlsxwriter/"
+  },
+  {
+    "name": "arrow",
+    "version": "1.4.0",
+    "summary": "Better dates & times for Python",
+    "projectUrl": "https://pypi.org/project/arrow/"
+  },
+  {
+    "name": "paramiko",
+    "version": "5.0.0",
+    "summary": "SSH2 protocol library",
+    "projectUrl": "https://pypi.org/project/paramiko/"
+  },
+  {
+    "name": "cassandra-driver",
+    "version": "3.30.1",
+    "summary": "Apache Cassandra Python Driver",
+    "projectUrl": "https://pypi.org/project/cassandra-driver/"
+  },
+  {
+    "name": "py2exe",
+    "version": "0.14.2.0",
+    "summary": "Build standalone executables for Windows",
+    "projectUrl": "https://pypi.org/project/py2exe/"
+  },
+  {
+    "name": "pony",
+    "version": "0.7.20",
+    "summary": "Pony Object-Relational Mapper",
+    "projectUrl": "https://pypi.org/project/pony/"
+  },
+  {
+    "name": "PySide6",
+    "version": "6.11.2",
+    "summary": "Python bindings for the Qt cross-platform application and UI framework",
+    "projectUrl": "https://pypi.org/project/PySide6/"
+  },
+  {
+    "name": "ansible",
+    "version": "14.3.1",
+    "summary": "Radically simple IT automation",
+    "projectUrl": "https://pypi.org/project/ansible/"
+  },
+  {
+    "name": "dask",
+    "version": "2026.8.0",
+    "summary": "Parallel PyData with Task Scheduling",
+    "projectUrl": "https://pypi.org/project/dask/"
+  },
+  {
+    "name": "customtkinter",
+    "version": "6.0.0",
+    "summary": "Create modern looking GUIs with Python",
+    "projectUrl": "https://pypi.org/project/customtkinter/"
+  },
+  {
+    "name": "selenium",
+    "version": "4.47.0",
+    "summary": "Official Python bindings for Selenium WebDriver",
+    "projectUrl": "https://pypi.org/project/selenium/"
+  },
+  {
+    "name": "huggingface-hub",
+    "version": "1.28.0",
+    "summary": "Client library to download and publish models, datasets and other repos on the huggingface.co hub",
+    "projectUrl": "https://pypi.org/project/huggingface-hub/"
+  },
+  {
+    "name": "Scrapy",
+    "version": "2.18.0",
+    "summary": "A high-level Web Crawling and Web Scraping framework",
+    "projectUrl": "https://pypi.org/project/Scrapy/"
+  },
+  {
+    "name": "kubernetes",
+    "version": "36.0.3",
+    "summary": "Kubernetes python client",
+    "projectUrl": "https://pypi.org/project/kubernetes/"
+  },
+  {
+    "name": "pydub",
+    "version": "0.25.1",
+    "summary": "Manipulate audio with an simple and easy high level interface",
+    "projectUrl": "https://pypi.org/project/pydub/"
+  },
+  {
+    "name": "elasticsearch",
+    "version": "9.5.0",
+    "summary": "Python client for Elasticsearch",
+    "projectUrl": "https://pypi.org/project/elasticsearch/"
+  },
+  {
+    "name": "pandas-gbq",
+    "version": "0.35.2",
+    "summary": "Google BigQuery connector for pandas",
+    "projectUrl": "https://pypi.org/project/pandas-gbq/"
+  },
+  {
+    "name": "twine",
+    "version": "7.0.0",
+    "summary": "Collection of utilities for publishing packages on PyPI",
+    "projectUrl": "https://pypi.org/project/twine/"
+  },
+  {
+    "name": "typer",
+    "version": "0.27.1",
+    "summary": "Typer, build great CLIs. Easy to code. Based on Python type hints.",
+    "projectUrl": "https://pypi.org/project/typer/"
+  },
+  {
+    "name": "PyJWT",
+    "version": "2.13.0",
+    "summary": "JSON Web Token implementation in Python",
+    "projectUrl": "https://pypi.org/project/PyJWT/"
+  },
+  {
+    "name": "fastai",
+    "version": "2.8.8",
+    "summary": "fastai simplifies training fast and accurate neural nets using modern best practices",
+    "projectUrl": "https://pypi.org/project/fastai/"
+  },
+  {
+    "name": "pdoc3",
+    "version": "0.11.6",
+    "summary": "Auto-generate API documentation for Python projects.",
+    "projectUrl": "https://pypi.org/project/pdoc3/"
+  },
+  {
+    "name": "torchaudio",
+    "version": "2.11.0",
+    "summary": "An audio package for PyTorch",
+    "projectUrl": "https://pypi.org/project/torchaudio/"
+  },
+  {
+    "name": "pyglet",
+    "version": "2.1.16",
+    "summary": "pyglet is a cross-platform games and multimedia package.",
+    "projectUrl": "https://pypi.org/project/pyglet/"
+  },
+  {
+    "name": "vcrpy",
+    "version": "8.3.0",
+    "summary": "Automatically mock your HTTP interactions to simplify and speed up testing",
+    "projectUrl": "https://pypi.org/project/vcrpy/"
+  },
+  {
+    "name": "xlrd",
+    "version": "2.0.2",
+    "summary": "Library for developers to extract data from Microsoft Excel (tm) .xls spreadsheet files",
+    "projectUrl": "https://pypi.org/project/xlrd/"
+  },
+  {
+    "name": "psycopg2",
+    "version": "2.9.12",
+    "summary": "psycopg2 - Python-PostgreSQL Database Adapter",
+    "projectUrl": "https://pypi.org/project/psycopg2/"
+  },
+  {
+    "name": "flet",
+    "version": "0.86.5",
+    "summary": "Flet for Python - easily build interactive multi-platform apps in Python",
+    "projectUrl": "https://pypi.org/project/flet/"
+  },
+  {
+    "name": "decouple",
+    "version": "0.0.7",
+    "summary": "Decoupling logic",
+    "projectUrl": "https://pypi.org/project/decouple/"
+  },
+  {
+    "name": "pyzbar",
+    "version": "0.1.9",
+    "summary": "Read one-dimensional barcodes and QR codes from Python 2 and 3.",
+    "projectUrl": "https://pypi.org/project/pyzbar/"
+  },
+  {
+    "name": "pytesseract",
+    "version": "0.3.13",
+    "summary": "Python-tesseract is a python wrapper for Google's Tesseract-OCR",
+    "projectUrl": "https://pypi.org/project/pytesseract/"
+  },
+  {
+    "name": "Kivy",
+    "version": "2.3.1",
+    "summary": "An open-source Python framework for developing GUI apps that work cross-platform, including desktop, mobile and embedded platforms.",
+    "projectUrl": "https://pypi.org/project/Kivy/"
+  },
+  {
+    "name": "nose2",
+    "version": "0.16.0",
+    "summary": "unittest with plugins",
+    "projectUrl": "https://pypi.org/project/nose2/"
+  },
+  {
+    "name": "moviepy",
+    "version": "2.2.1",
+    "summary": "Video editing with Python",
+    "projectUrl": "https://pypi.org/project/moviepy/"
+  },
+  {
+    "name": "pendulum",
+    "version": "3.2.0",
+    "summary": "Python datetimes made easy",
+    "projectUrl": "https://pypi.org/project/pendulum/"
+  },
+  {
+    "name": "librosa",
+    "version": "1.0.0",
+    "summary": "Python module for audio and music processing",
+    "projectUrl": "https://pypi.org/project/librosa/"
+  },
+  {
+    "name": "rq",
+    "version": "2.11.0",
+    "summary": "RQ is a simple, lightweight, library for creating background jobs, and processing them.",
+    "projectUrl": "https://pypi.org/project/rq/"
+  },
+  {
+    "name": "safety",
+    "version": "3.8.1",
+    "summary": "Scan dependencies for known vulnerabilities and licenses.",
+    "projectUrl": "https://pypi.org/project/safety/"
+  },
+  {
+    "name": "passlib",
+    "version": "1.7.4",
+    "summary": "comprehensive password hashing framework supporting over 30 schemes",
+    "projectUrl": "https://pypi.org/project/passlib/"
+  },
+  {
+    "name": "Hypercorn",
+    "version": "0.18.0",
+    "summary": "A ASGI Server based on Hyper libraries and inspired by Gunicorn",
+    "projectUrl": "https://pypi.org/project/Hypercorn/"
+  },
+  {
+    "name": "pyinotify",
+    "version": "0.9.6",
+    "summary": "Linux filesystem events monitoring",
+    "projectUrl": "https://pypi.org/project/pyinotify/"
+  },
+  {
+    "name": "autobahn",
+    "version": "26.7.1",
+    "summary": "WebSocket client & server library, WAMP real-time framework",
+    "projectUrl": "https://pypi.org/project/autobahn/"
+  },
+  {
+    "name": "pdoc",
+    "version": "16.0.0",
+    "summary": "API Documentation for Python Projects",
+    "projectUrl": "https://pypi.org/project/pdoc/"
+  },
+  {
+    "name": "Mako",
+    "version": "1.4.1",
+    "summary": "A super-fast templating language that borrows the best ideas from the existing templating languages.",
+    "projectUrl": "https://pypi.org/project/Mako/"
+  },
+  {
+    "name": "pyquery",
+    "version": "2.1.0",
+    "summary": "A jquery-like library for python",
+    "projectUrl": "https://pypi.org/project/pyquery/"
+  },
+  {
+    "name": "bcrypt",
+    "version": "5.0.0",
+    "summary": "Modern password hashing for your software and your servers",
+    "projectUrl": "https://pypi.org/project/bcrypt/"
+  },
+  {
+    "name": "voluptuous",
+    "version": "0.16.0",
+    "summary": "Python data validation library",
+    "projectUrl": "https://pypi.org/project/voluptuous/"
+  },
+  {
+    "name": "sh",
+    "version": "2.4.0",
+    "summary": "Python subprocess replacement",
+    "projectUrl": "https://pypi.org/project/sh/"
+  },
+  {
+    "name": "findspark",
+    "version": "2.0.1",
+    "summary": "Find pyspark to make it importable.",
+    "projectUrl": "https://pypi.org/project/findspark/"
+  },
+  {
+    "name": "watchdog",
+    "version": "6.0.0",
+    "summary": "Filesystem events monitoring",
+    "projectUrl": "https://pypi.org/project/watchdog/"
+  },
+  {
+    "name": "flower",
+    "version": "2.1.0",
+    "summary": "Celery Flower",
+    "projectUrl": "https://pypi.org/project/flower/"
+  },
+  {
+    "name": "torchvision",
+    "version": "0.28.0",
+    "summary": "image and video datasets and models for torch deep learning",
+    "projectUrl": "https://pypi.org/project/torchvision/"
+  },
+  {
+    "name": "scikit-image",
+    "version": "0.26.0",
+    "summary": "Image processing in Python",
+    "projectUrl": "https://pypi.org/project/scikit-image/"
+  },
+  {
+    "name": "peewee",
+    "version": "4.4.0",
+    "summary": "a little orm",
+    "projectUrl": "https://pypi.org/project/peewee/"
+  },
+  {
+    "name": "pdfminer.six",
+    "version": "20260107",
+    "summary": "PDF parser and analyzer",
+    "projectUrl": "https://pypi.org/project/pdfminer.six/"
+  },
+  {
+    "name": "mkdocs",
+    "version": "1.6.1",
+    "summary": "Project documentation with Markdown.",
+    "projectUrl": "https://pypi.org/project/mkdocs/"
+  },
+  {
+    "name": "yt-dlp",
+    "version": "2026.8.19",
+    "summary": "A feature-rich command-line audio/video downloader",
+    "projectUrl": "https://pypi.org/project/yt-dlp/"
+  },
+  {
+    "name": "aiomysql",
+    "version": "0.3.2",
+    "summary": "MySQL driver for asyncio.",
+    "projectUrl": "https://pypi.org/project/aiomysql/"
+  },
+  {
+    "name": "xmltodict",
+    "version": "1.0.4",
+    "summary": "Makes working with XML feel like you are working with JSON",
+    "projectUrl": "https://pypi.org/project/xmltodict/"
+  },
+  {
+    "name": "playwright",
+    "version": "1.62.0",
+    "summary": "A high-level API to automate web browsers",
+    "projectUrl": "https://pypi.org/project/playwright/"
+  },
+  {
+    "name": "tortoise-orm",
+    "version": "1.1.8",
+    "summary": "Easy async ORM for python, built with relations in mind",
+    "projectUrl": "https://pypi.org/project/tortoise-orm/"
+  },
+  {
+    "name": "amqp",
+    "version": "5.3.1",
+    "summary": "Low-level AMQP client for Python (fork of amqplib).",
+    "projectUrl": "https://pypi.org/project/amqp/"
+  },
+  {
+    "name": "fabric",
+    "version": "3.2.3",
+    "summary": "High level SSH command execution",
+    "projectUrl": "https://pypi.org/project/fabric/"
+  },
+  {
+    "name": "voila",
+    "version": "0.5.12",
+    "summary": "Voil\u00e0 turns Jupyter notebooks into standalone web applications",
+    "projectUrl": "https://pypi.org/project/voila/"
+  },
+  {
+    "name": "Quart",
+    "version": "0.22.0",
+    "summary": "A Python ASGI web framework with the same API as Flask",
+    "projectUrl": "https://pypi.org/project/Quart/"
+  },
+  {
+    "name": "xlwt",
+    "version": "1.3.0",
+    "summary": "Library to create spreadsheet files compatible with MS Excel 97/2000/XP/2003 XLS files, on any platform, with Python 2.6, 2.7, 3.3+",
+    "projectUrl": "https://pypi.org/project/xlwt/"
+  },
+  {
+    "name": "ujson",
+    "version": "5.13.0",
+    "summary": "Ultra fast JSON encoder and decoder for Python",
+    "projectUrl": "https://pypi.org/project/ujson/"
+  },
+  {
+    "name": "plumbum",
+    "version": "2.0.2",
+    "summary": "Plumbum: shell combinators library",
+    "projectUrl": "https://pypi.org/project/plumbum/"
+  },
+  {
+    "name": "reportlab",
+    "version": "5.0.1",
+    "summary": "The Reportlab Toolkit",
+    "projectUrl": "https://pypi.org/project/reportlab/"
+  },
+  {
+    "name": "autopep8",
+    "version": "2.3.2",
+    "summary": "A tool that automatically formats Python code to conform to the PEP 8 style guide",
+    "projectUrl": "https://pypi.org/project/autopep8/"
+  },
+  {
+    "name": "Chameleon",
+    "version": "4.6.0",
+    "summary": "Fast HTML/XML Template Compiler.",
+    "projectUrl": "https://pypi.org/project/Chameleon/"
+  },
+  {
+    "name": "daphne",
+    "version": "4.2.3",
+    "summary": "Django ASGI (HTTP/WebSocket) server",
+    "projectUrl": "https://pypi.org/project/daphne/"
+  },
+  {
+    "name": "schedule",
+    "version": "1.2.2",
+    "summary": "Job scheduling for humans.",
+    "projectUrl": "https://pypi.org/project/schedule/"
+  },
+  {
+    "name": "modin",
+    "version": "0.37.1",
+    "summary": "Modin: Make your pandas code run faster by changing one line of code.",
+    "projectUrl": "https://pypi.org/project/modin/"
+  },
+  {
+    "name": "pywin32",
+    "version": "312",
+    "summary": "Python for Windows Extensions",
+    "projectUrl": "https://pypi.org/project/pywin32/"
+  },
+  {
+    "name": "datasets",
+    "version": "5.0.1",
+    "summary": "HuggingFace community-driven open-source library of datasets",
+    "projectUrl": "https://pypi.org/project/datasets/"
+  },
+  {
+    "name": "wxPython",
+    "version": "4.3.1",
+    "summary": "Cross platform GUI toolkit for Python, \"Phoenix\" version",
+    "projectUrl": "https://pypi.org/project/wxPython/"
+  },
+  {
+    "name": "Sphinx",
+    "version": "9.1.0",
+    "summary": "Python documentation generator",
+    "projectUrl": "https://pypi.org/project/Sphinx/"
+  },
+  {
+    "name": "unittest",
+    "version": "0.0",
+    "summary": "",
+    "projectUrl": "https://pypi.org/project/unittest/"
+  },
+  {
+    "name": "asyncpg",
+    "version": "0.31.0",
+    "summary": "An asyncio PostgreSQL driver",
+    "projectUrl": "https://pypi.org/project/asyncpg/"
+  },
+  {
+    "name": "prompt_toolkit",
+    "version": "3.0.53",
+    "summary": "Library for building powerful interactive command lines in Python",
+    "projectUrl": "https://pypi.org/project/prompt_toolkit/"
+  },
+  {
+    "name": "Cerberus",
+    "version": "1.3.8",
+    "summary": "Lightweight, extensible schema and data validation tool for Pythondictionaries.",
+    "projectUrl": "https://pypi.org/project/Cerberus/"
+  },
+  {
+    "name": "tornado",
+    "version": "6.5.8",
+    "summary": "Tornado is a Python web framework and asynchronous networking library, originally developed at FriendFeed.",
+    "projectUrl": "https://pypi.org/project/tornado/"
+  },
+  {
+    "name": "sanic",
+    "version": "25.12.1",
+    "summary": "A web server and web framework that's written to go fast. Build fast. Run fast.",
+    "projectUrl": "https://pypi.org/project/sanic/"
+  },
+  {
+    "name": "pyspider",
+    "version": "0.3.10",
+    "summary": "A Powerful Spider System in Python",
+    "projectUrl": "https://pypi.org/project/pyspider/"
+  },
+  {
+    "name": "xenon",
+    "version": "0.9.3",
+    "summary": "Monitor code metrics for Python on your CI server",
+    "projectUrl": "https://pypi.org/project/xenon/"
+  },
+  {
+    "name": "youtube_dl",
+    "version": "2021.12.17",
+    "summary": "YouTube video downloader",
+    "projectUrl": "https://pypi.org/project/youtube_dl/"
+  },
+  {
+    "name": "qrcode",
+    "version": "8.2",
+    "summary": "QR Code image generator",
+    "projectUrl": "https://pypi.org/project/qrcode/"
+  },
+  {
+    "name": "mock",
+    "version": "5.2.0",
+    "summary": "Rolling backport of unittest.mock for all Pythons",
+    "projectUrl": "https://pypi.org/project/mock/"
+  },
+  {
+    "name": "confluent-kafka",
+    "version": "2.15.0",
+    "summary": "Confluent's Python client for Apache Kafka",
+    "projectUrl": "https://pypi.org/project/confluent-kafka/"
+  },
+  {
+    "name": "radon",
+    "version": "6.0.1",
+    "summary": "Code Metrics in Python",
+    "projectUrl": "https://pypi.org/project/radon/"
+  },
+  {
+    "name": "locust",
+    "version": "2.46.4",
+    "summary": "Developer-friendly load testing framework",
+    "projectUrl": "https://pypi.org/project/locust/"
+  },
+  {
+    "name": "argon2-cffi",
+    "version": "25.1.0",
+    "summary": "Argon2 for Python",
+    "projectUrl": "https://pypi.org/project/argon2-cffi/"
+  },
+  {
+    "name": "mutagen",
+    "version": "1.48.1",
+    "summary": "read and write audio tags for many formats",
+    "projectUrl": "https://pypi.org/project/mutagen/"
+  },
+  {
+    "name": "PyQt5",
+    "version": "5.15.11",
+    "summary": "Python bindings for the Qt cross platform application toolkit",
+    "projectUrl": "https://pypi.org/project/PyQt5/"
+  },
+  {
+    "name": "docopt",
+    "version": "0.6.2",
+    "summary": "Pythonic argument parser, that will make you smile",
+    "projectUrl": "https://pypi.org/project/docopt/"
+  },
+  {
+    "name": "pytube",
+    "version": "15.0.0",
+    "summary": "Python 3 library for downloading YouTube Videos.",
+    "projectUrl": "https://pypi.org/project/pytube/"
+  },
+  {
+    "name": "easyocr",
+    "version": "1.7.2",
+    "summary": "End-to-End Multi-Lingual Optical Character Recognition (OCR) Solution",
+    "projectUrl": "https://pypi.org/project/easyocr/"
+  },
+  {
+    "name": "pipenv",
+    "version": "2026.8.0",
+    "summary": "Python Development Workflow for Humans.",
+    "projectUrl": "https://pypi.org/project/pipenv/"
+  },
+  {
+    "name": "fire",
+    "version": "0.7.1",
+    "summary": "A library for automatically generating command line interfaces.",
+    "projectUrl": "https://pypi.org/project/fire/"
+  },
+  {
+    "name": "pattern",
+    "version": "0.0.1a0",
+    "summary": "pattern is a Python package offering a suite of plotting functions to visualize machine learning models and data. It provides intuitive and customizable plots to aid in model evaluation and data analysis.",
+    "projectUrl": "https://pypi.org/project/pattern/"
+  },
+  {
+    "name": "oauthlib",
+    "version": "3.3.1",
+    "summary": "A generic, spec-compliant, thorough implementation of the OAuth request-signing logic",
+    "projectUrl": "https://pypi.org/project/oauthlib/"
+  },
+  {
+    "name": "azure-storage-blob",
+    "version": "12.30.0",
+    "summary": "Microsoft Azure Blob Storage Client Library for Python",
+    "projectUrl": "https://pypi.org/project/azure-storage-blob/"
+  },
+  {
+    "name": "argparse",
+    "version": "1.4.0",
+    "summary": "Python command-line parsing library",
+    "projectUrl": "https://pypi.org/project/argparse/"
+  },
+  {
+    "name": "WMI",
+    "version": "1.5.1",
+    "summary": "Windows Management Instrumentation",
+    "projectUrl": "https://pypi.org/project/WMI/"
+  },
+  {
+    "name": "ray",
+    "version": "2.58.0",
+    "summary": "Ray provides a simple, universal API for building distributed applications.",
+    "projectUrl": "https://pypi.org/project/ray/"
+  },
+  {
+    "name": "MechanicalSoup",
+    "version": "1.4.0",
+    "summary": "A Python library for automating interaction with websites",
+    "projectUrl": "https://pypi.org/project/MechanicalSoup/"
+  },
+  {
+    "name": "docker",
+    "version": "7.2.0",
+    "summary": "A Python library for the Docker Engine API.",
+    "projectUrl": "https://pypi.org/project/docker/"
+  },
+  {
+    "name": "kafka-python",
+    "version": "3.0.11",
+    "summary": "Pure Python client for Apache Kafka",
+    "projectUrl": "https://pypi.org/project/kafka-python/"
+  },
+  {
+    "name": "PyPDF2",
+    "version": "3.0.1",
+    "summary": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
+    "projectUrl": "https://pypi.org/project/PyPDF2/"
+  },
+  {
+    "name": "splinter",
+    "version": "0.21.0",
+    "summary": "browser abstraction for web acceptance testing",
+    "projectUrl": "https://pypi.org/project/splinter/"
+  },
+  {
+    "name": "google-cloud-storage",
+    "version": "3.13.1",
+    "summary": "Google Cloud Storage API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-storage/"
+  },
+  {
+    "name": "bandit",
+    "version": "1.9.4",
+    "summary": "Security oriented static analyser for python code.",
+    "projectUrl": "https://pypi.org/project/bandit/"
+  },
+  {
+    "name": "jupyterlab",
+    "version": "4.6.3",
+    "summary": "JupyterLab computational environment",
+    "projectUrl": "https://pypi.org/project/jupyterlab/"
+  },
+  {
+    "name": "responses",
+    "version": "0.26.2",
+    "summary": "A utility library for mocking out the `requests` Python library.",
+    "projectUrl": "https://pypi.org/project/responses/"
+  },
+  {
+    "name": "APScheduler",
+    "version": "3.11.3",
+    "summary": "In-process task scheduler with Cron-like capabilities",
+    "projectUrl": "https://pypi.org/project/APScheduler/"
+  },
+  {
+    "name": "pycryptodome",
+    "version": "3.23.0",
+    "summary": "Cryptographic library for Python",
+    "projectUrl": "https://pypi.org/project/pycryptodome/"
+  },
+  {
+    "name": "huey",
+    "version": "3.3.4",
+    "summary": "a little task queue",
+    "projectUrl": "https://pypi.org/project/huey/"
+  },
+  {
+    "name": "pyinstaller",
+    "version": "6.22.2",
+    "summary": "PyInstaller bundles a Python application and all its dependencies into a single package.",
+    "projectUrl": "https://pypi.org/project/pyinstaller/"
+  },
+  {
+    "name": "polars",
+    "version": "1.44.1",
+    "summary": "Blazingly fast DataFrame library",
+    "projectUrl": "https://pypi.org/project/polars/"
+  },
+  {
+    "name": "cx-Freeze",
+    "version": "8.7.0",
+    "summary": "Create standalone executables from Python scripts",
+    "projectUrl": "https://pypi.org/project/cx-Freeze/"
+  },
+  {
+    "name": "tokenizers",
+    "version": "0.23.1",
+    "summary": null,
+    "projectUrl": "https://pypi.org/project/tokenizers/"
+  },
+  {
+    "name": "numba",
+    "version": "0.67.0",
+    "summary": "compiling Python code using LLVM",
+    "projectUrl": "https://pypi.org/project/numba/"
+  },
+  {
+    "name": "psutil",
+    "version": "7.2.2",
+    "summary": "Cross-platform lib for process and system monitoring.",
+    "projectUrl": "https://pypi.org/project/psutil/"
+  },
+  {
+    "name": "hiredis",
+    "version": "3.4.1",
+    "summary": "Python wrapper for hiredis",
+    "projectUrl": "https://pypi.org/project/hiredis/"
+  },
+  {
+    "name": "awscli",
+    "version": "1.46.0",
+    "summary": "Universal Command Line Environment for AWS.",
+    "projectUrl": "https://pypi.org/project/awscli/"
+  },
+  {
+    "name": "Cython",
+    "version": "3.3.0",
+    "summary": "The Cython compiler for writing C extensions in the Python language.",
+    "projectUrl": "https://pypi.org/project/Cython/"
+  },
+  {
+    "name": "pygame",
+    "version": "2.6.1",
+    "summary": "Python Game Development",
+    "projectUrl": "https://pypi.org/project/pygame/"
+  },
+  {
+    "name": "orjson",
+    "version": "3.12.0",
+    "summary": "Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy",
+    "projectUrl": "https://pypi.org/project/orjson/"
+  },
+  {
+    "name": "typing-inspection",
+    "version": "0.4.4",
+    "summary": "Runtime typing introspection tools",
+    "projectUrl": "https://pypi.org/project/typing-inspection/"
+  },
+  {
+    "name": "annotated-types",
+    "version": "0.8.0",
+    "summary": "Reusable constraint types to use with typing.Annotated",
+    "projectUrl": "https://pypi.org/project/annotated-types/"
+  },
+  {
+    "name": "h11",
+    "version": "0.16.0",
+    "summary": "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1",
+    "projectUrl": "https://pypi.org/project/h11/"
+  },
+  {
+    "name": "pluggy",
+    "version": "1.6.0",
+    "summary": "plugin and hook calling mechanisms for python",
+    "projectUrl": "https://pypi.org/project/pluggy/"
+  },
+  {
+    "name": "iniconfig",
+    "version": "2.3.0",
+    "summary": "brain-dead simple config-ini parsing",
+    "projectUrl": "https://pypi.org/project/iniconfig/"
+  },
+  {
+    "name": "s3fs",
+    "version": "2026.7.0",
+    "summary": "Convenient Filesystem interface over S3",
+    "projectUrl": "https://pypi.org/project/s3fs/"
+  },
+  {
+    "name": "platformdirs",
+    "version": "4.11.4",
+    "summary": "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`.",
+    "projectUrl": "https://pypi.org/project/platformdirs/"
+  },
+  {
+    "name": "filelock",
+    "version": "3.32.4",
+    "summary": "A platform independent file lock.",
+    "projectUrl": "https://pypi.org/project/filelock/"
+  },
+  {
+    "name": "grpcio-status",
+    "version": "1.83.0",
+    "summary": "Status proto mapping for gRPC",
+    "projectUrl": "https://pypi.org/project/grpcio-status/"
+  },
+  {
+    "name": "pathspec",
+    "version": "1.1.1",
+    "summary": "Utility library for gitignore style pattern matching of file paths.",
+    "projectUrl": "https://pypi.org/project/pathspec/"
+  },
+  {
+    "name": "httpcore",
+    "version": "1.0.9",
+    "summary": "A minimal low-level HTTP client.",
+    "projectUrl": "https://pypi.org/project/httpcore/"
+  },
+  {
+    "name": "aiobotocore",
+    "version": "3.9.0",
+    "summary": "Async client for aws services using botocore and aiohttp",
+    "projectUrl": "https://pypi.org/project/aiobotocore/"
+  },
+  {
+    "name": "mdurl",
+    "version": "0.1.2",
+    "summary": "Markdown URL utilities",
+    "projectUrl": "https://pypi.org/project/mdurl/"
+  },
+  {
+    "name": "jsonschema-specifications",
+    "version": "2025.9.1",
+    "summary": "The JSON Schema meta-schemas and vocabularies, exposed as a Registry",
+    "projectUrl": "https://pypi.org/project/jsonschema-specifications/"
+  },
+  {
+    "name": "google-auth",
+    "version": "2.57.0",
+    "summary": "Google Authentication Library",
+    "projectUrl": "https://pypi.org/project/google-auth/"
+  },
+  {
+    "name": "fsspec",
+    "version": "2026.7.0",
+    "summary": "File-system specification",
+    "projectUrl": "https://pypi.org/project/fsspec/"
+  },
+  {
+    "name": "trove-classifiers",
+    "version": "2026.6.1.19",
+    "summary": "Canonical source for classifiers on PyPI (pypi.org).",
+    "projectUrl": "https://pypi.org/project/trove-classifiers/"
+  },
+  {
+    "name": "importlib-metadata",
+    "version": "9.0.0",
+    "summary": "Read metadata from Python packages",
+    "projectUrl": "https://pypi.org/project/importlib-metadata/"
+  },
+  {
+    "name": "starlette",
+    "version": "1.6.0",
+    "summary": "The little ASGI library that shines.",
+    "projectUrl": "https://pypi.org/project/starlette/"
+  },
+  {
+    "name": "attrs",
+    "version": "26.1.0",
+    "summary": "Classes Without Boilerplate",
+    "projectUrl": "https://pypi.org/project/attrs/"
+  },
+  {
+    "name": "googleapis-common-protos",
+    "version": "1.75.2",
+    "summary": "Common protobufs used in Google APIs",
+    "projectUrl": "https://pypi.org/project/googleapis-common-protos/"
+  },
+  {
+    "name": "sniffio",
+    "version": "1.3.1",
+    "summary": "Sniff out which async library your code is running under",
+    "projectUrl": "https://pypi.org/project/sniffio/"
+  },
+  {
+    "name": "tzdata",
+    "version": "2026.3",
+    "summary": "Provider of IANA time zone data",
+    "projectUrl": "https://pypi.org/project/tzdata/"
+  },
+  {
+    "name": "opentelemetry-semantic-conventions",
+    "version": "0.65b0",
+    "summary": "OpenTelemetry Semantic Conventions",
+    "projectUrl": "https://pypi.org/project/opentelemetry-semantic-conventions/"
+  },
+  {
+    "name": "markdown-it-py",
+    "version": "4.2.0",
+    "summary": "Python port of markdown-it. Markdown parsing, done right!",
+    "projectUrl": "https://pypi.org/project/markdown-it-py/"
+  },
+  {
+    "name": "referencing",
+    "version": "0.37.0",
+    "summary": "JSON Referencing + Python",
+    "projectUrl": "https://pypi.org/project/referencing/"
+  },
+  {
+    "name": "aiohappyeyeballs",
+    "version": "2.7.1",
+    "summary": "Happy Eyeballs for asyncio",
+    "projectUrl": "https://pypi.org/project/aiohappyeyeballs/"
+  },
+  {
+    "name": "zipp",
+    "version": "4.1.0",
+    "summary": "Backport of pathlib-compatible object wrapper for zip files",
+    "projectUrl": "https://pypi.org/project/zipp/"
+  },
+  {
+    "name": "hatchling",
+    "version": "1.32.0",
+    "summary": "Modern, extensible Python build backend",
+    "projectUrl": "https://pypi.org/project/hatchling/"
+  },
+  {
+    "name": "frozenlist",
+    "version": "1.8.0",
+    "summary": "A list-like structure which implements collections.abc.MutableSequence",
+    "projectUrl": "https://pypi.org/project/frozenlist/"
+  },
+  {
+    "name": "opentelemetry-api",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Python API",
+    "projectUrl": "https://pypi.org/project/opentelemetry-api/"
+  },
+  {
+    "name": "pydantic-settings",
+    "version": "2.15.0",
+    "summary": "Settings management using Pydantic",
+    "projectUrl": "https://pypi.org/project/pydantic-settings/"
+  },
+  {
+    "name": "google-api-core",
+    "version": "2.34.0",
+    "summary": "Google API client core library",
+    "projectUrl": "https://pypi.org/project/google-api-core/"
+  },
+  {
+    "name": "soupsieve",
+    "version": "2.9.2",
+    "summary": "A modern CSS selector implementation for Beautiful Soup.",
+    "projectUrl": "https://pypi.org/project/soupsieve/"
+  },
+  {
+    "name": "pyasn1-modules",
+    "version": "0.4.2",
+    "summary": "A collection of ASN.1-based protocols modules",
+    "projectUrl": "https://pypi.org/project/pyasn1-modules/"
+  },
+  {
+    "name": "tenacity",
+    "version": "9.1.4",
+    "summary": "Retry code until it succeeds",
+    "projectUrl": "https://pypi.org/project/tenacity/"
+  },
+  {
+    "name": "distro",
+    "version": "1.9.0",
+    "summary": "Distro - an OS platform information API",
+    "projectUrl": "https://pypi.org/project/distro/"
+  },
+  {
+    "name": "python-multipart",
+    "version": "0.0.32",
+    "summary": "A streaming multipart parser for Python",
+    "projectUrl": "https://pypi.org/project/python-multipart/"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp-proto-http",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Collector Protobuf over HTTP Exporter",
+    "projectUrl": "https://pypi.org/project/opentelemetry-exporter-otlp-proto-http/"
+  },
+  {
+    "name": "textual",
+    "version": "8.2.8",
+    "summary": "Modern Text User Interface framework",
+    "projectUrl": "https://pypi.org/project/textual/"
+  },
+  {
+    "name": "annotated-doc",
+    "version": "0.0.5",
+    "summary": "Document parameters, class attributes, return types, and variables inline, with Annotated.",
+    "projectUrl": "https://pypi.org/project/annotated-doc/"
+  },
+  {
+    "name": "opentelemetry-instrumentation",
+    "version": "0.65b0",
+    "summary": "Instrumentation Tools & Auto Instrumentation for OpenTelemetry Python",
+    "projectUrl": "https://pypi.org/project/opentelemetry-instrumentation/"
+  },
+  {
+    "name": "editables",
+    "version": "0.6",
+    "summary": "Editable installations",
+    "projectUrl": "https://pypi.org/project/editables/"
+  },
+  {
+    "name": "opentelemetry-proto",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Python Proto",
+    "projectUrl": "https://pypi.org/project/opentelemetry-proto/"
+  },
+  {
+    "name": "cachetools",
+    "version": "7.1.7",
+    "summary": "Extensible memoizing collections and decorators",
+    "projectUrl": "https://pypi.org/project/cachetools/"
+  },
+  {
+    "name": "requests-oauthlib",
+    "version": "2.0.0",
+    "summary": "OAuthlib authentication support for Requests.",
+    "projectUrl": "https://pypi.org/project/requests-oauthlib/"
+  },
+  {
+    "name": "proto-plus",
+    "version": "1.28.4",
+    "summary": "Beautiful, Pythonic protocol buffers",
+    "projectUrl": "https://pypi.org/project/proto-plus/"
+  },
+  {
+    "name": "shellingham",
+    "version": "1.5.4",
+    "summary": "Tool to Detect Surrounding Shell",
+    "projectUrl": "https://pypi.org/project/shellingham/"
+  },
+  {
+    "name": "et-xmlfile",
+    "version": "2.0.0",
+    "summary": "An implementation of lxml.xmlfile for the standard library",
+    "projectUrl": "https://pypi.org/project/et-xmlfile/"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp-proto-common",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Protobuf encoding",
+    "projectUrl": "https://pypi.org/project/opentelemetry-exporter-otlp-proto-common/"
+  },
+  {
+    "name": "tomlkit",
+    "version": "0.15.1",
+    "summary": "Style preserving TOML library",
+    "projectUrl": "https://pypi.org/project/tomlkit/"
+  },
+  {
+    "name": "more-itertools",
+    "version": "11.1.0",
+    "summary": "More routines for operating on iterables, beyond itertools",
+    "projectUrl": "https://pypi.org/project/more-itertools/"
+  },
+  {
+    "name": "mcp",
+    "version": "2.1.1",
+    "summary": "Model Context Protocol SDK",
+    "projectUrl": "https://pypi.org/project/mcp/"
+  },
+  {
+    "name": "dnspython",
+    "version": "2.8.0",
+    "summary": "DNS toolkit",
+    "projectUrl": "https://pypi.org/project/dnspython/"
+  },
+  {
+    "name": "distlib",
+    "version": "0.4.3",
+    "summary": "Distribution utilities",
+    "projectUrl": "https://pypi.org/project/distlib/"
+  },
+  {
+    "name": "mypy-extensions",
+    "version": "1.1.0",
+    "summary": "Type system extensions for programs checked with the mypy type checker.",
+    "projectUrl": "https://pypi.org/project/mypy-extensions/"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp-proto-grpc",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Collector Protobuf over gRPC Exporter",
+    "projectUrl": "https://pypi.org/project/opentelemetry-exporter-otlp-proto-grpc/"
+  },
+  {
+    "name": "aiosignal",
+    "version": "1.4.0",
+    "summary": "aiosignal: a list of registered asynchronous callbacks",
+    "projectUrl": "https://pypi.org/project/aiosignal/"
+  },
+  {
+    "name": "exceptiongroup",
+    "version": "1.3.1",
+    "summary": "Backport of PEP 654 (exception groups)",
+    "projectUrl": "https://pypi.org/project/exceptiongroup/"
+  },
+  {
+    "name": "openai",
+    "version": "3.3.1",
+    "summary": "The official Python library for the openai API",
+    "projectUrl": "https://pypi.org/project/openai/"
+  },
+  {
+    "name": "wcwidth",
+    "version": "0.8.2",
+    "summary": "Measures the displayed width of unicode strings in a terminal",
+    "projectUrl": "https://pypi.org/project/wcwidth/"
+  },
+  {
+    "name": "requests-toolbelt",
+    "version": "1.0.0",
+    "summary": "A utility belt for advanced users of python-requests",
+    "projectUrl": "https://pypi.org/project/requests-toolbelt/"
+  },
+  {
+    "name": "python-discovery",
+    "version": "1.5.3",
+    "summary": "Python interpreter discovery",
+    "projectUrl": "https://pypi.org/project/python-discovery/"
+  },
+  {
+    "name": "sse-starlette",
+    "version": "3.4.8",
+    "summary": "SSE plugin for Starlette",
+    "projectUrl": "https://pypi.org/project/sse-starlette/"
+  },
+  {
+    "name": "google-genai",
+    "version": "2.20.0",
+    "summary": "GenAI Python SDK",
+    "projectUrl": "https://pypi.org/project/google-genai/"
+  },
+  {
+    "name": "sortedcontainers",
+    "version": "2.4.0",
+    "summary": "Sorted Containers -- Sorted List, Sorted Dict, Sorted Set",
+    "projectUrl": "https://pypi.org/project/sortedcontainers/"
+  },
+  {
+    "name": "pytest-asyncio",
+    "version": "1.4.0",
+    "summary": "Pytest support for asyncio",
+    "projectUrl": "https://pypi.org/project/pytest-asyncio/"
+  },
+  {
+    "name": "docstring-parser",
+    "version": "0.18.0",
+    "summary": "Parse Python docstrings in reST, Google and Numpydoc format",
+    "projectUrl": "https://pypi.org/project/docstring-parser/"
+  },
+  {
+    "name": "pytest-json-ctrf",
+    "version": "0.5.3",
+    "summary": "Pytest plugin to generate json report in CTRF (Common Test Report Format)",
+    "projectUrl": "https://pypi.org/project/pytest-json-ctrf/"
+  },
+  {
+    "name": "pyOpenSSL",
+    "version": "26.4.0",
+    "summary": "Python wrapper module around the OpenSSL library",
+    "projectUrl": "https://pypi.org/project/pyOpenSSL/"
+  },
+  {
+    "name": "langchain",
+    "version": "1.3.17",
+    "summary": "Building applications with LLMs through composability",
+    "projectUrl": "https://pypi.org/project/langchain/"
+  },
+  {
+    "name": "GitPython",
+    "version": "3.1.60",
+    "summary": "GitPython is a Python library used to interact with Git repositories",
+    "projectUrl": "https://pypi.org/project/GitPython/"
+  },
+  {
+    "name": "propcache",
+    "version": "0.5.2",
+    "summary": "Accelerated property cache",
+    "projectUrl": "https://pypi.org/project/propcache/"
+  },
+  {
+    "name": "smmap",
+    "version": "5.0.3",
+    "summary": "A pure Python implementation of a sliding window memory map manager",
+    "projectUrl": "https://pypi.org/project/smmap/"
+  },
+  {
+    "name": "azure-core",
+    "version": "1.41.0",
+    "summary": "Microsoft Azure Core Library for Python",
+    "projectUrl": "https://pypi.org/project/azure-core/"
+  },
+  {
+    "name": "watchfiles",
+    "version": "1.2.0",
+    "summary": "Simple, modern and high performance file watching and code reload in python.",
+    "projectUrl": "https://pypi.org/project/watchfiles/"
+  },
+  {
+    "name": "httptools",
+    "version": "0.8.0",
+    "summary": "A collection of framework independent HTTP protocol utils.",
+    "projectUrl": "https://pypi.org/project/httptools/"
+  },
+  {
+    "name": "azure-identity",
+    "version": "1.25.3",
+    "summary": "Microsoft Azure Identity Library for Python",
+    "projectUrl": "https://pypi.org/project/azure-identity/"
+  },
+  {
+    "name": "jiter",
+    "version": "0.16.0",
+    "summary": "Fast iterable JSON parser.",
+    "projectUrl": "https://pypi.org/project/jiter/"
+  },
+  {
+    "name": "uvloop",
+    "version": "0.22.1",
+    "summary": "Fast implementation of asyncio event loop on top of libuv",
+    "projectUrl": "https://pypi.org/project/uvloop/"
+  },
+  {
+    "name": "defusedxml",
+    "version": "0.7.1",
+    "summary": "XML bomb protection for Python stdlib modules",
+    "projectUrl": "https://pypi.org/project/defusedxml/"
+  },
+  {
+    "name": "keyring",
+    "version": "25.7.0",
+    "summary": "Store and access your passwords safely.",
+    "projectUrl": "https://pypi.org/project/keyring/"
+  },
+  {
+    "name": "decorator",
+    "version": "5.3.1",
+    "summary": "Decorators for Humans",
+    "projectUrl": "https://pypi.org/project/decorator/"
+  },
+  {
+    "name": "httpx-sse",
+    "version": "0.4.3",
+    "summary": "Consume Server-Sent Event (SSE) messages with HTTPX.",
+    "projectUrl": "https://pypi.org/project/httpx-sse/"
+  },
+  {
+    "name": "tabulate",
+    "version": "0.10.0",
+    "summary": "Pretty-print tabular data",
+    "projectUrl": "https://pypi.org/project/tabulate/"
+  },
+  {
+    "name": "hf-xet",
+    "version": "1.6.0",
+    "summary": "Fast transfer of large files with the Hugging Face Hub.",
+    "projectUrl": "https://pypi.org/project/hf-xet/"
+  },
+  {
+    "name": "prompt_toolkit",
+    "version": "3.0.53",
+    "summary": "Library for building powerful interactive command lines in Python",
+    "projectUrl": "https://pypi.org/project/prompt_toolkit/"
+  },
+  {
+    "name": "pytest-cov",
+    "version": "7.1.0",
+    "summary": "Pytest plugin for measuring coverage.",
+    "projectUrl": "https://pypi.org/project/pytest-cov/"
+  },
+  {
+    "name": "email-validator",
+    "version": "2.3.0",
+    "summary": "A robust email address syntax and deliverability validation library.",
+    "projectUrl": "https://pypi.org/project/email-validator/"
+  },
+  {
+    "name": "websocket-client",
+    "version": "1.9.0",
+    "summary": "WebSocket client for Python with low level API options",
+    "projectUrl": "https://pypi.org/project/websocket-client/"
+  },
+  {
+    "name": "jaraco.classes",
+    "version": "3.4.0",
+    "summary": "Utility functions for Python class constructs",
+    "projectUrl": "https://pypi.org/project/jaraco.classes/"
+  },
+  {
+    "name": "isodate",
+    "version": "0.7.2",
+    "summary": "An ISO 8601 date/time/duration parser and formatter",
+    "projectUrl": "https://pypi.org/project/isodate/"
+  },
+  {
+    "name": "tiktoken",
+    "version": "0.14.0",
+    "summary": "tiktoken is a fast BPE tokeniser for use with OpenAI's models",
+    "projectUrl": "https://pypi.org/project/tiktoken/"
+  },
+  {
+    "name": "jeepney",
+    "version": "0.9.0",
+    "summary": "Low-level, pure Python DBus protocol wrapper.",
+    "projectUrl": "https://pypi.org/project/jeepney/"
+  },
+  {
+    "name": "opentelemetry-instrumentation-requests",
+    "version": "0.65b0",
+    "summary": "OpenTelemetry requests instrumentation",
+    "projectUrl": "https://pypi.org/project/opentelemetry-instrumentation-requests/"
+  },
+  {
+    "name": "PyNaCl",
+    "version": "1.6.2",
+    "summary": "Python binding to the Networking and Cryptography (NaCl) library",
+    "projectUrl": "https://pypi.org/project/PyNaCl/"
+  },
+  {
+    "name": "gitdb",
+    "version": "4.0.12",
+    "summary": "Git Object Database",
+    "projectUrl": "https://pypi.org/project/gitdb/"
+  },
+  {
+    "name": "SecretStorage",
+    "version": "3.5.0",
+    "summary": "Python bindings to FreeDesktop.org Secret Service API",
+    "projectUrl": "https://pypi.org/project/SecretStorage/"
+  },
+  {
+    "name": "ghapi",
+    "version": "2.1.2",
+    "summary": "A python client for the GitHub API",
+    "projectUrl": "https://pypi.org/project/ghapi/"
+  },
+  {
+    "name": "msgpack",
+    "version": "1.2.1",
+    "summary": "MessagePack serializer",
+    "projectUrl": "https://pypi.org/project/msgpack/"
+  },
+  {
+    "name": "tzlocal",
+    "version": "5.4.4",
+    "summary": "tzinfo object for the local timezone",
+    "projectUrl": "https://pypi.org/project/tzlocal/"
+  },
+  {
+    "name": "jaraco.functools",
+    "version": "4.6.0",
+    "summary": "Functools like those found in stdlib",
+    "projectUrl": "https://pypi.org/project/jaraco.functools/"
+  },
+  {
+    "name": "jaraco.context",
+    "version": "6.1.2",
+    "summary": "Useful decorators and context managers",
+    "projectUrl": "https://pypi.org/project/jaraco.context/"
+  },
+  {
+    "name": "itsdangerous",
+    "version": "2.2.0",
+    "summary": "Safely pass data to untrusted environments and back.",
+    "projectUrl": "https://pypi.org/project/itsdangerous/"
+  },
+  {
+    "name": "litellm",
+    "version": "1.98.0",
+    "summary": "Library to easily interface with LLM API providers",
+    "projectUrl": "https://pypi.org/project/litellm/"
+  },
+  {
+    "name": "google-cloud-core",
+    "version": "2.7.0",
+    "summary": "Google Cloud API client core library",
+    "projectUrl": "https://pypi.org/project/google-cloud-core/"
+  },
+  {
+    "name": "greenlet",
+    "version": "3.5.5",
+    "summary": "Lightweight in-process concurrent programming",
+    "projectUrl": "https://pypi.org/project/greenlet/"
+  },
+  {
+    "name": "msal",
+    "version": "1.38.0",
+    "summary": "The Microsoft Authentication Library (MSAL) for Python library enables your app to access the Microsoft Cloud by supporting authentication of users with Microsoft Azure Active Directory accounts (AAD) and Microsoft Accounts (MSA) using industry standard OAuth2 and OpenID Connect.",
+    "projectUrl": "https://pypi.org/project/msal/"
+  },
+  {
+    "name": "dill",
+    "version": "0.4.1",
+    "summary": "serialize all of Python",
+    "projectUrl": "https://pypi.org/project/dill/"
+  },
+  {
+    "name": "joblib",
+    "version": "1.5.3",
+    "summary": "Lightweight pipelining with Python functions",
+    "projectUrl": "https://pypi.org/project/joblib/"
+  },
+  {
+    "name": "ptyprocess",
+    "version": "0.7.0",
+    "summary": "Run a subprocess in a pseudo terminal",
+    "projectUrl": "https://pypi.org/project/ptyprocess/"
+  },
+  {
+    "name": "threadpoolctl",
+    "version": "3.6.0",
+    "summary": "threadpoolctl",
+    "projectUrl": "https://pypi.org/project/threadpoolctl/"
+  },
+  {
+    "name": "weaviate-client",
+    "version": "4.23.0",
+    "summary": "A python native Weaviate client",
+    "projectUrl": "https://pypi.org/project/weaviate-client/"
+  },
+  {
+    "name": "nodeenv",
+    "version": "1.10.0",
+    "summary": "Node.js virtual environment builder",
+    "projectUrl": "https://pypi.org/project/nodeenv/"
+  },
+  {
+    "name": "opentelemetry-util-http",
+    "version": "0.65b0",
+    "summary": "Web util for OpenTelemetry",
+    "projectUrl": "https://pypi.org/project/opentelemetry-util-http/"
+  },
+  {
+    "name": "multiprocess",
+    "version": "0.70.19",
+    "summary": "better multiprocessing and multithreading in Python",
+    "projectUrl": "https://pypi.org/project/multiprocess/"
+  },
+  {
+    "name": "ydb",
+    "version": "3.31.2",
+    "summary": "YDB Python SDK",
+    "projectUrl": "https://pypi.org/project/ydb/"
+  },
+  {
+    "name": "pexpect",
+    "version": "4.9.0",
+    "summary": "Pexpect allows easy control of interactive console applications.",
+    "projectUrl": "https://pypi.org/project/pexpect/"
+  },
+  {
+    "name": "google-resumable-media",
+    "version": "2.10.2",
+    "summary": "Utilities for Google Media Downloads and Resumable Uploads",
+    "projectUrl": "https://pypi.org/project/google-resumable-media/"
+  },
+  {
+    "name": "blinker",
+    "version": "1.9.0",
+    "summary": "Fast, simple object-to-object and broadcast signaling",
+    "projectUrl": "https://pypi.org/project/blinker/"
+  },
+  {
+    "name": "sympy",
+    "version": "1.14.0",
+    "summary": "Computer algebra system (CAS) in Python",
+    "projectUrl": "https://pypi.org/project/sympy/"
+  },
+  {
+    "name": "google-api-python-client",
+    "version": "2.199.0",
+    "summary": "Google API Client Library for Python",
+    "projectUrl": "https://pypi.org/project/google-api-python-client/"
+  },
+  {
+    "name": "Deprecated",
+    "version": "1.3.1",
+    "summary": "Python @deprecated decorator to deprecate old python classes, functions or methods.",
+    "projectUrl": "https://pypi.org/project/Deprecated/"
+  },
+  {
+    "name": "google-crc32c",
+    "version": "1.8.0",
+    "summary": "A python wrapper of the C library 'Google CRC32C'",
+    "projectUrl": "https://pypi.org/project/google-crc32c/"
+  },
+  {
+    "name": "opentelemetry-exporter-otlp",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Collector Exporters",
+    "projectUrl": "https://pypi.org/project/opentelemetry-exporter-otlp/"
+  },
+  {
+    "name": "zstandard",
+    "version": "0.25.0",
+    "summary": "Zstandard bindings for Python",
+    "projectUrl": "https://pypi.org/project/zstandard/"
+  },
+  {
+    "name": "chardet",
+    "version": "7.6.0",
+    "summary": "Universal character encoding detector",
+    "projectUrl": "https://pypi.org/project/chardet/"
+  },
+  {
+    "name": "jsonpointer",
+    "version": "3.1.1",
+    "summary": "Identify specific nodes in a JSON document (RFC 6901) ",
+    "projectUrl": "https://pypi.org/project/jsonpointer/"
+  },
+  {
+    "name": "kiwisolver",
+    "version": "1.5.0",
+    "summary": "A fast implementation of the Cassowary constraint solver",
+    "projectUrl": "https://pypi.org/project/kiwisolver/"
+  },
+  {
+    "name": "multidict",
+    "version": "6.7.1",
+    "summary": "multidict implementation",
+    "projectUrl": "https://pypi.org/project/multidict/"
+  },
+  {
+    "name": "uritemplate",
+    "version": "4.2.0",
+    "summary": "Implementation of RFC 6570 URI Templates",
+    "projectUrl": "https://pypi.org/project/uritemplate/"
+  },
+  {
+    "name": "httplib2",
+    "version": "0.32.0",
+    "summary": "A comprehensive HTTP client library.",
+    "projectUrl": "https://pypi.org/project/httplib2/"
+  },
+  {
+    "name": "hpack",
+    "version": "4.2.0",
+    "summary": "Pure-Python HPACK header encoding",
+    "projectUrl": "https://pypi.org/project/hpack/"
+  },
+  {
+    "name": "anthropic",
+    "version": "1.0.0",
+    "summary": "The official Python library for the anthropic API",
+    "projectUrl": "https://pypi.org/project/anthropic/"
+  },
+  {
+    "name": "pre-commit",
+    "version": "4.6.2",
+    "summary": "A framework for managing and maintaining multi-language pre-commit hooks.",
+    "projectUrl": "https://pypi.org/project/pre-commit/"
+  },
+  {
+    "name": "google-auth-httplib2",
+    "version": "0.4.2",
+    "summary": "Google Authentication Library: httplib2 transport",
+    "projectUrl": "https://pypi.org/project/google-auth-httplib2/"
+  },
+  {
+    "name": "cfgv",
+    "version": "3.5.0",
+    "summary": "Validate configuration and produce human readable error messages.",
+    "projectUrl": "https://pypi.org/project/cfgv/"
+  },
+  {
+    "name": "google-cloud-secret-manager",
+    "version": "2.30.0",
+    "summary": "Google Cloud Secret Manager API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-secret-manager/"
+  },
+  {
+    "name": "pytest-xdist",
+    "version": "3.8.0",
+    "summary": "pytest xdist plugin for distributed testing, most importantly across multiple CPUs",
+    "projectUrl": "https://pypi.org/project/pytest-xdist/"
+  },
+  {
+    "name": "identify",
+    "version": "2.6.19",
+    "summary": "File identification library for Python",
+    "projectUrl": "https://pypi.org/project/identify/"
+  },
+  {
+    "name": "cycler",
+    "version": "0.12.1",
+    "summary": "Composable style cycles",
+    "projectUrl": "https://pypi.org/project/cycler/"
+  },
+  {
+    "name": "google-auth-oauthlib",
+    "version": "1.4.1",
+    "summary": "Google Authentication Library",
+    "projectUrl": "https://pypi.org/project/google-auth-oauthlib/"
+  },
+  {
+    "name": "opentelemetry-instrumentation-threading",
+    "version": "0.65b0",
+    "summary": "Thread context propagation support for OpenTelemetry",
+    "projectUrl": "https://pypi.org/project/opentelemetry-instrumentation-threading/"
+  },
+  {
+    "name": "langchain-core",
+    "version": "1.6.0",
+    "summary": "Building applications with LLMs through composability",
+    "projectUrl": "https://pypi.org/project/langchain-core/"
+  },
+  {
+    "name": "asn1crypto",
+    "version": "1.5.1",
+    "summary": "Fast ASN.1 parser and serializer with definitions for private keys, public keys, certificates, CRL, OCSP, CMS, PKCS#3, PKCS#7, PKCS#8, PKCS#12, PKCS#5, X.509 and TSP",
+    "projectUrl": "https://pypi.org/project/asn1crypto/"
+  },
+  {
+    "name": "opentelemetry-sdk",
+    "version": "1.44.0",
+    "summary": "OpenTelemetry Python SDK",
+    "projectUrl": "https://pypi.org/project/opentelemetry-sdk/"
+  },
+  {
+    "name": "contourpy",
+    "version": "1.3.3",
+    "summary": "Python library for calculating contours of 2D quadrilateral grids",
+    "projectUrl": "https://pypi.org/project/contourpy/"
+  },
+  {
+    "name": "h2",
+    "version": "4.4.1",
+    "summary": "Pure-Python HTTP/2 protocol implementation",
+    "projectUrl": "https://pypi.org/project/h2/"
+  },
+  {
+    "name": "poetry-core",
+    "version": "2.4.1",
+    "summary": "Poetry PEP 517 Build Backend",
+    "projectUrl": "https://pypi.org/project/poetry-core/"
+  },
+  {
+    "name": "pyproject-hooks",
+    "version": "1.2.0",
+    "summary": "Wrappers to call pyproject.toml-based build backend hooks.",
+    "projectUrl": "https://pypi.org/project/pyproject-hooks/"
+  },
+  {
+    "name": "google-cloud-aiplatform",
+    "version": "1.165.1",
+    "summary": "Vertex AI API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-aiplatform/"
+  },
+  {
+    "name": "execnet",
+    "version": "2.1.2",
+    "summary": "execnet: rapid multi-Python deployment",
+    "projectUrl": "https://pypi.org/project/execnet/"
+  },
+  {
+    "name": "hyperframe",
+    "version": "6.1.0",
+    "summary": "Pure-Python HTTP/2 framing",
+    "projectUrl": "https://pypi.org/project/hyperframe/"
+  },
+  {
+    "name": "msal-extensions",
+    "version": "1.3.1",
+    "summary": "Microsoft Authentication Library extensions (MSAL EX) provides a persistence API that can save your data on disk, encrypted on Windows, macOS and Linux. Concurrent data access will be coordinated by a file lock mechanism.",
+    "projectUrl": "https://pypi.org/project/msal-extensions/"
+  },
+  {
+    "name": "mpmath",
+    "version": "1.4.1",
+    "summary": "Python library for arbitrary-precision floating-point arithmetic",
+    "projectUrl": "https://pypi.org/project/mpmath/"
+  },
+  {
+    "name": "async-timeout",
+    "version": "5.0.1",
+    "summary": "Timeout context manager for asyncio programs",
+    "projectUrl": "https://pypi.org/project/async-timeout/"
+  },
+  {
+    "name": "aiofiles",
+    "version": "25.1.0",
+    "summary": "File support for asyncio.",
+    "projectUrl": "https://pypi.org/project/aiofiles/"
+  },
+  {
+    "name": "build",
+    "version": "1.5.0",
+    "summary": "A simple, correct Python build frontend",
+    "projectUrl": "https://pypi.org/project/build/"
+  },
+  {
+    "name": "google-cloud-batch",
+    "version": "0.22.2",
+    "summary": "Google Cloud Batch API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-batch/"
+  },
+  {
+    "name": "ruamel.yaml",
+    "version": "0.19.1",
+    "summary": "ruamel.yaml is a YAML parser/emitter that supports roundtrip preservation of comments, seq/map flow style, and map key order",
+    "projectUrl": "https://pypi.org/project/ruamel.yaml/"
+  },
+  {
+    "name": "jsonpatch",
+    "version": "1.33",
+    "summary": "Apply JSON-Patches (RFC 6902)",
+    "projectUrl": "https://pypi.org/project/jsonpatch/"
+  },
+  {
+    "name": "fastjsonschema",
+    "version": "2.22.2",
+    "summary": "Fastest Python implementation of JSON schema",
+    "projectUrl": "https://pypi.org/project/fastjsonschema/"
+  },
+  {
+    "name": "traitlets",
+    "version": "5.16.1",
+    "summary": "Traitlets Python configuration system",
+    "projectUrl": "https://pypi.org/project/traitlets/"
+  },
+  {
+    "name": "Authlib",
+    "version": "1.7.2",
+    "summary": "The ultimate Python library in building OAuth and OpenID Connect servers and clients.",
+    "projectUrl": "https://pypi.org/project/Authlib/"
+  },
+  {
+    "name": "backoff",
+    "version": "2.2.1",
+    "summary": "Function decoration for backoff and retry",
+    "projectUrl": "https://pypi.org/project/backoff/"
+  },
+  {
+    "name": "joserfc",
+    "version": "1.7.4",
+    "summary": "The ultimate Python library for JOSE RFCs, including JWS, JWE, JWK, JWA, JWT",
+    "projectUrl": "https://pypi.org/project/joserfc/"
+  },
+  {
+    "name": "google-cloud-kms",
+    "version": "3.16.0",
+    "summary": "Google Cloud Kms API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-kms/"
+  },
+  {
+    "name": "asgiref",
+    "version": "3.12.1",
+    "summary": "ASGI specs, helper code, and adapters",
+    "projectUrl": "https://pypi.org/project/asgiref/"
+  },
+  {
+    "name": "google-analytics-admin",
+    "version": "0.30.1",
+    "summary": "Google Analytics Admin API client library",
+    "projectUrl": "https://pypi.org/project/google-analytics-admin/"
+  },
+  {
+    "name": "sqlparse",
+    "version": "0.6.0",
+    "summary": "A non-validating SQL parser.",
+    "projectUrl": "https://pypi.org/project/sqlparse/"
+  },
+  {
+    "name": "pydantic-ai-slim",
+    "version": "2.35.0",
+    "summary": "AI Agent Framework, the Pydantic way, slim package",
+    "projectUrl": "https://pypi.org/project/pydantic-ai-slim/"
+  },
+  {
+    "name": "google-cloud-compute",
+    "version": "1.51.0",
+    "summary": "Google Cloud Compute API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-compute/"
+  },
+  {
+    "name": "cloudpickle",
+    "version": "3.1.2",
+    "summary": "Pickler class to extend the standard pickle.Pickler functionality",
+    "projectUrl": "https://pypi.org/project/cloudpickle/"
+  },
+  {
+    "name": "webencodings",
+    "version": "0.6.1",
+    "summary": "Character encoding aliases for legacy web content",
+    "projectUrl": "https://pypi.org/project/webencodings/"
+  },
+  {
+    "name": "narwhals",
+    "version": "2.25.0",
+    "summary": "Extremely lightweight compatibility layer between dataframe libraries",
+    "projectUrl": "https://pypi.org/project/narwhals/"
+  },
+  {
+    "name": "executing",
+    "version": "2.2.1",
+    "summary": "Get the currently executing AST node of a frame, and other information",
+    "projectUrl": "https://pypi.org/project/executing/"
+  },
+  {
+    "name": "jedi",
+    "version": "0.20.0",
+    "summary": "An autocompletion tool for Python that can be used for text editors.",
+    "projectUrl": "https://pypi.org/project/jedi/"
+  },
+  {
+    "name": "botocore",
+    "version": "1.43.80",
+    "summary": "Low-level, data-driven core of boto 3.",
+    "projectUrl": "https://pypi.org/project/botocore/"
+  },
+  {
+    "name": "asttokens",
+    "version": "3.0.2",
+    "summary": "Annotate AST trees with source code positions",
+    "projectUrl": "https://pypi.org/project/asttokens/"
+  },
+  {
+    "name": "parso",
+    "version": "0.8.7",
+    "summary": "A Python Parser",
+    "projectUrl": "https://pypi.org/project/parso/"
+  },
+  {
+    "name": "grpc-google-iam-v1",
+    "version": "0.14.5",
+    "summary": "IAM API client library",
+    "projectUrl": "https://pypi.org/project/grpc-google-iam-v1/"
+  },
+  {
+    "name": "setuptools-scm",
+    "version": "10.2.1",
+    "summary": "the blessed package to manage your versions by scm tags",
+    "projectUrl": "https://pypi.org/project/setuptools-scm/"
+  },
+  {
+    "name": "gcsfs",
+    "version": "2026.8.0",
+    "summary": "Convenient Filesystem interface over GCS",
+    "projectUrl": "https://pypi.org/project/gcsfs/"
+  },
+  {
+    "name": "google-cloud-dlp",
+    "version": "3.38.0",
+    "summary": "Google Cloud Dlp API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-dlp/"
+  },
+  {
+    "name": "databricks-sdk",
+    "version": "0.133.0",
+    "summary": "Databricks SDK for Python (Beta)",
+    "projectUrl": "https://pypi.org/project/databricks-sdk/"
+  },
+  {
+    "name": "fonttools",
+    "version": "4.63.0",
+    "summary": "Tools to manipulate font files",
+    "projectUrl": "https://pypi.org/project/fonttools/"
+  },
+  {
+    "name": "snowflake-connector-python",
+    "version": "4.7.2",
+    "summary": "Snowflake Connector for Python",
+    "projectUrl": "https://pypi.org/project/snowflake-connector-python/"
+  },
+  {
+    "name": "google-cloud-bigquery",
+    "version": "3.44.0",
+    "summary": "Google BigQuery API client library",
+    "projectUrl": "https://pypi.org/project/google-cloud-bigquery/"
+  },
+  {
+    "name": "yarl",
+    "version": "1.24.5",
+    "summary": "Yet another URL library",
+    "projectUrl": "https://pypi.org/project/yarl/"
+  },
+  {
+    "name": "rpds-py",
+    "version": "2026.6.3",
+    "summary": "Python bindings to Rust's persistent data structures (rpds)",
+    "projectUrl": "https://pypi.org/project/rpds-py/"
+  },
+  {
+    "name": "librt",
+    "version": "0.15.0",
+    "summary": "Mypyc runtime library",
+    "projectUrl": "https://pypi.org/project/librt/"
+  },
+  {
+    "name": "wrapt",
+    "version": "2.3.0",
+    "summary": "Module for decorators, wrappers and monkey patching.",
+    "projectUrl": "https://pypi.org/project/wrapt/"
+  },
+  {
+    "name": "xxhash",
+    "version": "4.0.1",
+    "summary": "Python binding for xxHash",
+    "projectUrl": "https://pypi.org/project/xxhash/"
+  },
+  {
+    "name": "ruff",
+    "version": "0.16.4",
+    "summary": "An extremely fast Python linter and code formatter, written in Rust.",
+    "projectUrl": "https://pypi.org/project/ruff/"
+  },
+  {
+    "name": "uv",
+    "version": "0.12.6",
+    "summary": "An extremely fast Python package and project manager, written in Rust.",
+    "projectUrl": "https://pypi.org/project/uv/"
+  },
+  {
+    "name": "regex",
+    "version": "2026.7.19",
+    "summary": "Alternative regular expression module, to replace re.",
+    "projectUrl": "https://pypi.org/project/regex/"
+  },
+  {
+    "name": "babel",
+    "version": "2.18.0",
+    "summary": "Internationalization utilities",
+    "projectUrl": "https://pypi.org/project/babel/"
+  },
+  {
+    "name": "grpcio-tools",
+    "version": "1.83.0",
+    "summary": "Protobuf code generator for gRPC",
+    "projectUrl": "https://pypi.org/project/grpcio-tools/"
+  },
+  {
+    "name": "pydantic_core",
+    "version": "2.48.0",
+    "summary": "Core functionality for Pydantic validation and serialization",
+    "projectUrl": "https://pypi.org/project/pydantic_core/"
+  },
+  {
+    "name": "RapidFuzz",
+    "version": "3.14.5",
+    "summary": "rapid fuzzy string matching",
+    "projectUrl": "https://pypi.org/project/RapidFuzz/"
+  }
+]
