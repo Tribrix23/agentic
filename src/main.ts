@@ -317,7 +317,7 @@ function createWindow() {
     mcpClientManager.addServer({
       id: 'playwright',
       name: 'Playwright Browser',
-      transport: { type: 'stdio', command: process.execPath, args: [playwrightCli, '--browser', 'chromium', '--isolated', '--timeout-action', '5000', '--timeout-navigation', '60000', '--output-dir', outputDir], env },
+      transport: { type: 'stdio', command: process.execPath, args: [playwrightCli, '--browser', 'chromium', '--isolated', '--save-session', '--timeout-action', '5000', '--timeout-navigation', '120000', '--timeout-settle', '2000', '--output-dir', outputDir], env },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,
     });

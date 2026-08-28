@@ -187,11 +187,18 @@ export const MainContent = ({
     }
   }, [messages, activeConversationId]);
 
-  // ── Broadcast Agent Running State for Sidebar ────────────────────────
+  // ── Broadcast Agent Running State for Sidebar and cleanup MCP ─────────
+  const wasRunningRef = useRef(isAgentRunning);
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('agent-running-state', {
       detail: { isRunning: isAgentRunning, activeConversationId }
     }));
+
+    if (wasRunningRef.current && !isAgentRunning) {
+      // Clean up playwright browser when agent stops
+      (window as any).electron?.mcp?.reconnectServer('playwright').catch(() => {});
+    }
+    wasRunningRef.current = isAgentRunning;
   }, [isAgentRunning, activeConversationId]);
 
   // ── Listen for chat switching and deletion ───────────────────────────

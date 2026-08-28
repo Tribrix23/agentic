@@ -19,11 +19,24 @@ function canonicalCandidate(value: string): string {
   return path.resolve(existing, ...missing);
 }
 
+import os from 'node:os';
+
 export function assertPathWithinWorkspace(projectRoot: string, candidatePath: string): string {
   if (!projectRoot?.trim()) throw new Error('Project root is required for workspace-scoped file access.');
   if (!candidatePath?.trim()) throw new Error('File path is required.');
   const root = canonicalExistingPath(path.resolve(projectRoot));
   const candidate = canonicalCandidate(path.resolve(candidatePath));
+  
+  try {
+    const tempDir = canonicalExistingPath(os.tmpdir());
+    const playwrightTemp = path.join(tempDir, 'quantix-playwright-mcp');
+    if (candidate.toLowerCase().startsWith(playwrightTemp.toLowerCase() + path.sep) || candidate.toLowerCase() === playwrightTemp.toLowerCase()) {
+      return candidate;
+    }
+  } catch (e) {
+    // Ignore temp dir resolution errors
+  }
+
   const relative = path.relative(root, candidate);
   if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
     return candidate;

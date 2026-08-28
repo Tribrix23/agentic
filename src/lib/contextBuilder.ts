@@ -43,7 +43,7 @@ function isGpt56Model(model: string): boolean {
 export function getGptOssToolProtocol(model: string): ToolProtocol { return selectToolProtocol(model); }
 
 export function detectCurrentWebIntent(text: string): boolean {
-  return /(?:latest|current|recent|today|now|live|as of|release|version|news|browse|online|search the web|search internet|look up|find online|current version)/i.test(text);
+  return /(?:latest|current|recent|today|now|live|as of|release|version|news|browse|online|search the web|search internet|look up|find online|current version|documentation|docs|api reference|guide|tutorial)/i.test(text);
 }
 
 export function buildCurrentWebContract(toolDefinitions: any[]): string {
@@ -51,20 +51,33 @@ export function buildCurrentWebContract(toolDefinitions: any[]): string {
   const playwrightNames = new Set(playwrightTools.map(def => def?.function?.name ?? def?.name));
   const hasPlaywrightNavigation = playwrightNames.has('mcp__playwright__browser_navigate');
   const hasPlaywrightSnapshot = playwrightNames.has('mcp__playwright__browser_snapshot');
+  const currentDateTime = new Date().toISOString();
+  
   const parts = [
     '<current_web_policy>',
-    'If the user explicitly asks for current, latest, or online information, you must verify it with a web-capable tool before answering from memory.',
+    `Current Date/Time: ${currentDateTime}`,
+    'Your training data may be outdated. Always verify time-sensitive, current, or latest information via web search tools before answering from memory.',
   ];
+  
   if (hasPlaywrightNavigation && hasPlaywrightSnapshot) {
     parts.push('The only web research path is the Playwright browser MCP. Do not use curl, fetch, readUrl, webSearch, or terminal commands for web research.');
-    parts.push('Use this exact sequence with an encoded search URL, adapting the query and URL as needed:');
-    parts.push('<tool_call><function=mcp__playwright__browser_navigate><parameter=url>https://www.google.com/search?q=YOUR_ENCODED_QUERY</parameter></function></tool_call>');
-    parts.push('<tool_call><function=mcp__playwright__browser_snapshot></function></tool_call>');
-    parts.push('Tool names are dynamically advertised aliases. Use the exact listed alias and schema; browser actions are tool calls, not plans or prose.');
-    parts.push('Read the snapshot, then autonomously call browser_click or browser_type when needed, snapshot again, and navigate to source pages to verify the answer.');
-    parts.push('Continue navigating, clicking, typing, or taking snapshots yourself whenever the search requires another step. Do not stop after opening Chromium or claim that browser navigation requires the user.');
-    parts.push('After discovering candidate sources, navigate to the relevant source URLs and snapshot them before answering.');
-    parts.push('Do not claim browsing is unavailable when these tools are present.');
+    parts.push('## Autonomous Web Navigation');
+    parts.push('When using Playwright browser tools for web research:');
+    parts.push('1. **Search First**: Start with a search query to find relevant pages');
+    parts.push('2. **Click and Navigate**: Click relevant search results, then take a snapshot');
+    parts.push('3. **Continue Navigating**: After clicking a link, take another snapshot, then CONTINUE clicking relevant links until you reach the target information. Do not stop after the first snapshot.');
+    parts.push('4. **Navigate Naturally**: Use breadcrumbs, menus, navigation bars, and sidebar links to find documentation sections. Navigate through the website like a human would.');
+    parts.push('5. **Scroll for Content**: If the snapshot shows truncated content, "..." indicators, or if the answer isn\'t visible, scroll down using browser_scroll or browser_evaluate (window.scrollBy). Scroll to the bottom of the page to ensure all content is visible.');
+    parts.push('6. **Snapshot Frequently**: Take snapshots after each navigation step (click, scroll, form fill) to understand the current page state.');
+    parts.push('7. **Iterate Until Found**: If a snapshot doesn\'t contain the answer, identify relevant links and click them. Repeat until you find the target information.');
+    parts.push('## Key Principles');
+    parts.push('- Never stop after opening the browser or taking the first snapshot');
+    parts.push('- Always continue navigating until you find the specific information requested');
+    parts.push('- Use scrolling to access content outside the viewport');
+    parts.push('- Navigate through site structure (menus, breadcrumbs) to find sections');
+    parts.push('- Take snapshots after each action to understand page state');
+    parts.push('- Browser actions are tool calls, not descriptions - execute them');
+    parts.push('Tool names are dynamically advertised aliases. Use the exact listed alias and schema.');
   } else if (playwrightTools.length > 0) {
     parts.push('Use the available Playwright MCP tools for web discovery and continue the browser interaction as needed.');
   } else {
