@@ -195,9 +195,26 @@ export const SettingsModal = ({
   });
   const [marketingEmails, setMarketingEmails] = useState(false);
   const [projects, setProjects] = useState<ProjectFolder[]>([]);
+  const [mcpServers, setMcpServers] = useState<Array<{ id: string; name: string; status: string; error?: string; tools?: unknown[] }>>([]);
 
   const [aiConfig, setLocalAIConfig] = useState<AIConfig>(() => getAIConfig());
   const [stopSequenceInput, setStopSequenceInput] = useState("");
+
+  useEffect(() => {
+    const mcp = (window as any).electron?.mcp;
+    if (!mcp?.getServers) return;
+    let disposed = false;
+    const refresh = async (): Promise<void> => {
+      const servers: Array<{ id: string; name: string; status: string; error?: string; tools?: unknown[] }> = await mcp.getServers().catch(() => [] as Array<{ id: string; name: string; status: string; error?: string; tools?: unknown[] }>);
+      if (!disposed) setMcpServers(servers);
+    };
+    void refresh();
+    const removeListener = mcp.onEvent?.(() => { void refresh(); });
+    return () => {
+      disposed = true;
+      if (typeof removeListener === 'function') removeListener();
+    };
+  }, []);
 
   const handleAIConfigChange = (partial: Partial<AIConfig>) => {
     const newConfig = setAIConfig(partial);
@@ -993,6 +1010,13 @@ export const SettingsModal = ({
                       <div className="flex flex-col">
                         <span className="text-white font-medium text-[14px]">MCP Tools</span>
                         <span className="text-[#8b8b93] text-[12px]">Configure external tools via Model Context Protocol.</span>
+                        {mcpServers.length > 0 && <div className="mt-2 flex flex-col gap-1">
+                          {mcpServers.map(server => <span key={server.id} className="text-[11px] text-[#a8a8b1]">
+                            {server.name}: <strong className={server.status === 'ready' ? 'text-emerald-400' : server.status === 'failed' ? 'text-red-400' : 'text-amber-400'}>{server.status}</strong>
+                            {server.tools?.length ? ` (${server.tools.length} tools)` : ''}
+                            {server.error ? ` - ${server.error}` : ''}
+                          </span>)}
+                        </div>}
                       </div>
                       <button className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-white transition-colors">
                         Open

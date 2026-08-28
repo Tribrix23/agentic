@@ -13,6 +13,7 @@ import {
   truncateToTokens,
 } from './tokenCounter';
 import { ContextLedger, type ContextLedgerSnapshot } from './contextLedger';
+import { selectToolProtocol, type ToolProtocol } from './agent/toolProtocol';
 
 /** Project context information injected into the LLM */
 export interface ProjectContext {
@@ -37,6 +38,50 @@ export interface BuiltContext {
 function isGpt56Model(model: string): boolean {
   const normalized = model.toLowerCase();
   return normalized.includes('gpt-5.6') || normalized.includes('gpt56');
+}
+
+export function getGptOssToolProtocol(model: string): ToolProtocol { return selectToolProtocol(model); }
+
+export function detectCurrentWebIntent(text: string): boolean {
+  return /(?:latest|current|recent|today|now|live|as of|release|version|news|browse|online|search the web|search internet|look up|find online|current version)/i.test(text);
+}
+
+export function buildCurrentWebContract(toolDefinitions: any[]): string {
+  const playwrightTools = toolDefinitions.filter(def => (def?.function?.name ?? def?.name)?.startsWith('mcp__playwright__'));
+  const playwrightNames = new Set(playwrightTools.map(def => def?.function?.name ?? def?.name));
+  const hasPlaywrightNavigation = playwrightNames.has('mcp__playwright__browser_navigate');
+  const hasPlaywrightSnapshot = playwrightNames.has('mcp__playwright__browser_snapshot');
+  const parts = [
+    '<current_web_policy>',
+    'If the user explicitly asks for current, latest, or online information, you must verify it with a web-capable tool before answering from memory.',
+  ];
+  if (hasPlaywrightNavigation && hasPlaywrightSnapshot) {
+    parts.push('The only web research path is the Playwright browser MCP. Do not use curl, fetch, readUrl, webSearch, or terminal commands for web research.');
+    parts.push('Use this exact sequence with an encoded search URL, adapting the query and URL as needed:');
+    parts.push('<tool_call><function=mcp__playwright__browser_navigate><parameter=url>https://www.google.com/search?q=YOUR_ENCODED_QUERY</parameter></function></tool_call>');
+    parts.push('<tool_call><function=mcp__playwright__browser_snapshot></function></tool_call>');
+    parts.push('Tool names are dynamically advertised aliases. Use the exact listed alias and schema; browser actions are tool calls, not plans or prose.');
+    parts.push('Read the snapshot, then autonomously call browser_click or browser_type when needed, snapshot again, and navigate to source pages to verify the answer.');
+    parts.push('Continue navigating, clicking, typing, or taking snapshots yourself whenever the search requires another step. Do not stop after opening Chromium or claim that browser navigation requires the user.');
+    parts.push('After discovering candidate sources, navigate to the relevant source URLs and snapshot them before answering.');
+    parts.push('Do not claim browsing is unavailable when these tools are present.');
+  } else if (playwrightTools.length > 0) {
+    parts.push('Use the available Playwright MCP tools for web discovery and continue the browser interaction as needed.');
+  } else {
+    parts.push('No browser web tool is available in this session. Do not substitute curl, fetch, or a terminal command; state that browser verification is unavailable.');
+  }
+  parts.push('Do not answer current factual questions from memory when a web tool is available.');
+  parts.push('If no Playwright tool is available, explicitly state that browser verification is unavailable.');
+  parts.push('Available web tools:');
+  toolDefinitions
+    .filter(def => (def?.function?.name ?? def?.name)?.startsWith('mcp__playwright__'))
+    .forEach(def => {
+      const name = def?.function?.name ?? def?.name;
+      const desc = def?.function?.description ?? def?.description ?? '';
+      parts.push(`- ${name}: ${desc}`);
+    });
+  parts.push('</current_web_policy>');
+  return parts.join('\n');
 }
 
 /**
@@ -197,7 +242,7 @@ export function buildContext(
   toolDefinitions?: any[],
   cachedSystemPrompt?: string,
   lastSentIndex?: number,
-  toolProtocol: 'native' | 'xml' = 'native'
+  toolProtocol: ToolProtocol = selectToolProtocol(config.model)
 ): BuiltContext {
   // ── 1. System Prompt ─────────────────────────────────────────────────
   // Use cached system prompt if provided, otherwise build it
@@ -207,11 +252,14 @@ export function buildContext(
   // GPT-5.6's compatibility endpoint can return plain text instead of native
   // tool_calls. Supplying the complete contract here keeps all registered tools
   // usable through AgentLoop's validated text-tool fallback.
-  if (toolDefinitions?.length && isGpt56Model(config.model) && !cachedSystemPrompt) {
+  if (toolDefinitions?.length && isGpt56Model(config.model)) {
     systemPromptParts.push(buildGpt56ToolPrompt(toolDefinitions));
   }
-  if (toolProtocol === 'xml' && toolDefinitions?.length && !cachedSystemPrompt) {
+  if (toolProtocol === 'xml' && toolDefinitions?.length) {
     systemPromptParts.push(buildXmlToolPrompt(toolDefinitions));
+  }
+  if (toolDefinitions?.length && detectCurrentWebIntent(messages.map(m => m.content || '').join('\n'))) {
+    systemPromptParts.push(buildCurrentWebContract(toolDefinitions));
   }
 
   // ── 2. Project Context Injection ─────────────────────────────────────

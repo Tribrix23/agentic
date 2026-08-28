@@ -1,0 +1,503 @@
+- generic [active] [ref=f2e1]:
+  - generic:
+    - generic:
+      - link "Skip to main content" [ref=f2e2] [cursor=pointer]
+      - link "Accessibility help" [ref=f2e3] [cursor=pointer]:
+        - /url: https://support.google.com/websearch/answer/181196?hl=en-PH
+  - generic [ref=f2e8]:
+    - search [ref=f2e9]:
+      - generic [ref=f2e12]:
+        - link [ref=f2e13] [cursor=pointer]:
+          - /url: https://www.google.com/webhp?hl=en&ictx=0&sa=X&ved=0ahUKEwi03_XV68CWAxU2g68BHbCxCAEQpYkNCAo
+          - img "Go to Google home" [ref=f2e14]
+        - generic [ref=f2e19]:
+          - combobox "Search" [ref=f2e22]: hane hane
+          - generic [ref=f2e23]:
+            - button "Clear" [ref=f2e25] [cursor=pointer]
+            - generic [ref=f2e30]:
+              - button "Search by voice" [ref=f2e31] [cursor=pointer]
+              - button "Search by image" [ref=f2e34] [cursor=pointer]
+        - button "Search" [ref=f2e37] [cursor=pointer]
+    - generic [ref=f2e42]:
+      - button "Settings" [ref=f2e44] [cursor=pointer]
+      - button "Share" [ref=f2e50] [cursor=pointer]
+      - generic [ref=f2e56]:
+        - button "Google apps" [ref=f2e58] [cursor=pointer]
+        - link "Sign in" [ref=f2e63] [cursor=pointer]:
+          - /url: https://accounts.google.com/ServiceLogin?hl=en&passive=true&continue=https://www.google.com/search%3Fq%3Dhane%26sei%3DuTGQarSeBcG5vr0P-envmAs&ec=futura_srp_og_si_72236_p
+  - generic [ref=f2e65]:
+    - navigation [ref=f2e71]:
+      - generic [ref=f2e77]:
+        - list [ref=f2e78]:
+          - listitem [ref=f2e79]:
+            - link "AI Mode" [ref=f2e82] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&udm=50&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYRQDtz5om-6srRFNP4UK_6edrYqFyYjVoLL0-Wmdmyc0u13h2Xl3P-7Fmh0o6KIonLSStrYX7-J-cMLG287nQ7raf0FkoLkOJb1mfQmtNYyMRhn-hrlv2gKJDeHb5aiCA66AyzkImpJHz_-TdiqyVBEHRiSEA&aep=1&ntc=1&cs=0&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ2J8OegQIFRAD
+          - listitem [ref=f2e86]:
+            - link "All" [disabled] [ref=f2e87]
+          - listitem [ref=f2e90]:
+            - link "Images" [ref=f2e91] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=2&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYRQDtz5om-6srRFNP4UK_6edrYqFyYjVoLL0-Wmdmyc0u13h2Xl3P-7Fmh0o6KIonLSStrYX7-J-cMLG287nQ7raf0FkoLkOJb1mfQmtNYyMRhn-hrlv2gKJDeHb5aiCA66AyzkImpJHz_-TdiqyVBEHRiSEA&q=hane&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQtKgLegQIGxAB
+          - listitem [ref=f2e94]:
+            - link "Shopping" [ref=f2e95] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=28&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYRQDtz5om-6srRFNP4UK_6edrYqFyYjVoLL0-Wmdmyc0u13h2Xl3P-7Fmh0o6KIonLSStrYX7-J-cMLG287nQ7raf0FkoLkOJb1mfQmtNYyMRhn-hrlv2gKJDeHb5aiCA66AyzkImpJHz_-TdiqyVBEHRiSEA&q=hane&ved=1t:220175&ictx=111
+          - listitem [ref=f2e98]:
+            - link "Videos" [ref=f2e99] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=7&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYRQDtz5om-6srRFNP4UK_6edrYqFyYjVoLL0-Wmdmyc0u13h2Xl3P-7Fmh0o6KIonLSStrYX7-J-cMLG287nQ7raf0FkoLkOJb1mfQmtNYyMRhn-hrlv2gKJDeHb5aiCA66AyzkImpJHz_-TdiqyVBEHRiSEA&q=hane&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQtKgLegQIGRAB
+          - listitem [ref=f2e102]:
+            - link "Short videos" [ref=f2e103] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=39&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYRQDtz5om-6srRFNP4UK_6edrYqFyYjVoLL0-Wmdmyc0u13h2Xl3P-7Fmh0o6KIonLSStrYX7-J-cMLG287nQ7raf0FkoLkOJb1mfQmtNYyMRhn-hrlv2gKJDeHb5aiCA66AyzkImpJHz_-TdiqyVBEHRiSEA&q=hane&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQs6gLegQIGBAB
+          - listitem [ref=f2e106]:
+            - link "News" [ref=f2e107] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&q=hane&tbm=nws&source=lnms&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYRQDtz5om-6srRFNP4UK_6edrYqFyYjVoLL0-Wmdmyc0u13h2Xl3P-7Fmh0o6KIonLSStrYX7-J-cMLG287nQ7raf0FkoLkOJb1mfQmtNYyMRhn-hrlv2gKJDeHb5aiCA66AyzkImpJHz_-TdiqyVBEHRiSEA&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ0pQJegQIFxAB
+          - listitem [ref=f2e110]:
+            - button [ref=f2e111] [cursor=pointer]:
+              - generic "More filters" [ref=f2e112]: More
+        - button "Tools" [ref=f2e119] [cursor=pointer]
+    - heading "Search Results" [level=1] [ref=f2e127]
+    - generic [ref=f2e132]:
+      - generic [ref=f2e149]:
+        - generic [ref=f2e151]:
+          - generic [ref=f2e153]:
+            - heading "AI Overview" [level=2] [ref=f2e157]
+            - button "About this result" [ref=f2e161]
+          - generic [ref=f2e181]:
+            - generic [ref=f2e183]:
+              - generic [ref=f2e184]:
+                - button [ref=f2e187]:
+                  - img "Hvorfor galer haner? | illvit.no" [ref=f2e188]
+                - text: "\"Hane\" has several meanings depending on the language and context, most commonly referring to"
+                - mark [ref=f2e189]: a board game move, a Scandinavian word for a male bird, or a Filipino conversational particle
+                - text: .
+                - generic [ref=f2e191]:
+                  - link "Cambridge Dictionary (+2) - HANE noun in English - Cambridge Dictionary. Related results" [ref=f2e192] [cursor=pointer]:
+                    - /url: /goto?url=CAESZwHrOzAVTzT6B5otU0M4wk-FF91GjWhSQh25SqYHFwBtD2VRLQR3gneEI8V1qR_gYaIQ9CWXTtQMohRMyZ7mHIzqtp9Wx5XGRXmXjo2VYxsynzuIDVM8IFlJ0RvfHw170Aw8rVvQ_hs
+                  - button "Cambridge Dictionary (+2) - HANE noun in English - Cambridge Dictionary. Related results" [ref=f2e193] [cursor=pointer]:
+                    - generic [ref=f2e195]:
+                      - generic [ref=f2e196]: Cambridge Dictionary
+                      - generic [ref=f2e197]: "+2"
+              - heading "Board Game (Go)" [level=3] [ref=f2e202]
+              - list [ref=f2e203]:
+                - listitem [ref=f2e205]:
+                  - generic [ref=f2e206]:
+                    - text: In the game of
+                    - strong [ref=f2e207]: Go
+                    - text: ", a"
+                    - strong [ref=f2e208]: hane
+                    - text: is a move that reaches around an opponent's stone, usually played in response to a contact play.
+                - listitem [ref=f2e210]:
+                  - generic [ref=f2e211]: It helps disrupt enemy shapes and build territory, but it can also be risky if mistimed.
+                  - generic [ref=f2e213]:
+                    - link [ref=f2e214] [cursor=pointer]:
+                      - /url: /goto?url=CAESQAHrOzAVgczNbXtpIrCh1qX-pGSXfYN_E78_CrHttS0VG9WALQc3fZ7Ep3wF3V55uJIgQEyz86PrBIvol1609Pg
+                    - button [ref=f2e215] [cursor=pointer]:
+                      - generic [ref=f2e217]:
+                        - generic [ref=f2e218]: Sensei's Library
+                        - generic [ref=f2e219]: "+1"
+              - heading [level=3] [ref=f2e225]: Scandinavian Languages (Swedish and Norwegian)
+              - list [ref=f2e226]:
+                - listitem [ref=f2e228]:
+                  - generic [ref=f2e229]:
+                    - text: In
+                    - strong [ref=f2e230]: Swedish
+                    - text: and
+                    - strong [ref=f2e231]: Norwegian
+                    - text: ","
+                    - strong [ref=f2e232]: hane
+                    - text: means a rooster or male bird.
+                - listitem [ref=f2e234]:
+                  - generic [ref=f2e235]: It can also refer to a faucet tap or the hammer of a firearm .
+                  - generic [ref=f2e238]:
+                    - link [ref=f2e239] [cursor=pointer]:
+                      - /url: /goto?url=CAESRgHrOzAVI0xPjyjpTazOn8k-uEJwMNSgbl_JlckWgyk0-FV5P9Eze2ICl4_QlzUBkkq1SGRFFwUDC7yvIquWePfrCcmk-GE
+                    - button [ref=f2e240] [cursor=pointer]:
+                      - generic [ref=f2e242]:
+                        - generic [ref=f2e243]: Wiktionary, the free dictionary
+                        - generic [ref=f2e244]: "+2"
+              - generic [ref=f2e249]:
+                - heading [level=3] [ref=f2e251]: Filipino Slang (Quezon Province)
+                - list [ref=f2e252]:
+                  - listitem [ref=f2e254]:
+                    - generic [ref=f2e255]:
+                      - text: In parts of the
+                      - strong [ref=f2e256]: Philippines
+                      - text: (such as Real and Infanta in Quezon province),
+                      - strong [ref=f2e257]: hane
+                      - text: (or haneh) is a soft particle used at the end of a sentence.
+                  - listitem [ref=f2e259]:
+                    - generic [ref=f2e260]: It acts like "right?" or "isn't it?" in English, showing care, friendliness, or gentle concern.
+                    - button [ref=f2e263] [cursor=pointer]
+                - heading [level=3] [ref=f2e269]: Japanese Name
+                - list [ref=f2e270]:
+                  - listitem [ref=f2e272]:
+                    - generic [ref=f2e273]:
+                      - text: As a Japanese given name or word,
+                      - strong [ref=f2e274]: hane
+                      - text: translates to "feather" or "wing," symbolizing lightness and freedom.
+                    - generic [ref=f2e276]:
+                      - link [ref=f2e277] [cursor=pointer]:
+                        - /url: /goto?url=CAESUwHrOzAVtsPhTEDxFfpXvkLeesKEwY4TNYCxYdZCW8YqmYh32zDCcsxpbqjHqeRAM4L0b4GWwe0K2a7-vn3AT-F2B586zyWUgmjL8vKsrgiSw9MC
+                      - button [ref=f2e278] [cursor=pointer]:
+                        - generic [ref=f2e279]: Ancestry.com
+                - generic [ref=f2e288]:
+                  - text: If you had a specific context in mind, tell me which
+                  - strong [ref=f2e289]: definition or language
+                  - text: you want to explore further.
+            - generic [ref=f2e293]:
+              - generic [ref=f2e295]:
+                - button [ref=f2e296]:
+                  - generic [ref=f2e297]: 8 sites
+                - button [ref=f2e310] [cursor=pointer]
+              - list [ref=f2e315]:
+                - listitem [ref=f2e316]:
+                  - generic [ref=f2e317]:
+                    - link [ref=f2e318] [cursor=pointer]:
+                      - /url: /goto?url=CAESRgHrOzAVI0xPjyjpTazOn8k-uEJwMNSgbl_JlckWgyk0-FV5P9Eze2ICl4_QlzUBkkq1SGRFFwUDC7yvIquWePfrCcmk-GE
+                    - generic [ref=f2e319]:
+                      - generic [ref=f2e321]:
+                        - generic [ref=f2e322]: hane - Wiktionary, the free dictionary
+                        - generic [ref=f2e323]: Noun * cock, rooster. * tap, faucet. * a cock or hammer of a firearm. ... Etymology. From Old Norse hani, from Proto-Germanic *han...
+                      - generic [ref=f2e326]:
+                        - generic [ref=f2e329]: Wiktionary, the free dictionary
+                        - button [ref=f2e335] [cursor=pointer]
+                - listitem [ref=f2e341]:
+                  - generic [ref=f2e342]:
+                    - link [ref=f2e343] [cursor=pointer]:
+                      - /url: /goto?url=CAESQAHrOzAVgczNbXtpIrCh1qX-pGSXfYN_E78_CrHttS0VG9WALQc3fZ7Ep3wF3V55uJIgQEyz86PrBIvol1609Pg
+                    - generic [ref=f2e344]:
+                      - generic [ref=f2e346]:
+                        - generic [ref=f2e347]: Hane at Sensei's Library
+                        - generic [ref=f2e348]: In Japanese go, *hane* (跳ね, ハネ) is a move that "reaches around" one or more of the opponent's stones. It is a natural response to ...
+                      - generic [ref=f2e350]:
+                        - generic [ref=f2e353]: Sensei's Library
+                        - button [ref=f2e359] [cursor=pointer]
+                - listitem [ref=f2e365]:
+                  - generic [ref=f2e366]:
+                    - link [ref=f2e367] [cursor=pointer]:
+                      - /url: /goto?url=CAESZwHrOzAVTzT6B5otU0M4wk-FF91GjWhSQh25SqYHFwBtD2VRLQR3gneEI8V1qR_gYaIQ9CWXTtQMohRMyZ7mHIzqtp9Wx5XGRXmXjo2VYxsynzuIDVM8IFlJ0RvfHw170Aw8rVvQ_hs
+                    - generic [ref=f2e368]:
+                      - generic [ref=f2e370]:
+                        - generic [ref=f2e371]: HANE noun in English - Cambridge Dictionary
+                        - generic [ref=f2e372]: Translation of hane noun – Norwegian–English dictionary. ... hane * cock [noun] the male of birds, especially of the domestic fowl...
+                      - generic [ref=f2e375]:
+                        - generic [ref=f2e378]: Cambridge Dictionary
+                        - button [ref=f2e384] [cursor=pointer]
+              - button [ref=f2e390] [cursor=pointer]:
+                - generic [ref=f2e391]: Show all
+        - button "Show more AI Overview" [ref=f2e395]:
+          - generic [ref=f2e396] [cursor=pointer]: Show more
+      - main [ref=f2e403]:
+        - generic [ref=f2e408]:
+          - generic [ref=f2e411]:
+            - heading "Web results" [level=2] [ref=f2e412]
+            - generic [ref=f2e413]:
+              - generic [ref=f2e416]:
+                - link "hane Wiktionary, the free dictionary https://en.wiktionary.org › wiki › hane" [ref=f2e418] [cursor=pointer]:
+                  - /url: /goto?url=CAESWwHrOzAV6ls0dx7EYrzLVCFSy2O9SXqfmkvR0Z8FKx1b2JMlWTyQqXNB2PHqZitYE2TIqsVXmWLDxQhRQeE61U-CIpKzCUT0EMoToJNixw0AlfIPiBSn5tcLfNY
+                  - heading "hane" [level=3] [ref=f2e419]
+                  - generic [ref=f2e425]:
+                    - generic [ref=f2e426]: Wiktionary, the free dictionary
+                    - generic [ref=f2e428]: https://en.wiktionary.org › wiki › hane
+                - button "About this result" [ref=f2e434] [cursor=pointer]
+              - generic [ref=f2e441]:
+                - text: Pacific Linguistics,
+                - emphasis [ref=f2e442]: Noun alternative form of hen
+                - text: (“poor man”) Norwegian Bokmål
+          - generic [ref=f2e447]:
+            - heading "People also ask" [level=2] [ref=f2e449]
+            - generic [ref=f2e450]:
+              - button "What does hane mean?" [ref=f2e456] [cursor=pointer]
+              - button "What does \"Hane\" mean in Filipino?" [ref=f2e470] [cursor=pointer]
+              - button "What is hane in Japanese?" [ref=f2e484] [cursor=pointer]
+              - button "What does \"hane\" mean in go?" [ref=f2e498] [cursor=pointer]
+          - generic [ref=f2e509]:
+            - generic [ref=f2e511]:
+              - heading "Videos" [level=2] [ref=f2e512]
+              - button "About this result" [ref=f2e517] [cursor=pointer]
+            - generic [ref=f2e523]:
+              - generic [ref=f2e530]:
+                - generic [ref=f2e531]:
+                  - link [ref=f2e533] [cursor=pointer]:
+                    - /url: /goto?url=CAESYwHrOzAVbodk8QVxyyo940JqINNI5bPhcYQK5ZXoffErQVf6w5koo98k2edV6EUZFBP85k3EdzVL7_0oO-OHU_vOwu4w0gGlZAL8PlGOslbKSol3Qt9jKfUknOjnjld-Id1V8w
+                    - heading "HANE - 'MY GOSH!' M/V YouTube Hane Feb 1, 2025" [level=3] [ref=f2e534]:
+                      - generic [ref=f2e535]: HANE - 'MY GOSH!' M/V
+                      - generic [ref=f2e539]:
+                        - generic [ref=f2e540]:
+                          - text: YouTube
+                          - generic [ref=f2e541]: · Hane
+                        - generic [ref=f2e542]: Feb 1, 2025
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - text: YouTube
+                            - generic: · Hane
+                      - button "About this result" [ref=f2e546] [cursor=pointer]
+                - button "HANE - 'MY GOSH!' M/V by Hane on YouTube. Play on Google. 2:44" [ref=f2e551] [cursor=pointer]:
+                  - generic [ref=f2e552]: 2:44
+              - generic [ref=f2e572]:
+                - generic [ref=f2e573]:
+                  - link [ref=f2e575] [cursor=pointer]:
+                    - /url: /goto?url=CAESYwHrOzAVwKjcVtvPxIkNL0fptkhS5jTsbxRZb_T4dvOLjMX9FIZdjz6UiR-JH433O7RC2ul8aHoolM4AQFCaEqacc2d5m6H7ECwaFfMZ0xfRAElhUQvcRObJSr_9YhkCvp4dMQ
+                    - heading "Hane YouTube Eli Njuchi - Topic Apr 8, 2024" [level=3] [ref=f2e576]:
+                      - generic [ref=f2e577]: Hane
+                      - generic [ref=f2e581]:
+                        - generic [ref=f2e582]:
+                          - text: YouTube
+                          - generic [ref=f2e583]: · Eli Njuchi - Topic
+                        - generic [ref=f2e584]: Apr 8, 2024
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - text: YouTube
+                            - generic: · Eli Njuchi - Topic
+                      - button "About this result" [ref=f2e588] [cursor=pointer]
+                - button "Hane by Eli Njuchi - Topic on YouTube. Play on Google. 3:00" [ref=f2e593] [cursor=pointer]:
+                  - generic [ref=f2e594]: 3:00
+              - generic [ref=f2e610]:
+                - generic [ref=f2e611]:
+                  - generic [ref=f2e612]:
+                    - link [ref=f2e614] [cursor=pointer]:
+                      - /url: /goto?url=CAESYwHrOzAViuvdYlZICiVQLltONZnY_nbxtNWc0winFN97SVYLV4gmv_sQW8oZMGpyMLAjYYqym47S1XODlZz7gWnp_cm2pPJ-4cfx4j9NuQHlJYrMVfgHysSUPrwNyaCgTbuKkQ
+                      - heading "How to pronounce Hane YouTube How To Pronounce Dec 29, 2023" [level=3] [ref=f2e615]:
+                        - generic [ref=f2e616]: How to pronounce Hane
+                        - generic [ref=f2e620]:
+                          - generic [ref=f2e621]:
+                            - text: YouTube
+                            - generic [ref=f2e622]: · How To Pronounce
+                          - generic [ref=f2e623]: Dec 29, 2023
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: YouTube
+                              - generic: · How To Pronounce
+                        - button "About this result" [ref=f2e627] [cursor=pointer]
+                  - button "How to pronounce Hane by How To Pronounce on YouTube. Play on Google. 0:20" [ref=f2e632] [cursor=pointer]:
+                    - generic [ref=f2e633]: 0:20
+                - button "Learn how to pronounce \"hane,\" the Japanese word for feather or wing." [ref=f2e646] [cursor=pointer]
+            - link "View all videos" [ref=f2e653] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=7&q=hane&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8ccDKAJ6BAgqEAU
+              - separator [ref=f2e654]
+              - generic [ref=f2e655]: View all
+          - generic [ref=f2e662]:
+            - heading "Web results" [level=2] [ref=f2e663]
+            - generic [ref=f2e664]:
+              - generic [ref=f2e667]:
+                - link "What is exactly a hane? - General Go Discussion online-go.com https://forums.online-go.com › what-is-exactly-a-hane" [ref=f2e669] [cursor=pointer]:
+                  - /url: /goto?url=CAEScwHrOzAVDfXD1at2rVVvjsHKw743UEq9mlJMJ9hPMKFb4-8TtySd3TnhT4AegIy9xGCmkOvcQuO7AJSOve7iHF0HmX3hNgSatEumUmkLlzt771IZxdx8aa-9_0jIfd3G0GoB--WN7Oz3e58i0nlTxPO0SVk
+                  - heading "What is exactly a hane? - General Go Discussion" [level=3] [ref=f2e670]
+                  - generic [ref=f2e676]:
+                    - generic [ref=f2e677]: online-go.com
+                    - generic [ref=f2e679]: https://forums.online-go.com › what-is-exactly-a-hane
+                - button "About this result" [ref=f2e685] [cursor=pointer]
+              - generic [ref=f2e691]:
+                - generic [ref=f2e692]: Nov 30, 2024 —
+                - generic [ref=f2e693]:
+                  - emphasis [ref=f2e694]: 1,2,3, 5, 6,8 are hanes
+                  - text: . I describe the “hane” as a diagonal motion across an opponent's stone or group of stones.
+                - link "Read more" [ref=f2e695] [cursor=pointer]:
+                  - /url: /goto?url=CAESyQEB6zswFV2d-H8I5DLkMQc9aNm1Vb_W2N6V2BAz3hJyiFoLkpIwrnEuKJbWBbN8U5pNKIzCM1B5gKjS29iQktQ4Bh7GfEgZPksCHFCdnlniVbC9vsz0Z4OtNz0UcaL_whechoaqeCOTEegxVT2EtCTZPETjMuFiBe1lauE7XoHXqDzmFCTbL5cnlg5WfYla8VaNR2SqaF6gUf4DuuSo-0J-yD5BD6a7FoeACwKOayQJ4a6rE7ipLddAKUXwI7M8tF21sBJBmuUcLs8
+              - generic [ref=f2e698]:
+                - generic [ref=f2e699]:
+                  - link "Page 2 - Online Go Forum" [ref=f2e702] [cursor=pointer]:
+                    - /url: /goto?url=CAESegHrOzAVXNNuFbAc6dPePQQ26jshjn0nySfF6rhniqar94QIE4Fn9cbeMDmF5OWs_sJLgnAH_4vdO-tlRDVuXT6mSISlh7ztsBcBosXjV3OFpDJmlRb4hxmzV32K9ENatWxIwjOLRbFW7YdgEu-Kg516eAKtuklD-lXd
+                  - generic [ref=f2e703]: Nov 30, 2024
+                - generic [ref=f2e705]:
+                  - link "Page 3 - General Go Discussion" [ref=f2e708] [cursor=pointer]:
+                    - /url: /goto?url=CAESegHrOzAVB5C50iEc3LJl1YczzRe5-XodsSfriWJVlkyDzRW4tFQoIjyg3RX7lSBqjWX_I04QlVgkChrhLkT7Pppt530LOeRuqnoyDiTOhF02NYlulgKLPhMnTJPi2iraJFy8H6wAWKUGcCK8PNa5Ljj9tEUjuODaJn1U
+                  - generic [ref=f2e709]: Dec 1, 2024
+                - link "More results from forums.online-go.com" [ref=f2e714] [cursor=pointer]:
+                  - /url: /search?q=hane+site:forums.online-go.com&sca_esv=0237a3a71ba987c6&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQrQIoAnoECDYQAw
+          - generic [ref=f2e718]:
+            - generic [ref=f2e721]:
+              - link "HANE Definition & Meaning Dictionary.com https://www.dictionary.com › browse › hane" [ref=f2e723] [cursor=pointer]:
+                - /url: /goto?url=CAESXgHrOzAVI1phMXSJJrGm-l7--Ss8JYlN1bX8hqmW87mMTEPvz6ouDbLA4BMXLgnF5DHCWqYGiSO1ZkYF-zhBtZufWVaMEB2WWL4VGZDnn3a6m3oKf2dadwzCVwMRegQ
+                - heading "HANE Definition & Meaning" [level=3] [ref=f2e724]
+                - generic [ref=f2e730]:
+                  - generic [ref=f2e731]: Dictionary.com
+                  - generic [ref=f2e733]: https://www.dictionary.com › browse › hane
+              - button "About this result" [ref=f2e739] [cursor=pointer]
+            - generic [ref=f2e746]:
+              - text: "HANE definition:"
+              - emphasis [ref=f2e747]: hereditary angioneurotic edema
+              - text: ": former name of HAE. HANE American abbreviation Pathology. recorded in 1970–75"
+          - generic [ref=f2e751]:
+            - heading "Images" [level=2] [ref=f2e755]
+            - generic [ref=f2e759]:
+              - generic [ref=f2e763] [cursor=pointer]:
+                - link "Hane – Wikipedia Wikipedia" [ref=f2e764]:
+                  - /url: /goto?url=CAESWgHrOzAVpP_ff9xx0N0Q390tsIAivgQJwN2lXOGFPkGdXoIAaXb3dh7NFXisrV-BZAlaQNzWjLgk_MUEHE7l352Q7UmS1y6ya11EOCOhRNisZzl2yI2UjuJV4A
+                - button [ref=f2e766]:
+                  - img "Hane – Wikipedia" [ref=f2e768]
+                - generic [ref=f2e770]:
+                  - generic [ref=f2e771]: Hane – Wikipedia
+                  - generic [ref=f2e773]:
+                    - generic [ref=f2e774]: Wikipedia
+                    - button "About this result" [ref=f2e785]
+              - generic [ref=f2e793] [cursor=pointer]:
+                - link "File:Hane (dansk landhøne).jpg - Wikimedia Commons Wikimedia Commons" [ref=f2e794]:
+                  - /url: /goto?url=CAESfgHrOzAVhUHgsA80wfDQwgGN_mtn_tB41bUDqveV4LZt9TrfJH7a2_l_W49KM7z0oOfur-hHf3ghL2lvF1ZhhQnUOZd-rQiBj6dGxbNPwDq8-6pR8YHZojIcDSfVyM3TQgkTFRvNQxMTurKst89MYXG6geOFHTDiVHGjAuNiOQ
+                - button [ref=f2e796]:
+                  - img "File:Hane (dansk landhøne).jpg - Wikimedia Commons" [ref=f2e798]
+                - generic [ref=f2e800]:
+                  - generic [ref=f2e801]: File:Hane (dansk landhøne).jpg - Wikimedia Commons
+                  - generic [ref=f2e803]:
+                    - generic [ref=f2e804]: Wikimedia Commons
+                    - button "About this result" [ref=f2e815]
+              - generic [ref=f2e823] [cursor=pointer]:
+                - link "What is exactly a hane? - General Go Discussion - Online Go ... Online Go Forum" [ref=f2e824]:
+                  - /url: /goto?url=CAEScwHrOzAVDfXD1at2rVVvjsHKw743UEq9mlJMJ9hPMKFb4-8TtySd3TnhT4AegIy9xGCmkOvcQuO7AJSOve7iHF0HmX3hNgSatEumUmkLlzt771IZxdx8aa-9_0jIfd3G0GoB--WN7Oz3e58i0nlTxPO0SVk
+                - button [ref=f2e826]:
+                  - img "What is exactly a hane? - General Go Discussion - Online Go ..." [ref=f2e828]
+                - generic [ref=f2e830]:
+                  - generic [ref=f2e831]: What is exactly a hane? - General Go Discussion - Online Go ...
+                  - generic [ref=f2e833]:
+                    - generic [ref=f2e834]: Online Go Forum
+                    - button "About this result" [ref=f2e845]
+            - button "Show more images" [ref=f2e851] [cursor=pointer]:
+              - separator [ref=f2e852]
+          - generic [ref=f2e860]:
+            - heading "Web results" [level=2] [ref=f2e861]
+            - generic [ref=f2e862]:
+              - generic [ref=f2e865]:
+                - link "HANE noun in English - Cambridge Dictionary Cambridge Dictionary https://dictionary.cambridge.org › dictionary › hane_1" [ref=f2e867] [cursor=pointer]:
+                  - /url: /goto?url=CAESfAHrOzAVK2puojCYRlyJBDaY33PVIJzufviUmfOFBqM1PtUbA_lTK4DBUPothLd2E9pMO7KgPf8LSl8R9kxwH1R9Lt8kiOHAIQuj4E4S6JFfSEGzT7EbwFXl9dH6D7iW-e3ERJFy2FFo3yscECsgkwOVthBHidXM6Ll1hfw
+                  - heading "HANE noun in English - Cambridge Dictionary" [level=3] [ref=f2e868]
+                  - generic [ref=f2e874]:
+                    - generic [ref=f2e875]: Cambridge Dictionary
+                    - generic [ref=f2e877]: https://dictionary.cambridge.org › dictionary › hane_1
+                - button "About this result" [ref=f2e883] [cursor=pointer]
+              - generic [ref=f2e889]:
+                - generic [ref=f2e890]: Aug 19, 2026 —
+                - generic [ref=f2e891]:
+                  - emphasis [ref=f2e892]: hane
+                  - text: noun cock [noun] the male of birds, especially of the domestic fowl a cock and three hens (also adjective) a cock sparrow.
+          - generic [ref=f2e896]:
+            - generic [ref=f2e899]:
+              - link "Hane Wikipedia https://en.wikipedia.org › wiki › Hane" [ref=f2e901] [cursor=pointer]:
+                - /url: /goto?url=CAESWgHrOzAVYEIMpZk1FJ1U4a8F7pKnoMbG-bnsnQWiIcRmYfYGVy4yGZCFC7c_emQhaOXscmj1rdxvt6QVNBR70VUIBZ50oQRtwneWpv5dDgUc5XfSkUubrrrHHg
+                - heading "Hane" [level=3] [ref=f2e902]
+                - generic [ref=f2e908]:
+                  - generic [ref=f2e909]: Wikipedia
+                  - generic [ref=f2e911]: https://en.wikipedia.org › wiki › Hane
+              - button "About this result" [ref=f2e917] [cursor=pointer]
+            - generic [ref=f2e924]:
+              - emphasis [ref=f2e925]: Hane
+              - text: "may refer to:"
+              - emphasis [ref=f2e926]: Hane
+              - text: ", Marquesas Islands"
+              - emphasis [ref=f2e927]: Hane
+              - text: (Go), term of the board game Go. High-altitude nuclear explosion (
+              - emphasis [ref=f2e928]: HANE
+              - text: ) Japanese Go player Naoki
+          - generic [ref=f2e932]:
+            - generic [ref=f2e935]:
+              - link "ALAM MO BA? Ang salitang “HANE” o “HANEH” ay ... Facebook · Maria Gracia 10+ reactions · 10 months ago" [ref=f2e937] [cursor=pointer]:
+                - /url: /goto?url=CAESwAEB6zswFU13uKf5JEA7auMqY9BeYwGVoLG2fCGO9ucC8ET3In1AAhzKEwSEZlnkPbYLdQ7vUzJrON8riYAgPXeGW86Sm4Bh0Nb6-St34Y2ZO2HDDejusBlacUlwVMYc3Rszc_-eQ9a48gH5ZvFmf3S9cycoSB2UpMEUls74q69uOdKx34mowDlE3FV02AljY-nUGKeNZB1JWsXXPPDAcAeRfO17RzfD7i7mRkEYSOGE2gNtXCKFVunvH6HbCIaWFjc
+                - heading "ALAM MO BA? Ang salitang “HANE” o “HANEH” ay ..." [level=3] [ref=f2e938]
+                - generic [ref=f2e944]:
+                  - generic [ref=f2e945]: Facebook · Maria Gracia
+                  - generic [ref=f2e947]: 10+ reactions · 10 months ago
+              - button "About this result" [ref=f2e953] [cursor=pointer]
+            - generic [ref=f2e959]:
+              - generic [ref=f2e960]:
+                - text: Ang “hane” ay
+                - emphasis [ref=f2e961]: ekspresyon o tagapagpalambing na kadalasang inilalagay sa dulo ng pangungusap
+                - text: . Kadalasan, ginagamit ito sa bahaging Real at ...
+              - link "Read more" [ref=f2e962] [cursor=pointer]:
+                - /url: /goto?url=CAESpgIB6zswFfMGaToaL-pwLjTflh4PbMyxsRJTiF6_RfrQSSwBLpktzl9NPqOHUU_jHcp5nLQWNO4owtPLKM-rsJzh5w708tcNj8anrmC8HGfLPVe6YOmJkY65t01psWRz3nXr_TP2EMmlJoHsAu9sg7CqdJ081HjBqLZfFN7waZzgxILKbm6b_B2hSBvKt6HvhDIGv8pUWtTgK3sb7_ok4NcG2dwgggD7YGllNgkqXrdr28F1ma9K4sh8w5IvQFGMJhPl0zzzg49Jl0cwiXO_TaylbkzG32U5ybTe5K0_oU10MpwZFKmTSCUDNoUhrjo2EMabbTHdYPHzA_6HQ7mU-JS04-0FHfR03z_hJaijBE8mbYlkyW1ov16hoaG1YduW4s2lZvBi_v4
+          - generic [ref=f2e966]:
+            - generic [ref=f2e969]:
+              - link "HANE W Concept https://www.wconcept.com › brand › hane" [ref=f2e971] [cursor=pointer]:
+                - /url: /goto?url=CAESZgHrOzAVMNOUZVonOTjJnFfY5CAo8WTwjS0i4pF_GQ8N9RmmBNpuS_fGsPcoKdVB02qTr1na299V_9UeS2mR8sgQ4Mu1GXoFuV_W5Cu7l8v5KfnlR2bdz600qdRi1hLrAcusfgbvfg
+                - heading "HANE" [level=3] [ref=f2e972]
+                - generic [ref=f2e978]:
+                  - generic [ref=f2e979]: W Concept
+                  - generic [ref=f2e981]: https://www.wconcept.com › brand › hane
+              - button "About this result" [ref=f2e987] [cursor=pointer]
+            - generic [ref=f2e994]:
+              - text: The world's leading platform for
+              - emphasis [ref=f2e995]: Korean designers
+              - text: . Download the app and get a 10% off coupon! 3000+ local brands. We ship to 44+ countries.
+        - generic [ref=f2e997]:
+          - generic [ref=f2e1002]:
+            - heading "People also search for" [level=2] [ref=f2e1004]
+            - generic [ref=f2e1006]:
+              - generic [ref=f2e1007]:
+                - link "Hane meaning in english" [ref=f2e1011] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+meaning+in+english&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAguEAE
+                - link "Hane meaning" [ref=f2e1025] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+meaning&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAhJEAE
+                - link "Hane meaning in tagalog" [ref=f2e1039] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+meaning+in+tagalog&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAhHEAE
+                - link "Hane meaning Japanese" [ref=f2e1053] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+meaning+Japanese&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAhFEAE
+              - generic [ref=f2e1064]:
+                - link "Is hane a word in scrabble" [ref=f2e1068] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Is+hane+a+word+in+scrabble&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAg6EAE
+                - link "Hane name" [ref=f2e1082] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+name&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAg3EAE
+                - link "Hane meaning in Rizal" [ref=f2e1096] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+meaning+in+Rizal&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAg1EAE
+                - link "Hane meaning in batangas" [ref=f2e1110] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hane+meaning+in+batangas&sa=X&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ1QJ6BAgvEAE
+          - navigation [ref=f2e1121]:
+            - heading "Page Navigation" [level=1] [ref=f2e1122]
+            - text: "1"
+            - link "Page 2" [ref=f2e1125] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=10&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAE
+              - text: "2"
+            - link "Page 3" [ref=f2e1127] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=20&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAG
+              - text: "3"
+            - link "Page 4" [ref=f2e1129] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=30&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAI
+              - text: "4"
+            - link "Page 5" [ref=f2e1131] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=40&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAK
+              - text: "5"
+            - link "Page 6" [ref=f2e1133] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=50&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAM
+              - text: "6"
+            - link "Page 7" [ref=f2e1135] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=60&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAO
+              - text: "7"
+            - link "Page 8" [ref=f2e1137] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=70&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAQ
+              - text: "8"
+            - link "Page 9" [ref=f2e1139] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=80&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAS
+              - text: "9"
+            - link "Page 10" [ref=f2e1141] [cursor=pointer]:
+              - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=90&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8tMDegQILBAU
+              - text: "10"
+            - heading [level=2] [ref=f2e1143]:
+              - link "Next" [ref=f2e1144] [cursor=pointer]:
+                - /url: /search?q=hane&sca_esv=0237a3a71ba987c6&ei=uTGQavSeIbaGvr0PsOOiCA&start=10&sa=N&sstk=AS6-VmJ4XeU3TILO8x5CHOf3ChrRluRjxhTblLeEi_YCV7h1xufz4L6dkfna7P5cHW_sWymbhW4Sa1WbFi2l4BZCxtXpPaa_TMP8Kg&ved=2ahUKEwi03_XV68CWAxU2g68BHbCxCAEQ8NMDegQILBAW
+        - navigation
+    - contentinfo [ref=f2e1147]:
+      - heading "Footer Links" [level=1] [ref=f2e1148]
+      - generic [ref=f2e1152]:
+        - generic [ref=f2e1154]:
+          - text: Philippines
+          - generic [ref=f2e1156]:
+            - button "Silay - From your IP address" [ref=f2e1158] [cursor=pointer]:
+              - generic [ref=f2e1159]: Silay
+              - generic [ref=f2e1161]:
+                - text: "-"
+                - generic [ref=f2e1162]: From your IP address
+            - text: "-"
+            - button "Update location" [ref=f2e1164] [cursor=pointer]
+        - generic [ref=f2e1167]:
+          - link "Help" [ref=f2e1168] [cursor=pointer]:
+            - /url: https://support.google.com/websearch/?p=ws_results_help&hl=en-PH&fg=1
+          - link "Send feedback" [ref=f2e1169] [cursor=pointer]:
+            - /url: "#"
+          - link "Privacy" [ref=f2e1170] [cursor=pointer]:
+            - /url: https://policies.google.com/privacy?hl=en-PH&fg=1
+          - link "Terms" [ref=f2e1171] [cursor=pointer]:
+            - /url: https://policies.google.com/terms?hl=en-PH&fg=1

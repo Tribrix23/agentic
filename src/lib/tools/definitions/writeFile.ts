@@ -6,6 +6,23 @@ import { calculateLineChanges } from '../../incrementalToolCallParser';
 // added with editFile, which has no artificial content limit.
 export const MAX_INITIAL_WRITE_CHARS = 12000;
 
+export function normalizeWrittenSource(path: string, value: string): string {
+  const extension = path.split(/[\\/]/).pop()?.split('.').pop()?.toLowerCase();
+  if (!extension || !['java', 'js', 'jsx', 'ts', 'tsx', 'c', 'cc', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'py', 'rb', 'php', 'swift', 'kt', 'kts'].includes(extension)) {
+    return value;
+  }
+
+  let content = value.replace(/^\uFEFF/, '').trim();
+  const fenced = content.match(/^```(?:[a-z0-9_+#.-]+)?\s*\r?\n([\s\S]*?)\r?\n```\s*$/i);
+  if (fenced) content = fenced[1];
+
+  const language = extension === 'kts' ? 'kotlin' : extension;
+  content = content.replace(new RegExp(`^\\s*<!DOCTYPE\\s+${language}\\s*>\\s*`, 'i'), '');
+  const wrapper = content.match(new RegExp(`^\\s*<${language}>\\s*([\\s\\S]*?)\\s*</${language}>\\s*$`, 'i'));
+  if (wrapper) content = wrapper[1];
+  return content.replace(/^\s*\r?\n/, '').replace(/\s+$/, '') + '\n';
+}
+
 export const definition: ToolDefinition = {
   name: 'writeFile',
   description: `Create or replace files with intelligent chunking. For large files (>${MAX_INITIAL_WRITE_CHARS} chars), write a valid skeleton plus one logical section, then use editFile for subsequent sections. Never resend complete large files. Supports absolute paths and project-relative paths. Also creates rich Markdown artifacts with optional metadata.`,
@@ -35,7 +52,8 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { path: relativeOrAbsPath, content, artifactMetadata } = args;
+    const { path: relativeOrAbsPath, artifactMetadata } = args;
+    const content = artifactMetadata ? args.content : normalizeWrittenSource(relativeOrAbsPath, args.content);
     
     console.log('[writeFile] Writing file:', { path: relativeOrAbsPath, contentLength: content?.length, hasContent: !!content });
     

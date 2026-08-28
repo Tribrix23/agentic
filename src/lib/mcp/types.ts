@@ -29,6 +29,13 @@ export interface McpToolInfo {
   name: string;
   description?: string;
   inputSchema?: Record<string, any>;
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
   permissions: McpPermission[];
   qualifiedName: string;
   timeoutMs?: number;

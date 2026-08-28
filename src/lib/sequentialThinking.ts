@@ -27,7 +27,7 @@ export const SEQUENTIAL_THINKING_ALIAS = 'mcp__sequential_thinking__sequentialth
 
 const PLANNING_DISCOVERY_TOOLS = new Set([
   'listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles',
-  'codeAnalysis', 'webSearch', 'readUrl', 'gitStatus', 'gitDiff', 'commandStatus',
+  'codeAnalysis', 'gitStatus', 'gitDiff', 'commandStatus',
 ]);
 
 export function isSequentialThinkingTool(toolName: string): boolean {

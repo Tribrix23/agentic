@@ -163,6 +163,7 @@ export function checkPermission(
 
 /** Get the permission type category for a tool */
 function getToolPermissionType(toolName: string): PermissionRule['type'] {
+  if (toolName.startsWith('mcp__')) return 'network';
   const map: Record<string, PermissionRule['type']> = {
     readFile: 'file_read',
     listDirectory: 'file_read',
@@ -177,8 +178,6 @@ function getToolPermissionType(toolName: string): PermissionRule['type'] {
     gitAdd: 'git',
     gitCommit: 'git',
     gitDiff: 'git',
-    webSearch: 'network',
-    readUrl: 'network',
   };
   return map[toolName] || 'terminal';
 }

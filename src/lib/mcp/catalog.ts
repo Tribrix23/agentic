@@ -20,7 +20,8 @@ export function buildMcpCatalog(servers: McpServerSnapshot[]): McpCatalogEntry[]
       const identity = { serverId: server.id, toolName: tool.name };
       const externalName = stableMcpAlias(identity, occupied);
       occupied.add(externalName);
-      const write = tool.permissions.some(permission => permission !== 'read');
+      const mutating = tool.permissions.some(permission => permission === 'write' || permission === 'execute');
+      const network = tool.permissions.includes('network');
       entries.push({
         identity,
         identityKey: mcpIdentityKey(identity),
@@ -32,15 +33,15 @@ export function buildMcpCatalog(servers: McpServerSnapshot[]): McpCatalogEntry[]
           description: `[MCP ${server.name}] ${tool.description || tool.name}`,
           category: 'system',
           parameters: tool.inputSchema || { type: 'object', properties: {} },
-          requiresApproval: write,
-          dangerLevel: write ? 'moderate' : 'safe',
+          requiresApproval: mutating,
+          dangerLevel: mutating ? 'moderate' : 'safe',
           timeout: tool.timeoutMs || 60000,
           icon: 'Plug',
           capabilities: {
-            sideEffect: write ? 'unknown' : 'none',
+            sideEffect: mutating ? 'unknown' : 'none',
             concurrencyKeys: [`mcp:${server.id}`],
             cancellation: 'cooperative',
-            permission: write ? 'system' : 'none',
+            permission: network ? 'network' : mutating ? 'system' : 'none',
           },
           metadata: { source: 'mcp', serverId: server.id, toolName: tool.name },
         },

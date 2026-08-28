@@ -11,8 +11,6 @@ import { definition as gitStatusDef, handler as gitStatusHandler } from './defin
 import { definition as gitAddDef, handler as gitAddHandler } from './definitions/gitAdd';
 import { definition as gitCommitDef, handler as gitCommitHandler } from './definitions/gitCommit';
 import { definition as gitDiffDef, handler as gitDiffHandler } from './definitions/gitDiff';
-import { definition as webSearchDef, handler as webSearchHandler } from './definitions/webSearch';
-import { definition as readUrlDef, handler as readUrlHandler } from './definitions/readUrl';
 import { definition as askUserDef, handler as askUserHandler } from './definitions/askUser';
 import { definition as codeAnalysisDef, handler as codeAnalysisHandler } from './definitions/codeAnalysis';
 import { definition as invokeSubagentDef, handler as invokeSubagentHandler } from './definitions/invokeSubagent';
@@ -73,8 +71,6 @@ export function initializeTools() {
   registerTool(gitAddDef, gitAddHandler);
   registerTool(gitCommitDef, gitCommitHandler);
   registerTool(gitDiffDef, gitDiffHandler);
-  registerTool(webSearchDef, webSearchHandler);
-  registerTool(readUrlDef, readUrlHandler);
   registerTool(askUserDef, askUserHandler);
   registerTool(codeAnalysisDef, codeAnalysisHandler);
   registerTool(invokeSubagentDef, invokeSubagentHandler);

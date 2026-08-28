@@ -91,6 +91,11 @@ typings/
 # Electron-Forge
 out/
 
+# Playwright browser payload staged by the packaging hook
+playwright-browsers/
+playwright-runtime/
+.playwright-mcp/
+
 .devin/
 
 .kilo/

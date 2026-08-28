@@ -9,6 +9,8 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 import path from 'node:path';
 
 const iconPath = path.resolve(__dirname, 'assets', 'icon');
+const playwrightBrowsersPath = path.resolve(__dirname, 'playwright-browsers');
+const playwrightRuntimePath = path.resolve(__dirname, 'playwright-runtime');
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -16,7 +18,9 @@ const config: ForgeConfig = {
     icon: iconPath,
     extraResource: [
       path.resolve(__dirname, 'public'),
-      path.resolve(__dirname, 'agentic-mcp-server')
+      path.resolve(__dirname, 'agentic-mcp-server'),
+      playwrightBrowsersPath,
+      playwrightRuntimePath,
     ],
   },
 

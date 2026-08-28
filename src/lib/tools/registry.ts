@@ -55,8 +55,6 @@ const SUBAGENT_FORBIDDEN_TOOLS = new Set([
   'invokeSubagent',    // Subagents should not spawn more subagents
   'createTodoListTasks', // Subagents should not create todo lists
   'updateTaskStatus',  // Subagents should not update task status
-  'webSearch',         // Subagents should not do web searches
-  'readUrl',           // Subagents should not read URLs
   'codeAnalysis',      // Subagents should not do code analysis
   'listDirectory',     // Subagents rely on main agent for context
 ]);

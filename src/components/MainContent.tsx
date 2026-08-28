@@ -91,7 +91,7 @@ export const MainContent = ({
   // ── Agentic Chat State ───────────────────────────────────────────────
   const [messages, setMessages] = useState<AgenticMessage[]>([]);
   const [isAgentRunning, setIsAgentRunning] = useState(false);
-  
+
   const [agentStatus, setAgentStatus] = useState<string>('');
   const [agentIteration, setAgentIteration] = useState<number>(0);
   const [tokenBudget, setTokenBudget] = useState<TokenBudget | undefined>();
@@ -189,8 +189,8 @@ export const MainContent = ({
 
   // ── Broadcast Agent Running State for Sidebar ────────────────────────
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('agent-running-state', { 
-      detail: { isRunning: isAgentRunning, activeConversationId } 
+    window.dispatchEvent(new CustomEvent('agent-running-state', {
+      detail: { isRunning: isAgentRunning, activeConversationId }
     }));
   }, [isAgentRunning, activeConversationId]);
 
@@ -229,7 +229,7 @@ export const MainContent = ({
         try {
           const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
           if (!Array.isArray(parsed)) savedConvos = parsed;
-        } catch (e) {}
+        } catch (e) { }
         const projConvos = savedConvos[projPath] || [];
         const remaining = projConvos.filter((c: any) => c.id !== id);
 
@@ -270,14 +270,14 @@ export const MainContent = ({
 
     const handleBackgroundTaskComplete = async (e: any) => {
       const { taskId, status } = e.detail;
-      
+
       if (!isAgentRunning && aiConfig.agentMode && activeConversationId) {
         // Build the system message
         const taskMsg = createUserMessage(`[SYSTEM]: Background task ${taskId} completed with status ${status.status}.\nWait to see if there is any output from manageTask or commandStatus.`);
-        
+
         setMessages(prev => {
           const newMsgs = [...prev, taskMsg];
-          
+
           // Re-run agent loop
           if (agentLoopRef.current) {
             setIsAgentRunning(true);
@@ -303,7 +303,7 @@ export const MainContent = ({
         agentLoopRef.current?.notifySubagentDone();
         return true;
       };
-      
+
       // Create a tool executor for this subagent that scopes to its conversationId
       const subagentToolExecutor = async (toolCall: ToolCall, signal: AbortSignal): Promise<ToolResult> => {
         // Use actual security preset and rules for subagents
@@ -369,8 +369,8 @@ export const MainContent = ({
             const newMsgs = [...prev];
             for (let i = newMsgs.length - 1; i >= 0; i--) {
               if (newMsgs[i].id === `subagent_${conversationId}_${event.data.id}`) {
-                newMsgs[i] = { 
-                  ...newMsgs[i], 
+                newMsgs[i] = {
+                  ...newMsgs[i],
                   content: event.data.parsedContent ?? event.data.fullText,
                   thinkingContent: event.data.thinkingContent
                 };
@@ -418,7 +418,7 @@ export const MainContent = ({
         } else if (event.type === 'agent:tool-executing' || event.type === 'agent:tool-result') {
           // Forward UI state updates for tool execution inside subagent messages
           setMessages(prev => prev.map(m => {
-              const subagentId = `subagent_${conversationId}_${event.data.messageId || (event.data.toolCall && event.data.toolCall.messageId) || ''}`;
+            const subagentId = `subagent_${conversationId}_${event.data.messageId || (event.data.toolCall && event.data.toolCall.messageId) || ''}`;
             if (m.id === subagentId || m.toolCalls?.some(t => t.id === (event.type === 'agent:tool-result' ? event.data.toolCall.id : event.data.id))) {
               return {
                 ...m,
@@ -439,12 +439,12 @@ export const MainContent = ({
           if (!claimFinalization()) return;
           // Sub-agent has finished — extract its final text output
           const finalContent = event.data?.content || 'Sub-agent completed.';
-          
+
           // Verify work was actually done before marking task complete
           // Get the task to check if it has a targetFile
           const task = taskId ? getTask(taskId) : null;
           let targetFile = task?.metadata?.targetFile || e.detail?.targetFile;
-          
+
           let shouldMarkComplete = true;
           if (event.data?.reason === 'user_cancelled') {
             shouldMarkComplete = false;
@@ -459,7 +459,7 @@ export const MainContent = ({
                 targetFile = projectRoot + (projectRoot.endsWith('/') || projectRoot.endsWith('\\') ? '' : '/') + targetFile;
               }
             }
-            
+
             // Check if the file exists before marking complete
             try {
               const exists = await (window as any).electron?.fileExists(targetFile, selectedProject?.path || e.detail?.projectRoot);
@@ -488,19 +488,19 @@ export const MainContent = ({
               updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: 'Could not verify file existence' } });
             }
           }
-          
+
           // Mark the linked task as completed if verification passed
           if (taskId && shouldMarkComplete) {
             updateTask(taskId, { status: 'completed' });
           }
-          
+
           // Inject result as a HIDDEN system message into main chat, then wake the main loop
           const resultMsg = createUserMessage(
             `[SYSTEM - Sub-agent ${role} (${conversationId}) completed]: ${finalContent.slice(0, 1000)}`
           );
           // Mark as hidden so it doesn't render as a visible chat bubble
           (resultMsg as any).isHidden = true;
-          
+
           setMessages(prev => {
             const newMsgs = [...prev, resultMsg];
             // Use addPendingMessage() and only wakeup() if it's the last subagent
@@ -509,7 +509,7 @@ export const MainContent = ({
               if (state.status === 'sleeping') {
                 // Add the result message to the sleeping loop's pending queue
                 agentLoopRef.current.addPendingMessage({ ...resultMsg, role: 'user' as const });
-                
+
                 // Only wake up if this is the LAST active subagent (after decrement)
                 // Check count AFTER notifySubagentDone has been called
                 if (agentLoopRef.current.activeSubagentCount === 0) {
@@ -547,7 +547,7 @@ export const MainContent = ({
         toolProtocol: 'xml',
         billingSession: billingSessionRef.current || undefined,
       });
-      
+
       try {
         const systemPrompt = `You are a sub-agent with the role: ${role}.
 Your ONLY task is: ${task}
@@ -574,7 +574,7 @@ IMPORTANT RULES:
         const subagentConfig = { ...aiConfig, useDefaultSystemPrompt: false, systemPrompt };
         subagentLoop.updateConfig(subagentConfig);
         subagentLoopsRef.current.set(conversationId, subagentLoop);
-        
+
         const initialMessages = [
           { role: 'user' as const, content: `Please begin the task: ${task}`, id: `user_${conversationId}`, timestamp: Date.now() }
         ];
@@ -582,28 +582,28 @@ IMPORTANT RULES:
         // to prevent race conditions. We don't need to call it again here.
         subagentLoop.run(initialMessages.map(m => ({ ...m, role: m.role as any })))
           .catch(e => console.error(`Subagent ${conversationId} failed:`, e));
-      } catch(e) {
+      } catch (e) {
         console.error('Failed to run subagent', e);
       }
     };
 
     const handleSendSubagentMessage = (e: any) => {
-       // Ideally we would look up the subagent and call run() again.
-       // For this MVP true-mirror implementation, we just mock the received event
-       // since full subagent message routing requires a more complex UI state.
-       const { conversationId, message } = e.detail;
-       setTimeout(() => {
-          const taskMsg = createUserMessage(`[Subagent (${conversationId})]: Received your message: "${message}". I am processing it.`);
-          setMessages(prev => {
-            const newMsgs = [...prev, taskMsg];
-            if (!isAgentRunning && aiConfig.agentMode && activeConversationId && agentLoopRef.current) {
-              setIsAgentRunning(true);
-              isStreamingRef.current = true;
-              agentLoopRef.current.run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
-            }
-            return newMsgs;
-          });
-       }, 1000);
+      // Ideally we would look up the subagent and call run() again.
+      // For this MVP true-mirror implementation, we just mock the received event
+      // since full subagent message routing requires a more complex UI state.
+      const { conversationId, message } = e.detail;
+      setTimeout(() => {
+        const taskMsg = createUserMessage(`[Subagent (${conversationId})]: Received your message: "${message}". I am processing it.`);
+        setMessages(prev => {
+          const newMsgs = [...prev, taskMsg];
+          if (!isAgentRunning && aiConfig.agentMode && activeConversationId && agentLoopRef.current) {
+            setIsAgentRunning(true);
+            isStreamingRef.current = true;
+            agentLoopRef.current.run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
+          }
+          return newMsgs;
+        });
+      }, 1000);
     };
 
     const handleSubagentFileActivity = (e: any) => {
@@ -672,8 +672,8 @@ IMPORTANT RULES:
           const newMsgs = [...prev];
           for (let i = newMsgs.length - 1; i >= 0; i--) {
             if (newMsgs[i].role === 'assistant' && newMsgs[i].isStreaming) {
-              newMsgs[i] = { 
-                ...newMsgs[i], 
+              newMsgs[i] = {
+                ...newMsgs[i],
                 content: event.data.parsedContent ?? event.data.fullText,
                 thinkingContent: event.data.thinkingContent
               };
@@ -961,7 +961,7 @@ IMPORTANT RULES:
   ) => {
     const runConfig = aiConfigRef.current;
     if (!content.trim()) return;
-    
+
     // React state does not update synchronously, so guard the entire startup path
     // against double-clicks and repeated Enter key events with a ref as well.
     if (isAgentRunning || isSubmittingRef.current) return;
@@ -1139,13 +1139,13 @@ IMPORTANT RULES:
       }
     }
     isSubmittingRef.current = false;
-    
+
     // If agent loop already exists and is just sleeping, wake it up!
     if (isSleepingAgent && agentLoopRef.current) {
       agentLoopRef.current.wakeup([{ ...userMsg, role: 'user' }]);
       return; // Skip the rest of initialization
     }
-    
+
     setAgentIteration(0);
     // ── Run Agent Loop ─────────────────────────────────────────────────
     if (aiConfig.agentMode || !aiConfig.agentMode) {
@@ -1162,36 +1162,36 @@ IMPORTANT RULES:
       }
 
       // Instantiate AgentLoop directly for the main chat
-       const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
-        const interactionMode = getInteractionMode(runConfig);
-        const readOnly = interactionMode === 'ask';
-        const localToolDefinitions = interactionMode === 'plan'
-          ? getPlanToolDefinitions(getAllTools())
-          : readOnly ? getReadOnlyToolDefinitions(getAllTools()) : getToolsForLLM();
+      const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+      const interactionMode = getInteractionMode(runConfig);
+      const readOnly = interactionMode === 'ask';
+      const localToolDefinitions = interactionMode === 'plan'
+        ? getPlanToolDefinitions(getAllTools())
+        : readOnly ? getReadOnlyToolDefinitions(getAllTools()) : getToolsForLLM();
       const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       activeRunIdRef.current = runId;
       agentLoopRef.current = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
-         // Ask deliberately excludes MCP tools until the server advertises a
-         // read-only capability; local tools are filtered by an allow-list.
-          toolDefinitions: [...localToolDefinitions, ...(interactionMode === 'agent' ? getMcpToolDefinitions(mcpServers) : [])],
-          toolExecutor: (toolCall, signal, runContext) => toolExecutor(toolCall, signal, { ...runContext, readOnly, interactionMode }),
+        // Ask deliberately excludes MCP tools until the server advertises a
+        // read-only capability; local tools are filtered by an allow-list.
+        toolDefinitions: [...localToolDefinitions, ...(interactionMode === 'agent' ? getMcpToolDefinitions(mcpServers) : [])],
+        toolExecutor: (toolCall, signal, runContext) => toolExecutor(toolCall, signal, { ...runContext, readOnly, interactionMode }),
         conversationId: convId,
         agentRole: 'orchestrator',
         billingSession,
         runId,
         turnId: `turn:${Date.now()}`,
-         userMessageId: userMsg.id,
-          interactionMode,
-          executionPlanPath: executionPlan?.executionPlanPath,
-          executionPlanInstruction,
+        userMessageId: userMsg.id,
+        interactionMode,
+        executionPlanPath: executionPlan?.executionPlanPath,
+        executionPlanInstruction,
       });
 
       agentLoopRef.current.updateConfig(runConfig);
 
       try {
-         await agentLoopRef.current.run(allMessages.map((m, idx) => {
+        await agentLoopRef.current.run(allMessages.map((m, idx) => {
           const mapped = { ...m, role: m.role as any };
           // The UI bubble shows "Execute Implementation Plan" as a friendly label,
           // but the model must receive the full detailed instruction so it knows
@@ -1206,23 +1206,23 @@ IMPORTANT RULES:
           } else if (idx === allMessages.length - 1 && executionPlanInstruction && m.role === 'user') {
             mapped.content = executionPlanInstruction;
           }
-           return mapped;
-         }));
-         const completedSnapshot = convId ? getSnapshotForMessage(convId, userMsg.id) : undefined;
-         if (completedSnapshot?.gitCheckpoint && completedSnapshot.projectPath) {
-           const manifest = await (window as any).electron?.getGitCheckpointManifest?.(
-             completedSnapshot.projectPath,
-             completedSnapshot.gitCheckpoint,
-           );
-           if (manifest?.success) {
-             updateSnapshot(convId, userMsg.id, {
-               checkpointManifest: manifest.changes || [],
-               checkpointManifestCapturedAt: Date.now(),
-               checkpointError: undefined,
-             });
-           }
-         }
-       } catch (e) {
+          return mapped;
+        }));
+        const completedSnapshot = convId ? getSnapshotForMessage(convId, userMsg.id) : undefined;
+        if (completedSnapshot?.gitCheckpoint && completedSnapshot.projectPath) {
+          const manifest = await (window as any).electron?.getGitCheckpointManifest?.(
+            completedSnapshot.projectPath,
+            completedSnapshot.gitCheckpoint,
+          );
+          if (manifest?.success) {
+            updateSnapshot(convId, userMsg.id, {
+              checkpointManifest: manifest.changes || [],
+              checkpointManifestCapturedAt: Date.now(),
+              checkpointError: undefined,
+            });
+          }
+        }
+      } catch (e) {
         console.error('Agent loop failed:', e);
       }
     }
@@ -1281,7 +1281,7 @@ IMPORTANT RULES:
     // Forcefully stop all running sub-agents
     subagentLoopsRef.current.forEach(loop => loop.stop());
     subagentLoopsRef.current.clear();
-    
+
     isStreamingRef.current = false;
     setIsAgentRunning(false);
     setAgentStatus('');
@@ -1294,9 +1294,9 @@ IMPORTANT RULES:
       if (updated.toolCalls && updated.toolCalls.some(tc => tc.status === 'running' || tc.status === 'pending')) {
         updated = {
           ...updated,
-          toolCalls: updated.toolCalls.map(tc => 
-            (tc.status === 'running' || tc.status === 'pending') 
-              ? { ...tc, status: 'error' as const, result: { success: false, output: 'Cancelled by user.', artifacts: [] } } 
+          toolCalls: updated.toolCalls.map(tc =>
+            (tc.status === 'running' || tc.status === 'pending')
+              ? { ...tc, status: 'error' as const, result: { success: false, output: 'Cancelled by user.', artifacts: [] } }
               : tc
           )
         };
@@ -1590,8 +1590,8 @@ IMPORTANT RULES:
                 agentIteration={agentIteration}
                 agentState={agentState}
                 tokenBudget={tokenBudget}
-                 config={aiConfig}
-                 conversationId={activeConversationId}
+                config={aiConfig}
+                conversationId={activeConversationId}
                 projectFiles={projectFiles}
                 onConfigChange={(partial) => {
                   const updated = setAIConfig(partial, selectedProject?.path);
@@ -1604,7 +1604,7 @@ IMPORTANT RULES:
                 }}
                 pendingToolCall={pendingToolCall}
                 onToolDecision={handleToolDecision}
-                 onUndoToMessage={async (msgId: string) => {
+                onUndoToMessage={async (msgId: string) => {
                   // ── 0. Stop the agent if it's currently running
                   if (isAgentRunning) {
                     handleStopAgent();
@@ -1629,72 +1629,72 @@ IMPORTANT RULES:
 
                   // ── 2. Restore the pre-turn Git checkpoint. Older conversations
                   // and non-Git projects continue to use the legacy inverse log.
-                   if (convId) {
-                     const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
-                     const targetSnapshot = getSnapshotForMessage(convId, msgId);
-                     let restoreSucceeded = true;
-                     if (targetSnapshot?.gitCheckpoint && targetSnapshot.projectPath) {
+                  if (convId) {
+                    const snapshotsToUndo = getSnapshotsFrom(convId, msgId).reverse();
+                    const targetSnapshot = getSnapshotForMessage(convId, msgId);
+                    let restoreSucceeded = true;
+                    if (targetSnapshot?.gitCheckpoint && targetSnapshot.projectPath) {
                       const restoreResult = await (window as any).electron?.restoreGitCheckpoint(
                         targetSnapshot.projectPath,
                         targetSnapshot.gitCheckpoint,
                       );
-                       if (!restoreResult?.success) {
-                         console.error('[undo] Git checkpoint restore failed:', restoreResult?.error);
-                         return false;
-                       }
-                     } else {
-                       for (const snapshot of snapshotsToUndo) {
-                         const snapshotProjectRoot = snapshot.projectPath || selectedProject?.path || '';
-                         for (const file of [...snapshot.files].reverse()) {
-                           const f = file as any; // For backward compatibility with old snapshots
-                           if (!f.type) {
-                             if (f.content !== undefined && f.content !== null) {
-                               const result = await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
-                               if (!result?.success) restoreSucceeded = false;
-                             }
-                             continue;
-                           }
+                      if (!restoreResult?.success) {
+                        console.error('[undo] Git checkpoint restore failed:', restoreResult?.error);
+                        return false;
+                      }
+                    } else {
+                      for (const snapshot of snapshotsToUndo) {
+                        const snapshotProjectRoot = snapshot.projectPath || selectedProject?.path || '';
+                        for (const file of [...snapshot.files].reverse()) {
+                          const f = file as any; // For backward compatibility with old snapshots
+                          if (!f.type) {
+                            if (f.content !== undefined && f.content !== null) {
+                              const result = await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
+                              if (!result?.success) restoreSucceeded = false;
+                            }
+                            continue;
+                          }
 
-                           if (f.type === 'file_create' || f.type === 'folder_create') {
-                             const result = await (window as any).electron?.deleteFile(f.path, snapshotProjectRoot);
-                             if (!result?.success) restoreSucceeded = false;
-                           } else if (f.type === 'rename') {
-                             const result = await (window as any).electron?.renameFile(f.path, f.oldPath, snapshotProjectRoot);
-                             if (!result?.success) restoreSucceeded = false;
-                           } else if (f.type === 'file_modify') {
-                             if (f.content !== undefined && f.content !== null) {
-                               const result = await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
-                               if (!result?.success) restoreSucceeded = false;
-                             }
-                           } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
-                             if (f.backupPath) {
-                               const result = await (window as any).electron?.restorePath(f.backupPath, f.path, snapshotProjectRoot);
-                               if (!result?.success) restoreSucceeded = false;
-                             }
-                           }
-                         }
-                       }
-                     }
-                     if (!restoreSucceeded) return false;
-                   }
+                          if (f.type === 'file_create' || f.type === 'folder_create') {
+                            const result = await (window as any).electron?.deleteFile(f.path, snapshotProjectRoot);
+                            if (!result?.success) restoreSucceeded = false;
+                          } else if (f.type === 'rename') {
+                            const result = await (window as any).electron?.renameFile(f.path, f.oldPath, snapshotProjectRoot);
+                            if (!result?.success) restoreSucceeded = false;
+                          } else if (f.type === 'file_modify') {
+                            if (f.content !== undefined && f.content !== null) {
+                              const result = await (window as any).electron?.saveFileContent(f.path, f.content, { projectRoot: snapshotProjectRoot });
+                              if (!result?.success) restoreSucceeded = false;
+                            }
+                          } else if (f.type === 'file_delete' || f.type === 'folder_delete') {
+                            if (f.backupPath) {
+                              const result = await (window as any).electron?.restorePath(f.backupPath, f.path, snapshotProjectRoot);
+                              if (!result?.success) restoreSucceeded = false;
+                            }
+                          }
+                        }
+                      }
+                    }
+                    if (!restoreSucceeded) return false;
+                  }
 
                   // ── 3. Delete snapshots from this turn onward
                   if (convId) {
                     deleteSnapshotsFrom(convId, msgId);
                   }
 
-                   const isUndoingFirstMessage = messages.findIndex(m => m.id === msgId) === 0;
+                  const isUndoingFirstMessage = messages.findIndex(m => m.id === msgId) === 0;
 
-                   // ── 4. Update messages - use functional update to ensure we have latest state
+                  // ── 4. Update messages - use functional update to ensure we have latest state
                   setMessages(prevMessages => {
                     const currentIdx = prevMessages.findIndex(m => m.id === msgId);
                     if (currentIdx === -1) return prevMessages;
-                    
+
                     const currentUserMsg = prevMessages[currentIdx];
-                    
+
                     // Restore user text to input
                     setInputValue(currentUserMsg.content || '');
-                    
+
                     if (currentIdx === 0) {
                       // ── 4a. Undoing the first message -> delete the entire conversation
                       if (convId && selectedProject?.path) {
@@ -1704,7 +1704,7 @@ IMPORTANT RULES:
                         try {
                           const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
                           if (!Array.isArray(parsed)) savedConvos = parsed;
-                        } catch {}
+                        } catch { }
                         if (savedConvos[projPath]) {
                           savedConvos[projPath] = savedConvos[projPath].filter((c: any) => c.id !== convId);
                           localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
@@ -1721,13 +1721,13 @@ IMPORTANT RULES:
                       }
                       return newMessages;
                     }
-                   });
-                   if (isUndoingFirstMessage) {
-                      window.dispatchEvent(new Event('conversationsUpdated'));
-                   }
-                   window.dispatchEvent(new CustomEvent('project-files-restored', { detail: { conversationId: convId } }));
-                   return true;
-                 }}
+                  });
+                  if (isUndoingFirstMessage) {
+                    window.dispatchEvent(new Event('conversationsUpdated'));
+                  }
+                  window.dispatchEvent(new CustomEvent('project-files-restored', { detail: { conversationId: convId } }));
+                  return true;
+                }}
                 pendingAskUser={pendingAskUser}
                 onUserResponse={handleUserResponse}
                 inputValue={inputValue}
@@ -1762,13 +1762,13 @@ IMPORTANT RULES:
           {/* ── Input Area (only shown when no messages OR always at bottom) ── */}
           {messages.length === 0 && (
             agentState === 'awaiting_tool_approval' && pendingToolCall ? (
-              <ToolApprovalCard 
-                toolCall={pendingToolCall} 
-                onDecision={handleToolDecision} 
+              <ToolApprovalCard
+                toolCall={pendingToolCall}
+                onDecision={handleToolDecision}
                 onSkip={() => handleToolDecision(false)}
               />
             ) : (
-              <PromptInput 
+              <PromptInput
                 onSend={(content, attachments, mentionedFiles) => handleSendMessage(content, attachments, mentionedFiles)}
                 onStop={handleStopAgent}
                 isAgentRunning={isAgentRunning}

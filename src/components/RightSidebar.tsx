@@ -12,6 +12,7 @@ import { CodeBlock } from './chat/CodeBlock';
 import { FileIcon } from './chat/FileIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import type { SubagentHandle } from '../lib/agent/subagentTypes';
 
 export interface TokenBudget {
@@ -341,6 +342,7 @@ export const RightSidebar = ({
                 <div className="font-sans text-[13px] leading-6 text-zinc-300">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
+                    rehypePlugins={[rehypeRaw]}
                     components={{
                       h1: ({ children }) => <h1 className="text-xl leading-7 font-semibold text-white mb-4">{children}</h1>,
                       h2: ({ children }) => <h2 className="text-base font-semibold text-white mt-7 mb-3 pb-2 border-b border-white/10">{children}</h2>,

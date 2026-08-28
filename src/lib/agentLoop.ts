@@ -275,7 +275,7 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
           toolCalls.push({ name: toolName, arguments: parsedArgs });
           startIndex = text.indexOf('call:', endIndex + 1);
           continue;
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     startIndex = text.indexOf('call:', startIndex + 5);
@@ -292,7 +292,7 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
       if (parsed.name && isPlausibleToolName(parsed.name, knownToolNames)) {
         toolCalls.push({ name: parsed.name, arguments: parsed.arguments || parsed.params || parsed.args || {} });
       }
-    } catch (e) {}
+    } catch (e) { }
   }
   if (toolCalls.length > 0) return toolCalls;
 
@@ -326,7 +326,7 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
             toolCalls.push({ name: parsed.tool, arguments: args });
             si = text.indexOf('{', ei + 1); continue;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
       si = text.indexOf('{', si + 1);
     }
@@ -359,11 +359,11 @@ export function isStandaloneToolArgumentsJson(text: string): boolean {
 function deduplicateToolCalls(toolCalls: ParsedToolCall[]): ParsedToolCall[] {
   const seen = new Set<string>();
   const deduplicated: ParsedToolCall[] = [];
-  
+
   for (const tc of toolCalls) {
     // Create a unique key based on tool name and stringified arguments
     const key = `${tc.name}:${JSON.stringify(tc.arguments)}`;
-    
+
     if (!seen.has(key)) {
       seen.add(key);
       deduplicated.push(tc);
@@ -371,7 +371,7 @@ function deduplicateToolCalls(toolCalls: ParsedToolCall[]): ParsedToolCall[] {
       console.warn(`[AgentLoop] Deduplicated tool call: ${tc.name} with arguments`, tc.arguments);
     }
   }
-  
+
   return deduplicated;
 }
 
@@ -466,7 +466,7 @@ export class AgentLoop {
   private options?: AgentLoopOptions;
   /** Executes model actions in canonical emitted order. */
   private actionScheduler?: ActionScheduler;
-  
+
   // Token optimization: cache static content
   private cachedSystemPrompt?: string;
   private cachedSystemPromptProtocol?: 'native' | 'xml';
@@ -495,12 +495,12 @@ export class AgentLoop {
       stuckCount: 0,
       conversationId: options?.conversationId,
     };
-    
+
     // Store the conversation ID for when state is re-initialized in run()
     this.conversationId = options?.conversationId;
     this.userMessageId = options?.userMessageId;
   }
-  
+
   private conversationId?: string;
 
   private resolveWakeup: ((value: void | PromiseLike<void>) => void) | null = null;
@@ -629,7 +629,7 @@ export class AgentLoop {
         this.planningRequired = this.options?.agentRole !== 'subagent'
           && hasSequentialThinkingTool(this.toolDefinitions)
           && requiresStructuredPlanning(userMessage.content);
-        
+
         // Check for ambiguities that need clarification
         const clarification = await this.detectAmbiguities(userMessage);
         if (clarification) {
@@ -698,17 +698,19 @@ export class AgentLoop {
       this.emit({ type: 'agent:planning-started' });
 
       const taskGraph = await this.planExecution();
-      this.emit({ type: 'agent:planning-complete', data: { 
-        taskCount: taskGraph.getStats().totalTasks,
-        criticalPath: taskGraph.getCriticalPath(),
-        structured: this.sequentialThoughts.isComplete(),
-        awaitingStructuredPlan: this.planningRequired && !this.sequentialThoughts.isComplete(),
-      }});
+      this.emit({
+        type: 'agent:planning-complete', data: {
+          taskCount: taskGraph.getStats().totalTasks,
+          criticalPath: taskGraph.getCriticalPath(),
+          structured: this.sequentialThoughts.isComplete(),
+          awaitingStructuredPlan: this.planningRequired && !this.sequentialThoughts.isComplete(),
+        }
+      });
 
       // ── PHASE 3: EXECUTION ───────────────────────────────────────────────
       this.state.phase = 'executing';
       this.state.status = 'Executing tasks...';
-      
+
       // ── Token Optimization: Cache static system prompt + project context ──
       // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
       const toolProtocol = this.options?.toolProtocol || 'native';
@@ -737,7 +739,7 @@ export class AgentLoop {
       if (toolProtocol === 'xml' && this.toolDefinitions.length > 0) {
         fullSystemPrompt += '\n' + buildXmlToolPrompt(this.toolDefinitions);
       }
-      
+
       if (this.projectContext) {
         const projectLines: string[] = [];
         projectLines.push('\n<project_context>');
@@ -765,12 +767,12 @@ export class AgentLoop {
         projectLines.push('</project_context>');
         fullSystemPrompt += '\n' + projectLines.join('\n');
       }
-      
+
       if (this.cachedSystemPromptProtocol !== toolProtocol) this.cachedSystemPrompt = undefined;
       this.cachedSystemPrompt = fullSystemPrompt;
       this.cachedSystemPromptProtocol = toolProtocol;
       this.lastSentMessageIndex = 0; // Reset for new run
-      
+
       // ── Agent iteration loop ─────────────────────────────────────────
       let continueLoop = true;
       let malformedToolCallRetries = 0;
@@ -854,7 +856,7 @@ export class AgentLoop {
         const resolvedOriginalFileContents = new Map<string, string>();
         this.isStreaming = true; // Set streaming flag before API call
         console.log('[AgentLoop] Starting API call, isStreaming set to true');
-        
+
         await new Promise<void>((resolve, reject) => {
           if (!this.state.isRunning) {
             console.log('[AgentLoop] state.isRunning is false, resolving immediately');
@@ -900,14 +902,14 @@ export class AgentLoop {
               fullResponseText += chunk;
               streamAssembler.accept({ ...streamIdentity, type: 'text-delta', text: chunk });
               assistantMsg.isStreaming = true;
-              
+
               // Stateful real-time parser to separate thinking and hide JSON
               let textToDisplay = fullResponseText;
-              
+
               // 1. Extract thinking block and discard any text before it
               const thinkStart = textToDisplay.indexOf('<think');
               let afterThink = textToDisplay;
-              
+
               if (thinkStart !== -1) {
                 const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
                 if (thinkEnd !== -1) {
@@ -927,7 +929,7 @@ export class AgentLoop {
                 assistantMsg.thinkingContent = textToDisplay;
                 afterThink = '';
               }
-              
+
               // 2. Put text outside of thinking into the thought block until a tool call marker is seen
               let hideText = false;
               if (assistantMsg.thinkingContent && afterThink.trim().length > 0) {
@@ -954,9 +956,9 @@ export class AgentLoop {
                   hideText = true;
                 }
               }
-              
+
               assistantMsg.content = hideText || isStandaloneToolArgumentsJson(afterThink.trim()) ? '' : afterThink.trim();
-              
+
               // Feed only the new delta into a retained parser. This creates the
               // UI step once function + path are known and updates it per chunk.
               for (const liveCall of (this.planningRequired && !this.sequentialThoughts.isComplete())
@@ -1004,30 +1006,32 @@ export class AgentLoop {
                     const latest = latestStreamingCalls.get(liveCall.id);
                     if (!latest) return;
                     const stats = calculateLineChanges(original, latest.content);
-                    this.emit({ type: 'agent:tool-streaming', data: {
-                      messageId: assistantMsg.id,
-                      toolCallId: latest.id,
-                      toolName: latest.name,
-                      filePath: latest.path,
-                      content: latest.content,
-                      added: stats.added,
-                      removed: stats.removed,
-                      streamComplete: latest.complete,
-                    }});
+                    this.emit({
+                      type: 'agent:tool-streaming', data: {
+                        messageId: assistantMsg.id,
+                        toolCallId: latest.id,
+                        toolName: latest.name,
+                        filePath: latest.path,
+                        content: latest.content,
+                        added: stats.added,
+                        removed: stats.removed,
+                        streamComplete: latest.complete,
+                      }
+                    });
                   });
                 } else {
                   emitStreamingCall(toLineCount(liveCall.content), 0);
                 }
               }
 
-              this.emit({ 
-                type: 'agent:streaming', 
-                data: { 
-                  text: chunk, 
+              this.emit({
+                type: 'agent:streaming',
+                data: {
+                  text: chunk,
                   fullText: fullResponseText,
                   parsedContent: assistantMsg.content,
                   thinkingContent: assistantMsg.thinkingContent
-                } 
+                }
               });
             },
             onToolCall: (toolCall: ToolCall) => {
@@ -1048,7 +1052,7 @@ export class AgentLoop {
                 console.error('[AgentLoop] BLOCKED invalid tool format from API:', toolCall.name);
                 return;
               }
-              
+
               if (isSequentialThinkingTool(toolCall.name)) {
                 toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
               }
@@ -1074,13 +1078,13 @@ export class AgentLoop {
               responseFinishReason = finishReason;
               fullResponseText = fullText;
               streamAssembler.accept({ ...streamIdentity, type: 'finish', reason: finishReason });
-              
+
               let textToDisplay = fullResponseText;
-              
+
               // 1. Extract thinking block
               const thinkStart = textToDisplay.indexOf('<think');
               let afterThink = textToDisplay;
-              
+
               if (thinkStart !== -1) {
                 const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
                 if (thinkEnd !== -1) {
@@ -1100,7 +1104,7 @@ export class AgentLoop {
                 assistantMsg.thinkingContent = textToDisplay;
                 afterThink = '';
               }
-              
+
               // Only push leaked text into thought bubble if there's actually a tool call!
               const knownToolNames = getKnownToolNames(this.toolDefinitions);
               const normalizedTurn = normalizeAssistantTurn(streamAssembler.snapshot(), knownToolNames, toolProtocol);
@@ -1123,7 +1127,7 @@ export class AgentLoop {
                     console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
                     continue;
                   }
-                  
+
                   // Use the stable callId from the parser for reliable deduplication across chunks
                   const id = pc.callId || 'call_' + Math.random().toString(36).substring(2, 9);
                   const newCall: ToolCall = {
@@ -1165,7 +1169,7 @@ export class AgentLoop {
                   }
                 }
               }
-              
+
               assistantMsg.content = afterThink.trim();
               if (this.options?.interactionMode === 'plan' && /plan_mode_contract|writeImplementationPlan|<tool_call>|Invalid arguments for tool/i.test(assistantMsg.content)) {
                 assistantMsg.content = '';
@@ -1173,7 +1177,7 @@ export class AgentLoop {
               assistantMsg.isStreaming = false;
               assistantMsg.durationMs = Date.now() - startTime;
               assistantMsg.tokensUsed = estimateTokens(fullText);
-              
+
               this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
               resolve();
             },
@@ -1189,7 +1193,7 @@ export class AgentLoop {
         // ── Native Tool execution isolation ────────
         // No text fallback parsing needed here; api.ts handles native tool calls
         // and returns them directly in assistantMsg.toolCalls.
-        
+
         let forceRetry = false;
         let hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
 
@@ -1231,7 +1235,7 @@ export class AgentLoop {
           forceRetry = true;
           this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
         }
-        
+
         // ── Detect duplicate tool call loops ───────────────────────────────────
         if (hasToolCalls) {
           // Only consider write operations and dangerous tools for duplicate detection
@@ -1258,23 +1262,23 @@ export class AgentLoop {
                 updatedMessages.push(errorMsg);
                 this.emit({ type: 'agent:message-added', data: errorMsg });
 
-          forceRetry = true;
-        }
+                forceRetry = true;
+              }
 
-        const hasStandaloneJsonArguments = !hasToolCalls && isStandaloneToolArgumentsJson(assistantMsg.content || '');
-        if (hasStandaloneJsonArguments && malformedToolCallRetries < 2) {
-          malformedToolCallRetries++;
-          assistantMsg.content = '';
-          assistantMsg.isHidden = true;
-          const correction = createUserMessage(
-            '[SYSTEM FORMAT ERROR] You emitted tool arguments as standalone JSON, so no tool was called. Retry the intended action using the required XML tool-call protocol. Do not print JSON or explain the format.'
-          );
-          correction.isHidden = true;
-          updatedMessages.push(correction);
-          this.emit({ type: 'agent:message-added', data: correction });
-          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
-          forceRetry = true;
-        }
+              const hasStandaloneJsonArguments = !hasToolCalls && isStandaloneToolArgumentsJson(assistantMsg.content || '');
+              if (hasStandaloneJsonArguments && malformedToolCallRetries < 2) {
+                malformedToolCallRetries++;
+                assistantMsg.content = '';
+                assistantMsg.isHidden = true;
+                const correction = createUserMessage(
+                  '[SYSTEM FORMAT ERROR] You emitted tool arguments as standalone JSON, so no tool was called. Retry the intended action using the required XML tool-call protocol. Do not print JSON or explain the format.'
+                );
+                correction.isHidden = true;
+                updatedMessages.push(correction);
+                this.emit({ type: 'agent:message-added', data: correction });
+                this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
+                forceRetry = true;
+              }
             } else {
               this.state.consecutiveDuplicates = 0;
             }
@@ -1335,7 +1339,7 @@ export class AgentLoop {
                 this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
                 this.state.status = `Awaiting your approval for ${toolCall.name}...`;
                 this.emit({ type: 'agent:tool-approval-needed', data: toolCall });
-                
+
                 // Suspend execution and wait for UI event
                 isApproved = await new Promise<boolean>((resolve) => {
                   if (this.abortController?.signal.aborted) {
@@ -1373,9 +1377,9 @@ export class AgentLoop {
                 toolCall.agentRole = this.options?.agentRole;
 
                 if (isCodingOperation && filePath) {
-                  this.emit({ 
-                    type: 'agent:coding-started', 
-                    data: { 
+                  this.emit({
+                    type: 'agent:coding-started',
+                    data: {
                       callId: toolCall.id,
                       fileName: filePath.split('/').pop() || filePath,
                       filePath,
@@ -1412,20 +1416,20 @@ export class AgentLoop {
                 // Attach the result before deriving the user-facing operation so
                 // writeFile can distinguish a new file from an existing file.
                 toolCall.result = result;
-                
+
                 if (result.success) {
                   this.executedToolNames.add(toolCall.name);
                   if (this.options?.interactionMode === 'plan' && toolCall.name === 'writeFile') {
                     planArtifactSaved = true;
                   }
-                  
+
                   // Emit coding progress for successful file operations
                   if (isCodingOperation && filePath) {
                     const contentStr = typeof toolCall.arguments?.content === 'string' ? toolCall.arguments.content : '';
                     const addedLines = contentStr ? contentStr.split('\n').length : 0;
-                    this.emit({ 
-                      type: 'agent:coding-progress', 
-                      data: { 
+                    this.emit({
+                      type: 'agent:coding-progress',
+                      data: {
                         callId: toolCall.id,
                         fileName: filePath.split('/').pop() || filePath,
                         filePath,
@@ -1435,10 +1439,10 @@ export class AgentLoop {
                         operation: getFileOperation(toolCall)
                       }
                     });
-                    
-                    this.emit({ 
-                      type: 'agent:coding-complete', 
-                      data: { 
+
+                    this.emit({
+                      type: 'agent:coding-complete',
+                      data: {
                         callId: toolCall.id,
                         fileName: filePath.split('/').pop() || filePath,
                         filePath,
@@ -1493,7 +1497,7 @@ export class AgentLoop {
 
             } catch (error: any) {
               const errorMessage = error.message || String(error);
-              
+
               // Intelligent error recovery based on error type
               let recoverySuggestion = '';
               if (errorMessage.includes('ENOENT') || errorMessage.includes('not found')) {
@@ -1546,7 +1550,7 @@ export class AgentLoop {
           const allDuplicates = assistantMsg.toolCalls.every(
             (tc) => tc.result?.output?.toString().startsWith('[Already called]')
           );
-          
+
           if (allDuplicates) {
             this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
           } else {
@@ -1650,36 +1654,36 @@ export class AgentLoop {
               this.emit({ type: 'agent:message-added', data: clarificationResult });
               continueLoop = result.success;
             } else {
-            // Check if there are still pending semantic tasks in THIS conversation.
-            const convId = this.state.conversationId;
-            
-            // Find tasks that are ready to execute (dependencies satisfied, not delegated, not completed)
-            // Rebuild graph from fresh task store data so status is current,
-            // then use TaskGraph.getExecutableTasks() for proper dependency-aware scheduling.
-            const freshTasks = convId ? getDurableTasksForConversation(convId) : [];
-            const freshGraph = new TaskGraph(freshTasks);
-            const readyTasks = freshGraph.getExecutableTasks().filter(t => !t.delegatedTo);
-            
-            const hasUnfinishedWork = readyTasks.length > 0 && this.activeSubagentCount === 0;
-            
-            // Only nudge ONCE to avoid infinite nudge loops
-            if (hasUnfinishedWork && !this.state.hasNudgedForDelegation && this.state.currentIteration < this.config.maxAgentIterations - 1) {
-              console.log(`[AgentLoop] Text-only response but ${readyTasks.length} tasks are ready for execution. Nudging agent to delegate.`);
-              this.state.hasNudgedForDelegation = true;
-              
-              // List the ready tasks in the nudge message
-              const taskList = readyTasks.slice(0, 5).map(t => `- ${t.title} (ID: ${t.id})`).join('\n');
-              const nudgeMsg = createUserMessage(
-                `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are ${readyTasks.length} tasks ready for execution:\n${taskList}\n\nYou MUST use your tools to actually complete these tasks. Execute directly owned tasks with tools and status updates. Delegate selected ready tasks with invokeSubagent using the taskId. A delegated implementation task owns its target file, so never pre-create that child-owned file.\n\nDo not describe what you will do — actually call the tools NOW.`
-              );
-              nudgeMsg.isHidden = true;
-              updatedMessages.push(nudgeMsg);
-              this.emit({ type: 'agent:message-added', data: nudgeMsg });
-              continueLoop = true;
-            } else {
-              console.log('[AgentLoop] Text-only response, stopping loop naturally.');
-              continueLoop = false;
-            }
+              // Check if there are still pending semantic tasks in THIS conversation.
+              const convId = this.state.conversationId;
+
+              // Find tasks that are ready to execute (dependencies satisfied, not delegated, not completed)
+              // Rebuild graph from fresh task store data so status is current,
+              // then use TaskGraph.getExecutableTasks() for proper dependency-aware scheduling.
+              const freshTasks = convId ? getDurableTasksForConversation(convId) : [];
+              const freshGraph = new TaskGraph(freshTasks);
+              const readyTasks = freshGraph.getExecutableTasks().filter(t => !t.delegatedTo);
+
+              const hasUnfinishedWork = readyTasks.length > 0 && this.activeSubagentCount === 0;
+
+              // Only nudge ONCE to avoid infinite nudge loops
+              if (hasUnfinishedWork && !this.state.hasNudgedForDelegation && this.state.currentIteration < this.config.maxAgentIterations - 1) {
+                console.log(`[AgentLoop] Text-only response but ${readyTasks.length} tasks are ready for execution. Nudging agent to delegate.`);
+                this.state.hasNudgedForDelegation = true;
+
+                // List the ready tasks in the nudge message
+                const taskList = readyTasks.slice(0, 5).map(t => `- ${t.title} (ID: ${t.id})`).join('\n');
+                const nudgeMsg = createUserMessage(
+                  `[SYSTEM] You output text but did NOT call any tools or invoke sub-agents. There are ${readyTasks.length} tasks ready for execution:\n${taskList}\n\nYou MUST use your tools to actually complete these tasks. Execute directly owned tasks with tools and status updates. Delegate selected ready tasks with invokeSubagent using the taskId. A delegated implementation task owns its target file, so never pre-create that child-owned file.\n\nDo not describe what you will do — actually call the tools NOW.`
+                );
+                nudgeMsg.isHidden = true;
+                updatedMessages.push(nudgeMsg);
+                this.emit({ type: 'agent:message-added', data: nudgeMsg });
+                continueLoop = true;
+              } else {
+                console.log('[AgentLoop] Text-only response, stopping loop naturally.');
+                continueLoop = false;
+              }
             }
           }
         }
@@ -1688,7 +1692,7 @@ export class AgentLoop {
         // After processing this iteration, mark all current messages as "sent"
         // so next iteration only sends new messages in full, compressing old ones
         this.lastSentMessageIndex = updatedMessages.length;
-        
+
         // ── Token Optimization: Mark tool results as consumed ───────────────
         // Tool results that were sent in previous iterations should be marked as consumed
         // so they can be compressed more aggressively in future iterations
@@ -1720,14 +1724,14 @@ export class AgentLoop {
           this.state.status = 'sleeping';
           this.state.phase = 'idle';
           this.emit({ type: 'agent:sleeping' });
-          
+
           this.isSleeping = true;
-          
+
           await new Promise<void>((resolve) => {
             this.resolveWakeup = resolve;
-            
+
             let timeoutId: NodeJS.Timeout | null = null;
-            
+
             // Abort listener for sleep phase
             const abortListener = () => {
               if (this.resolveWakeup) {
@@ -1737,7 +1741,7 @@ export class AgentLoop {
               }
               if (timeoutId) clearTimeout(timeoutId);
             };
-            
+
             if (this.abortController) {
               this.abortController.signal.addEventListener('abort', abortListener);
             }
@@ -1777,7 +1781,7 @@ export class AgentLoop {
               }
             }, 300000); // 5 minutes
           });
-          
+
           // Agent woke up — collect any messages that arrive in a short batch window
           // before triggering the next LLM call. This merges results from multiple
           // sub-agents that finish near-simultaneously into a single LLM round-trip
@@ -1895,7 +1899,7 @@ export class AgentLoop {
     // Use existing tasks from taskStore if they exist (created by createTodoListTasks)
     const convId = this.state.conversationId;
     const existingTasks = convId ? getDurableTasksForConversation(convId) : [];
-    
+
     if (existingTasks.length > 0) {
       // Use the tasks already created by the LLM via createTodoListTasks
       // Convert taskStore tasks to TaskGraph format
@@ -1936,17 +1940,21 @@ export class AgentLoop {
 
     // If stuck too many times, consider alternative approach
     if (this.state.stuckCount >= 3) {
-      this.emit({ type: 'agent:error', data: { 
-        message: 'Agent appears stuck. Considering alternative approach...' 
-      }});
+      this.emit({
+        type: 'agent:error', data: {
+          message: 'Agent appears stuck. Considering alternative approach...'
+        }
+      });
     }
 
     // Update progress
-    this.emit({ type: 'agent:progress-update', data: { 
-      progress: this.state.progress,
-      completedTasks: stats.completedTasks,
-      totalTasks: stats.totalTasks,
-    }});
+    this.emit({
+      type: 'agent:progress-update', data: {
+        progress: this.state.progress,
+        completedTasks: stats.completedTasks,
+        totalTasks: stats.totalTasks,
+      }
+    });
 
     this.emit({ type: 'agent:reflection-complete' });
   }

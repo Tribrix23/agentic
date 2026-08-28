@@ -16,8 +16,6 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   'gitStatus',
   'gitDiff',
   'getGitBranch',
-  'readUrl',
-  'webSearch',
   'getFileInfo',
   'screenshot',
   'listWindows',

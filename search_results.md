@@ -1,0 +1,340 @@
+- generic [active] [ref=f12e1]:
+  - generic:
+    - generic:
+      - link "Skip to main content" [ref=f12e2] [cursor=pointer]
+      - link "Accessibility help" [ref=f12e3] [cursor=pointer]:
+        - /url: https://support.google.com/websearch/answer/181196?hl=en-PH
+  - generic [ref=f12e8]:
+    - search [ref=f12e9]:
+      - generic [ref=f12e12]:
+        - link [ref=f12e13] [cursor=pointer]:
+          - /url: https://www.google.com/webhp?hl=en&ictx=0&sa=X&ved=0ahUKEwirk_KP58CWAxWDhq8BHfSPLb4QpYkNCAo
+          - img "Go to Google home" [ref=f12e14]
+        - generic [ref=f12e19]:
+          - combobox "Search" [ref=f12e22]: systematically hoister systematically hoister
+          - generic [ref=f12e23]:
+            - button "Clear" [ref=f12e25] [cursor=pointer]
+            - generic [ref=f12e30]:
+              - button "Search by voice" [ref=f12e31] [cursor=pointer]
+              - button "Search by image" [ref=f12e34] [cursor=pointer]
+        - button "Search" [ref=f12e37] [cursor=pointer]
+    - generic [ref=f12e42]:
+      - button "Settings" [ref=f12e44] [cursor=pointer]
+      - button "Share" [ref=f12e50] [cursor=pointer]
+      - generic [ref=f12e56]:
+        - button "Google apps" [ref=f12e58] [cursor=pointer]
+        - link "Sign in" [ref=f12e63] [cursor=pointer]:
+          - /url: https://accounts.google.com/ServiceLogin?hl=en&passive=true&continue=https://www.google.com/search%3Fq%3Dsystematically%2Bhoister&ec=futura_srp_og_si_72236_p
+  - generic [ref=f12e65]:
+    - navigation [ref=f12e71]:
+      - generic [ref=f12e77]:
+        - list [ref=f12e78]:
+          - listitem [ref=f12e79]:
+            - link "AI Mode" [ref=f12e82] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&udm=50&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYSIu8Q64jU5EwQ-803VaKbd8XGNh2EAGT96nVa30badWXBZxFXVGBd7-kEiIsZZ-f1VVAQWActbR1Blefd2fzHOMlZbw1ZzunFac9BLKNMtV7HmCH9gEVbtBrFN4UpIi0ylh1L7jxgU7uaDu1QkbsVJFZsXiA&aep=1&ntc=1&cs=0&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q2J8OegQIFBAD
+          - listitem [ref=f12e86]:
+            - link "All" [disabled] [ref=f12e87]
+          - listitem [ref=f12e90]:
+            - link "Images" [ref=f12e91] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=2&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYSIu8Q64jU5EwQ-803VaKbd8XGNh2EAGT96nVa30badWXBZxFXVGBd7-kEiIsZZ-f1VVAQWActbR1Blefd2fzHOMlZbw1ZzunFac9BLKNMtV7HmCH9gEVbtBrFN4UpIi0ylh1L7jxgU7uaDu1QkbsVJFZsXiA&q=systematically+hoister&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4QtKgLegQIJBAB
+          - listitem [ref=f12e94]:
+            - link "Shopping" [ref=f12e95] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=28&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYSIu8Q64jU5EwQ-803VaKbd8XGNh2EAGT96nVa30badWXBZxFXVGBd7-kEiIsZZ-f1VVAQWActbR1Blefd2fzHOMlZbw1ZzunFac9BLKNMtV7HmCH9gEVbtBrFN4UpIi0ylh1L7jxgU7uaDu1QkbsVJFZsXiA&q=systematically+hoister&ved=1t:220175&ictx=111
+          - listitem [ref=f12e98]:
+            - link "Videos" [ref=f12e99] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=7&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYSIu8Q64jU5EwQ-803VaKbd8XGNh2EAGT96nVa30badWXBZxFXVGBd7-kEiIsZZ-f1VVAQWActbR1Blefd2fzHOMlZbw1ZzunFac9BLKNMtV7HmCH9gEVbtBrFN4UpIi0ylh1L7jxgU7uaDu1QkbsVJFZsXiA&q=systematically+hoister&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4QtKgLegQIIhAB
+          - listitem [ref=f12e102]:
+            - link "Forums" [ref=f12e103] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=18&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYSIu8Q64jU5EwQ-803VaKbd8XGNh2EAGT96nVa30badWXBZxFXVGBd7-kEiIsZZ-f1VVAQWActbR1Blefd2fzHOMlZbw1ZzunFac9BLKNMtV7HmCH9gEVbtBrFN4UpIi0ylh1L7jxgU7uaDu1QkbsVJFZsXiA&q=systematically+hoister&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Qs6gLegQIIBAB
+          - listitem [ref=f12e106]:
+            - link "Short videos" [ref=f12e107] [cursor=pointer]:
+              - /url: /search?sca_esv=0237a3a71ba987c6&udm=39&fbs=ABfTbFVyMZGZf1hfvX9uKjN_-G8c4u0nXx4bEIpwm1lnNH832SMIiTl3t-JZ4hGJOxPbHYSIu8Q64jU5EwQ-803VaKbd8XGNh2EAGT96nVa30badWXBZxFXVGBd7-kEiIsZZ-f1VVAQWActbR1Blefd2fzHOMlZbw1ZzunFac9BLKNMtV7HmCH9gEVbtBrFN4UpIi0ylh1L7jxgU7uaDu1QkbsVJFZsXiA&q=systematically+hoister&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Qs6gLegQIHxAB
+          - listitem [ref=f12e110]:
+            - button [ref=f12e111] [cursor=pointer]:
+              - generic "More filters" [ref=f12e112]: More
+        - button "Tools" [ref=f12e119] [cursor=pointer]
+    - heading "Search Results" [level=1] [ref=f12e126]
+    - generic [ref=f12e131]:
+      - generic [ref=f12e150]:
+        - generic [ref=f12e152]:
+          - generic [ref=f12e154]:
+            - heading "AI Overview" [level=2] [ref=f12e158]
+            - button "About this result" [ref=f12e162]
+          - generic [ref=f12e187]:
+            - generic [ref=f12e188]:
+              - text: It looks like you might have meant
+              - strong [ref=f12e189]: systematic hoisting
+              - text: or are referring to a
+              - strong [ref=f12e190]: systematic hoist
+              - text: (a structured lifting mechanism).
+            - generic [ref=f12e191]:
+              - text: In computer science,
+              - strong [ref=f12e192]: hoisting
+              - text: is a specific behavior where variable and function declarations are moved to the top of their scope before code execution. In industrial settings, a
+              - strong [ref=f12e193]: hoist
+              - text: is a mechanical device used for systematically lifting heavy loads.
+            - generic [ref=f12e194]: "To help me give you the exact information you need, could you clarify:"
+            - list [ref=f12e196]:
+              - listitem [ref=f12e198]:
+                - generic [ref=f12e199]:
+                  - text: Are you looking for a
+                  - strong [ref=f12e200]: JavaScript programming explanation
+                  - text: of hoisting?
+              - listitem [ref=f12e202]:
+                - generic [ref=f12e203]:
+                  - text: Are you referring to
+                  - strong [ref=f12e204]: industrial lifting equipment
+                  - text: and safety systems?
+              - listitem [ref=f12e206]:
+                - generic [ref=f12e207]:
+                  - text: Is this part of a specific
+                  - strong [ref=f12e208]: academic theory or terminology
+                  - text: "?"
+            - generic [ref=f12e209]: Once you share your focus, I can provide a detailed breakdown!
+        - button "Show more AI Overview" [ref=f12e216]:
+          - generic [ref=f12e217] [cursor=pointer]: Show more
+      - main [ref=f12e224]:
+        - generic [ref=f12e228]:
+          - generic [ref=f12e231]:
+            - heading "Web results" [level=2] [ref=f12e232]
+            - generic [ref=f12e233]:
+              - generic [ref=f12e236]:
+                - link "Different Types of Hoists and Their Applications Holloway Houston https://www.hhilifting.com › Home › Blog" [ref=f12e238] [cursor=pointer]:
+                  - /url: /goto?url=CAESyAEB6zswFYhUKGOq98YYUYkaD1WJtw6-kgNQM2wLPuvNGp55VuSqDNBb5VZy_TxMdmgRGgKodysIO3YlCDnftfe8QB6My82dZ93dwP9fqAS6olhlSGf-WCDDVu0uHHcom1PX5Fh1KdVVgyr8MjeyEF2UlOvDEtAutyKRk3aYUj-H1cMaUUlB0IzohDPtmQjbku4mZnMHQ_LTErCEXAoOTbwVLjiD5C-NB3oYD1pHBQn1khPfBWK3fxiKltQfcfDqde2qRDzarS9KIg
+                  - heading "Different Types of Hoists and Their Applications" [level=3] [ref=f12e239]
+                  - generic [ref=f12e245]:
+                    - generic [ref=f12e246]: Holloway Houston
+                    - generic [ref=f12e248]: https://www.hhilifting.com › Home › Blog
+                - button "About this result" [ref=f12e254] [cursor=pointer]
+              - generic [ref=f12e261]:
+                - emphasis [ref=f12e262]: Hoists come in manual, electric, and pneumatic models
+                - text: each suited to different load capacities and work environments. See which type fits your job.
+          - generic [ref=f12e267]:
+            - heading "People also ask" [level=2] [ref=f12e269]
+            - generic [ref=f12e270]:
+              - button "What does \"hoister\" mean?" [ref=f12e276] [cursor=pointer]
+              - button "What are the three types of hoists?" [ref=f12e290] [cursor=pointer]
+              - button "What is the purpose of a hoist?" [ref=f12e304] [cursor=pointer]
+              - button "What does it mean to hoist someone?" [ref=f12e318] [cursor=pointer]
+          - generic [ref=f12e328]:
+            - heading "Web results" [level=2] [ref=f12e329]
+            - generic [ref=f12e330]:
+              - generic [ref=f12e333]:
+                - link "Hoist | Lifting, Cranes, Winches Britannica https://www.britannica.com › Technology › Industry" [ref=f12e335] [cursor=pointer]:
+                  - /url: /goto?url=CAESYwHrOzAV3m0rKtzwBlJoGIu_D78N2hTMyYWo6p1aRZmKcBeRoyR3zLoqM6M3obzYlxkCJwEInp-i6KLpsgFR10u26RV_NfCuUo-1-gcEFSAtgtPU96caX_wMfnurtKx_V5eP4A
+                  - heading "Hoist | Lifting, Cranes, Winches" [level=3] [ref=f12e336]
+                  - generic [ref=f12e342]:
+                    - generic [ref=f12e343]: Britannica
+                    - generic [ref=f12e345]: https://www.britannica.com › Technology › Industry
+                - button "About this result" [ref=f12e351] [cursor=pointer]
+              - generic [ref=f12e357]:
+                - generic [ref=f12e358]: Aug 7, 2026 —
+                - generic [ref=f12e359]:
+                  - text: Hoist,
+                  - emphasis [ref=f12e360]: mechanical device used primarily for raising and lowering heavy loads
+                  - text: but occasionally for moving objects horizontally.
+          - generic [ref=f12e364]:
+            - generic [ref=f12e367]:
+              - link "Hoist (device) Wikipedia https://en.wikipedia.org › wiki › Hoist_(device)" [ref=f12e369] [cursor=pointer]:
+                - /url: /goto?url=CAESZAHrOzAVPVdldjmeIgi4mAdvB9Dwa5GxWnmp_3Pe06yJcvqyTgs3KvWq204lQTv0Rap21C9I5bPGw2WthKtuIjpw1AnUPs6M9urqTCPGQ5cRXKP6l0R0uaSWVwv1jcFECbBn6V4
+                - heading "Hoist (device)" [level=3] [ref=f12e370]
+                - generic [ref=f12e376]:
+                  - generic [ref=f12e377]: Wikipedia
+                  - generic [ref=f12e379]: https://en.wikipedia.org › wiki › Hoist_(device)
+              - button "About this result" [ref=f12e385] [cursor=pointer]
+            - generic [ref=f12e392]:
+              - text: A hoist is
+              - emphasis [ref=f12e393]: a device used for lifting or lowering a load
+              - text: by means of a drum or lift-wheel around which rope or chain wraps. It may be manually operated,
+          - generic [ref=f12e397]:
+            - generic [ref=f12e400]:
+              - link "Types of Hoists and Their Functions - PWI pwiworks.com https://pwiworks.com › All Resources › Lifting" [ref=f12e402] [cursor=pointer]:
+                - /url: /goto?url=CAESegHrOzAV-405yyS6edJEfkQ0vhwu57Y3eTGpwRmRX7zGRp6lrCX_IieUCbVp8CNd3hljyOxVcW2Tz9xoxj4zqByuK35xENjHD9OpbcxqAGaHCf-F9AULr4dsB7TftEIlIazz7T9pQHdaTJVUM_UgGSEPppmHc29JY0p7
+                - heading "Types of Hoists and Their Functions - PWI" [level=3] [ref=f12e403]
+                - generic [ref=f12e409]:
+                  - generic [ref=f12e410]: pwiworks.com
+                  - generic [ref=f12e412]: https://pwiworks.com › All Resources › Lifting
+              - button "About this result" [ref=f12e418] [cursor=pointer]
+            - generic [ref=f12e424]:
+              - generic [ref=f12e425]: Oct 6, 2021 —
+              - generic [ref=f12e426]:
+                - text: The most common types of hoists are
+                - emphasis [ref=f12e427]: electric hoists, wire rope hoists, manual hoists, and pneumatic hoists
+                - text: . In function, they all lift things ...
+          - generic [ref=f12e431]:
+            - heading "Images" [level=2] [ref=f12e435]
+            - generic [ref=f12e439]:
+              - generic [ref=f12e443] [cursor=pointer]:
+                - 'link "Hoist: definition and function - Interlake Mecalux Interlake Mecalux" [ref=f12e444]':
+                  - /url: /goto?url=CAESYwHrOzAViNqCS36CMkdyCMfkaFn8PntXpEOP0C28L5qUZ0J3YFp33EvJpvLazBXhrxyTsajTXUE08QEamK4Cup9Zsvj7nw9afOimfQJFWlq2DXdKtBMplH47C4z7V1Qj5LWBOw
+                - button [ref=f12e446]:
+                  - 'img "Hoist: definition and function - Interlake Mecalux" [ref=f12e448]'
+                - generic [ref=f12e450]:
+                  - generic [ref=f12e451]: "Hoist: definition and function - Interlake Mecalux"
+                  - generic [ref=f12e453]:
+                    - generic [ref=f12e454]: Interlake Mecalux
+                    - button "About this result" [ref=f12e465]
+              - generic [ref=f12e473] [cursor=pointer]:
+                - link "Happy Hoisters Inc | Happy Hoisters Inc www.happyhoisters.com" [ref=f12e474]:
+                  - /url: /goto?url=CAESVgHrOzAVv5AK1tznkyC5qws0aObGDKisPDxnGdjU8oP_IYUKxHrX3fCLNfpxksMuOAbpLxrLsEqskSmspuKpvXSQenE5L42JxEnanLTd-y8lLEa1QSiG
+                - button [ref=f12e476]:
+                  - img "Happy Hoisters Inc | Happy Hoisters Inc" [ref=f12e478]
+                - generic [ref=f12e480]:
+                  - generic [ref=f12e481]: Happy Hoisters Inc | Happy Hoisters Inc
+                  - generic [ref=f12e483]:
+                    - generic [ref=f12e484]: www.happyhoisters.com
+                    - button "About this result" [ref=f12e495]
+              - generic [ref=f12e503] [cursor=pointer]:
+                - link "Happy Hoisters Inc | Happy Hoisters Inc www.happyhoisters.com" [ref=f12e504]:
+                  - /url: /goto?url=CAESVgHrOzAVv5AK1tznkyC5qws0aObGDKisPDxnGdjU8oP_IYUKxHrX3fCLNfpxksMuOAbpLxrLsEqskSmspuKpvXSQenE5L42JxEnanLTd-y8lLEa1QSiG
+                - button [ref=f12e506]:
+                  - img "Happy Hoisters Inc | Happy Hoisters Inc" [ref=f12e508]
+                - generic [ref=f12e510]:
+                  - generic [ref=f12e511]: Happy Hoisters Inc | Happy Hoisters Inc
+                  - generic [ref=f12e513]:
+                    - generic [ref=f12e514]: www.happyhoisters.com
+                    - button "About this result" [ref=f12e525]
+            - button "Show more images" [ref=f12e531] [cursor=pointer]:
+              - separator [ref=f12e532]
+          - generic [ref=f12e540]:
+            - heading "Web results" [level=2] [ref=f12e541]
+            - generic [ref=f12e542]:
+              - generic [ref=f12e545]:
+                - 'link "Different Types of Hoists: What They Are and How to Use WH Scott & Son Engineers https://whscottlifting.com › blog › different-types-of-ho..." [ref=f12e547] [cursor=pointer]':
+                  - /url: /goto?url=CAEScgHrOzAVQK9ql0-dcRCQBR_pgzC24NxrP4rpt3QuKAafW-4UfkEMslNux_QV0EQhoyqXoJawRGVhLFm9Qz7EvLqoA4VzlCedsplkllIvUt4bKFFIELUXb47aFK1IsOBx3X5C_DsP7w4ub7sKOnlLzs_ByQ
+                  - 'heading "Different Types of Hoists: What They Are and How to Use" [level=3] [ref=f12e548]'
+                  - generic [ref=f12e554]:
+                    - generic [ref=f12e555]: WH Scott & Son Engineers
+                    - generic [ref=f12e557]: https://whscottlifting.com › blog › different-types-of-ho...
+                - button "About this result" [ref=f12e563] [cursor=pointer]
+              - generic [ref=f12e569]:
+                - generic [ref=f12e570]:
+                  - text: In simple terms, a hoist is
+                  - emphasis [ref=f12e571]: an intricate assembly of parts that function collectively
+                  - text: to provide efficient and secure operation. You must have a clear knowledge ...
+                - link "Read more" [ref=f12e572] [cursor=pointer]:
+                  - /url: /goto?url=CAES4AEB6zswFfXyRs_FB26L7eaoWLQhYtFaTIEqNRTfb8EKUb0pDWHGBLEzxMPPtUqeRCpuI9tUQbHr0Iwuxy6Xyj0NlAOmvS0P8nh6UgbArPa99h2b36fM3pxx4NUhQmPXQEFMgINpo3SLUsqEQyGE_g0087z6E9giu8Juc8RXZUabUug-Cc347zf13ecORNroP_lCS0JyvTEB4nvgVN1YwEDEAUEzDNbd1mqGbvUppiVax0N1GoiR_fYBRUicflYsSAI8lQBnDLSHxtpNMkDuav4FLqxBg2SmNbuNbh--3k4y6A
+          - generic [ref=f12e576]:
+            - generic [ref=f12e579]:
+              - 'link "Hoist: definition and function in warehousing Mecalux International https://www.mecalux.com › blog › hoist" [ref=f12e581] [cursor=pointer]':
+                - /url: /goto?url=CAESWgHrOzAVdi5SzfiX6Trr4dRACH87e2ZEFRJIC9tsT3dq2GxIfgAvy0A50nANfBWjf9So-GUVX9i8m_5z2L73sEqBE4DD1UNTcJvIBdtnR9MgAz5VoK64z2n-MQ
+                - 'heading "Hoist: definition and function in warehousing" [level=3] [ref=f12e582]'
+                - generic [ref=f12e588]:
+                  - generic [ref=f12e589]: Mecalux International
+                  - generic [ref=f12e591]: https://www.mecalux.com › blog › hoist
+              - button "About this result" [ref=f12e597] [cursor=pointer]
+            - generic [ref=f12e603]:
+              - generic [ref=f12e604]: Jun 6, 2023 —
+              - generic [ref=f12e605]:
+                - text: A hoist is
+                - emphasis [ref=f12e606]: a machine that uses fixed and movable pulleys and a cable or chain
+                - text: to move heavy loads from one area of a warehouse, workshop or ...
+          - generic [ref=f12e610]:
+            - generic [ref=f12e613]:
+              - 'link "Hoisting Systems: Mechanics and Calculations | PDF Scribd https://www.scribd.com › document › Chapter-1-Hoist" [ref=f12e615] [cursor=pointer]':
+                - /url: /goto?url=CAEScQHrOzAV-15NjTsZFIT9TsjBvpqWVv84DfKeYwxbCuNPBttTT7zMN-0w8Firhni5aqQ7pZyc6dOXNL-5MpkwiC2QDWOPU1Dcv-UiKJosHHxLhDgMEBlk3O5Y4btF7ok2Ofwu7cND9AybkKeynpOLgXMt
+                - 'heading "Hoisting Systems: Mechanics and Calculations | PDF" [level=3] [ref=f12e616]'
+                - generic [ref=f12e622]:
+                  - generic [ref=f12e623]: Scribd
+                  - generic [ref=f12e625]: https://www.scribd.com › document › Chapter-1-Hoist
+              - button "About this result" [ref=f12e631] [cursor=pointer]
+            - generic [ref=f12e637]:
+              - generic [ref=f12e638]:
+                - text: 1) A hoist is a device that
+                - emphasis [ref=f12e639]: uses a drum or wheel to lift or lower a load
+                - text: using rope or chain. It can be manually, electrically, or pneumatically operated.
+              - link "Read more" [ref=f12e640] [cursor=pointer]:
+                - /url: /goto?url=CAES0QEB6zswFd9FfjtMbIH1MXZHE5VNRfBF7fqP3WDc146kp25Ds0Coxi8AEYp_KeBBWJNtKmwVhw6rDs2L1_cktk3u4xEcZnaufbN5_QkUpNDJEQtLf4GE1LhtLwgZZlIYQiWOYlVNZ8RvfskzkBf8unkjZ_V9E5PCil-NrfdxVvrjMFRBXV6_q7yIz6eaY6PWt5haOl4eU2g7t0YiklTvhr7vrlYRB5WdgUhnxELbbG7cAQclWO5dSi14H14p0OA4CC5xUtpityZT6Zp39-xDslRCQw
+          - generic [ref=f12e644]:
+            - generic [ref=f12e647]:
+              - link "How Does a Hoist Work? American Crane & Equipment Corporation https://americancrane.com › uncategorized › how-does-..." [ref=f12e649] [cursor=pointer]:
+                - /url: /goto?url=CAESdgHrOzAVc2v5SF5VrmbqOIk3cvEXM-qHsEf_axyHf4tJdkemnc1t2wcz_3qs-uM416a9h3CpAf0r92kL0cedZWUntuNfJNUb4AfFHGUlfjWRK3JOYs2fcbEqxs38GD7vz2MhG2eWrKPjlM5N2EMZ5g5ZCZ9wFIc
+                - heading "How Does a Hoist Work?" [level=3] [ref=f12e650]
+                - generic [ref=f12e656]:
+                  - generic [ref=f12e657]: American Crane & Equipment Corporation
+                  - generic [ref=f12e659]: https://americancrane.com › uncategorized › how-does-...
+              - button "About this result" [ref=f12e665] [cursor=pointer]
+            - generic [ref=f12e671]:
+              - generic [ref=f12e672]: Feb 4, 2021 —
+              - generic [ref=f12e673]:
+                - text: A
+                - emphasis [ref=f12e674]: hoist
+                - text: helps to raise and lower heavy loads and is sometimes used to transport objects from one location to another.
+        - generic [ref=f12e676]:
+          - generic [ref=f12e681]:
+            - heading "People also search for" [level=2] [ref=f12e683]
+            - generic [ref=f12e685]:
+              - generic [ref=f12e686]:
+                - link "Systematically hoister wikipedia" [ref=f12e690] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Systematically+hoister+wikipedia&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAgtEAE
+                - link "Types of hoist used in care homes" [ref=f12e704] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Types+of+hoist+used+in+care+homes&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAhIEAE
+                - link "Types of hoist for patients" [ref=f12e718] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Types+of+hoist+for+patients&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAhHEAE
+                - link "Hoist meaning" [ref=f12e732] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Hoist+meaning&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAhGEAE
+              - generic [ref=f12e743]:
+                - link "What is hoist equipment" [ref=f12e747] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=What+is+hoist+equipment&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAg8EAE
+                - link "What is a hoist in health and social care" [ref=f12e761] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=What+is+a+hoist+in+health+and+social+care&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAg2EAE
+                - link "Mechanical Hoist price" [ref=f12e775] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Mechanical+Hoist+price&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAg1EAE
+                - link "Types of hoists and slings" [ref=f12e789] [cursor=pointer]:
+                  - /url: /search?sca_esv=0237a3a71ba987c6&q=Types+of+hoists+and+slings&sa=X&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q1QJ6BAg0EAE
+          - navigation [ref=f12e800]:
+            - heading "Page Navigation" [level=1] [ref=f12e801]
+            - text: "1"
+            - link "Page 2" [ref=f12e804] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=10&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAE
+              - text: "2"
+            - link "Page 3" [ref=f12e806] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=20&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAG
+              - text: "3"
+            - link "Page 4" [ref=f12e808] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=30&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAI
+              - text: "4"
+            - link "Page 5" [ref=f12e810] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=40&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAK
+              - text: "5"
+            - link "Page 6" [ref=f12e812] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=50&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAM
+              - text: "6"
+            - link "Page 7" [ref=f12e814] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=60&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAO
+              - text: "7"
+            - link "Page 8" [ref=f12e816] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=70&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAQ
+              - text: "8"
+            - link "Page 9" [ref=f12e818] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=80&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAS
+              - text: "9"
+            - link "Page 10" [ref=f12e820] [cursor=pointer]:
+              - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=90&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8tMDegQIKxAU
+              - text: "10"
+            - heading [level=2] [ref=f12e822]:
+              - link "Next" [ref=f12e823] [cursor=pointer]:
+                - /url: /search?q=systematically+hoister&sca_esv=0237a3a71ba987c6&ei=9CyQaqvJOYONvr0P9J-28Qs&start=10&sa=N&sstk=AS6-VmJP7EaGFLvd8_tjXrse5vD7O0Uc_1rC6qXiUlrK1igdBmqcknQIfMLaTCYfK9FvbF6xxhQwmVSnH1z91XEfiSwb_YRBea9U4w&ved=2ahUKEwirk_KP58CWAxWDhq8BHfSPLb4Q8NMDegQIKxAW
+        - navigation
+    - contentinfo [ref=f12e826]:
+      - heading "Footer Links" [level=1] [ref=f12e827]
+      - generic [ref=f12e831]:
+        - generic [ref=f12e833]:
+          - text: Philippines
+          - generic [ref=f12e835]:
+            - button "Silay - From your IP address" [ref=f12e837] [cursor=pointer]:
+              - generic [ref=f12e838]: Silay
+              - generic [ref=f12e840]:
+                - text: "-"
+                - generic [ref=f12e841]: From your IP address
+            - text: "-"
+            - button "Update location" [ref=f12e843] [cursor=pointer]
+        - generic [ref=f12e846]:
+          - link "Help" [ref=f12e847] [cursor=pointer]:
+            - /url: https://support.google.com/websearch/?p=ws_results_help&hl=en-PH&fg=1
+          - link "Send feedback" [ref=f12e848] [cursor=pointer]:
+            - /url: "#"
+          - link "Privacy" [ref=f12e849] [cursor=pointer]:
+            - /url: https://policies.google.com/privacy?hl=en-PH&fg=1
+          - link "Terms" [ref=f12e850] [cursor=pointer]:
+            - /url: https://policies.google.com/terms?hl=en-PH&fg=1

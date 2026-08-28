@@ -50,7 +50,11 @@ contextBridge.exposeInMainWorld('electron', {
     listResourceTemplates: (serverId: string) => ipcRenderer.invoke('mcp-list-resource-templates', serverId),
     listPrompts: (serverId: string) => ipcRenderer.invoke('mcp-list-prompts', serverId),
     getPrompt: (serverId: string, name: string, args?: Record<string, string>) => ipcRenderer.invoke('mcp-get-prompt', serverId, name, args),
-    onEvent: (callback: (event: any) => void) => ipcRenderer.on('mcp-event', (_event, data) => callback(data)),
+    onEvent: (callback: (event: any) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: any) => callback(data);
+      ipcRenderer.on('mcp-event', listener);
+      return () => ipcRenderer.removeListener('mcp-event', listener);
+    },
   },
   onAuthSuccess: (callback: (data: any) => void) => {
     ipcRenderer.on('auth-success', (_event, data) => callback(data));

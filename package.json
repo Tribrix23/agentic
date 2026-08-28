@@ -6,7 +6,9 @@
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
+    "prestart": "node scripts/install-playwright-browser.mjs",
     "start": "electron-forge start",
+    "prepackage": "node scripts/install-playwright-browser.mjs",
     "package": "electron-forge package",
     "make": "npm run package && electron-builder --prepackaged \"out/Quantix Code-win32-x64\" --win nsis --x64",
     "make:linux": "npm run package && electron-builder --prepackaged \"out/Quantix Code-linux-x64\" --linux",
@@ -15,6 +17,7 @@
     "typecheck": "tsc --noEmit --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
+    "playwright:install": "node scripts/install-playwright-browser.mjs",
     "verify": "npm run typecheck && npm run test && npm run lint"
   },
   "keywords": [],
@@ -58,6 +61,7 @@
     "@fontsource/montserrat": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
+    "@playwright/mcp": "0.0.79",
     "@supabase/supabase-js": "^2.110.7",
     "@types/prismjs": "^1.26.6",
     "@types/react-syntax-highlighter": "^15.5.13",
@@ -77,6 +81,7 @@
     "react-markdown": "^10.1.0",
     "react-simple-code-editor": "^0.14.1",
     "react-syntax-highlighter": "^16.1.1",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "xterm": "^5.3.0"

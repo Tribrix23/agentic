@@ -33,6 +33,36 @@ let pty: any = null;
 let activeLiveServer: any = null;
 export const mcpClientManager = new McpClientManager();
 const activeMcpCalls = new Map<string, AbortController>();
+let mcpShutdownStarted = false;
+
+function getLiveMainWindow(): BrowserWindow | null {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return null;
+  return mainWindow;
+}
+
+mcpClientManager.onEvent(event => {
+  if (mcpShutdownStarted) return;
+  try {
+    getLiveMainWindow()?.webContents.send('mcp-event', event);
+  } catch (error) {
+    console.error('[MCP] Failed to forward event to renderer:', error);
+  }
+});
+
+function getPlaywrightBrowserExecutable(browserPath: string): string {
+  const chromiumDirectory = fs.readdirSync(browserPath, { withFileTypes: true })
+    .find(entry => entry.isDirectory() && entry.name.startsWith('chromium-'))?.name;
+  const candidates = process.platform === 'win32'
+    ? chromiumDirectory ? [
+      path.join(browserPath, chromiumDirectory, 'chrome-win64', 'chrome.exe'),
+      path.join(browserPath, chromiumDirectory, 'chrome-win', 'chrome.exe'),
+    ] : []
+    : chromiumDirectory ? [
+      path.join(browserPath, chromiumDirectory, 'chrome-linux', 'chrome'),
+      path.join(browserPath, chromiumDirectory, 'chrome-linux64', 'chrome'),
+    ] : [];
+  return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+}
 
 function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -147,7 +177,12 @@ if (!gotTheLock) {
     }
   });
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
+    if (!mcpShutdownStarted) {
+      event.preventDefault();
+      mcpShutdownStarted = true;
+      void mcpClientManager.closeAll().finally(() => app.quit());
+    }
     // Kill the terminal process if it exists so we don't leave orphaned node processes
     if (typeof ptyProcess !== 'undefined' && ptyProcess) {
       try {
@@ -168,9 +203,7 @@ if (!gotTheLock) {
 
   // Wire all managed process completion to frontend
   ProcessManager.getInstance().onExit = (status) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('background-task-complete', { taskId: status.id, status });
-    }
+    getLiveMainWindow()?.webContents.send('background-task-complete', { taskId: status.id, status });
   };
 }
 
@@ -185,9 +218,10 @@ function handleAuthDeepLink(url: string) {
     const name = parsedUrl.searchParams.get('name') || 'Developer';
     const avatar = parsedUrl.searchParams.get('avatar') || 'https://i.pravatar.cc/150?img=11';
 
-    if (mainWindow) {
+    const window = getLiveMainWindow();
+    if (window) {
       // Send the user data to the renderer
-      mainWindow.webContents.send('auth-success', { token, name, avatar });
+      window.webContents.send('auth-success', { token, name, avatar });
     }
   } catch (error) {
     console.error('Failed to parse auth deep link', error);
@@ -195,7 +229,7 @@ function handleAuthDeepLink(url: string) {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1440,
     height: 900,
     show: false,
@@ -209,6 +243,10 @@ function createWindow() {
       devTools: true,
       webviewTag: true
     },
+  });
+  mainWindow = window;
+  window.on('closed', () => {
+    if (mainWindow === window) mainWindow = null;
   });
 
   if (!mcpClientManager.getServer('sequential-thinking')) {
@@ -250,6 +288,46 @@ function createWindow() {
       autoConnect: true,
     });
     void mcpClientManager.connectServer('agentic-mcp-server').catch(error => console.error('[MCP] Agentic MCP Server failed to connect:', error));
+  }
+
+  if (!mcpClientManager.getServer('playwright')) {
+    const isPackaged = app.isPackaged;
+    const playwrightCli = isPackaged
+      ? path.join(process.resourcesPath, 'playwright-runtime', 'node_modules', '@playwright', 'mcp', 'cli.js')
+      : path.join(__dirname, '..', '..', 'node_modules', '@playwright', 'mcp', 'cli.js');
+    const browserPath = isPackaged
+      ? path.join(process.resourcesPath, 'playwright-browsers')
+      : path.join(__dirname, '..', '..', 'playwright-browsers');
+    const browserExecutable = fs.existsSync(browserPath) ? getPlaywrightBrowserExecutable(browserPath) : undefined;
+    const outputDir = path.join(app.getPath('temp'), 'quantix-playwright-mcp');
+    const envKeys = ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)'];
+    const env = Object.fromEntries(envKeys.flatMap(key => process.env[key] ? [[key, process.env[key] as string]] : []));
+    Object.assign(env, {
+      ELECTRON_RUN_AS_NODE: '1',
+      NODE_ENV: 'production',
+      PLAYWRIGHT_BROWSERS_PATH: browserPath,
+      PLAYWRIGHT_MCP_OUTPUT_DIR: outputDir,
+    });
+    const playwrightReady = fs.existsSync(playwrightCli) && Boolean(browserExecutable && fs.existsSync(browserExecutable));
+    if (!fs.existsSync(playwrightCli)) {
+      console.error(`[MCP] Playwright CLI missing: ${playwrightCli}`);
+    } else if (!browserExecutable || !fs.existsSync(browserExecutable)) {
+      console.error(`[MCP] Playwright Chromium missing from: ${browserPath}`);
+    }
+    mcpClientManager.addServer({
+      id: 'playwright',
+      name: 'Playwright Browser',
+      transport: { type: 'stdio', command: process.execPath, args: [playwrightCli, '--browser', 'chromium', '--isolated', '--timeout-action', '5000', '--timeout-navigation', '60000', '--output-dir', outputDir], env },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    if (playwrightReady) {
+      void mcpClientManager.connectServer('playwright').catch(error => console.error('[MCP] Playwright failed to connect:', error));
+    } else if (!fs.existsSync(playwrightCli)) {
+      mcpClientManager.reportServerError('playwright', `Playwright CLI is missing: ${playwrightCli}`);
+    } else {
+      mcpClientManager.reportServerError('playwright', `Playwright Chromium is missing from: ${browserPath}`);
+    }
   }
 
   const splashWindow = new BrowserWindow({
@@ -335,8 +413,6 @@ function createWindow() {
   ipcMain.handle('mcp-list-prompts', (_event, serverId: string) => mcpClientManager.listPrompts(serverId));
   ipcMain.removeHandler('mcp-get-prompt');
   ipcMain.handle('mcp-get-prompt', (_event, serverId: string, name: string, args?: Record<string, string>) => mcpClientManager.getPrompt(serverId, name, args));
-  mcpClientManager.onEvent(event => mainWindow?.webContents.send('mcp-event', event));
-
   ipcMain.removeHandler('capture-window');
   ipcMain.handle('capture-window', async (_event, options: WindowCaptureOptions) => {
     if (!options?.windowTitle?.trim() || !options?.savePath?.trim()) {

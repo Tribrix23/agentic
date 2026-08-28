@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../App';
@@ -20,6 +21,7 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
     <div className="prose prose-invert max-w-none w-full min-w-0 prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-white/10 prose-p:leading-relaxed prose-a:text-blue-400 text-[15px]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
         components={{
           h1: ({ children }) => <h1 className="text-xl leading-7 font-semibold text-white mb-4 last:mb-0">{children}</h1>,
           h2: ({ children }) => <h2 className="text-base font-semibold text-white mt-7 mb-3 pb-2 border-b border-white/10 last:mb-0">{children}</h2>,

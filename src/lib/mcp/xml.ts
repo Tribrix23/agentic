@@ -4,6 +4,9 @@ import { decodeXmlEntities, escapeXmlText } from '../agent/xmlCodec';
 function parseValue(value: string): any {
   const trimmed = decodeXmlEntities(value).trim();
   const unquoted = trimmed.replace(/^(['"])(.*)\1$/, '$2');
+  if ((unquoted.startsWith('{') && unquoted.endsWith('}')) || (unquoted.startsWith('[') && unquoted.endsWith(']'))) {
+    try { return JSON.parse(unquoted); } catch { /* Preserve opaque strings. */ }
+  }
   if (/^true$/i.test(unquoted)) return true;
   if (/^false$/i.test(unquoted)) return false;
   if (unquoted !== '' && !Number.isNaN(Number(unquoted))) return Number(unquoted);

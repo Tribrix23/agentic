@@ -1,6 +1,7 @@
 import type { ProviderTurn } from './streamEvents';
 import { parseTextToolProtocol } from './textToolProtocol';
 import type { AssistantTurn, ToolAction } from './runtimeTypes';
+import { selectToolProtocol, type ToolProtocol } from './toolProtocol';
 
 function parseNativeArguments(name: string, source: string): Record<string, unknown> {
   if (!source.trim()) return {};
@@ -17,7 +18,7 @@ function signature(action: ToolAction): string {
   return `${action.name}:${JSON.stringify(action.arguments)}`;
 }
 
-export function normalizeAssistantTurn(provider: ProviderTurn, knownToolNames?: Set<string>, mode: 'native' | 'xml' = 'native'): AssistantTurn {
+export function normalizeAssistantTurn(provider: ProviderTurn, knownToolNames?: Set<string>, mode: ToolProtocol = selectToolProtocol('')): AssistantTurn {
   const native = mode === 'xml' ? [] : provider.toolCalls.map<ToolAction>(call => ({
     kind: 'tool',
     callId: call.callId,

@@ -7,8 +7,15 @@ export function toMcpAlias(serverId: string, toolName: string): string {
   return mcpDisplayAlias({ serverId, toolName });
 }
 
-export function getMcpToolDefinitions(servers: McpServerSnapshot[]): any[] {
-  return getMcpCatalogDefinitions(buildMcpCatalog(servers));
+export function getMcpToolDefinitions(servers: McpServerSnapshot[], requireApproval = true): any[] {
+  return getMcpCatalogDefinitions(buildMcpCatalog(servers), requireApproval);
+}
+
+export function hasReadyPlaywrightBrowser(servers: McpServerSnapshot[]): boolean {
+  const server = servers.find(item => item.id === 'playwright' && item.status === 'ready');
+  if (!server) return false;
+  const toolNames = new Set(server.tools.map(tool => tool.name));
+  return toolNames.has('browser_navigate') && toolNames.has('browser_snapshot');
 }
 
 export async function executeMcpTool(toolCall: ToolCall, servers: McpServerSnapshot[], signal?: AbortSignal): Promise<ToolResult | null> {
@@ -32,6 +39,12 @@ export async function executeMcpTool(toolCall: ToolCall, servers: McpServerSnaps
   }
 }
 
-export function getMcpCatalogDefinitions(entries: McpCatalogEntry[]): any[] {
-  return entries.map(entry => ({ type: 'function', function: { name: entry.externalName, description: entry.definition.description, parameters: entry.definition.parameters }, mcp: entry.identity }));
+export function getMcpCatalogDefinitions(entries: McpCatalogEntry[], requireApproval = true): any[] {
+  return entries.map(entry => ({
+    type: 'function',
+    function: { name: entry.externalName, description: entry.definition.description, parameters: entry.definition.parameters },
+    requiresApproval: requireApproval && entry.definition.requiresApproval,
+    capabilities: entry.definition.capabilities,
+    mcp: entry.identity,
+  }));
 }

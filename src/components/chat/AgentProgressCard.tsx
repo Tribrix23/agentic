@@ -168,12 +168,6 @@ function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: str
       const parts = fullCmd.split(' ');
       return { cmd: parts[0], argsStr: parts.slice(1).join(' ') };
     }
-    case 'webSearch':
-    case 'search_web':
-      return { cmd: 'search', argsStr: String(args.query || '') };
-    case 'readUrl':
-    case 'read_url':
-      return { cmd: 'curl', argsStr: String(args.url || args.Url || '') };
     case 'gitStatus':
       return { cmd: 'git', argsStr: 'status' };
     case 'gitAdd':

@@ -200,12 +200,14 @@ const App = () => {
     // Also listen for conversation switches from the sidebar
     const handleConversationLoad = (e: any) => {
       setCurrentConversationId(e.detail?.id || null);
+      setIsAiRunning(false);
       setAgentActivity([]);  // Clear activity log on conversation switch
     };
 
 
     const handleNewConversation = () => {
       setCurrentConversationId(null);
+      setIsAiRunning(false);
       setTasks([]);
       setAgentActivity([]);
       setFilesChanged([]);
@@ -251,7 +253,6 @@ const App = () => {
     const bounded = (items: AgentActivity[]) => items.slice(-maxActivity);
     const handleAgentThinking = (e: CustomEvent) => {
       if (!belongsToConversation(e.detail)) return;
-      setIsAiRunning(true);
       setAgentActivity(prev => bounded([...prev.filter(item => !(item.type === 'thinking' && item.status === 'running' && item.runId === e.detail?.runId)), {
         id: `thinking:${e.detail?.runId || 'current'}`,
         timestamp: Date.now(),
@@ -264,8 +265,10 @@ const App = () => {
       }]));
     };
 
-    const handleAgentDone = () => {
-      setIsAiRunning(false);
+    const handleRunningState = (e: CustomEvent) => {
+      if (!e.detail?.activeConversationId || e.detail.activeConversationId === currentConversationId) {
+        setIsAiRunning(Boolean(e.detail?.isRunning));
+      }
     };
 
     const handleAgentToolExecuting = (e: CustomEvent) => {
@@ -342,7 +345,7 @@ const App = () => {
     };
 
     window.addEventListener('agent:thinking', handleAgentThinking as any);
-    window.addEventListener('agent:done', handleAgentDone as any);
+    window.addEventListener('agent-running-state', handleRunningState as any);
     window.addEventListener('agent:tool-executing', handleAgentToolExecuting as any);
     window.addEventListener('agent:tool-result', handleAgentToolResult as any);
     window.addEventListener('agent:coding-progress', handleCodingProgress as any);
@@ -362,7 +365,7 @@ const App = () => {
 
     return () => {
       window.removeEventListener('agent:thinking', handleAgentThinking as any);
-      window.removeEventListener('agent:done', handleAgentDone as any);
+      window.removeEventListener('agent-running-state', handleRunningState as any);
       window.removeEventListener('agent:tool-executing', handleAgentToolExecuting as any);
       window.removeEventListener('agent:tool-result', handleAgentToolResult as any);
       window.removeEventListener('agent:coding-progress', handleCodingProgress as any);
