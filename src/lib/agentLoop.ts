@@ -1612,48 +1612,6 @@ export class AgentLoop {
             this.emit({ type: 'agent:message-added', data: planToolMessage });
             continueLoop = false;
           } else {
-            // Some models describe the need for clarification in their
-            // response instead of emitting the askUser function call. Convert
-            // that explicit intent into the real user interaction once, so a
-            // text-only reasoning response cannot silently terminate the run.
-            const responseRequestsClarification =
-              clarificationToolRetries < 1 &&
-              this.toolExecutor &&
-              /(?:should|need to|must|have to)\s+(?:ask|clarif)|hasn't specified|not specified|need(?:s)? clarification/i.test(fullResponseText);
-
-            if (responseRequestsClarification) {
-              clarificationToolRetries++;
-              const clarificationCall: ToolCall = {
-                id: `ask_${Math.random().toString(36).substring(2, 9)}`,
-                name: 'askUser',
-                arguments: {
-                  question: /(?:file|content)/i.test(fullResponseText)
-                    ? 'What file should I create, and what content should it contain?'
-                    : 'Could you provide the missing details so I can continue?'
-                },
-                status: 'running',
-                timestamp: Date.now(),
-                agentKind: this.options?.agentRole === 'subagent' ? 'subagent' : 'main',
-                agentRole: this.options?.agentRole,
-              };
-              const clarificationAssistant = createAssistantMessage(this.config.model);
-              clarificationAssistant.toolCalls = [clarificationCall];
-              clarificationAssistant.isHidden = true;
-              updatedMessages.push(clarificationAssistant);
-              this.emit({ type: 'agent:message-added', data: clarificationAssistant });
-              this.emit({ type: 'agent:tool-call', data: clarificationCall });
-              this.emit({ type: 'agent:tool-executing', data: clarificationCall });
-
-              const result = await this.toolExecutor(clarificationCall, this.abortController.signal, { userMessageId: this.userMessageId });
-              clarificationCall.result = result;
-              clarificationCall.status = result.success ? 'completed' : 'error';
-              clarificationCall.durationMs = Date.now() - clarificationCall.timestamp;
-              const clarificationResult = createToolMessage(clarificationCall.id, 'askUser', result);
-              updatedMessages.push(clarificationResult);
-              this.emit({ type: 'agent:tool-result', data: { toolCall: clarificationCall, result } });
-              this.emit({ type: 'agent:message-added', data: clarificationResult });
-              continueLoop = result.success;
-            } else {
               // Check if there are still pending semantic tasks in THIS conversation.
               const convId = this.state.conversationId;
 
@@ -1684,7 +1642,6 @@ export class AgentLoop {
                 console.log('[AgentLoop] Text-only response, stopping loop naturally.');
                 continueLoop = false;
               }
-            }
           }
         }
 

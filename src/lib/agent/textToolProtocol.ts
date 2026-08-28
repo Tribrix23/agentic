@@ -94,6 +94,13 @@ export function parseTextToolProtocol(source: string, knownToolNames?: Set<strin
 const OPAQUE_FIELDS = new Set(['content', 'codecontent', 'replacementcontent', 'file_content', 'replace', 'replacement']);
 
 function parseParameterValue(name: string, value: string): unknown {
-  const decoded = decodeXmlEntities(value);
+  let decoded = decodeXmlEntities(value);
+  
+  // LLMs frequently ignore the system prompt and wrap XML tool parameters in CDATA.
+  // Strip CDATA tags if present to prevent them from bleeding into file contents.
+  decoded = decoded.replace(/<!\[CDATA\[/g, '');
+  decoded = decoded.replace(/\]\]>/g, '');
+  
   return OPAQUE_FIELDS.has(name.toLowerCase()) ? decoded : scalar(decoded);
 }
+

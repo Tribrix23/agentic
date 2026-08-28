@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Clock, Calendar, Settings, FolderPlus, Folder, FolderOpen, GitBranch, Trash2 } from 'lucide-react';
+import { Plus, Clock, Calendar, Settings, FolderPlus, Folder, FolderOpen, GitBranch, Trash2, Puzzle } from 'lucide-react';
 import { cn } from '../App';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ConversationHistoryModal } from './ConversationHistoryModal';
 
 interface ProjectFolder {
   path: string;
@@ -11,6 +12,7 @@ interface ProjectFolder {
 
 export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSettings: () => void }) => {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [projects, setProjects] = useState<ProjectFolder[]>(() => {
     const saved = localStorage.getItem('quantix_projects');
@@ -120,6 +122,7 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
         localStorage.removeItem('quantix_active_project');
       }
     }
+    window.dispatchEvent(new CustomEvent('projects-changed'));
   };
 
   const handleDeleteConversation = (e: React.MouseEvent, projPath: string, convId: string) => {
@@ -159,8 +162,8 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
 
         {/* Primary Navigation */}
         <div className="px-2 mb-8 flex flex-col gap-1">
-          <NavItem icon={<Clock size={16} />} label="Conversation History" />
-          <NavItem icon={<Calendar size={16} />} label="Scheduled Tasks" />
+          <NavItem icon={<Clock size={16} />} label="Conversation History" onClick={() => setShowHistoryModal(true)} />
+          <NavItem icon={<Puzzle size={16} />} label="Add-ons" />
         </div>
 
         {/* Projects Header */}
@@ -210,6 +213,7 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
 
                       setActiveProject(proj);
                       localStorage.setItem('quantix_active_project', JSON.stringify(proj));
+                      window.dispatchEvent(new CustomEvent('projects-changed'));
                     }}
                     className="flex-1 px-3 py-2 text-left text-xs flex items-center gap-2 transition-colors truncate rounded-md text-[#a8a8b1] hover:text-[#d4d4d8]"
                   >
@@ -240,7 +244,17 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                     >
                       <Settings size={13} />
                     </button>
-                    <button className="p-1 text-[#8b8b93] hover:text-white rounded transition-colors" title="New Conversation">
+                    <button 
+                      className="p-1 text-[#8b8b93] hover:text-white rounded transition-colors" 
+                      title="New Conversation"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveProject(proj);
+                        localStorage.setItem('quantix_active_project', JSON.stringify(proj));
+                        window.dispatchEvent(new CustomEvent('projects-changed'));
+                        window.dispatchEvent(new CustomEvent('new-conversation'));
+                      }}
+                    >
                       <Plus size={13} />
                     </button>
                   </div>
@@ -326,13 +340,32 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
           </button>
         </div>
       </div>
+
+      <ConversationHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        projects={projects}
+        conversations={conversations}
+        onSelectConversation={(projPath, convId, title) => {
+          const proj = projects.find(p => p.path === projPath);
+          if (proj) {
+            setActiveProject(proj);
+            localStorage.setItem('quantix_active_project', JSON.stringify(proj));
+            window.dispatchEvent(new CustomEvent('projects-changed'));
+          }
+          window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: convId, title } }));
+          setShowHistoryModal(false);
+        }}
+      />
     </div>
   );
 };
 
-const NavItem = ({ icon, label, active = false }: { icon: React.ReactNode, label: string, active?: boolean }) => {
+const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) => {
   return (
-    <div className={cn(
+    <div 
+      onClick={onClick}
+      className={cn(
       "flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm",
       active ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:bg-white/5 hover:text-white"
     )}>
