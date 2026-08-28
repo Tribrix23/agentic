@@ -50,6 +50,7 @@ export function MessageBubble({
   const [undoError, setUndoError] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isImageCopied, setIsImageCopied] = useState(false);
+  const [isTextCopied, setIsTextCopied] = useState(false);
 
   const firstMessage = messages[0];
   const isUser = firstMessage?.role === 'user';
@@ -441,14 +442,26 @@ export function MessageBubble({
 
           {(displayContent || (isUser && firstMessage.attachments && firstMessage.attachments.length > 0)) ? (
             <div className={cn(
-              "px-4 py-3 rounded-2xl",
+              "px-4 py-3 rounded-2xl relative group/usercontent",
               isUser
-                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full"
+                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full pr-10"
                 : "text-white/90 mt-1 w-full min-w-0 break-words"
             )}>
               {displayContent ? (
                 <MarkdownRenderer content={displayContent} isStreaming={lastMessage.isStreaming && steps.length === 0} onArtifactClick={onArtifactClick} />
               ) : null}
+
+              {isUser && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover/usercontent:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => setShowUndoModal(true)}
+                    className="hover:text-white/80 transition-colors p-1"
+                    title="Undo changes up to this point"
+                  >
+                    <Undo2 size={16} />
+                  </button>
+                </div>
+              )}
 
               {isUser && firstMessage.attachments && firstMessage.attachments.length > 0 && (
                 <div className={cn("flex flex-wrap gap-3", displayContent ? "mt-3" : "")}>
@@ -566,15 +579,16 @@ export function MessageBubble({
             <span>{new Date(firstMessage.timestamp).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}</span>
             {isUser && (
               <>
-                <button onClick={() => navigator.clipboard.writeText(firstMessage.content || '')} className="hover:text-white transition-colors" title="Copy">
-                  <Copy size={11} />
-                </button>
                 <button
-                  onClick={() => setShowUndoModal(true)}
-                  className="hover:text-white transition-colors"
-                  title="Undo changes up to this point"
+                  onClick={() => {
+                    navigator.clipboard.writeText(firstMessage.content || '');
+                    setIsTextCopied(true);
+                    setTimeout(() => setIsTextCopied(false), 2000);
+                  }}
+                  className="hover:text-white transition-colors flex items-center justify-center w-4 h-4"
+                  title={isTextCopied ? "Copied!" : "Copy"}
                 >
-                  <Undo2 size={12} />
+                  {isTextCopied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
                 </button>
               </>
             )}

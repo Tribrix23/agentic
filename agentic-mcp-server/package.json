@@ -2,10 +2,10 @@
   "name": "agentic-mcp-server",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "build": "tsc --noEmit",
-    "test": "node --test"
+    "build": "tsc",
+    "test": "npm run build && node --test tests/**/*.test.js"
   },
   "keywords": [],
   "author": "",
