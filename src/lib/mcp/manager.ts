@@ -161,8 +161,20 @@ export class McpClientManager {
     if (signal?.aborted) return { success: false, output: 'MCP tool call cancelled.' };
     this.emit({ type: 'tool_call_started', serverId, tool: toolName, data: { arguments: args } });
     try {
+      // Auto-fix common LLM hallucinations for Playwright
+      if (serverId === 'playwright') {
+        if ('selector' in args && !('target' in args)) {
+          args.target = args.selector;
+          delete args.selector;
+        }
+        if (toolName === 'browser_wait_for' && 'timeout' in args) {
+          args.time = typeof args.timeout === 'number' ? args.timeout / 1000 : 5;
+          delete args.timeout;
+        }
+      }
+
       const validate = ajv.compile(tool.inputSchema || { type: 'object' });
-      if (!validate(args)) return { success: false, output: `Invalid arguments for ${serverId}:${toolName}: ${ajv.errorsText(validate.errors)}` };
+      if (!validate(args)) return { success: false, output: `Invalid arguments for ${serverId}:${toolName}: ${ajv.errorsText(validate.errors)}\n\nHINT: The Playwright MCP server requires specific schema keys (e.g., 'target' instead of 'selector'). Read the tool schema carefully.` };
       const result = await record.client!.callTool({ name: toolName, arguments: args }, undefined, { signal, timeout: timeoutMs, maxTotalTimeout: timeoutMs });
       if (!this.isCurrent(record, generation) || record.status !== 'ready') throw new Error(`MCP connection changed during tool call: ${serverId}:${toolName}`);
       if (!result || !Array.isArray((result as any).content)) throw new Error('MCP server returned a malformed tool result.');

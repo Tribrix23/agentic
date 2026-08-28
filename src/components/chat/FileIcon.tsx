@@ -78,11 +78,11 @@ export function FileIcon({ filename, size = 16, className = "" }: FileIconProps)
   if (name === 'dockerfile' || name.endsWith('.dockerfile')) return <SiDocker size={size} className={`text-blue-400 ${className}`} />;
   if (name.endsWith('.env')) return <VscSymbolVariable size={size} className={`text-gray-300 ${className}`} />;
 
-  // Shell
-  if (name.endsWith('.sh') || name.endsWith('.bash') || name.endsWith('.zsh') || name.endsWith('.bat') || name.endsWith('.ps1')) return <VscTerminal size={size} className={`text-green-400 ${className}`} />;
+  // Shell / Executable
+  if (name.endsWith('.sh') || name.endsWith('.bash') || name.endsWith('.zsh') || name.endsWith('.bat') || name.endsWith('.ps1') || name.endsWith('.exe')) return <VscTerminal size={size} className={`text-green-400 ${className}`} />;
 
   // Media
-  if (name.match(/\.(png|jpe?g|gif|svg|webp|ico|bmp)$/)) return <VscFileMedia size={size} className={`text-purple-400 ${className}`} />;
+  if (name.match(/\.(png|jpe?g|gif|svg|webp|ico|bmp|mp4|webm|mkv|avi|mov)$/)) return <VscFileMedia size={size} className={`text-purple-400 ${className}`} />;
   
   return <VscFileCode size={size} className={`text-gray-400 ${className}`} />;
 }

@@ -128,6 +128,9 @@ const BottomPanel: React.FC<{
   const [activeTab, setActiveTab] = useState<'problems' | 'output' | 'terminal'>('terminal');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [panelHeight, setPanelHeight] = useState(250);
+  const [isDragging, setIsDragging] = useState(false);
+  
   const problems = Object.entries(diagnostics).flatMap(([filePath, markers]) =>
     markers.map(marker => ({ filePath, marker }))
   );
@@ -137,6 +140,32 @@ const BottomPanel: React.FC<{
     setActiveTab(requestedTab);
     setIsExpanded(true);
   }, [requestedTab, requestId]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newHeight = window.innerHeight - e.clientY;
+      if (newHeight > 100 && newHeight < window.innerHeight - 100) {
+        setPanelHeight(newHeight);
+      }
+    };
+    const handleMouseUp = () => {
+      if (isDragging) setIsDragging(false);
+    };
+    if (isDragging) {
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   if (!isVisible) return null;
 
@@ -156,11 +185,17 @@ const BottomPanel: React.FC<{
   }
 
   return (
-    <motion.div 
-      initial={{ height: 40 }}
-      animate={{ height: 250 }}
-      className="bg-[#0f0f13]/95 backdrop-blur-xl border-t border-white/5 flex flex-col z-20 relative shadow-[0_-10px_40px_rgba(0,0,0,0.4)] shrink-0"
+    <div 
+      style={{ height: panelHeight }}
+      className={cn(
+        "bg-[#0f0f13]/95 backdrop-blur-xl border-t border-white/5 flex flex-col z-20 relative shadow-[0_-10px_40px_rgba(0,0,0,0.4)] shrink-0",
+        !isDragging && "transition-[height] duration-200 ease-out"
+      )}
     >
+      <div 
+        className="absolute top-[-2px] left-0 right-0 h-[4px] cursor-row-resize hover:bg-blue-500/50 z-30 transition-colors"
+        onMouseDown={() => setIsDragging(true)}
+      />
       <div className="h-9 flex items-center justify-between px-3 border-b border-white/5 bg-black/20">
         <div className="flex items-center gap-1 h-full pt-1">
           {[
@@ -223,12 +258,15 @@ const BottomPanel: React.FC<{
           )
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 
 export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [isSidebarDragging, setIsSidebarDragging] = useState(false);
+  
   const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'source-control' | 'environment'>('explorer');
   const [activeProject, setActiveProject] = useState<ProjectFolder | null>(() => {
     const saved = localStorage.getItem('quantix_active_project');
@@ -401,6 +439,34 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
     window.addEventListener('project-files-restored', handleRestore);
     return () => window.removeEventListener('project-files-restored', handleRestore);
   }, [activeProject]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isSidebarDragging) return;
+      // Activity bar is ~48px wide.
+      // So width is e.clientX - 48
+      const newWidth = e.clientX - 48;
+      if (newWidth > 150 && newWidth < window.innerWidth / 2) {
+        setSidebarWidth(newWidth);
+      }
+    };
+    const handleMouseUp = () => {
+      if (isSidebarDragging) setIsSidebarDragging(false);
+    };
+    if (isSidebarDragging) {
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isSidebarDragging]);
 
   const handleMoveFile = async (sourcePath: string, targetDirPath: string, isUndoRedo = false) => {
     if (!sourcePath || !targetDirPath) return;
@@ -679,10 +745,18 @@ const handleSkip = () => {
         <ActivityBar activeView={activeSidebarView} onViewChange={setActiveSidebarView} />
 
         {/* Left File Explorer Panel */}
-        <div className={cn(
-          "border-r border-white/5 bg-[#0f0f13] flex flex-col py-3 select-none transition-all duration-300 ease-in-out overflow-hidden relative",
-          explorerOpen ? "w-60" : "w-0 border-r-0"
-        )}>
+        <div 
+          style={{ width: explorerOpen ? sidebarWidth : 0 }}
+          className={cn(
+            "border-r border-white/5 bg-[#0f0f13] flex flex-col py-3 select-none overflow-hidden relative shrink-0",
+            !isSidebarDragging && "transition-[width] duration-300 ease-in-out",
+            !explorerOpen && "border-r-0"
+          )}
+        >
+          <div 
+            className="absolute top-0 bottom-0 right-[-2px] w-[4px] cursor-col-resize hover:bg-blue-500/50 z-30 transition-colors"
+            onMouseDown={() => setIsSidebarDragging(true)}
+          />
           {activeSidebarView === 'explorer' ? (
             <>
               <div className="px-4 mb-2 flex items-center justify-between relative" ref={dropdownRef}>
@@ -908,13 +982,6 @@ const handleSkip = () => {
                   gitStatusMap={gitStatusMap}
                 />
               </div>
-              <BottomPanel
-                projectPath={activeProject?.path}
-                diagnostics={diagnostics}
-                outputLines={outputLines}
-                requestedTab={bottomPanelRequest.tab}
-                requestId={bottomPanelRequest.id}
-              />
             </>
           ) : (
             <div className="flex-1 flex flex-col justify-center items-center text-[#8b8b93] select-none">
@@ -963,6 +1030,14 @@ const handleSkip = () => {
               </motion.button>
             </div>
           )}
+          
+          <BottomPanel
+            projectPath={activeProject?.path}
+            diagnostics={diagnostics}
+            outputLines={outputLines}
+            requestedTab={bottomPanelRequest.tab}
+            requestId={bottomPanelRequest.id}
+          />
         </div>
       </div>
 

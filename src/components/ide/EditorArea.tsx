@@ -268,6 +268,11 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
   if (!activeFilePath || openFiles.length === 0) return null;
 
+  const ext = selectedFileName?.split('.').pop()?.toLowerCase() || '';
+  const isImage = ['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext);
+  const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext);
+  const isBinary = ['exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z'].includes(ext);
+
   return (
     <>
       <div className="h-9 border-b border-white/5 bg-[#0f0f13] flex items-center justify-between px-2">
@@ -420,9 +425,17 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           <JavaEnvironmentTab type="java" />
         ) : activeFilePath === 'ide://javafx-env' ? (
           <JavaEnvironmentTab type="javafx" />
-        ) : currentLocalContent.startsWith('data:image/') ? (
+        ) : isImage ? (
           <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
-            <img src={currentLocalContent} alt={selectedFileName} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
+            <img src={`file://${activeFilePath.replace(/\\/g, '/')}`} alt={selectedFileName} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
+          </div>
+        ) : isVideo ? (
+          <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
+            <video controls src={`file://${activeFilePath.replace(/\\/g, '/')}`} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
+          </div>
+        ) : isBinary || currentLocalContent.startsWith('data:application/octet-stream') ? (
+          <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] p-4 text-center">
+            <span className="text-white text-sm font-medium">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</span>
           </div>
         ) : (
           <Editor

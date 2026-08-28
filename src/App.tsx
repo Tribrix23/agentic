@@ -139,6 +139,10 @@ const App = () => {
   const [subagents, setSubagents] = React.useState<SubagentHandle[]>([]);
   const [filesChanged, setFilesChanged] = React.useState<FileChange[]>([]);
   const [currentConversationId, setCurrentConversationId] = React.useState<string | null>(null);
+  const currentConversationIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    currentConversationIdRef.current = currentConversationId;
+  }, [currentConversationId]);
   const [isAiRunning, setIsAiRunning] = React.useState(false);
   const [orb1ColorIndex, setOrb1ColorIndex] = React.useState(0);
   const [orb2ColorIndex, setOrb2ColorIndex] = React.useState(1);
@@ -150,13 +154,18 @@ const App = () => {
   // Color cycling for AI running state
   React.useEffect(() => {
     if (isAiRunning) {
-      const interval = setInterval(() => {
+      const updateColors = () => {
         // Pick random colors (skip the first two default colors)
         const randomIndex1 = Math.floor(Math.random() * (aiRunningColors.length - 2)) + 2;
         const randomIndex2 = Math.floor(Math.random() * (aiRunningColors.length - 2)) + 2;
         setOrb1ColorIndex(randomIndex1);
         setOrb2ColorIndex(randomIndex2);
-      }, 4000); // 4 seconds per color transition
+      };
+
+      // Set initial random colors immediately
+      updateColors();
+      
+      const interval = setInterval(updateColors, 4000); // 4 seconds per color transition
 
       return () => clearInterval(interval);
     } else {
@@ -189,8 +198,8 @@ const App = () => {
   // Listen for task changes and reload
   React.useEffect(() => {
     const handleTaskChange = () => {
-      if (currentConversationId) {
-        setTasks(getDurableTasksForConversation(currentConversationId));
+      if (currentConversationIdRef.current) {
+        setTasks(getDurableTasksForConversation(currentConversationIdRef.current));
       } else {
         // No conversation scoping yet (first message) — show all agent-created tasks
         setTasks([]);
@@ -229,7 +238,7 @@ const App = () => {
     };
     window.addEventListener('conversation-started', handleConversationStarted);
     const handleProjectRestore = (e: CustomEvent) => {
-      if (!e.detail?.conversationId || e.detail.conversationId === currentConversationId) setFilesChanged([]);
+      if (!e.detail?.conversationId || e.detail.conversationId === currentConversationIdRef.current) setFilesChanged([]);
     };
     window.addEventListener('project-files-restored', handleProjectRestore as any);
 
@@ -244,12 +253,12 @@ const App = () => {
       window.removeEventListener('conversation-started', handleConversationStarted);
       window.removeEventListener('project-files-restored', handleProjectRestore as any);
     };
-  }, [currentConversationId]);
+  }, []);
 
   // Listen for agent activity events
   React.useEffect(() => {
     const maxActivity = 200;
-    const belongsToConversation = (detail: any) => !detail?.conversationId || detail.conversationId === currentConversationId;
+    const belongsToConversation = (detail: any) => !detail?.conversationId || detail.conversationId === currentConversationIdRef.current;
     const bounded = (items: AgentActivity[]) => items.slice(-maxActivity);
     const handleAgentThinking = (e: CustomEvent) => {
       if (!belongsToConversation(e.detail)) return;
@@ -266,7 +275,7 @@ const App = () => {
     };
 
     const handleRunningState = (e: CustomEvent) => {
-      if (!e.detail?.activeConversationId || e.detail.activeConversationId === currentConversationId) {
+      if (!e.detail?.activeConversationId || e.detail.activeConversationId === currentConversationIdRef.current) {
         setIsAiRunning(Boolean(e.detail?.isRunning));
       }
     };
@@ -371,7 +380,7 @@ const App = () => {
       window.removeEventListener('agent:coding-progress', handleCodingProgress as any);
       window.removeEventListener('open-sidebar-file', handleOpenSidebarFile as any);
     };
-  }, [currentConversationId]);
+  }, []);
 
   React.useEffect(() => {
     // Listen for deep link authentication success

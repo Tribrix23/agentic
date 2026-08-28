@@ -168,7 +168,7 @@ export const RightSidebar = ({
               className={cn("flex items-center space-x-2 pb-1 border-b-2 transition-colors", activeTab === 'tasks' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
             >
               <ListTodo className="w-4 h-4" />
-              <span>Tasks</span>
+              {activeTab === 'tasks' && <span>Tasks</span>}
             </button>
             {activeTab === 'tasks' && onClearTasks && (
               <button
@@ -184,22 +184,26 @@ export const RightSidebar = ({
               className={cn("flex items-center space-x-2 pb-1 border-b-2 transition-colors", activeTab === 'activity' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
             >
               <Activity className="w-4 h-4" />
-              <span>Activity</span>
+              {activeTab === 'activity' && <span>Activity</span>}
             </button>
             <button 
               onClick={() => setActiveTab('files')}
               className={cn("flex items-center space-x-2 pb-1 border-b-2 transition-colors", activeTab === 'files' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
             >
               <FileCode className="w-4 h-4" />
-              <span>Files</span>
+              {activeTab === 'files' && <span>Files</span>}
             </button>
             {implementationPath && <button
               onClick={() => setActiveTab('implementation')}
               className={cn("flex items-center gap-2 pb-1 border-b-2 transition-colors", activeTab === 'implementation' ? "border-[#7C3AED] text-white" : "border-transparent text-white/40 hover:text-white/70")}
             >
               <FileText className="w-4 h-4" />
-              <span className="max-w-[140px] truncate">Implementation</span>
-              <X size={12} onClick={(event) => { event.stopPropagation(); setImplementationPath(null); setActiveTab('tasks'); }} />
+              {activeTab === 'implementation' && (
+                <>
+                  <span className="max-w-[140px] truncate">Implementation</span>
+                  <X size={12} onClick={(event) => { event.stopPropagation(); setImplementationPath(null); setActiveTab('tasks'); }} />
+                </>
+              )}
             </button>}
           </div>
         </div>

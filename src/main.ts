@@ -541,9 +541,15 @@ function createWindow() {
     try {
       const safePath = projectRoot ? assertPathWithinWorkspace(projectRoot, filePath) : filePath;
       const ext = safePath.split('.').pop()?.toLowerCase() || '';
-      if (['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) {
+      if (['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv', 'exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z'].includes(ext)) {
         const buffer = fs.readFileSync(safePath);
-        const mimeType = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+        const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext);
+        const isBinary = ['exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z'].includes(ext);
+        const mimeType = isVideo ? `video/${ext === 'mov' ? 'quicktime' : ext === 'mkv' ? 'x-matroska' : ext}` 
+          : isBinary ? 'application/octet-stream'
+          : ext === 'svg' ? 'image/svg+xml' 
+          : ext === 'jpg' ? 'image/jpeg' 
+          : `image/${ext}`;
         return `data:${mimeType};base64,${buffer.toString('base64')}`;
       }
       return fs.readFileSync(safePath, 'utf8');

@@ -1538,7 +1538,7 @@ IMPORTANT RULES:
   );
 
   return (
-    <div className="flex-1 h-full bg-transparent flex flex-col relative z-0">
+    <div className="flex-1 h-full bg-transparent flex flex-col relative">
 
       {/* Top Header */}
       <div className="absolute top-0 left-0 right-0 px-4 py-3 flex items-center justify-between z-10 pointer-events-none">
@@ -1562,7 +1562,7 @@ IMPORTANT RULES:
           </div>
         </div>
 
-        <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2">
+        <div className="pointer-events-auto region-no-drag mt-12 flex items-center gap-2 mr-10">
           <button
             onClick={onOpenIde}
             className="flex items-center gap-2 text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors px-3 py-1.5 rounded-md text-xs font-semibold"
@@ -1570,13 +1570,17 @@ IMPORTANT RULES:
             <img src="./icon.png" alt="QUANTIX Logo" className="w-3.5 h-3.5 object-contain" />
             Open QUANTIX IDE
           </button>
-          <button
-            onClick={toggleRightSidebar}
-            className={cn("p-1.5 rounded-md transition-colors", rightOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}
-          >
-            {rightOpen ? <PanelRightClose size={18} /> : <PanelRight size={18} />}
-          </button>
         </div>
+      </div>
+      
+      {/* Fixed toggle button for right sidebar so it never moves */}
+      <div className="fixed top-[60px] right-4 pointer-events-auto region-no-drag flex items-center gap-2 z-[100]">
+        <button
+          onClick={toggleRightSidebar}
+          className={cn("p-1.5 rounded-md transition-colors", rightOpen ? "text-white bg-white/10" : "text-[#8b8b93] hover:text-white hover:bg-white/5")}
+        >
+          {rightOpen ? <PanelRightClose size={18} /> : <PanelRight size={18} />}
+        </button>
       </div>
 
       {/* Main Content Area */}
