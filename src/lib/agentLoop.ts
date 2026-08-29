@@ -1210,7 +1210,7 @@ export class AgentLoop {
           assistantMsg.toolCalls = [];
           hasToolCalls = false;
           const correction = createUserMessage(
-            '[SYSTEM OUTPUT LIMIT] The previous response was truncated and no action from it was executed. Retry with a much smaller tool call. For a large new file, write only a valid skeleton plus the first logical section, then add later sections in separate editFile calls. Never resend the whole file.'
+            '[SYSTEM OUTPUT LIMIT] The previous response was truncated and no action from it was executed. Retry with a much smaller tool call. Use editFile to make targeted modifications rather than resending entire files.'
           );
           correction.isHidden = true;
           updatedMessages.push(correction);

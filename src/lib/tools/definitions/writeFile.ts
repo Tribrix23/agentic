@@ -4,7 +4,7 @@ import { calculateLineChanges } from '../../incrementalToolCallParser';
 // A first write is deliberately small so a provider reaching its output limit
 // cannot leave the agent with an unusable partial tool call. Later sections are
 // added with editFile, which has no artificial content limit.
-export const MAX_INITIAL_WRITE_CHARS = 12000;
+export const MAX_INITIAL_WRITE_CHARS = 100000;
 
 export function normalizeWrittenSource(path: string, value: string): string {
   const extension = path.split(/[\\/]/).pop()?.split('.').pop()?.toLowerCase();
@@ -25,13 +25,13 @@ export function normalizeWrittenSource(path: string, value: string): string {
 
 export const definition: ToolDefinition = {
   name: 'writeFile',
-  description: `Create or replace files with intelligent chunking. For large files (>${MAX_INITIAL_WRITE_CHARS} chars), write a valid skeleton plus one logical section, then use editFile for subsequent sections. Never resend complete large files. Supports absolute paths and project-relative paths. Also creates rich Markdown artifacts with optional metadata.`,
+  description: `Create or replace files. For extremely large files (>${MAX_INITIAL_WRITE_CHARS} chars), use editFile for subsequent sections. Supports absolute paths and project-relative paths. Also creates rich Markdown artifacts with optional metadata.`,
   category: 'filesystem',
   parameters: {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'File path (relative like "src/lib/utils.ts" or absolute like "/full/path/to/file.ts"). For artifacts, use the artifact name (e.g. "implementation_plan.md").' },
-      content: { type: 'string', description: `Complete content for this write. New non-artifact files limited to ${MAX_INITIAL_WRITE_CHARS} characters. For large files, use stable anchors for subsequent editFile calls.` },
+      content: { type: 'string', description: `Complete content for this write. New non-artifact files limited to ${MAX_INITIAL_WRITE_CHARS} characters. For extremely large files, use stable anchors for subsequent editFile calls.` },
       artifactMetadata: {
         type: 'object',
         description: 'Artifact properties (required when creating artifacts).',
@@ -91,7 +91,7 @@ export const handler: ToolHandler = async (args, context) => {
     if (!isArtifact && !fileExistedBeforeWrite && content.length > MAX_INITIAL_WRITE_CHARS) {
       return {
         success: false,
-        output: `Initial write is too large (${content.length} characters; maximum ${MAX_INITIAL_WRITE_CHARS}). On the next response, create only a valid skeleton plus one logical section. Then use one editFile insertion per response for each remaining section. Do not resend the complete file.`,
+        output: `Initial write is too large (${content.length} characters; maximum ${MAX_INITIAL_WRITE_CHARS}). On the next response, use editFile insertions for the remaining sections.`,
       };
     }
     

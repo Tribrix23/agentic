@@ -130,6 +130,7 @@ export function ChatContainer({
               value={inputValue}
               onChange={onInputChange}
               userId={userId}
+              tokenBudget={tokenBudget}
             />
           </div>
         </div>
