@@ -4,6 +4,8 @@ import { cn } from '../App';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConversationHistoryModal } from './ConversationHistoryModal';
 
+import { Tooltip } from "./ui/Tooltip";
+
 interface ProjectFolder {
   path: string;
   name: string;
@@ -163,19 +165,17 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
         {/* Primary Navigation */}
         <div className="px-2 mb-8 flex flex-col gap-1">
           <NavItem icon={<Clock size={16} />} label="Conversation History" onClick={() => setShowHistoryModal(true)} />
-          <NavItem icon={<Puzzle size={16} />} label="Add-ons" />
+          <NavItem icon={<Puzzle size={16} />} label="Add-ons" onClick={() => window.dispatchEvent(new CustomEvent('open-addons'))} />
         </div>
 
         {/* Projects Header */}
         <div className="px-4 mb-2 flex items-center justify-between group">
           <span className="text-[11px] font-bold uppercase tracking-wider text-[#6b6b73]">Projects</span>
-          <button
-            className="p-1 text-[#737373] hover:text-white transition-colors"
-            onClick={() => window.dispatchEvent(new CustomEvent('open-add-project-wizard'))}
-            title="Add Project"
-          >
-            <Plus size={14} />
-          </button>
+          <Tooltip content="Add Project"><button
+              className="p-1 text-[#737373] hover:text-white transition-colors"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-add-project-wizard'))}>
+              <Plus size={14} />
+            </button></Tooltip>
         </div>
 
         {/* Project List */}
@@ -233,30 +233,26 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                   </button>
 
                   <div className="absolute right-2 flex items-center gap-1 opacity-0 group-hover/proj:opacity-100 transition-opacity bg-[#0f0f13] pl-2">
-                    <button
-                      className="p-1 text-[#8b8b93] hover:text-white rounded transition-colors"
-                      title="Settings"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        localStorage.setItem('quantix_settings_initial_tab', `project-${proj.path}`);
-                        onOpenSettings();
-                      }}
-                    >
-                      <Settings size={13} />
-                    </button>
-                    <button 
-                      className="p-1 text-[#8b8b93] hover:text-white rounded transition-colors" 
-                      title="New Conversation"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveProject(proj);
-                        localStorage.setItem('quantix_active_project', JSON.stringify(proj));
-                        window.dispatchEvent(new CustomEvent('projects-changed'));
-                        window.dispatchEvent(new CustomEvent('new-conversation'));
-                      }}
-                    >
-                      <Plus size={13} />
-                    </button>
+                    <Tooltip content="Settings"><button
+                        className="p-1 text-[#8b8b93] hover:text-white rounded transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          localStorage.setItem('quantix_settings_initial_tab', `project-${proj.path}`);
+                          onOpenSettings();
+                        }}>
+                        <Settings size={13} />
+                      </button></Tooltip>
+                    <Tooltip content="New Conversation"><button
+                        className="p-1 text-[#8b8b93] hover:text-white rounded transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveProject(proj);
+                          localStorage.setItem('quantix_active_project', JSON.stringify(proj));
+                          window.dispatchEvent(new CustomEvent('projects-changed'));
+                          window.dispatchEvent(new CustomEvent('new-conversation'));
+                        }}>
+                        <Plus size={13} />
+                      </button></Tooltip>
                   </div>
                 </div>
 
@@ -287,30 +283,26 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                                   >
                                     {conv.title}
                                   </button>
-                                  
+
                                   {isRunning && (
                                     <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          window.dispatchEvent(new CustomEvent('request-stop-agent'));
-                                        }}
-                                        className="group/spinner text-white/50 hover:text-red-400 p-1"
-                                        title="Stop Agent"
-                                      >
-                                        <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
-                                        <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
-                                      </button>
+                                      <Tooltip content="Stop Agent"><button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.dispatchEvent(new CustomEvent('request-stop-agent'));
+                                          }}
+                                          className="group/spinner text-white/50 hover:text-red-400 p-1">
+                                          <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
+                                          <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
+                                        </button></Tooltip>
                                     </div>
                                   )}
 
-                                  <button
-                                    onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
-                                    className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1"
-                                    title="Delete Conversation"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
+                                  <Tooltip content="Delete Conversation"><button
+                                      onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
+                                      className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1">
+                                      <Trash2 size={12} />
+                                    </button></Tooltip>
                                 </div>
                               );
                             })}

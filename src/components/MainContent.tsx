@@ -888,7 +888,7 @@ IMPORTANT RULES:
       const rejected = rejectPlanToolCall(toolCall);
       if (rejected) return rejected;
     }
-    const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+    const mcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
     if (interactionMode !== 'plan') {
       const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
       if (mcpResult) return mcpResult;
@@ -937,7 +937,7 @@ IMPORTANT RULES:
         readOnly: request.readOnly,
         subagentManager: undefined,
       };
-      const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+      const mcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
       const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
       return mcpResult || executeTool(toolCall, context, permissions);
     };
@@ -1185,7 +1185,7 @@ IMPORTANT RULES:
       }
 
       // Instantiate AgentLoop directly for the main chat
-      const mcpServers: McpServerSnapshot[] = await (window as any).electron?.mcp?.getServers?.() || [];
+      const mcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
       const interactionMode = getInteractionMode(runConfig);
       const readOnly = interactionMode === 'ask';
       const localToolDefinitions = interactionMode === 'plan'

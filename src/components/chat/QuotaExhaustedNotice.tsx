@@ -1,6 +1,8 @@
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
+import { Tooltip } from "../ui/Tooltip";
+
 interface QuotaExhaustedNoticeProps {
   message: string;
   onDismiss: () => void;
@@ -22,14 +24,12 @@ export function QuotaExhaustedNotice({
           <p className="text-[13px] font-semibold text-white">Model quota reached</p>
           <p className="mt-1 text-[12px] leading-5 text-[#a8a8b1]">{message}</p>
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="p-1 text-[#73737b] transition-colors hover:text-white"
-          title="Dismiss"
-        >
-          <X size={15} />
-        </button>
+        <Tooltip content="Dismiss"><button
+            type="button"
+            onClick={onDismiss}
+            className="p-1 text-[#73737b] transition-colors hover:text-white">
+            <X size={15} />
+          </button></Tooltip>
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         <button

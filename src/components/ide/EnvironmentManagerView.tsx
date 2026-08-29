@@ -29,6 +29,8 @@ type Tab = 'environments' | 'libraries' | 'manifest';
 
 import { FaJava } from 'react-icons/fa';
 
+import { Tooltip } from "../ui/Tooltip";
+
 interface EnvironmentManagerViewProps {
   projectRoot?: string;
   onOpenPythonTab?: () => void;
@@ -244,9 +246,13 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
       <div className="px-3 pb-3 border-b border-white/5">
         <div className="flex items-center justify-between mb-2">
           <span className="text-[11px] font-bold tracking-wider text-[#8b8b93] uppercase">Environment</span>
-          <button title="Refresh catalog" aria-label="Refresh catalog" onClick={() => void load(true)} disabled={loading} className="p-1 text-[#8b8b93] hover:text-white disabled:opacity-40">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <Tooltip content="Refresh catalog"><button
+              aria-label="Refresh catalog"
+              onClick={() => void load(true)}
+              disabled={loading}
+              className="p-1 text-[#8b8b93] hover:text-white disabled:opacity-40">
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button></Tooltip>
         </div>
         <div className="flex gap-1">
           {([
@@ -392,7 +398,10 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
                   )}
                 </div>
               </div>
-              {packageItem.projectUrl && <button title="Open project page" aria-label="Open project page" onClick={() => void window.electron.environment.openOfficialLink(packageItem.projectUrl)} className="mt-2 text-[10px] text-[#8b8b93] hover:text-white flex items-center gap-1"><Globe size={12} /> {packageItem.projectUrl}</button>}
+              {packageItem.projectUrl && <Tooltip content="Open project page"><button
+                  aria-label="Open project page"
+                  onClick={() => void window.electron.environment.openOfficialLink(packageItem.projectUrl)}
+                  className="mt-2 text-[10px] text-[#8b8b93] hover:text-white flex items-center gap-1"><Globe size={12} /> {packageItem.projectUrl}</button></Tooltip>}
             </section>
           ))}
           {packageQuery && packages.length === 0 && <div className="p-3 text-xs text-[#8b8b93] border border-white/5 rounded">No package found.</div>}

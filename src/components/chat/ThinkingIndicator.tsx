@@ -6,6 +6,8 @@ const cn = (...classes: (string | undefined | null | false)[]) => classes.filter
 
 import { AgentState } from '../../lib/types/AgentTypes';
 
+import { Tooltip } from "../ui/Tooltip";
+
 interface ThinkingIndicatorProps {
   status?: string;
   agentState?: AgentState;
@@ -41,7 +43,7 @@ export function ThinkingIndicator({ status = 'Thinking...', agentState = 'idle',
           />
         ))}
       </div>
-      
+
       <div className="flex-1 flex flex-col transition-all duration-300">
         <span className={`text-sm ${textClass}`}>{status}</span>
         <div className="flex gap-2 text-xs text-white/40 font-mono">
@@ -55,13 +57,11 @@ export function ThinkingIndicator({ status = 'Thinking...', agentState = 'idle',
       </div>
 
       {onStop && (
-        <button 
-          onClick={onStop}
-          className="p-1.5 rounded text-red-400 hover:bg-red-500/20 transition-colors"
-          title="Stop Agent"
-        >
-          <Square size={16} fill="currentColor" />
-        </button>
+        <Tooltip content="Stop Agent"><button
+            onClick={onStop}
+            className="p-1.5 rounded text-red-400 hover:bg-red-500/20 transition-colors">
+            <Square size={16} fill="currentColor" />
+          </button></Tooltip>
       )}
     </div>
   );

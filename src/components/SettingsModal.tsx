@@ -5,6 +5,8 @@ import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, AIConfig } from '../lib/aiConfig';
 import { fetchTokenQuota, getQuotaResetDetails, TokenQuotaSnapshot } from '../lib/tokenQuota';
 
+import { Tooltip } from "./ui/Tooltip";
+
 interface ProjectFolder {
   path: string;
   name: string;
@@ -428,14 +430,12 @@ export const SettingsModal = ({
               <>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-white font-semibold text-[15px]">Token Quotas</h3>
-                  <button
-                    onClick={() => void fetchTokenQuotas()}
-                    disabled={tokenQuotasLoading}
-                    className="text-[#8b8b93] hover:text-white hover:bg-white/5 p-2 rounded-md transition-colors"
-                    title="Refresh token quotas"
-                  >
-                    <RefreshCw size={16} className={cn(tokenQuotasLoading && 'animate-spin')} />
-                  </button>
+                  <Tooltip content="Refresh token quotas"><button
+                      onClick={() => void fetchTokenQuotas()}
+                      disabled={tokenQuotasLoading}
+                      className="text-[#8b8b93] hover:text-white hover:bg-white/5 p-2 rounded-md transition-colors">
+                      <RefreshCw size={16} className={cn(tokenQuotasLoading && 'animate-spin')} />
+                    </button></Tooltip>
                 </div>
 
                 {tokenQuotasError && (

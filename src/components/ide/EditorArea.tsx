@@ -118,6 +118,8 @@ const EditorSkeleton = () => (
 
 import { OpenFile } from '../IdeContainer';
 
+import { Tooltip } from "../ui/Tooltip";
+
 interface EditorAreaProps {
   projectRoot?: string;
   openFiles: OpenFile[];
@@ -307,8 +309,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
               >
                 <FileIcon filename={file.name} size={14} className="shrink-0" />
                 <span className="truncate flex-1 text-xs">{file.name}</span>
-                {tabIsDirty && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 ml-1" title="Unsaved changes" />}
-                
+                {tabIsDirty && <Tooltip content="Unsaved changes"><div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 ml-1" /></Tooltip>}
+
                 {gitStatus && !tabIsDirty && (
                   <span className={cn(
                     "text-[9px] font-bold shrink-0 ml-1 opacity-80",
@@ -317,7 +319,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                     {gitStatus.includes('?') ? 'U' : gitStatus.trim()[0]}
                   </span>
                 )}
-                
+
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();

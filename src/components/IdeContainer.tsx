@@ -16,6 +16,8 @@ import { motion, AnimatePresence, Variants } from 'framer-motion';
 import type * as Monaco from 'monaco-editor';
 import { isHtmlFile } from '../lib/fileLanguage';
 
+import { Tooltip } from "./ui/Tooltip";
+
 const BlurText = ({ text, className, delay = 0 }: { text: string, className?: string, delay?: number }) => {
   const letters = text.split("");
   const container = {
@@ -764,28 +766,26 @@ const handleSkip = () => {
               Project Files
             </span>
             <div className="flex items-center gap-1">
-              <button 
-                onClick={handleUndo}
-                disabled={undoStack.length === 0}
-                title="Undo (Ctrl+Z)"
-                className={cn("p-1 rounded transition-colors", undoStack.length > 0 ? "text-[#8b8b93] hover:text-white hover:bg-white/5" : "text-[#8b8b93]/30 cursor-not-allowed")}
-              >
-                <Undo2 size={14} />
-              </button>
-              <button 
-                onClick={handleRedo}
-                disabled={redoStack.length === 0}
-                title="Redo (Ctrl+Y)"
-                className={cn("p-1 rounded transition-colors", redoStack.length > 0 ? "text-[#8b8b93] hover:text-white hover:bg-white/5" : "text-[#8b8b93]/30 cursor-not-allowed")}
-              >
-                <Redo2 size={14} />
-              </button>
-              <button 
-                onClick={() => setShowDropdown(!showDropdown)}
-                className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors"
-              >
-                <FolderPlus size={14} />
-              </button>
+              <Tooltip content="Undo (Ctrl+Z)"><button
+                  onClick={() => undoStack.length > 0 && handleUndo()}
+                  aria-disabled={undoStack.length === 0}
+                  className={cn("p-1 rounded transition-colors", undoStack.length > 0 ? "text-[#8b8b93] hover:text-white hover:bg-white/5" : "text-[#8b8b93]/30 cursor-not-allowed")}>
+                  <Undo2 size={14} />
+                </button></Tooltip>
+              <Tooltip content="Redo (Ctrl+Y)"><button
+                  onClick={() => redoStack.length > 0 && handleRedo()}
+                  aria-disabled={redoStack.length === 0}
+                  className={cn("p-1 rounded transition-colors", redoStack.length > 0 ? "text-[#8b8b93] hover:text-white hover:bg-white/5" : "text-[#8b8b93]/30 cursor-not-allowed")}>
+                  <Redo2 size={14} />
+                </button></Tooltip>
+              <Tooltip content="Projects">
+                <button 
+                  onClick={() => setShowDropdown(!showDropdown)}
+                  className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors"
+                >
+                  <FolderPlus size={14} />
+                </button>
+              </Tooltip>
             </div>
 
             {/* Dropdown menu */}

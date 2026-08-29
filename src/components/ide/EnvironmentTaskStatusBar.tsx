@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, LoaderCircle, X, XCircle } from 'lucide-react';
 import type { EnvironmentOperation } from '../../lib/environment/types';
 
+import { Tooltip } from "../ui/Tooltip";
+
 export const EnvironmentTaskStatusBar: React.FC = () => {
   const [operations, setOperations] = useState<EnvironmentOperation[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -30,7 +32,10 @@ export const EnvironmentTaskStatusBar: React.FC = () => {
             <div key={operation.id} className="p-2 border-t border-white/5 flex items-start gap-2">
               {operation.status === 'failed' ? <XCircle size={13} className="text-red-400 mt-0.5" /> : operation.status === 'cancelled' ? <XCircle size={13} className="text-[#a8a8b1] mt-0.5" /> : operation.status === 'completed' ? <CheckCircle2 size={13} className="text-emerald-400 mt-0.5" /> : <LoaderCircle size={13} className="text-blue-400 animate-spin mt-0.5" />}
               <div className="min-w-0 flex-1"><div className="text-white">{operation.provider} {operation.version} · {operation.phase}</div><div className="mt-0.5 break-words">{operation.progress.message}</div></div>
-              {(operation.status === 'queued' || operation.status === 'running') && <button aria-label="Cancel operation" title="Cancel operation" onClick={() => void window.electron.environment.cancelOperation(operation.id)} className="p-1 hover:text-white"><X size={12} /></button>}
+              {(operation.status === 'queued' || operation.status === 'running') && <Tooltip content="Cancel operation"><button
+                  aria-label="Cancel operation"
+                  onClick={() => void window.electron.environment.cancelOperation(operation.id)}
+                  className="p-1 hover:text-white"><X size={12} /></button></Tooltip>}
             </div>
           ))}
         </div>

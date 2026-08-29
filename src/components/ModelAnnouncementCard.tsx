@@ -4,6 +4,8 @@ import { X } from 'lucide-react';
 import { QwenIcon } from './icons/QwenIcon';
 import { QwenWordmark } from './icons/QwenWordmark';
 
+import { Tooltip } from "./ui/Tooltip";
+
 const ANNOUNCEMENT_KEY = 'quantix_qwen_3_8_announcement_dismissed';
 
 export const ModelAnnouncementCard = () => {
@@ -40,15 +42,13 @@ export const ModelAnnouncementCard = () => {
               <div className="flex items-center gap-2 text-[10px] font-semibold uppercase text-white">
                 <span>New model supported</span>
               </div>
-              <button
-                aria-label="Close model announcement"
-                className="region-no-drag -mr-1 -mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-white/45 transition-colors hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-1 focus:ring-[#a78bfa]/70"
-                onClick={dismiss}
-                title="Close"
-                type="button"
-              >
-                <X size={15} />
-              </button>
+              <Tooltip content="Close"><button
+                  aria-label="Close model announcement"
+                  className="region-no-drag -mr-1 -mt-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-white/45 transition-colors hover:bg-white/[0.08] hover:text-white focus:outline-none focus:ring-1 focus:ring-[#a78bfa]/70"
+                  onClick={dismiss}
+                  type="button">
+                  <X size={15} />
+                </button></Tooltip>
             </div>
 
             <div className="mb-1 flex items-center gap-3 text-white">

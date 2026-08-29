@@ -13,6 +13,8 @@ import { FileIcon } from './FileIcon';
 import { getReviewArtifacts, isAgentWaiting, isAgentWorking } from '../../lib/agentPresentation';
 import type { AgentState } from '../../lib/types/AgentTypes';
 
+import { Tooltip } from "../ui/Tooltip";
+
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
 interface MessageBubbleProps {
@@ -453,13 +455,11 @@ export function MessageBubble({
 
               {isUser && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover/usercontent:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => setShowUndoModal(true)}
-                    className="hover:text-white/80 transition-colors p-1"
-                    title="Undo changes up to this point"
-                  >
-                    <Undo2 size={16} />
-                  </button>
+                  <Tooltip content="Undo changes up to this point"><button
+                      onClick={() => setShowUndoModal(true)}
+                      className="hover:text-white/80 transition-colors p-1">
+                      <Undo2 size={16} />
+                    </button></Tooltip>
                 </div>
               )}
 
@@ -579,17 +579,15 @@ export function MessageBubble({
             <span>{new Date(firstMessage.timestamp).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}</span>
             {isUser && (
               <>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(firstMessage.content || '');
-                    setIsTextCopied(true);
-                    setTimeout(() => setIsTextCopied(false), 2000);
-                  }}
-                  className="hover:text-white transition-colors flex items-center justify-center w-4 h-4"
-                  title={isTextCopied ? "Copied!" : "Copy"}
-                >
-                  {isTextCopied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-                </button>
+                <Tooltip content={isTextCopied ? "Copied!" : "Copy"}><button
+                    onClick={() => {
+                      navigator.clipboard.writeText(firstMessage.content || '');
+                      setIsTextCopied(true);
+                      setTimeout(() => setIsTextCopied(false), 2000);
+                    }}
+                    className="hover:text-white transition-colors flex items-center justify-center w-4 h-4">
+                    {isTextCopied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                  </button></Tooltip>
               </>
             )}
           </div>

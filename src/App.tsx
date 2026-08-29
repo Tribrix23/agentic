@@ -1,6 +1,6 @@
 import React from 'react';
 import { Minus, Square, X, Atom } from 'lucide-react';
-import { motion, Variants } from 'framer-motion';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import './index.css';
@@ -12,6 +12,7 @@ import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
 import { IdeContainer } from './components/IdeContainer';
 import { ModelAnnouncementCard } from './components/ModelAnnouncementCard';
+import { AddonsView } from './components/AddonsView';
 import { getDurableTasksForConversation, clearAllTasks, clearConversationTasks } from './lib/taskStore';
 import { Task } from './lib/taskStore';
 import type { SubagentHandle } from './lib/agent/subagentTypes';
@@ -133,6 +134,7 @@ const App = () => {
   const [leftSidebarOpen, setLeftSidebarOpen] = React.useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [showAddons, setShowAddons] = React.useState(false);
   const [showFullIde, setShowFullIde] = React.useState(false);
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [agentActivity, setAgentActivity] = React.useState<AgentActivity[]>([]);
@@ -224,8 +226,10 @@ const App = () => {
 
     const handleOpenRightSidebar = () => setRightSidebarOpen(true);
     const handleOpenImplementationPlan = () => setRightSidebarOpen(true);
+    const handleOpenAddons = () => setShowAddons(true);
     window.addEventListener('open-right-sidebar', handleOpenRightSidebar);
     window.addEventListener('open-implementation-plan', handleOpenImplementationPlan);
+    window.addEventListener('open-addons', handleOpenAddons);
 
     window.addEventListener('task-updated', handleTaskChange);
     window.addEventListener('task-deleted', handleTaskChange);
@@ -245,6 +249,7 @@ const App = () => {
     return () => {
       window.removeEventListener('open-right-sidebar', handleOpenRightSidebar);
       window.removeEventListener('open-implementation-plan', handleOpenImplementationPlan);
+      window.removeEventListener('open-addons', handleOpenAddons);
       window.removeEventListener('task-updated', handleTaskChange);
       window.removeEventListener('task-deleted', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);
@@ -458,34 +463,40 @@ const App = () => {
         </div>
 
         <TitleBar userName={user.name} userAvatar={user.avatar} />
-        <Sidebar isOpen={leftSidebarOpen} onOpenSettings={() => setSettingsOpen(true)} />
-        <ModelAnnouncementCard />
-        <MainContent 
-          user={user} 
-          leftOpen={leftSidebarOpen}
-          rightOpen={rightSidebarOpen}
-          toggleLeftSidebar={() => setLeftSidebarOpen(!leftSidebarOpen)}
-          toggleRightSidebar={() => setRightSidebarOpen(!rightSidebarOpen)}
-          onOpenIde={() => setShowFullIde(true)}
-        />
-        <RightSidebar 
-          isOpen={rightSidebarOpen} 
-          toggle={() => setRightSidebarOpen(false)}
-        tasks={tasks}
-        subagents={subagents}
-          onTaskClick={(task) => console.log('Task clicked:', task)}
-          agentActivity={agentActivity}
-          filesChanged={filesChanged}
-          onClearFile={(path: string) => setFilesChanged(prev => prev.filter(f => f.path !== path))}
-          conversationId={currentConversationId}
-          onClearTasks={() => {
-            if (currentConversationId) {
-              clearConversationTasks(currentConversationId);
-            } else {
-              clearAllTasks();
-            }
-          }}
-        />
+        <AnimatePresence>
+          {showAddons && <AddonsView onClose={() => setShowAddons(false)} />}
+        </AnimatePresence>
+        
+        <div className={cn("flex-1 flex overflow-hidden", showAddons && "hidden")}>
+          <Sidebar isOpen={leftSidebarOpen} onOpenSettings={() => setSettingsOpen(true)} />
+          <ModelAnnouncementCard />
+          <MainContent 
+            user={user} 
+            leftOpen={leftSidebarOpen}
+            rightOpen={rightSidebarOpen}
+            toggleLeftSidebar={() => setLeftSidebarOpen(!leftSidebarOpen)}
+            toggleRightSidebar={() => setRightSidebarOpen(!rightSidebarOpen)}
+            onOpenIde={() => setShowFullIde(true)}
+          />
+          <RightSidebar 
+            isOpen={rightSidebarOpen} 
+            toggle={() => setRightSidebarOpen(false)}
+            tasks={tasks}
+            subagents={subagents}
+            onTaskClick={(task) => console.log('Task clicked:', task)}
+            agentActivity={agentActivity}
+            filesChanged={filesChanged}
+            onClearFile={(path: string) => setFilesChanged(prev => prev.filter(f => f.path !== path))}
+            conversationId={currentConversationId}
+            onClearTasks={() => {
+              if (currentConversationId) {
+                clearConversationTasks(currentConversationId);
+              } else {
+                clearAllTasks();
+              }
+            }}
+          />
+        </div>
         
         {/* Settings Modal */}
         {settingsOpen && (

@@ -7,6 +7,8 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../App';
 import { CodeBlock } from './CodeBlock';
 
+import { Tooltip } from "../ui/Tooltip";
+
 interface MarkdownRendererProps {
   content: string;
   isStreaming?: boolean;
@@ -58,22 +60,20 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
             // Check if it's an artifact/file link
             if (href?.startsWith('file://')) {
               return (
-                <button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (onArtifactClick) {
-                      // Strip file:/// and #anchor
-                      const rawPath = href.replace('file:///', '').split('#')[0];
-                      // Normalize slashes
-                      const path = rawPath.replace(/\\/g, '/');
-                      onArtifactClick(path);
-                    }
-                  }}
-                  className="text-blue-400 hover:underline inline-flex items-center gap-1 bg-blue-500/10 px-1.5 rounded-sm cursor-pointer"
-                  title={href}
-                >
-                  {children}
-                </button>
+                <Tooltip content={href}><button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (onArtifactClick) {
+                        // Strip file:/// and #anchor
+                        const rawPath = href.replace('file:///', '').split('#')[0];
+                        // Normalize slashes
+                        const path = rawPath.replace(/\\/g, '/');
+                        onArtifactClick(path);
+                      }
+                    }}
+                    className="text-blue-400 hover:underline inline-flex items-center gap-1 bg-blue-500/10 px-1.5 rounded-sm cursor-pointer">
+                    {children}
+                  </button></Tooltip>
               );
             }
             return <a href={href} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;

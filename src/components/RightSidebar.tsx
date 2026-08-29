@@ -15,6 +15,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import type { SubagentHandle } from '../lib/agent/subagentTypes';
 
+import { Tooltip } from "./ui/Tooltip";
+
 export interface TokenBudget {
   total: number;
   systemPrompt: number;
@@ -171,13 +173,11 @@ export const RightSidebar = ({
               {activeTab === 'tasks' && <span>Tasks</span>}
             </button>
             {activeTab === 'tasks' && onClearTasks && (
-              <button
-                onClick={onClearTasks}
-                className="ml-auto p-1 hover:bg-white/10 rounded transition-colors"
-                title="Clear all tasks"
-              >
-                <Trash2 className="w-4 h-4 text-white/40 hover:text-red-400" />
-              </button>
+              <Tooltip content="Clear all tasks"><button
+                  onClick={onClearTasks}
+                  className="ml-auto p-1 hover:bg-white/10 rounded transition-colors">
+                  <Trash2 className="w-4 h-4 text-white/40 hover:text-red-400" />
+                </button></Tooltip>
             )}
             <button 
               onClick={() => setActiveTab('activity')}
@@ -298,23 +298,23 @@ export const RightSidebar = ({
                     const isExpanded = expandedFiles.has(file.path);
                     return (
                       <div key={i} className="flex flex-col space-y-2">
-                        <div className="group flex items-center justify-between p-2 rounded-lg bg-[#141419] border border-white/5 hover:border-white/10 transition-colors cursor-pointer" title={file.path} onClick={() => toggleFile(file.path)}>
-                          <div className="flex items-center space-x-3 overflow-hidden">
-                            <FileIcon filename={basename} size={16} />
-                            <span className="truncate text-white/80 hover:text-white transition-colors">
-                              {basename}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2 shrink-0">
-                          <button 
-                              className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all p-1"
-                              onClick={(e) => { e.stopPropagation(); onClearFile && onClearFile(file.path); }}
-                              title="Clear from sidebar"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
+                        <Tooltip content={file.path}><div
+                            className="group flex items-center justify-between p-2 rounded-lg bg-[#141419] border border-white/5 hover:border-white/10 transition-colors cursor-pointer"
+                            onClick={() => toggleFile(file.path)}>
+                            <div className="flex items-center space-x-3 overflow-hidden">
+                              <FileIcon filename={basename} size={16} />
+                              <span className="truncate text-white/80 hover:text-white transition-colors">
+                                {basename}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2 shrink-0">
+                            <Tooltip content="Clear from sidebar"><button
+                                className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white transition-all p-1"
+                                onClick={(e) => { e.stopPropagation(); onClearFile && onClearFile(file.path); }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button></Tooltip>
+                            </div>
+                          </div></Tooltip>
                         <AnimatePresence>
                           {isExpanded && file.content && (
                             <motion.div

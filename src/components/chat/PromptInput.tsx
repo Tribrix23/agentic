@@ -9,6 +9,7 @@ import { FileContextBadge } from './FileContextBadge';
 import { OpenAIIcon } from '../icons/OpenAIIcon';
 import { fetchTokenQuota, getQuotaTarget, TokenQuotaSnapshot } from '../../lib/tokenQuota';
 import { TokenBudget } from '../../lib/tokenCounter';
+import { Tooltip } from '../ui/Tooltip';
 
 const QwenIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
@@ -634,24 +635,27 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       Choose a project first
                     </div>
                   )}
-                <button
-                  onClick={() => {
-                    if ((content.trim() || selectedImages.length > 0) && hasProject) {
-                      handleSend();
-                    }
-                  }}
-                  disabled={!hasProject}
-                  className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                    !hasProject
-                      ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-                      : (content.trim().length > 0 || selectedImages.length > 0)
-                      ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
-                      : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
-                  )}
-                >
-                  {(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
-                </button>
+                <Tooltip content={(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? "Send message" : "Voice input"}>
+                  <button
+                    onClick={() => {
+                      if (!hasProject) return;
+                      if ((content.trim() || selectedImages.length > 0) && hasProject) {
+                        handleSend();
+                      }
+                    }}
+                    aria-disabled={!hasProject}
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                      !hasProject
+                        ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
+                        : (content.trim().length > 0 || selectedImages.length > 0)
+                        ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
+                        : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+                    )}
+                  >
+                    {(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                  </button>
+                </Tooltip>
                 </div>
             )}
           </div>

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Check, RotateCcw, GitBranch, GitCommit, Target, ArrowDownToLine, ArrowDown, ArrowUp, MoreHorizontal, Undo2 } from 'lucide-react';
 import { cn } from '../../App';
 
+import { Tooltip } from "../ui/Tooltip";
+
 interface SourceControlProps {
   projectPath?: string;
   onGitAction?: () => void;
@@ -225,9 +227,11 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
           Source Control
         </span>
         <div className="flex items-center gap-1">
-          <button onClick={refresh} className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors" title="Refresh">
-            <RotateCcw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
+          <Tooltip content="Refresh"><button
+              onClick={refresh}
+              className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors">
+              <RotateCcw size={14} className={loading ? "animate-spin" : ""} />
+            </button></Tooltip>
         </div>
       </div>
 
@@ -271,20 +275,18 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
           <div className="flex-1 overflow-y-auto space-y-0.5">
             {changes.map((file, i) => (
               <div key={i} className="flex items-center justify-between px-3 py-1 hover:bg-white/5 cursor-pointer text-xs group">
-                <span className="truncate pr-2 flex-1 text-[#d4d4d8]" title={file.path}>
-                  {file.path.split('/').pop() || file.path.split('\\').pop()}
-                </span>
+                <Tooltip content={file.path}><span className="truncate pr-2 flex-1 text-[#d4d4d8]">
+                    {file.path.split('/').pop() || file.path.split('\\').pop()}
+                  </span></Tooltip>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDiscard(file.path);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded text-[#8b8b93] hover:text-white transition-all"
-                    title="Discard Changes"
-                  >
-                    <Undo2 size={13} />
-                  </button>
+                  <Tooltip content="Discard Changes"><button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDiscard(file.path);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded text-[#8b8b93] hover:text-white transition-all">
+                      <Undo2 size={13} />
+                    </button></Tooltip>
                   <span className={cn(
                     "text-[10px] font-bold px-1.5 py-0.5 rounded",
                     file.status.includes('M') ? "text-[#e2c08d]" : 
@@ -310,11 +312,13 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
               <span className="text-[10px] font-normal text-[#8b8b93] bg-white/5 px-2 rounded-full">Auto</span>
             </div>
             <div className="flex items-center gap-1.5 text-[#8b8b93]">
-              <button title="Target" className="hover:text-white cursor-pointer transition-colors"><Target size={14} /></button>
-              <button title="Pull" className="hover:text-white cursor-pointer transition-colors"><ArrowDownToLine size={14} /></button>
-              <button title="Fetch" className="hover:text-white cursor-pointer transition-colors"><ArrowDown size={14} /></button>
-              <button title="Push" className="hover:text-white cursor-pointer transition-colors"><ArrowUp size={14} /></button>
-              <button title="Refresh" onClick={refresh} className="hover:text-white cursor-pointer transition-colors ml-1"><RotateCcw size={14} /></button>
+              <Tooltip content="Target"><button className="hover:text-white cursor-pointer transition-colors"><Target size={14} /></button></Tooltip>
+              <Tooltip content="Pull"><button className="hover:text-white cursor-pointer transition-colors"><ArrowDownToLine size={14} /></button></Tooltip>
+              <Tooltip content="Fetch"><button className="hover:text-white cursor-pointer transition-colors"><ArrowDown size={14} /></button></Tooltip>
+              <Tooltip content="Push"><button className="hover:text-white cursor-pointer transition-colors"><ArrowUp size={14} /></button></Tooltip>
+              <Tooltip content="Refresh"><button
+                  onClick={refresh}
+                  className="hover:text-white cursor-pointer transition-colors ml-1"><RotateCcw size={14} /></button></Tooltip>
               <button className="hover:text-white cursor-pointer transition-colors ml-1"><MoreHorizontal size={14} /></button>
             </div>
           </div>
@@ -336,7 +340,7 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
               
               return (
                 <div key={commit.hash} className="flex relative">
-                  
+
                   {/* Left gutter for the graph line */}
                   <div className="shrink-0 flex flex-col relative z-10" style={{ width: gutterWidth }}>
                     <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
@@ -372,12 +376,13 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                       className="flex items-center h-[30px] group hover:bg-white/5 rounded-md pr-2 transition-colors cursor-pointer"
                     >
                     <div className="flex-1 min-w-0 flex items-center overflow-hidden pr-2 gap-2">
-                      <span className="text-[11px] font-medium text-[#e2e2e3] truncate shrink min-w-[30px]" title={commit.subject}>
-                        {commit.subject || 'Empty commit message'}
-                      </span>
-                      <span className="text-[10px] text-[#8b8b93] truncate shrink min-w-[30px]" title={commit.authorName}>
-                        {commit.authorName}
-                      </span>
+                      <Tooltip content={commit.subject}><span
+                          className="text-[11px] font-medium text-[#e2e2e3] truncate shrink min-w-[30px]">
+                          {commit.subject || 'Empty commit message'}
+                        </span></Tooltip>
+                      <Tooltip content={commit.authorName}><span className="text-[10px] text-[#8b8b93] truncate shrink min-w-[30px]">
+                          {commit.authorName}
+                        </span></Tooltip>
                       
                       {commit.refs.length > 0 && (
                         <div className="flex items-center gap-1 shrink-0 ml-auto">
@@ -385,18 +390,16 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                             const isRemote = ref.includes('origin/');
                             const displayName = isRemote ? '☁' : '◎';
                             return (
-                              <span 
-                                key={ref} 
-                                title={ref.replace('HEAD -> ', '')}
-                                className={cn(
-                                  "text-[10px] w-4 h-4 flex items-center justify-center rounded font-bold border",
-                                  isRemote 
-                                    ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
-                                    : "bg-[#3a71c1]/20 text-[#3a71c1] border-[#3a71c1]/30"
-                                )}
-                              >
-                                {displayName}
-                              </span>
+                              <Tooltip content={ref.replace('HEAD -> ', '')}><span
+                                  key={ref}
+                                  className={cn(
+                                    "text-[10px] w-4 h-4 flex items-center justify-center rounded font-bold border",
+                                    isRemote 
+                                      ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                                      : "bg-[#3a71c1]/20 text-[#3a71c1] border-[#3a71c1]/30"
+                                  )}>
+                                  {displayName}
+                                </span></Tooltip>
                             );
                           })}
                         </div>
@@ -428,12 +431,13 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                                     }}
                                   />
                                   <div className="flex-1 flex items-center justify-between ml-[10px] pr-2">
-                                  <span className="truncate pr-2 flex-1 text-[#e2e2e3]" title={file.path}>
-                                    {file.path.split('/').pop() || file.path.split('\\').pop()}
-                                  </span>
-                                  <span className="text-[#8b8b93] text-[9px] truncate max-w-[100px] hidden sm:block mr-2" title={file.path}>
-                                    {file.path.substring(0, Math.max(0, file.path.lastIndexOf('/')))}
-                                  </span>
+                                  <Tooltip content={file.path}><span className="truncate pr-2 flex-1 text-[#e2e2e3]">
+                                      {file.path.split('/').pop() || file.path.split('\\').pop()}
+                                    </span></Tooltip>
+                                  <Tooltip content={file.path}><span
+                                      className="text-[#8b8b93] text-[9px] truncate max-w-[100px] hidden sm:block mr-2">
+                                      {file.path.substring(0, Math.max(0, file.path.lastIndexOf('/')))}
+                                    </span></Tooltip>
                                   <span className={cn(
                                     "text-[10px] font-bold px-1 py-0.5 rounded shrink-0",
                                     file.status.includes('M') ? "text-[#e2c08d]" : 
@@ -443,8 +447,8 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                                     {file.status.includes('?') ? 'U' : file.status.trim()[0]}
                                   </span>
                                 </div>
-                              </div>
-                            );
+                                </div>
+                              );
                           })}
                         </div>
                       )}
