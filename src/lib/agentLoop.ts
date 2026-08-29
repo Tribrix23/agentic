@@ -1072,8 +1072,27 @@ export class AgentLoop {
               this.emit({ type: 'agent:error', data: { message: error.message } });
               reject(error);
             },
-            onSuccess: (fullText: string, finishReason?: string) => {
+            onSuccess: (fullText: string, finishReason?: string, tokenUsage?: any) => {
               console.log('[AgentLoop] API onSuccess called, setting isStreaming to false');
+              
+              if (tokenUsage && tokenUsage.prompt_tokens) {
+                const totalLimit = effectiveConfig.maxTokens || 128000;
+                const promptTokens = tokenUsage.prompt_tokens;
+                this.emit({ 
+                  type: 'agent:token-budget', 
+                  data: {
+                    total: totalLimit,
+                    systemPrompt: 0,
+                    tools: 0,
+                    projectContext: 0,
+                    conversationHistory: promptTokens,
+                    responseReserved: 0,
+                    available: totalLimit - promptTokens,
+                    utilizationPercent: Math.min(100, (promptTokens / totalLimit) * 100)
+                  }
+                });
+              }
+
               this.isStreaming = false;
               responseFinishReason = finishReason;
               fullResponseText = fullText;

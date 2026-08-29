@@ -227,6 +227,16 @@ export const MainContent = ({
       }
       setIsAgentRunning(false);
       isStreamingRef.current = false;
+      const savedBudget = localStorage.getItem(`quantix_token_budget_${id}`);
+      if (savedBudget) {
+        try {
+          setTokenBudget(JSON.parse(savedBudget));
+        } catch (e) {
+          setTokenBudget(undefined);
+        }
+      } else {
+        setTokenBudget(undefined);
+      }
     };
 
     const handleDeleteChat = (e: any) => {
@@ -246,10 +256,12 @@ export const MainContent = ({
           setChatTitle(nextChat.title);
           const loaded = loadMessages(nextChat.id);
           setMessages(loaded.length > 0 ? loaded : []);
+          setTokenBudget(undefined);
         } else {
           setActiveConversationId(null);
           setChatTitle(null);
           setMessages([]);
+          setTokenBudget(undefined);
         }
       }
       localStorage.removeItem(`quantix_messages_${id}`);
@@ -261,6 +273,7 @@ export const MainContent = ({
       setMessages([]);
       setIsAgentRunning(false);
       isStreamingRef.current = false;
+      setTokenBudget(undefined);
     };
 
     window.addEventListener('load-conversation', handleLoadChat);
@@ -804,9 +817,12 @@ IMPORTANT RULES:
       case 'agent:iteration':
         setAgentIteration(event.data.iteration);
         break;
-      case 'agent:token-budget':
-        setTokenBudget(event.data);
-        break;
+        case 'agent:token-budget':
+          setTokenBudget(event.data);
+          if (activeConversationIdRef.current) {
+            localStorage.setItem(`quantix_token_budget_${activeConversationIdRef.current}`, JSON.stringify(event.data));
+          }
+          break;
       case 'agent:summarizing':
         setAgentStatus('Summarizing history...');
         break;
@@ -1723,6 +1739,7 @@ IMPORTANT RULES:
                       }
                       setActiveConversationId(null);
                       setChatTitle(null);
+                      setTokenBudget(undefined);
                       return [];
                     } else {
                       // ── 4b. Undoing a subsequent message -> trim the messages array to remove this user message and all subsequent messages
@@ -1793,6 +1810,7 @@ IMPORTANT RULES:
                   if (updated.interactionMode) window.dispatchEvent(new CustomEvent('interaction-mode-changed', { detail: { mode: updated.interactionMode } }));
                 }}
                 value={inputValue}
+                tokenBudget={tokenBudget}
                 onChange={setInputValue}
                 userId={user.token}
               />

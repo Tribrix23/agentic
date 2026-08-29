@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
 import { OpenAIIcon } from '../icons/OpenAIIcon';
 import { fetchTokenQuota, getQuotaTarget, TokenQuotaSnapshot } from '../../lib/tokenQuota';
+import { TokenBudget } from '../../lib/tokenCounter';
 
 const QwenIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
@@ -56,6 +57,58 @@ const GLMIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
+const TokenCircleIndicator = ({ budget }: { budget: TokenBudget }) => {
+  const radius = 6;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (budget.utilizationPercent / 100) * circumference;
+  
+  // Calculate raw number for tooltip (e.g. 144K)
+  const formatK = (num: number) => (num > 1000 ? (num / 1000).toFixed(0) + 'K' : num.toString());
+  const usedTokens = budget.total - budget.available;
+
+  let colorClass = "text-gray-400";
+  if (budget.utilizationPercent > 90) colorClass = "text-red-500";
+  else if (budget.utilizationPercent > 75) colorClass = "text-amber-500";
+
+  return (
+    <div className="relative group flex items-center justify-center mr-2">
+      <svg className="w-4 h-4 transform -rotate-90" viewBox="0 0 16 16">
+        {/* Background circle */}
+        <circle
+          cx="8"
+          cy="8"
+          r={radius}
+          stroke="currentColor"
+          strokeWidth="2"
+          fill="transparent"
+          className="text-gray-700/50"
+        />
+        {/* Progress circle */}
+        <circle
+          cx="8"
+          cy="8"
+          r={radius}
+          stroke="currentColor"
+          strokeWidth="2"
+          fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          className={cn("transition-all duration-300", colorClass)}
+          strokeLinecap="round"
+        />
+      </svg>
+      
+      {/* Tooltip */}
+      <div className="absolute bottom-full mb-2 right-[-8px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+        <div className="bg-[#2d2d30] text-gray-300 text-[11px] px-2.5 py-1.5 rounded shadow-lg border border-[#3e3e42] flex flex-col items-center gap-0.5">
+          <span className="font-medium text-white">{budget.utilizationPercent.toFixed(0)}% ({formatK(usedTokens)} / {formatK(budget.total)}) context used</span>
+        </div>
+        <div className="w-2 h-2 bg-[#2d2d30] border-b border-r border-[#3e3e42] transform rotate-45 absolute -bottom-1 right-3"></div>
+      </div>
+    </div>
+  );
+};
+
 interface PromptInputProps {
   onSend: (content: string, attachments?: FileAttachment[], mentionedFiles?: string[]) => void;
   onStop?: () => void;
@@ -67,9 +120,10 @@ interface PromptInputProps {
   onChange?: (val: string) => void;
   hasProject?: boolean;
   userId?: string;
+  tokenBudget?: TokenBudget;
 }
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId }: PromptInputProps) {
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget }: PromptInputProps) {
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
@@ -562,6 +616,10 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           </div>
 
           <div className="flex items-center gap-2">
+            <TokenCircleIndicator budget={tokenBudget || { 
+              total: 128000, utilizationPercent: 0, available: 128000, 
+              systemPrompt: 0, tools: 0, projectContext: 0, conversationHistory: 0, responseReserved: 0 
+            }} />
             {isAgentRunning ? (
               <button
                 onClick={onStop}
@@ -571,11 +629,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               </button>
             ) : (
               <div className="relative group">
-                {!hasProject && (
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                    Choose a project first
-                  </div>
-                )}
+                  {!hasProject && (
+                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      Choose a project first
+                    </div>
+                  )}
                 <button
                   onClick={() => {
                     if ((content.trim() || selectedImages.length > 0) && hasProject) {
@@ -594,7 +652,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 >
                   {(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
                 </button>
-              </div>
+                </div>
             )}
           </div>
         </div>

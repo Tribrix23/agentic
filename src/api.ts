@@ -35,7 +35,7 @@ export interface DispatcherAPIParams {
   onChunk: (chunk: string) => void;
   onToolCall?: (toolCall: ToolCall) => void;
   onError: (error: Error) => void;
-  onSuccess: (fullText: string, finishReason?: string) => void;
+  onSuccess: (fullText: string, finishReason?: string, usage?: any) => void;
   checkIsStreaming: () => boolean;
   signal?: AbortSignal;
   conversationId?: string;
@@ -591,7 +591,7 @@ export async function generateChatTitle(
     ],
     onChunk: chunk => { generated += chunk; },
     onError: (error: Error) => { requestError = error; },
-    onSuccess: fullText => { generated = fullText || generated; },
+    onSuccess: (fullText: string) => { generated = fullText || generated; },
     checkIsStreaming: () => true,
     conversationId: conversationId ? `${conversationId}_title` : undefined,
   });
@@ -621,7 +621,7 @@ async function handleStreamingResponse(
   response: Response,
   onChunk: (chunk: string) => void,
   onToolCall: ((toolCall: ToolCall) => void) | undefined,
-  onSuccess: (fullText: string, finishReason?: string) => void,
+  onSuccess: (fullText: string, finishReason?: string, tokenUsage?: any) => void,
   checkIsStreaming: () => boolean,
   chunkDelay: number,
   billingSession?: TokenBillingSession,
@@ -635,6 +635,7 @@ async function handleStreamingResponse(
   let isReasoning = false;
   let streamCancelled = false;
   let finishReason: string | undefined;
+  let tokenUsage: any = undefined;
 
   try {
     while (true) {
@@ -676,6 +677,10 @@ async function handleStreamingResponse(
             if (data.error) {
               const errMsg = typeof data.error === 'string' ? data.error : data.error.message || 'Unknown API Error';
               throw new Error(`Stream Error: ${errMsg}`);
+            }
+            
+            if (data.usage) {
+              tokenUsage = data.usage;
             }
 
             const delta = data.choices?.[0]?.delta;
@@ -770,7 +775,7 @@ async function handleStreamingResponse(
       fullContent += '\n</think>\n';
       onChunk('\n</think>\n');
     }
-    onSuccess(fullContent, finishReason);
+    onSuccess(fullContent, finishReason, tokenUsage);
   }
 }
 
