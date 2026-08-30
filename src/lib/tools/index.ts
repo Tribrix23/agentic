@@ -28,6 +28,7 @@ import { definition as executeCodeDef, handler as executeCodeHandler } from './d
 import { definition as analyzeDependenciesDef, handler as analyzeDependenciesHandler } from './definitions/analyzeDependencies';
 import { definition as formatCodeDef, handler as formatCodeHandler } from './definitions/formatCode';
 import { definition as runTestsDef, handler as runTestsHandler } from './definitions/runTests';
+import { definition as readSkillDef, handler as readSkillHandler } from './definitions/readSkill';
 import { definition as getGitBranchDef, handler as getGitBranchHandler } from './definitions/getGitBranch';
 import { definition as createBranchDef, handler as createBranchHandler } from './definitions/createBranch';
 import { definition as downloadFileDef, handler as downloadFileHandler } from './definitions/downloadFile';
@@ -110,6 +111,7 @@ export function initializeTools() {
   registerTool(listProcessesDef, listProcessesHandler);
   registerTool(killProcessDef, killProcessHandler);
   registerTool(readArtifactDef, readArtifactHandler);
+  registerTool(readSkillDef, readSkillHandler);
 }
 
 // Automatically register all tools when the module loads to survive HMR

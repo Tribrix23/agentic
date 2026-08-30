@@ -129,7 +129,7 @@ export const EnvironmentManagerView: React.FC<EnvironmentManagerViewProps> = ({ 
     let cancelled = false;
     const timeout = setTimeout(async () => {
       try {
-        const results = await window.electron.environment.searchPythonPackages(queryStr);
+        const results = await window.electron.environment.searchPythonPackages(queryStr, projectRoot);
         if (cancelled) return;
         setPackages(current => {
           const merged = [...current];

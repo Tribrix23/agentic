@@ -125,12 +125,12 @@ export class PythonProvider {
     });
   }
 
-  async searchPyPI(query: string): Promise<PythonPackage[]> {
+  async searchPyPI(query: string, executablePath?: string): Promise<PythonPackage[]> {
     const url = `https://pypi.org/pypi/${encodeURIComponent(query)}/json`;
     try {
       const data = await fetchJson(url);
       const packageName = data.info.name;
-      const installed = await this.getInstalledPackages();
+      const installed = await this.getInstalledPackages(executablePath);
       const installedVersion = installed[packageName.toLowerCase()];
       return [
         {
@@ -153,9 +153,9 @@ export class PythonProvider {
     }
   }
 
-  async getInstalledPackages(): Promise<Record<string, string>> {
+  async getInstalledPackages(executablePath?: string): Promise<Record<string, string>> {
     const packages: Record<string, string> = {};
-    const pythonCandidates = await this.findProjectInterpreter();
+    const pythonCandidates = executablePath || await this.findProjectInterpreter();
     if (!pythonCandidates) return packages;
     const result = await runCapture(pythonCandidates, ['-m', 'pip', 'list', '--format=json']);
     if (result.exitCode !== 0) return packages;

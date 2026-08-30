@@ -112,11 +112,21 @@
       "shortcutName": "Quantix Code",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
+      "installerSidebar": "assets/installerSidebar.bmp",
+      "uninstallerSidebar": "assets/installerSidebar.bmp",
       "installerHeaderIcon": "assets/icon.ico",
       "license": "assets/license.txt",
       "runAfterFinish": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
     },
+    "fileAssociations": [
+      {
+        "ext": ["py", "ipynb", "json", "md", "txt", "yaml", "yml"],
+        "name": "Quantix Source File",
+        "role": "Editor"
+      }
+    ],
     "linux": {
       "target": [
         "AppImage",

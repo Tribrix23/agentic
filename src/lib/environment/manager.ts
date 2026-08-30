@@ -176,15 +176,16 @@ export class EnvironmentManager {
     return operation;
   }
 
-  async searchPythonPackages(query: string): Promise<PythonPackage[]> {
-    return this.pythonProvider.searchPyPI(query);
+  async searchPythonPackages(query: string, projectRoot?: string): Promise<PythonPackage[]> {
+    const interpreter = projectRoot ? this.store.getProjectEnvironment(projectRoot)?.executablePath : undefined;
+    return this.pythonProvider.searchPyPI(query, interpreter);
   }
 
   async getPythonInstalledPackages(projectRoot: string): Promise<Record<string, string>> {
     const interpreter = this.store.getProjectEnvironment(projectRoot)?.executablePath;
     if (!interpreter) return {};
     const python = new PythonProvider(this.store);
-    return python.getInstalledPackages();
+    return python.getInstalledPackages(interpreter);
   }
 
   async installPythonPackage(pythonExecutable: string, packageName: string, projectRoot: string): Promise<void> {

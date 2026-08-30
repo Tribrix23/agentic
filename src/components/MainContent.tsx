@@ -18,6 +18,7 @@ import {
 } from '../lib/messageTypes';
 import { AgentLoop, createAgentLoop, AgentEvent } from '../lib/agentLoop';
 import { buildFileTreeString, ProjectContext } from '../lib/contextBuilder';
+import { getInstalledSkills, buildSkillsBlock } from '../lib/agentSkills';
 import { TokenBudget } from '../lib/tokenCounter';
 import { getPermissionConfig, checkPermission, setPermissionConfig } from '../lib/permissions';
 import { getToolsForLLM, getToolsForSubagent, getTool, getAllTools, getReadOnlyToolDefinitions, getPlanToolDefinitions, getInteractionMode, rejectPlanToolCall } from '../lib/tools';
@@ -1177,10 +1178,13 @@ IMPORTANT RULES:
       let fileTreeStr = '';
       if (selectedProject?.path) {
         fileTreeStr = projectFiles.length > 0 ? buildFileTreeString(projectFiles, 2) : '';
+        const skillsList = await getInstalledSkills(selectedProject.path);
+        
         projectContext = {
           rootPath: selectedProject.path,
           fileTree: fileTreeStr,
           gitBranch: selectedProject.branch || undefined,
+          agentSkillsBlock: buildSkillsBlock(skillsList)
         };
       }
 

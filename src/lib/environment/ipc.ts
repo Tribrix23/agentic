@@ -34,7 +34,7 @@ export function registerEnvironmentIpc(manager: EnvironmentManager, getWindow: (
     await shell.openExternal(manager.openOfficialLink(url));
     return true;
   });
-  ipcMain.handle('environment-search-python-packages', (_event, query: string) => manager.searchPythonPackages(query));
+  ipcMain.handle('environment-search-python-packages', (_event, query: string, projectRoot?: string) => manager.searchPythonPackages(query, projectRoot));
   ipcMain.handle('environment-get-python-installed-packages', (_event, projectRoot: string) => manager.getPythonInstalledPackages(projectRoot));
   ipcMain.handle('environment-install-python-package', (_event, pythonExecutable: string, packageName: string, projectRoot: string) => manager.installPythonPackage(pythonExecutable, packageName, projectRoot));
   ipcMain.handle('environment-uninstall-python-package', (_event, pythonExecutable: string, packageName: string, projectRoot: string) => manager.uninstallPythonPackage(pythonExecutable, packageName, projectRoot));

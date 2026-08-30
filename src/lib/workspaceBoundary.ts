@@ -37,6 +37,11 @@ export function assertPathWithinWorkspace(projectRoot: string, candidatePath: st
     // Ignore temp dir resolution errors
   }
 
+  // Allow access to agent skills directories anywhere
+  if (candidate.split(path.sep).includes('.agents')) {
+    return candidate;
+  }
+
   const relative = path.relative(root, candidate);
   if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
     return candidate;

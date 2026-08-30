@@ -3,6 +3,23 @@ import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Download, Search, Package } from 'lucide-react';
 import { Tooltip } from './ui/Tooltip';
 import { cn } from '../App';
+import { Addon, fetchAddons } from '../lib/addonsApi';
+import { AddonDetails } from './AddonDetails';
+import { VerifiedBadge } from './ui/VerifiedBadge';
+import { AnimatedInstallButton } from './ui/AnimatedInstallButton';
+import { useEffect } from 'react';
+
+const getSkillNameFromLink = (link?: string) => {
+  if (!link) return null;
+  const match = link.match(/--skill\s+([\w-]+)/);
+  return match ? match[1] : null;
+};
+
+const getSourceFromLink = (link?: string) => {
+  if (!link) return null;
+  const match = link.match(/add\s+([^\s]+)/);
+  return match ? match[1] : null;
+};
 
 interface AddonsViewProps {
   onClose: () => void;
@@ -16,9 +33,8 @@ const cardVariants = {
     y: 0,
     transition: {
       delay: i * 0.05,
-      type: "spring" as const,
-      stiffness: 350,
-      damping: 25,
+      duration: 0.4,
+      ease: "easeOut" as const
     }
   }),
   exit: {
@@ -37,6 +53,70 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
   const { scrollY } = useScroll({ container: containerRef });
   
   const [currentTab, setCurrentTab] = useState<'store' | 'downloads'>('store');
+  const [selectedAddon, setSelectedAddon] = useState<string | null>(null);
+  const [addonsList, setAddonsList] = useState<Addon[]>([]);
+  const [installedSkillNames, setInstalledSkillNames] = useState<Set<string>>(new Set());
+  const [installedSources, setInstalledSources] = useState<Set<string>>(new Set());
+  const [installedSourceMap, setInstalledSourceMap] = useState<Record<string, string[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [processingStates, setProcessingStates] = useState<Record<string, boolean>>({});
+
+  const refreshInstalledSkills = async () => {
+    try {
+      const electron = (window as any).electron;
+      if (electron) {
+        const appPath = await electron.getAppPath();
+        const res = await electron.readFileContent(`${appPath}/skills/skills-lock.json`);
+        if (typeof res === 'string') {
+          const data = JSON.parse(res);
+          const sources = new Set<string>();
+          const names = new Set<string>();
+          const sourceMap: Record<string, string[]> = {};
+          if (data && data.skills) {
+            for (const key in data.skills) {
+              names.add(key);
+              const source = data.skills[key].source;
+              if (source) {
+                sources.add(source);
+                if (!sourceMap[source]) sourceMap[source] = [];
+                sourceMap[source].push(key);
+              }
+            }
+          }
+          setInstalledSkillNames(names);
+          setInstalledSources(sources);
+          setInstalledSourceMap(sourceMap);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load installed skills', e);
+    }
+    
+    // Fallback to older agentSkills method
+    try {
+      const { getInstalledSkills } = await import('../lib/agentSkills');
+      const skills = await getInstalledSkills('');
+      setInstalledSkillNames(new Set(skills.map(s => s.name)));
+    } catch (e) {
+      console.error('Failed to load installed skills', e);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const loadData = async () => {
+      setIsLoading(true);
+      await refreshInstalledSkills();
+      const data = await fetchAddons();
+      if (mounted) {
+        setAddonsList(data);
+        setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => { mounted = false; };
+  }, []);
   
   // Parallax for hero section
   const heroY = useTransform(scrollY, [0, 300], [0, 100]);
@@ -52,12 +132,16 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
       {/* Header - Fixed at Top */}
       <div className="flex items-center px-6 py-4 border-b border-white/5 shrink-0 bg-[#08080c]/80 backdrop-blur-md z-20">
         <div className="flex items-center gap-6 w-1/4">
-          <Tooltip content={currentTab === 'downloads' ? "Back to Store" : "Return to App"} position="right">
+          <Tooltip content={selectedAddon ? "Back to Store" : currentTab === 'downloads' ? "Back to Store" : "Return to App"} position="right">
             <button 
-              onClick={() => currentTab === 'downloads' ? setCurrentTab('store') : onClose()}
-              className="w-8 h-8 hover:bg-white/10 rounded-md transition-colors flex items-center justify-center text-[#94a3b8] hover:text-white"
+              onClick={() => {
+                if (selectedAddon) setSelectedAddon(null);
+                else if (currentTab === 'downloads') setCurrentTab('store');
+                else onClose();
+              }}
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors text-[#94a3b8] hover:text-white"
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft className="w-5 h-5" />
             </button>
           </Tooltip>
           <span className="text-lg font-semibold tracking-wide text-white/90">
@@ -100,10 +184,19 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
       {/* Scrollable Content Area */}
       <div 
         ref={containerRef}
-        className={cn("flex-1 relative z-10 w-full flex flex-col", currentTab === 'store' ? "overflow-y-auto custom-scrollbar" : "overflow-hidden")}
+        className={cn("flex-1 relative z-10 w-full flex flex-col", currentTab === 'store' && !selectedAddon ? "overflow-y-auto custom-scrollbar" : "overflow-hidden")}
       >
         <AnimatePresence mode="wait">
-          {currentTab === 'store' ? (
+          {selectedAddon ? (
+            <AddonDetails 
+              key="details"
+              addonId={selectedAddon} 
+              onBack={() => {
+                setSelectedAddon(null);
+                refreshInstalledSkills();
+              }} 
+            />
+          ) : currentTab === 'store' ? (
             <motion.div 
               key="store"
               initial={{ opacity: 0, x: -20 }}
@@ -137,70 +230,142 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                 </motion.div>
               </div>
 
-              {/* Trending Section */}
+              {/* Addons Grid Section */}
               <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold tracking-wide">Trending Add-ons</h2>
-                  <button className="text-sm text-[#94a3b8] hover:text-white transition-colors">See all</button>
-                </div>
-                
                 <motion.div 
                   initial="hidden"
                   animate="visible"
                   exit="exit"
                   className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
                 >
-                  {[...Array(8)].map((_, i) => (
-                    <motion.div 
-                      key={i} 
-                      custom={i}
-                      variants={cardVariants}
-                      className="bg-[#0f0f13] border border-white/5 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/5 transition-colors cursor-pointer group shadow-sm hover:shadow-xl"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 bg-white/10 rounded-xl animate-pulse shrink-0" />
-                        <div className="flex-1 space-y-2.5 py-1">
-                          <div className="w-full h-4 bg-white/10 rounded animate-pulse" />
-                          <div className="w-2/3 h-3 bg-white/10 rounded animate-pulse" />
+                  {isLoading ? (
+                    [...Array(8)].map((_, i) => (
+                      <motion.div 
+                        key={i} 
+                        custom={i}
+                        variants={cardVariants}
+                        className="bg-[#0f0f13] border border-white/5 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/5 transition-colors cursor-pointer group shadow-sm hover:shadow-xl"
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 bg-white/10 rounded-xl animate-pulse shrink-0" />
+                          <div className="flex-1 space-y-2.5 py-1">
+                            <div className="w-full h-4 bg-white/10 rounded animate-pulse" />
+                            <div className="w-2/3 h-3 bg-white/10 rounded animate-pulse" />
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center justify-between mt-auto pt-3">
-                        <div className="w-12 h-4 bg-white/10 rounded animate-pulse" />
-                        <div className="w-16 h-8 bg-white/10 rounded-md animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              </div>
-              
-              {/* Recommended Themes Section */}
-              <div className="space-y-5 pb-10">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold tracking-wide">Recommended Themes</h2>
-                  <button className="text-sm text-[#94a3b8] hover:text-white transition-colors">See all</button>
-                </div>
-                
-                <motion.div 
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="grid grid-cols-1 lg:grid-cols-2 gap-5"
-                >
-                  {[...Array(4)].map((_, i) => (
-                    <motion.div 
-                      key={i}
-                      custom={i + 8} // Stagger after the first 8 items
-                      variants={cardVariants}
-                      className="bg-[#0f0f13] border border-white/5 rounded-xl p-5 flex items-center gap-5 hover:bg-white/5 transition-colors cursor-pointer group shadow-sm hover:shadow-xl"
-                    >
-                      <div className="w-32 h-20 bg-white/10 rounded-lg animate-pulse shrink-0" />
-                      <div className="flex-1 space-y-2.5">
-                        <div className="w-1/2 h-4 bg-white/10 rounded animate-pulse" />
-                        <div className="w-3/4 h-3 bg-white/10 rounded animate-pulse" />
-                      </div>
-                      <div className="w-16 h-8 bg-white/10 rounded-md animate-pulse opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </motion.div>
-                  ))}
+                        <div className="flex items-center justify-between mt-auto pt-3">
+                          <div className="w-12 h-4 bg-white/10 rounded animate-pulse" />
+                          <div className="w-16 h-8 bg-white/10 rounded-md animate-pulse opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </motion.div>
+                    ))
+                  ) : (
+                    addonsList.map((item, i) => {
+                      const skillName = getSkillNameFromLink(item.download_link);
+                      const sourceName = getSourceFromLink(item.download_link);
+                      const isInstalled = (skillName && installedSkillNames.has(skillName)) || (sourceName && installedSources.has(sourceName)) ? true : false;
+                      const isProcessing = processingStates[item.id] || false;
+                      
+                      return (
+                      <motion.div 
+                        key={item.id} 
+                        custom={i}
+                        variants={cardVariants}
+                        className="bg-[#0f0f13] border border-white/5 rounded-xl p-5 flex flex-col gap-4 hover:bg-white/5 transition-colors cursor-pointer group shadow-sm hover:shadow-xl"
+                        onClick={() => setSelectedAddon(item.id)}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-black/20 border border-white/10 flex items-center justify-center">
+                            {item.first_image ? (
+                              <img src={item.first_image} alt="icon" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="text-2xl text-white/20">{item.title.charAt(0)}</div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-sm font-medium text-white truncate">{item.title}</h3>
+                              {item.is_verified && <VerifiedBadge className="w-3.5 h-3.5 shrink-0" />}
+                            </div>
+                            <p className="text-xs text-[#94a3b8] mt-1 line-clamp-2 leading-relaxed">{item.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-auto pt-3">
+                          <span className="text-xs font-medium text-[#94a3b8]">Free</span>
+                          <AnimatedInstallButton 
+                            className="px-4 py-1.5 text-xs font-semibold bg-[#4f70db] text-white rounded-md hover:bg-[#5f80eb] transition-colors shadow-sm" 
+                            isInstalled={isInstalled}
+                            isProcessing={isProcessing}
+                            onClick={async (e) => { 
+                              e.stopPropagation(); 
+                              if (!item.download_link || isProcessing) return;
+                              
+                              setProcessingStates(prev => ({ ...prev, [item.id]: true }));
+                              try {
+                                const electron = (window as any).electron;
+                                if (electron) {
+                                  const appPath = await electron.getAppPath();
+                                  const skillsPath = `${appPath}/skills`;
+                                  let cmd = item.download_link;
+                                  
+                                  if (isInstalled) {
+                                    const source = getSourceFromLink(item.download_link);
+                                    if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
+                                      const skillNames = installedSourceMap[source];
+                                      const isWin = navigator.userAgent.toLowerCase().includes('win');
+                                      
+                                      // 1. Delete the physical skill folders
+                                      for (const skill of skillNames) {
+                                        const folder = `${skillsPath}/.agents/skills/${skill}`;
+                                        const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
+                                        await electron.runCommandCapture(rmCmd, skillsPath);
+                                      }
+                                      
+                                      // 2. Remove them from skills-lock.json
+                                      try {
+                                        const lockPath = `${skillsPath}/skills-lock.json`;
+                                        const res = await electron.readFileContent(lockPath);
+                                        if (typeof res === 'string') {
+                                          const lockData = JSON.parse(res);
+                                          if (lockData && lockData.skills) {
+                                            for (const skill of skillNames) {
+                                              delete lockData.skills[skill];
+                                            }
+                                            await electron.saveFileContent(lockPath, JSON.stringify(lockData, null, 2));
+                                          }
+                                        }
+                                      } catch (err) {
+                                        console.error('Failed to update skills-lock.json', err);
+                                      }
+                                      
+                                      // We did manual uninstall, skip running any CLI command
+                                      cmd = '';
+                                    } else {
+                                      // For non-npx-skills, use the replacement fallback
+                                      cmd = cmd.replace('add', 'remove').replace('install', 'uninstall');
+                                    }
+                                  }
+                                  
+                                  if (cmd) {
+                                    if (!cmd.includes('-y')) {
+                                      cmd += ' -y';
+                                    }
+                                    console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
+                                    await electron.runCommandCapture(cmd, skillsPath);
+                                  }
+                                }
+                              } catch (err) {
+                                console.error('Failed to process skill:', err);
+                              } finally {
+                                await refreshInstalledSkills();
+                                setProcessingStates(prev => ({ ...prev, [item.id]: false }));
+                              }
+                            }}
+                          />
+                        </div>
+                      </motion.div>
+                    )})
+                  )}
                 </motion.div>
               </div>
 
@@ -234,26 +399,109 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                 className="flex-1 overflow-y-auto custom-scrollbar pt-6 pb-20 space-y-3"
                 style={{ maskImage: 'linear-gradient(to bottom, transparent, black 15px, black calc(100% - 30px), transparent)' }}
               >
-                {[...Array(12)].map((_, i) => (
+                {addonsList.filter(item => {
+                  const skill = getSkillNameFromLink(item.download_link);
+                  const source = getSourceFromLink(item.download_link);
+                  return (skill && installedSkillNames.has(skill)) || (source && installedSources.has(source));
+                }).map((item, i) => (
                   <motion.div 
-                    key={i}
+                    key={item.id}
                     custom={i}
                     variants={cardVariants}
                     initial="hidden"
                     animate="visible"
-                    className="bg-[#0f0f13] border border-white/5 rounded-xl p-4 flex items-center gap-6 hover:bg-white/5 transition-colors"
+                    className="bg-[#0f0f13] border border-white/5 rounded-xl p-4 flex items-center gap-6 hover:bg-white/5 transition-colors cursor-pointer group"
+                    onClick={() => setSelectedAddon(item.id)}
                   >
-                    <div className="w-12 h-12 bg-white/10 rounded-lg animate-pulse shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="w-48 h-4 bg-white/10 rounded animate-pulse" />
-                      <div className="w-full max-w-md h-1.5 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500/50 w-1/3 rounded-full animate-pulse" />
-                      </div>
-                      <div className="w-32 h-3 bg-white/10 rounded animate-pulse" />
+                    <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center bg-black/20 border border-white/10">
+                      {item.first_image ? (
+                        <img src={item.first_image} alt="icon" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-xl text-white/20">{item.title.charAt(0)}</div>
+                      )}
                     </div>
-                    <div className="w-8 h-8 bg-white/10 rounded-full animate-pulse shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-white truncate">{item.title}</h4>
+                      <p className="text-xs text-[#94a3b8] mt-1 truncate">{item.description}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <AnimatedInstallButton 
+                        className="px-3 py-1.5 text-xs font-semibold bg-[#4f70db] text-white rounded-md hover:bg-[#5f80eb] transition-colors shadow-sm" 
+                        isInstalled={true}
+                        isProcessing={processingStates[item.id] || false}
+                        onClick={async (e) => { 
+                          e.stopPropagation(); 
+                          if (!item.download_link || processingStates[item.id]) return;
+                          
+                          setProcessingStates(prev => ({ ...prev, [item.id]: true }));
+                          try {
+                            const electron = (window as any).electron;
+                            if (electron) {
+                              const appPath = await electron.getAppPath();
+                              const skillsPath = `${appPath}/skills`;
+                              let cmd = item.download_link;
+                              const source = getSourceFromLink(item.download_link);
+                              
+                              if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
+                                const skillNames = installedSourceMap[source];
+                                const isWin = navigator.userAgent.toLowerCase().includes('win');
+                                
+                                for (const skill of skillNames) {
+                                  const folder = `${skillsPath}/.agents/skills/${skill}`;
+                                  const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
+                                  await electron.runCommandCapture(rmCmd, skillsPath);
+                                }
+                                
+                                try {
+                                  const lockPath = `${skillsPath}/skills-lock.json`;
+                                  const res = await electron.readFileContent(lockPath);
+                                  if (typeof res === 'string') {
+                                    const lockData = JSON.parse(res);
+                                    if (lockData && lockData.skills) {
+                                      for (const skill of skillNames) {
+                                        delete lockData.skills[skill];
+                                      }
+                                      await electron.saveFileContent(lockPath, JSON.stringify(lockData, null, 2));
+                                    }
+                                  }
+                                } catch (err) {
+                                  console.error('Failed to update skills-lock.json', err);
+                                }
+                                cmd = '';
+                              } else {
+                                cmd = cmd.replace('add', 'remove').replace('install', 'uninstall');
+                              }
+                              
+                              if (cmd) {
+                                if (!cmd.includes('-y')) {
+                                  cmd += ' -y';
+                                }
+                                console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
+                                await electron.runCommandCapture(cmd, skillsPath);
+                              }
+                            }
+                          } catch (err) {
+                            console.error('Failed to process skill:', err);
+                          } finally {
+                            await refreshInstalledSkills();
+                            setProcessingStates(prev => ({ ...prev, [item.id]: false }));
+                          }
+                        }}
+                      />
+                    </div>
                   </motion.div>
                 ))}
+                
+                {addonsList.filter(item => {
+                  const skill = getSkillNameFromLink(item.download_link);
+                  const source = getSourceFromLink(item.download_link);
+                  return (skill && installedSkillNames.has(skill)) || (source && installedSources.has(source));
+                }).length === 0 && !isLoading && (
+                  <div className="flex flex-col items-center justify-center h-48 text-[#94a3b8]">
+                    <Package className="w-12 h-12 mb-4 opacity-20" />
+                    <p className="text-sm">No add-ons installed yet</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

@@ -174,7 +174,12 @@ export class McpClientManager {
       }
 
       const validate = ajv.compile(tool.inputSchema || { type: 'object' });
-      if (!validate(args)) return { success: false, output: `Invalid arguments for ${serverId}:${toolName}: ${ajv.errorsText(validate.errors)}\n\nHINT: The Playwright MCP server requires specific schema keys (e.g., 'target' instead of 'selector'). Read the tool schema carefully.` };
+      if (!validate(args)) {
+        let hint = "HINT: Read the tool schema carefully and ensure all required properties are provided with the correct types.";
+        if (serverId.toLowerCase().includes('playwright')) hint = "HINT: The Playwright MCP server requires specific schema keys (e.g., 'target' instead of 'selector'). Read the tool schema carefully.";
+        if (toolName.toLowerCase().includes('sequentialthinking')) hint = "HINT: The sequential thinking tool requires you to explicitly provide your thought process in the 'thought' property.";
+        return { success: false, output: `Invalid arguments for ${serverId}:${toolName}: ${ajv.errorsText(validate.errors)}\n\n${hint}` };
+      }
       const result = await record.client!.callTool({ name: toolName, arguments: args }, undefined, { signal, timeout: timeoutMs, maxTotalTimeout: timeoutMs });
       if (!this.isCurrent(record, generation) || record.status !== 'ready') throw new Error(`MCP connection changed during tool call: ${serverId}:${toolName}`);
       if (!result || !Array.isArray((result as any).content)) throw new Error('MCP server returned a malformed tool result.');

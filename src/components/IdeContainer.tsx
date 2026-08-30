@@ -342,24 +342,18 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
       return;
     }
 
-    setOutputLines([{ text: `Running ${fileName}...`, stream: 'info' }]);
-    setBottomPanelRequest(previous => ({ tab: 'output', id: previous.id + 1 }));
     try {
-      const result = await (window as any).electron.runCodeFile(filePath, activeProject.path);
-      const lines: OutputLine[] = [];
-      if (result.stdout) {
-        lines.push(...String(result.stdout).replace(/\r/g, '').split('\n').map(text => ({ text, stream: 'stdout' as const })));
+      const command = await (window as any).electron.getRunCommandForFile(filePath, activeProject.path);
+      if (command) {
+        setBottomPanelRequest(previous => ({ tab: 'terminal', id: previous.id + 1 }));
+        await (window as any).electron.sendTerminalData(command + '\r');
+      } else {
+        setOutputLines([{ text: `No code runner is configured for this file type.`, stream: 'stderr' }]);
+        setBottomPanelRequest(previous => ({ tab: 'output', id: previous.id + 1 }));
       }
-      if (result.stderr) {
-        lines.push(...String(result.stderr).replace(/\r/g, '').split('\n').map(text => ({ text, stream: 'stderr' as const })));
-      }
-      lines.push({
-        text: result.success ? `Process finished with exit code 0.` : `Process finished with exit code ${result.exitCode ?? 1}.`,
-        stream: result.success ? 'info' : 'stderr',
-      });
-      setOutputLines(lines);
     } catch (error) {
       setOutputLines([{ text: error instanceof Error ? error.message : String(error), stream: 'stderr' }]);
+      setBottomPanelRequest(previous => ({ tab: 'output', id: previous.id + 1 }));
     }
   };
 

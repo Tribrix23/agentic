@@ -25,6 +25,7 @@ export interface ProjectContext {
   gitBranch?: string;
   gitStatus?: string;
   techStack?: string[];
+  agentSkillsBlock?: string;
 }
 
 /** Result of context building */
@@ -278,6 +279,9 @@ export function buildContext(
   // ── 2. Project Context Injection ─────────────────────────────────────
   // Skip if cachedSystemPrompt is provided (it already includes project context)
   if (projectContext && !cachedSystemPrompt) {
+    if (projectContext.agentSkillsBlock) {
+      systemPromptParts.push(projectContext.agentSkillsBlock);
+    }
     const projectLines: string[] = [];
     projectLines.push('\n<project_context>');
     projectLines.push(`Project Root: ${projectContext.rootPath}`);

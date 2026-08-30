@@ -22,6 +22,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   'listProcesses',
   'getClipboard',
   'sequentialThinking',
+  'readSkill',
 ]);
 
 export function isReadOnlyToolName(name: string): boolean {

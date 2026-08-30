@@ -251,7 +251,7 @@ function createWindow() {
 
   if (!mcpClientManager.getServer('sequential-thinking')) {
     const isPackaged = app.isPackaged;
-    const serverEntry = isPackaged 
+    const serverEntry = isPackaged
       ? path.join(process.resourcesPath, 'agentic-mcp-server', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js')
       : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js');
     mcpClientManager.addServer({
@@ -271,10 +271,10 @@ function createWindow() {
 
   if (!mcpClientManager.getServer('agentic-mcp-server')) {
     const isPackaged = app.isPackaged;
-    const agenticPath = isPackaged 
+    const agenticPath = isPackaged
       ? path.join(process.resourcesPath, 'agentic-mcp-server', 'dist', 'index.js')
       : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'dist', 'index.js');
-    
+
     mcpClientManager.addServer({
       id: 'agentic-mcp-server',
       name: 'Agentic MCP Server',
@@ -375,6 +375,9 @@ function createWindow() {
   ipcMain.on('open-external', (_event, url) => {
     shell.openExternal(url);
   });
+
+  ipcMain.removeHandler('get-app-path');
+  ipcMain.handle('get-app-path', () => app.getAppPath());
 
   ipcMain.removeHandler('mcp-add-server');
   ipcMain.handle('mcp-add-server', (_event, config: McpServerConfig) => mcpClientManager.addServer(config));
@@ -528,7 +531,7 @@ function createWindow() {
           return a.type === 'folder' ? -1 : 1;
         });
       } catch (e) {
-        console.error('[IPC] Failed to read dir:', dir, e);
+        // Directory does not exist or access denied; return empty silently
         return [];
       }
     }
@@ -545,11 +548,11 @@ function createWindow() {
         const buffer = fs.readFileSync(safePath);
         const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext);
         const isBinary = ['exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z'].includes(ext);
-        const mimeType = isVideo ? `video/${ext === 'mov' ? 'quicktime' : ext === 'mkv' ? 'x-matroska' : ext}` 
+        const mimeType = isVideo ? `video/${ext === 'mov' ? 'quicktime' : ext === 'mkv' ? 'x-matroska' : ext}`
           : isBinary ? 'application/octet-stream'
-          : ext === 'svg' ? 'image/svg+xml' 
-          : ext === 'jpg' ? 'image/jpeg' 
-          : `image/${ext}`;
+            : ext === 'svg' ? 'image/svg+xml'
+              : ext === 'jpg' ? 'image/jpeg'
+                : `image/${ext}`;
         return `data:${mimeType};base64,${buffer.toString('base64')}`;
       }
       return fs.readFileSync(safePath, 'utf8');
@@ -729,7 +732,7 @@ function createWindow() {
     try {
       const root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
       const files: Array<{ path: string; status: 'added' | 'modified' | 'deleted' | 'untracked' }> = [];
-      
+
       const diffOutput = await runGit(['diff', '--name-status', '-z', commit], root);
       const diffParts = diffOutput.split('\0').filter(Boolean);
       for (let i = 0; i < diffParts.length; i += 2) {
@@ -817,7 +820,9 @@ function createWindow() {
       });
 
       ptyProcess.onData((data: string) => {
-        event.sender.send('terminal-data', data);
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('terminal-data', data);
+        }
       });
     }
 
@@ -949,6 +954,45 @@ function createWindow() {
     }
   });
 
+  ipcMain.removeHandler('get-run-command-for-file');
+  ipcMain.handle('get-run-command-for-file', async (_event, filePath: string, cwd: string) => {
+    const resolvedCwd = path.resolve(cwd || path.dirname(filePath));
+    const resolvedFile = path.resolve(filePath);
+    const extension = path.extname(resolvedFile).toLowerCase();
+
+    const env = environmentManager?.store.getProjectEnvironment(cwd);
+    const isPythonEnv = env?.executablePath?.toLowerCase().includes('python') || env?.executablePath?.toLowerCase().includes('venv');
+    const pyExe = isPythonEnv ? env!.executablePath! : (process.platform === 'win32' ? 'python' : 'python3');
+
+    const runners: Record<string, { command: string; args: string[] }> = {
+      '.bat': { command: 'cmd.exe', args: ['/d', '/c', resolvedFile] },
+      '.cmd': { command: 'cmd.exe', args: ['/d', '/c', resolvedFile] },
+      '.dart': { command: 'dart', args: [resolvedFile] },
+      '.go': { command: 'go', args: ['run', resolvedFile] },
+      '.java': { command: 'java', args: [resolvedFile] },
+      '.js': { command: 'node', args: [resolvedFile] },
+      '.cjs': { command: 'node', args: [resolvedFile] },
+      '.mjs': { command: 'node', args: [resolvedFile] },
+      '.lua': { command: 'lua', args: [resolvedFile] },
+      '.php': { command: 'php', args: [resolvedFile] },
+      '.ps1': { command: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolvedFile] },
+      '.py': { command: pyExe, args: [resolvedFile] },
+      '.pyw': { command: pyExe, args: [resolvedFile] },
+      '.rb': { command: 'ruby', args: [resolvedFile] },
+      '.sh': { command: 'bash', args: [resolvedFile] },
+      '.ts': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
+      '.tsx': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
+    };
+
+    const runner = runners[extension];
+    if (!runner) return null;
+
+    // Quote arguments that contain spaces
+    const safeArgs = runner.args.map(arg => arg.includes(' ') ? `"${arg}"` : arg);
+    const safeCommand = runner.command.includes(' ') ? `"${runner.command}"` : runner.command;
+    return `${safeCommand} ${safeArgs.join(' ')}`;
+  });
+
   // Vite may reload the main process while an Electron instance is still alive.
   // Remove old invoke handlers so the rebuilt implementation is always installed.
   ipcMain.removeHandler('run-code-file');
@@ -965,6 +1009,10 @@ function createWindow() {
     }
 
     const extension = path.extname(resolvedFile).toLowerCase();
+    const env = environmentManager?.store.getProjectEnvironment(cwd);
+    const isPythonEnv = env?.executablePath?.toLowerCase().includes('python') || env?.executablePath?.toLowerCase().includes('venv');
+    const pyExe = isPythonEnv ? env!.executablePath! : (process.platform === 'win32' ? 'python' : 'python3');
+
     const runners: Record<string, { command: string; args: string[] }> = {
       '.bat': { command: 'cmd.exe', args: ['/d', '/c', resolvedFile] },
       '.cmd': { command: 'cmd.exe', args: ['/d', '/c', resolvedFile] },
@@ -977,8 +1025,8 @@ function createWindow() {
       '.lua': { command: 'lua', args: [resolvedFile] },
       '.php': { command: 'php', args: [resolvedFile] },
       '.ps1': { command: 'powershell.exe', args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolvedFile] },
-      '.py': { command: process.platform === 'win32' ? 'python' : 'python3', args: [resolvedFile] },
-      '.pyw': { command: process.platform === 'win32' ? 'python' : 'python3', args: [resolvedFile] },
+      '.py': { command: pyExe, args: [resolvedFile] },
+      '.pyw': { command: pyExe, args: [resolvedFile] },
       '.rb': { command: 'ruby', args: [resolvedFile] },
       '.sh': { command: 'bash', args: [resolvedFile] },
       '.ts': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
@@ -1274,17 +1322,21 @@ function createWindow() {
     }
   });
 
+  const isDevtools = false; // Set to false to disable DevTools shortcut
+
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    const isDevToolsShortcut = 
-      (input.control && input.shift && input.key.toLowerCase() === 'i') || 
+    const isDevToolsShortcut =
+      (input.control && input.shift && input.key.toLowerCase() === 'i') ||
       (input.meta && input.alt && input.key.toLowerCase() === 'i') ||
       (input.key === 'F12');
-      
+
     if (isDevToolsShortcut) {
-      if (mainWindow?.webContents.isDevToolsOpened()) {
-        mainWindow.webContents.closeDevTools();
-      } else {
-        mainWindow?.webContents.openDevTools({ mode: 'detach' });
+      if (isDevtools) {
+        if (mainWindow?.webContents.isDevToolsOpened()) {
+          mainWindow.webContents.closeDevTools();
+        } else {
+          mainWindow?.webContents.openDevTools({ mode: 'detach' });
+        }
       }
       event.preventDefault();
     }
