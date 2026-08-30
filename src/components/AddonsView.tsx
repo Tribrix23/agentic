@@ -65,8 +65,8 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
     try {
       const electron = (window as any).electron;
       if (electron) {
-        const appPath = await electron.getAppPath();
-        const res = await electron.readFileContent(`${appPath}/skills/skills-lock.json`);
+        const userDataPath = await electron.getUserDataPath();
+        const res = await electron.readFileContent(`${userDataPath}/skills/skills-lock.json`);
         if (typeof res === 'string') {
           const data = JSON.parse(res);
           const sources = new Set<string>();
@@ -304,8 +304,8 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                               try {
                                 const electron = (window as any).electron;
                                 if (electron) {
-                                  const appPath = await electron.getAppPath();
-                                  const skillsPath = `${appPath}/skills`;
+                                  const userDataPath = await electron.getUserDataPath();
+                                  const skillsPath = `${userDataPath}/skills`;
                                   let cmd = item.download_link;
                                   
                                   if (isInstalled) {
@@ -351,11 +351,15 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                                       cmd += ' -y';
                                     }
                                     console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
-                                    await electron.runCommandCapture(cmd, skillsPath);
+                                    const result = await electron.runCommandCapture(cmd, skillsPath);
+                                    if (!result.success || result.exitCode !== 0) {
+                                      alert(`Failed to install addon:\n${result.stderr || result.error || result.stdout || 'Unknown error'}`);
+                                    }
                                   }
                                 }
-                              } catch (err) {
+                              } catch (err: any) {
                                 console.error('Failed to process skill:', err);
+                                alert(`Failed to install: ${err.message}`);
                               } finally {
                                 await refreshInstalledSkills();
                                 setProcessingStates(prev => ({ ...prev, [item.id]: false }));
@@ -437,8 +441,8 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                           try {
                             const electron = (window as any).electron;
                             if (electron) {
-                              const appPath = await electron.getAppPath();
-                              const skillsPath = `${appPath}/skills`;
+                              const userDataPath = await electron.getUserDataPath();
+                              const skillsPath = `${userDataPath}/skills`;
                               let cmd = item.download_link;
                               const source = getSourceFromLink(item.download_link);
                               
@@ -477,11 +481,15 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                                   cmd += ' -y';
                                 }
                                 console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
-                                await electron.runCommandCapture(cmd, skillsPath);
+                                const result = await electron.runCommandCapture(cmd, skillsPath);
+                                if (!result.success || result.exitCode !== 0) {
+                                  alert(`Failed to manage addon:\n${result.stderr || result.error || result.stdout || 'Unknown error'}`);
+                                }
                               }
                             }
-                          } catch (err) {
+                          } catch (err: any) {
                             console.error('Failed to process skill:', err);
+                            alert(`Error: ${err.message}`);
                           } finally {
                             await refreshInstalledSkills();
                             setProcessingStates(prev => ({ ...prev, [item.id]: false }));

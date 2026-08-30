@@ -10,10 +10,10 @@ export async function getInstalledSkills(projectRoot: string): Promise<AgentSkil
   const possiblePaths: string[] = [];
 
   try {
-    if (electron.getAppPath) {
-      const appPath = await electron.getAppPath();
-      possiblePaths.push(`${appPath}/skills/.agents/skills`);
-      possiblePaths.push(`${appPath}/.agents/skills`);
+    if (electron.getUserDataPath) {
+      const userDataPath = await electron.getUserDataPath();
+      possiblePaths.push(`${userDataPath}/skills/.agents/skills`);
+      possiblePaths.push(`${userDataPath}/.agents/skills`);
     }
   } catch(e) {
     // ignore

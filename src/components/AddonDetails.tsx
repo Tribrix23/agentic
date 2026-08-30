@@ -52,8 +52,8 @@ export const AddonDetails: React.FC<AddonDetailsProps> = ({ addonId, onBack }) =
     try {
       const electron = (window as any).electron;
       if (electron) {
-        const appPath = await electron.getAppPath();
-        const res = await electron.readFileContent(`${appPath}/skills/skills-lock.json`);
+        const userDataPath = await electron.getUserDataPath();
+        const res = await electron.readFileContent(`${userDataPath}/skills/skills-lock.json`);
         if (typeof res === 'string') {
           const data = JSON.parse(res);
           const sources = new Set<string>();
@@ -192,8 +192,8 @@ export const AddonDetails: React.FC<AddonDetailsProps> = ({ addonId, onBack }) =
                   try {
                     const electron = (window as any).electron;
                     if (electron) {
-                      const appPath = await electron.getAppPath();
-                      const skillsPath = `${appPath}/skills`;
+                      const userDataPath = await electron.getUserDataPath();
+                      const skillsPath = `${userDataPath}/skills`;
                       let cmd = addon.download_link;
                       
                       if (isInstalled) {

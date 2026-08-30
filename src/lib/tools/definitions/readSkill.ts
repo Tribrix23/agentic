@@ -31,10 +31,10 @@ export const handler: ToolHandler = async (args, context) => {
     const electron = (window as any).electron;
 
     try {
-      if (electron.getAppPath) {
-        const appPath = await electron.getAppPath();
-        possiblePaths.push(`${appPath}/skills/.agents/skills/${skillName}`);
-        possiblePaths.push(`${appPath}/.agents/skills/${skillName}`);
+      if (electron.getUserDataPath) {
+        const userDataPath = await electron.getUserDataPath();
+        possiblePaths.push(`${userDataPath}/skills/.agents/skills/${skillName}`);
+        possiblePaths.push(`${userDataPath}/.agents/skills/${skillName}`);
       }
     } catch(e) {
       // ignore

@@ -378,6 +378,12 @@ function createWindow() {
 
   ipcMain.removeHandler('get-app-path');
   ipcMain.handle('get-app-path', () => app.getAppPath());
+  ipcMain.removeHandler('get-user-data-path');
+  ipcMain.handle('get-user-data-path', () => {
+    const p = app.getPath('userData');
+    fs.mkdirSync(path.join(p, 'skills'), { recursive: true });
+    return p;
+  });
 
   ipcMain.removeHandler('mcp-add-server');
   ipcMain.handle('mcp-add-server', (_event, config: McpServerConfig) => mcpClientManager.addServer(config));
@@ -556,8 +562,10 @@ function createWindow() {
         return `data:${mimeType};base64,${buffer.toString('base64')}`;
       }
       return fs.readFileSync(safePath, 'utf8');
-    } catch (e) {
-      console.error('[IPC] Failed to read file:', filePath, e);
+    } catch (e: any) {
+      if (e.code !== 'ENOENT') {
+        console.error('[IPC] Failed to read file:', filePath, e);
+      }
       return null;
     }
   });
@@ -1322,7 +1330,7 @@ function createWindow() {
     }
   });
 
-  const isDevtools = false; // Set to false to disable DevTools shortcut
+  const isDevtools = true; // Set to false to disable DevTools shortcut
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isDevToolsShortcut =

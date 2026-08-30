@@ -1,7 +1,7 @@
 {
-  "name": "quantix-code",
+  "name": "quantix-coder",
   "productName": "Quantix Code",
-  "version": "1.0.1",
+  "version": "1.5.3",
   "description": "QUANTIX CODE is an AI-powered Electron desktop coding assistant featuring multi-model support, agentic tool execution, full IDE capabilities, terminal integration, Git operations, and premium UI for enhanced pair programming experiences.",
   "main": ".vite/build/main.js",
   "private": true,

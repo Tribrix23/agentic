@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electron', {
   },
   openExternal: (url: string) => ipcRenderer.send('open-external', url),
   getAppPath: () => ipcRenderer.invoke('get-app-path'),
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   environment: {
     getInfo: (projectRoot?: string) => ipcRenderer.invoke('environment-info', projectRoot),
     getCatalog: () => ipcRenderer.invoke('environment-catalog'),
