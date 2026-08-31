@@ -714,7 +714,7 @@ export class AgentLoop {
       // ── Token Optimization: Cache static system prompt + project context ──
       // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
       const toolProtocol = this.options?.toolProtocol || 'native';
-      const systemPromptText = buildSystemPrompt(this.config);
+      const systemPromptText = buildSystemPrompt(this.config, this.options?.interactionMode);
       let fullSystemPrompt = systemPromptText;
 
       if (this.planningRequired) {
@@ -823,7 +823,8 @@ export class AgentLoop {
           hasTools ? this.toolDefinitions : undefined,
           this.cachedSystemPrompt, // Pass cached system prompt to avoid rebuilding
           this.lastSentMessageIndex, // Pass for delta message injection
-          toolProtocol
+          toolProtocol,
+          this.options?.interactionMode // Pass interaction mode for appropriate system prompt
         );
         // shouldUseTools controls whether we pass native tools in the API payload.
         // We always pass them in context above; this only affects api.ts behavior.
@@ -1217,6 +1218,51 @@ export class AgentLoop {
         let hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
 
         if (this.options?.interactionMode === 'plan' && hasToolCalls) {
+          // In plan mode, enforce separation between inspection and plan creation
+          const hasInspectionTools = assistantMsg.toolCalls?.some(tc => 
+            tc.name === 'listDirectory' || tc.name === 'readFile'
+          );
+          const hasPlanCreationTools = assistantMsg.toolCalls?.some(tc => 
+            tc.name === 'writeFile' || tc.name === 'editFile'
+          );
+
+          // If both inspection and plan creation tools are in the same response,
+          // reject the plan creation tools to force separate turns
+          if (hasInspectionTools && hasPlanCreationTools) {
+            console.log('[Plan Mode] Rejecting plan creation tools in same turn as inspection tools');
+            assistantMsg.toolCalls = assistantMsg.toolCalls?.filter(tc => 
+              tc.name !== 'writeFile' && tc.name !== 'editFile'
+            );
+            hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
+            
+            // Add a system message to guide the AI
+            const separationMsg = createUserMessage(
+              '[SYSTEM] In Plan mode, you must inspect the repository first (using listDirectory and readFile), then create the implementation plan in a separate response. Do not call writeFile/editFile in the same turn as inspection tools.'
+            );
+            separationMsg.isHidden = true;
+            updatedMessages.push(separationMsg);
+            this.emit({ type: 'agent:message-added', data: separationMsg });
+          } else if (hasPlanCreationTools && !planArtifactSaved) {
+            // Ensure inspection has happened before allowing plan creation
+            const inspectedDirectory = this.executedToolNames.has('listDirectory');
+            const inspectedFile = this.executedToolNames.has('readFile');
+            
+            if (!inspectedDirectory || !inspectedFile) {
+              console.log('[Plan Mode] Rejecting plan creation - inspection not completed');
+              assistantMsg.toolCalls = assistantMsg.toolCalls?.filter(tc => 
+                tc.name !== 'writeFile' && tc.name !== 'editFile'
+              );
+              hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
+              
+              const inspectionMsg = createUserMessage(
+                '[SYSTEM] You must complete repository inspection first. Call listDirectory with path "." and readFile for relevant files before creating the implementation plan.'
+              );
+              inspectionMsg.isHidden = true;
+              updatedMessages.push(inspectionMsg);
+              this.emit({ type: 'agent:message-added', data: inspectionMsg });
+            }
+          }
+
           // Tool syntax, provider scratch text, and echoed policy are internal
           // execution details. Preserve the iteration and its reasoning so Plan
           // renders the same append-only Thought -> Tools sequence as Agent.
@@ -1594,10 +1640,10 @@ export class AgentLoop {
             continueLoop = true;
           } else if (this.options?.interactionMode === 'plan' && planArtifactSaved) {
             continueLoop = false;
-          } else if (this.options?.interactionMode === 'plan' && planToolRetries < 1) {
+          } else if (this.options?.interactionMode === 'plan' && planToolRetries < 2) {
             planToolRetries++;
             const nudgeMsg = createUserMessage(
-              '[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call listDirectory with path ".", read the relevant files with readFile, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone.'
+              `[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call listDirectory with path ".", read the relevant files with readFile, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone. (Retry ${planToolRetries}/2)`
             );
             nudgeMsg.isHidden = true;
             updatedMessages.push(nudgeMsg);

@@ -256,11 +256,12 @@ export function buildContext(
   toolDefinitions?: any[],
   cachedSystemPrompt?: string,
   lastSentIndex?: number,
-  toolProtocol: ToolProtocol = selectToolProtocol(config.model)
+  toolProtocol: ToolProtocol = selectToolProtocol(config.model),
+  interactionMode?: 'ask' | 'plan' | 'agent'
 ): BuiltContext {
   // ── 1. System Prompt ─────────────────────────────────────────────────
   // Use cached system prompt if provided, otherwise build it
-  const systemPromptText = cachedSystemPrompt || buildSystemPrompt(config);
+  const systemPromptText = cachedSystemPrompt || buildSystemPrompt(config, interactionMode);
   const systemPromptParts: string[] = [systemPromptText];
 
   // GPT-5.6's compatibility endpoint can return plain text instead of native

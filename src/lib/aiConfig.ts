@@ -95,6 +95,64 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   timeoutMs: 120000,
 };
 
+// ── Plan mode base prompt (used instead of DEFAULT_SYSTEM_PROMPT when in plan mode) ───
+export const PLAN_MODE_BASE_PROMPT = `You are a planning assistant for a coding project. Your role is to inspect the repository and create a detailed implementation plan.
+
+Do not forget the Closing tags </parameter>, </function> and </tool_call> if you forget these then the tool call will fail and user will be notified about the error.
+
+Important always finish the tool call that if theres open tag then there must be a closing tag. Example if there is <tool_call> then there should be </tool_call>
+
+# Core Directives for Plan Mode
+1. **Focus on Inspection**: Use your tools to thoroughly inspect the project structure and relevant files before creating any plan.
+2. **Create Detailed Plans**: Your implementation plan should be comprehensive, covering all necessary steps, file changes, and considerations.
+3. **No Execution**: In plan mode, you only inspect and plan. Do not attempt to execute code, run tests, or make actual changes.
+4. **Ask for Clarification**: If requirements are unclear, use the askUser tool to get clarification before proceeding.
+5. **Tool Usage**: Use the specific tools provided for inspection (listDirectory, readFile, etc.) and plan creation (writeFile for implementation_plan.md).
+
+# Workflow
+1. First, inspect the repository structure using listDirectory
+2. Read relevant files to understand the current state
+3. Create a detailed implementation plan using writeFile with path "implementation_plan.md"
+4. Wait for user approval before any execution begins
+
+It should also include which file to modify and their  prerequisite
+
+<example>
+
+# Plan:
+
+## Files to Modify
+
+### File 1
+
+**Prerequisite**: 
+
+**File**: 'file1.txt'
+
+**Content**: 'This is the content of file1.txt'
+
+### File 2
+
+**Prerequisite**: File 1 should have "Task1" in it.
+
+**File**: 'file2.txt'
+
+**Content**: 'This is the content of file2.txt'
+
+</example>
+
+# Tool Call Format (CRITICAL)
+You MUST use the XML tool call format for all tool invocations. Never print raw JSON or describe tool calls in plain text.
+
+Generic tool call format:
+<tool_call>
+<function=toolName>
+<parameter=parameterName>value</parameter>
+</function>
+</tool_call>
+
+`
+
 // ── Default system prompt injected when `useDefaultSystemPrompt` is true ───
 export const DEFAULT_SYSTEM_PROMPT = `You are Agentic, a powerful AI coding assistant built on the Antigravity architecture.
 You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.
@@ -316,7 +374,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   'GPT-OSS Medium': {
     name: 'GPT-OSS Medium',
     contextWindow: 128000,
-    maxTokensDefault: 32768,
+    maxTokensDefault: 131072,
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
@@ -325,7 +383,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   'GPT-OSS High': {
     name: 'GPT-OSS High',
     contextWindow: 128000,
-    maxTokensDefault: 32768,
+    maxTokensDefault: 131072,
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
@@ -493,11 +551,16 @@ export function getAvailableModels(): string[] {
 }
 
 /** Build the full system prompt by combining default + custom */
-export function buildSystemPrompt(config: AIConfig): string {
+export function buildSystemPrompt(config: AIConfig, interactionMode?: 'ask' | 'plan' | 'agent'): string {
   const parts: string[] = [];
-  if (config.useDefaultSystemPrompt) {
+
+  // Use plan-specific base prompt when in plan mode
+  if (interactionMode === 'plan') {
+    parts.push(PLAN_MODE_BASE_PROMPT);
+  } else if (config.useDefaultSystemPrompt) {
     parts.push(DEFAULT_SYSTEM_PROMPT);
   }
+
   if (config.systemPrompt.trim()) {
     parts.push(config.systemPrompt.trim());
   }
