@@ -1173,18 +1173,26 @@ IMPORTANT RULES:
     setAgentIteration(0);
     // ── Run Agent Loop ─────────────────────────────────────────────────
     if (aiConfig.agentMode || !aiConfig.agentMode) {
+      // Always load installed skills — even when no project is open
+      const skillsList = await getInstalledSkills(selectedProject?.path || '');
+      const agentSkillsBlock = buildSkillsBlock(skillsList);
+
       // Build project context
       let projectContext: ProjectContext | undefined;
       let fileTreeStr = '';
       if (selectedProject?.path) {
         fileTreeStr = projectFiles.length > 0 ? buildFileTreeString(projectFiles, 2) : '';
-        const skillsList = await getInstalledSkills(selectedProject.path);
-        
         projectContext = {
           rootPath: selectedProject.path,
           fileTree: fileTreeStr,
           gitBranch: selectedProject.branch || undefined,
-          agentSkillsBlock: buildSkillsBlock(skillsList)
+          agentSkillsBlock,
+        };
+      } else if (agentSkillsBlock) {
+        // No project open, but we still have skills — inject them via a minimal context
+        projectContext = {
+          rootPath: '',
+          agentSkillsBlock,
         };
       }
 

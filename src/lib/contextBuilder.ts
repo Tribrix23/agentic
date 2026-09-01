@@ -283,38 +283,41 @@ export function buildContext(
     if (projectContext.agentSkillsBlock) {
       systemPromptParts.push(projectContext.agentSkillsBlock);
     }
-    const projectLines: string[] = [];
-    projectLines.push('\n<project_context>');
-    projectLines.push(`Project Root: ${projectContext.rootPath}`);
+    // Only include project-specific lines when a real project is open
+    if (projectContext.rootPath) {
+      const projectLines: string[] = [];
+      projectLines.push('\n<project_context>');
+      projectLines.push(`Project Root: ${projectContext.rootPath}`);
 
-    if (projectContext.gitBranch) {
-      projectLines.push(`Git Branch: ${projectContext.gitBranch}`);
-    }
-    if (projectContext.gitStatus) {
-      projectLines.push(`Git Status:\n${projectContext.gitStatus}`);
-    }
-
-    const techStack = projectContext.techStack ||
-      (projectContext.fileTree ? detectTechStack(projectContext.fileTree) : []);
-    if (techStack.length > 0) {
-      projectLines.push(`Tech Stack: ${techStack.join(', ')}`);
-    }
-
-    if (projectContext.fileTree) {
-      const treeSummary = truncateToTokens(projectContext.fileTree, 200);
-      projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
-    }
-
-    if (projectContext.activeFilePath) {
-      projectLines.push(`\nActive File: ${projectContext.activeFilePath}`);
-      if (projectContext.activeFileContent) {
-        const truncated = truncateToTokens(projectContext.activeFileContent, 500);
-        projectLines.push(`\`\`\`${projectContext.activeFileLanguage || ''}\n${truncated}\n\`\`\``);
+      if (projectContext.gitBranch) {
+        projectLines.push(`Git Branch: ${projectContext.gitBranch}`);
       }
-    }
+      if (projectContext.gitStatus) {
+        projectLines.push(`Git Status:\n${projectContext.gitStatus}`);
+      }
 
-    projectLines.push('</project_context>');
-    systemPromptParts.push(projectLines.join('\n'));
+      const techStack = projectContext.techStack ||
+        (projectContext.fileTree ? detectTechStack(projectContext.fileTree) : []);
+      if (techStack.length > 0) {
+        projectLines.push(`Tech Stack: ${techStack.join(', ')}`);
+      }
+
+      if (projectContext.fileTree) {
+        const treeSummary = truncateToTokens(projectContext.fileTree, 200);
+        projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
+      }
+
+      if (projectContext.activeFilePath) {
+        projectLines.push(`\nActive File: ${projectContext.activeFilePath}`);
+        if (projectContext.activeFileContent) {
+          const truncated = truncateToTokens(projectContext.activeFileContent, 500);
+          projectLines.push(`\`\`\`${projectContext.activeFileLanguage || ''}\n${truncated}\n\`\`\``);
+        }
+      }
+
+      projectLines.push('</project_context>');
+      systemPromptParts.push(projectLines.join('\n'));
+    }
   }
 
   // Native tool definitions are also passed in the API payload. GPT-5.6 gets the

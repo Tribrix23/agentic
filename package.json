@@ -70,6 +70,7 @@
     "clsx": "^2.1.1",
     "electron-squirrel-startup": "^1.0.1",
     "framer-motion": "^12.42.2",
+    "katex": "^0.18.5",
     "lucide-react": "^1.25.0",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
@@ -81,8 +82,10 @@
     "react-markdown": "^10.1.0",
     "react-simple-code-editor": "^0.14.1",
     "react-syntax-highlighter": "^16.1.1",
+    "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "tailwind-merge": "^3.6.0",
     "xterm": "^5.3.0"
   },
@@ -122,7 +125,15 @@
     },
     "fileAssociations": [
       {
-        "ext": ["py", "ipynb", "json", "md", "txt", "yaml", "yml"],
+        "ext": [
+          "py",
+          "ipynb",
+          "json",
+          "md",
+          "txt",
+          "yaml",
+          "yml"
+        ],
         "name": "Quantix Source File",
         "role": "Editor"
       }

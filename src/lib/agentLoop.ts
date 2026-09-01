@@ -741,31 +741,39 @@ export class AgentLoop {
       }
 
       if (this.projectContext) {
-        const projectLines: string[] = [];
-        projectLines.push('\n<project_context>');
-        projectLines.push(`Project Root: ${this.projectContext.rootPath}`);
-        if (this.projectContext.gitBranch) {
-          projectLines.push(`Git Branch: ${this.projectContext.gitBranch}`);
+        // Inject skills block FIRST so the AI always knows what skills are available
+        if (this.projectContext.agentSkillsBlock) {
+          fullSystemPrompt += '\n' + this.projectContext.agentSkillsBlock;
         }
-        if (this.projectContext.gitStatus) {
-          projectLines.push(`Git Status:\n${this.projectContext.gitStatus}`);
-        }
-        if (this.projectContext.techStack && this.projectContext.techStack.length > 0) {
-          projectLines.push(`Tech Stack: ${this.projectContext.techStack.join(', ')}`);
-        }
-        if (this.projectContext.fileTree) {
-          const treeSummary = truncateToTokens(this.projectContext.fileTree, 200);
-          projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
-        }
-        if (this.projectContext.activeFilePath) {
-          projectLines.push(`\nActive File: ${this.projectContext.activeFilePath}`);
-          if (this.projectContext.activeFileContent) {
-            const truncated = truncateToTokens(this.projectContext.activeFileContent, 500);
-            projectLines.push(`\`\`\`${this.projectContext.activeFileLanguage || ''}\n${truncated}\n\`\`\``);
+
+        // Only add project-specific lines when there is a real project open
+        if (this.projectContext.rootPath) {
+          const projectLines: string[] = [];
+          projectLines.push('\n<project_context>');
+          projectLines.push(`Project Root: ${this.projectContext.rootPath}`);
+          if (this.projectContext.gitBranch) {
+            projectLines.push(`Git Branch: ${this.projectContext.gitBranch}`);
           }
+          if (this.projectContext.gitStatus) {
+            projectLines.push(`Git Status:\n${this.projectContext.gitStatus}`);
+          }
+          if (this.projectContext.techStack && this.projectContext.techStack.length > 0) {
+            projectLines.push(`Tech Stack: ${this.projectContext.techStack.join(', ')}`);
+          }
+          if (this.projectContext.fileTree) {
+            const treeSummary = truncateToTokens(this.projectContext.fileTree, 200);
+            projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
+          }
+          if (this.projectContext.activeFilePath) {
+            projectLines.push(`\nActive File: ${this.projectContext.activeFilePath}`);
+            if (this.projectContext.activeFileContent) {
+              const truncated = truncateToTokens(this.projectContext.activeFileContent, 500);
+              projectLines.push(`\`\`\`${this.projectContext.activeFileLanguage || ''}\n${truncated}\n\`\`\``);
+            }
+          }
+          projectLines.push('</project_context>');
+          fullSystemPrompt += '\n' + projectLines.join('\n');
         }
-        projectLines.push('</project_context>');
-        fullSystemPrompt += '\n' + projectLines.join('\n');
       }
 
       if (this.cachedSystemPromptProtocol !== toolProtocol) this.cachedSystemPrompt = undefined;
