@@ -225,11 +225,123 @@ const App = () => {
     };
 
     const handleOpenRightSidebar = () => setRightSidebarOpen(true);
+    const handleToggleRightSidebar = () => setRightSidebarOpen(prev => !prev);
+    const handleToggleLeftSidebar = () => setLeftSidebarOpen(prev => !prev);
     const handleOpenImplementationPlan = () => setRightSidebarOpen(true);
     const handleOpenAddons = () => setShowAddons(true);
+    const handleOpenSettings = () => setSettingsOpen(true);
+    const handleClearChat = () => handleNewConversation();
+    const handleToggleDebug = () => alert('Debug info toggle coming soon');
+    const handleExportLogs = () => alert('Exporting chat logs coming soon');
+    const handleRestartAgent = () => alert('Restarting agent feature coming soon');
+    
     window.addEventListener('open-right-sidebar', handleOpenRightSidebar);
+    window.addEventListener('toggle-right-sidebar', handleToggleRightSidebar);
+    window.addEventListener('toggle-left-sidebar', handleToggleLeftSidebar);
     window.addEventListener('open-implementation-plan', handleOpenImplementationPlan);
     window.addEventListener('open-addons', handleOpenAddons);
+    window.addEventListener('open-settings', handleOpenSettings);
+    window.addEventListener('clear-chat', handleClearChat);
+    window.addEventListener('toggle-debug-info', handleToggleDebug);
+    window.addEventListener('export-chat-logs', handleExportLogs);
+    window.addEventListener('restart-agent', handleRestartAgent);
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      
+      // Ctrl+N -> New Conversation
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('new-conversation'));
+      }
+      // Ctrl+H -> Conversation History
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-history'));
+      }
+      // Ctrl+Shift+A -> Add-ons
+      if (cmdOrCtrl && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-addons'));
+      }
+      // Ctrl+Shift+N -> New Project
+      if (cmdOrCtrl && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-add-project-wizard'));
+      }
+      // Ctrl+, -> Settings
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key === ',') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-settings'));
+      }
+      // Ctrl+U -> Add Context
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'u') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-context-menu'));
+      }
+      // Ctrl+M -> Voice Input
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-voice-input'));
+      }
+      // Ctrl+P -> File Picker
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-file-picker'));
+      }
+      // Ctrl+B -> Toggle Sidebar
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-left-sidebar'));
+      }
+      // Ctrl+Shift+L -> Clear Chat
+      if (cmdOrCtrl && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('clear-chat'));
+      }
+      // Ctrl+K -> Stop Agent
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('stop-agent'));
+      }
+      // Ctrl+I -> Focus Chat Input
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('focus-chat-input'));
+      }
+      // Ctrl+Shift+P -> Command Palette
+      if (cmdOrCtrl && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-command-palette'));
+      }
+      // Ctrl+O -> Model Selection
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-model-picker'));
+      }
+      // Ctrl+J -> Toggle Right Panel
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-right-sidebar'));
+      }
+      // Ctrl+Shift+R -> Restart Agent
+      if (cmdOrCtrl && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('restart-agent'));
+      }
+      // Ctrl+D -> Toggle Debug Info
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-debug-info'));
+      }
+      // Ctrl+E -> Export Chat Logs
+      if (cmdOrCtrl && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('export-chat-logs'));
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
 
     window.addEventListener('task-updated', handleTaskChange);
     window.addEventListener('task-deleted', handleTaskChange);
@@ -247,9 +359,17 @@ const App = () => {
     window.addEventListener('project-files-restored', handleProjectRestore as any);
 
     return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+      window.removeEventListener('open-settings', handleOpenSettings);
       window.removeEventListener('open-right-sidebar', handleOpenRightSidebar);
+      window.removeEventListener('toggle-right-sidebar', handleToggleRightSidebar);
+      window.removeEventListener('toggle-left-sidebar', handleToggleLeftSidebar);
       window.removeEventListener('open-implementation-plan', handleOpenImplementationPlan);
       window.removeEventListener('open-addons', handleOpenAddons);
+      window.removeEventListener('clear-chat', handleClearChat);
+      window.removeEventListener('toggle-debug-info', handleToggleDebug);
+      window.removeEventListener('export-chat-logs', handleExportLogs);
+      window.removeEventListener('restart-agent', handleRestartAgent);
       window.removeEventListener('task-updated', handleTaskChange);
       window.removeEventListener('task-deleted', handleTaskChange);
       window.removeEventListener('tasks-cleared', handleTaskChange);

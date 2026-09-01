@@ -29,7 +29,7 @@ interface FileIconProps {
 }
 
 export function FileIcon({ filename, size = 16, className = "" }: FileIconProps) {
-  const name = filename.toLowerCase();
+  const name = filename.toLowerCase().replace(' (working tree)', '');
   
   // Web
   if (name.endsWith('.html') || name.endsWith('.htm')) return <FaHtml5 size={size} className={`text-orange-500 ${className}`} />;

@@ -18,7 +18,7 @@ export interface EnvironmentBridgeApi {
   selectPythonProjectEnvironment(projectRoot: string, executablePath: string): Promise<void>;
   openOfficialLink(url: string): Promise<boolean>;
   onProgress(callback: (operation: EnvironmentOperation) => void): () => void;
-  searchPythonPackages(query: string): Promise<PythonPackage[]>;
+  searchPythonPackages(query: string, projectRoot?: string): Promise<PythonPackage[]>;
   getPythonInstalledPackages(projectRoot: string): Promise<Record<string, string>>;
   installPythonPackage(pythonExecutable: string, packageName: string, projectRoot: string): Promise<void>;
   uninstallPythonPackage(pythonExecutable: string, packageName: string, projectRoot: string): Promise<void>;

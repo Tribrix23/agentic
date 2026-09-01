@@ -61,8 +61,14 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
         return next;
       });
     };
+    const handleOpenHistory = () => setShowHistoryModal(true);
+    
     window.addEventListener('agent-running-state', handleRunningState);
-    return () => window.removeEventListener('agent-running-state', handleRunningState);
+    window.addEventListener('open-history', handleOpenHistory);
+    return () => {
+      window.removeEventListener('agent-running-state', handleRunningState);
+      window.removeEventListener('open-history', handleOpenHistory);
+    };
   }, []);
 
   useEffect(() => {

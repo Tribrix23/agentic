@@ -8,6 +8,7 @@ interface SourceControlProps {
   projectPath?: string;
   onGitAction?: () => void;
   gitStatusMap?: Record<string, string>;
+  onFileDiff?: (path: string) => void;
 }
 
 interface GitFile {
@@ -100,7 +101,7 @@ const computeGraph = (log: GitCommitNode[]): GraphCommitNode[] => {
   });
 };
 
-export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGitAction, gitStatusMap }) => {
+export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGitAction, gitStatusMap, onFileDiff }) => {
   const [message, setMessage] = useState('');
   const [changes, setChanges] = useState<GitFile[]>([]);
   const [log, setLog] = useState<GraphCommitNode[]>([]);
@@ -274,10 +275,14 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
           </div>
           <div className="flex-1 overflow-y-auto space-y-0.5">
             {changes.map((file, i) => (
-              <div key={i} className="flex items-center justify-between px-3 py-1 hover:bg-white/5 cursor-pointer text-xs group">
-                <Tooltip content={file.path}><span className="truncate pr-2 flex-1 text-[#d4d4d8]">
+              <div 
+                key={i} 
+                className="flex items-center justify-between px-3 py-1 hover:bg-white/5 cursor-pointer text-xs group"
+                onClick={() => onFileDiff?.(file.path)}
+              >
+                <span className="truncate pr-2 flex-1 text-[#d4d4d8]">
                     {file.path.split('/').pop() || file.path.split('\\').pop()}
-                  </span></Tooltip>
+                  </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <Tooltip content="Discard Changes"><button
                       onClick={(e) => {
@@ -417,7 +422,11 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                           <div className="space-y-[1px] relative">
                             {commitFiles.map((file, idx) => {
                               return (
-                                <div key={idx} className="flex items-center relative h-6 group/file pr-2 hover:bg-white/5 rounded-md transition-colors cursor-pointer">
+                                <div 
+                                  key={idx} 
+                                  className="flex items-center relative h-6 group/file pr-2 hover:bg-white/5 rounded-md transition-colors cursor-pointer"
+                                  onClick={() => onFileDiff?.(file.path)}
+                                >
                                   {/* Horizontal branch line connecting to the main trunk */}
                                   <div 
                                     className="absolute"
@@ -431,13 +440,13 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                                     }}
                                   />
                                   <div className="flex-1 flex items-center justify-between ml-[10px] pr-2">
-                                  <Tooltip content={file.path}><span className="truncate pr-2 flex-1 text-[#e2e2e3]">
+                                  <span className="truncate pr-2 flex-1 text-[#e2e2e3]">
                                       {file.path.split('/').pop() || file.path.split('\\').pop()}
-                                    </span></Tooltip>
-                                  <Tooltip content={file.path}><span
+                                    </span>
+                                  <span
                                       className="text-[#8b8b93] text-[9px] truncate max-w-[100px] hidden sm:block mr-2">
                                       {file.path.substring(0, Math.max(0, file.path.lastIndexOf('/')))}
-                                    </span></Tooltip>
+                                    </span>
                                   <span className={cn(
                                     "text-[10px] font-bold px-1 py-0.5 rounded shrink-0",
                                     file.status.includes('M') ? "text-[#e2c08d]" : 

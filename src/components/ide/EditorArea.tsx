@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Editor, { loader } from '@monaco-editor/react';
+import Editor, { DiffEditor, loader } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
@@ -95,10 +95,10 @@ const registerPythonIntelliSense = (monacoApi: MonacoApi) => {
   });
 };
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { 
   FileJson, FileType2, FileCode2, Code, FileImage, FileText, File, 
-  X, Save, Menu, Play, StopCircle, Radio, Check, Settings, Shield
+  X, Save, Menu, Play, StopCircle, Radio, Check, Settings, Shield, SplitSquareHorizontal
 } from 'lucide-react';
 import { cn } from '../../App';
 import { FileIcon } from '../chat/FileIcon';
@@ -132,6 +132,9 @@ interface EditorAreaProps {
   onFileSaved: (path: string, newContent: string) => void;
   onDiagnosticsChange: (path: string, markers: monaco.editor.IMarker[]) => void;
   gitStatusMap?: Record<string, string>;
+  onTabsReorder?: (newOrder: OpenFile[]) => void;
+  onSplitEditor?: () => void;
+  isActivePane?: boolean;
 }
 
 export const EditorArea: React.FC<EditorAreaProps> = ({
@@ -145,7 +148,10 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   handleStopLive,
   onFileSaved,
   onDiagnosticsChange,
-  gitStatusMap
+  gitStatusMap,
+  onTabsReorder,
+  onSplitEditor,
+  isActivePane = true
 }) => {
   const [localContents, setLocalContents] = useState<Record<string, string>>({});
   const [showEditorMenu, setShowEditorMenu] = useState(false);
@@ -278,7 +284,12 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   return (
     <>
       <div className="h-9 border-b border-white/5 bg-[#0f0f13] flex items-center justify-between px-2">
-        <div className="flex items-center overflow-x-auto no-scrollbar flex-1 h-full pt-1.5">
+        <Reorder.Group 
+          axis="x"
+          values={openFiles}
+          onReorder={onTabsReorder || (() => {})}
+          className="flex items-center overflow-x-auto no-scrollbar flex-1 h-full pt-1.5"
+        >
           {openFiles.map(file => {
             const isTabActive = file.path === activeFilePath;
             const tabLocalContent = localContents[file.path] ?? file.originalContent;
@@ -292,23 +303,24 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             const isUntracked = gitStatus?.includes('?') || gitStatus?.includes('A');
             const textColorClass = isModified ? "text-[#e2c08d]" 
                                  : isUntracked ? "text-[#73c991]" 
-                                 : isTabActive ? "text-white" 
+                                 : isTabActive ? (isActivePane ? "text-white" : "text-white/60") 
                                  : "text-[#8b8b93]";
 
             return (
-              <div 
+              <Reorder.Item 
                 key={file.path}
-                onClick={() => onTabClick(file.path)}
+                value={file}
+                onPointerDown={() => onTabClick(file.path)}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 h-full min-w-[120px] max-w-[200px] border-r border-white/5 cursor-pointer group relative transition-colors rounded-t-md",
+                  "flex items-center gap-1.5 px-3 h-full min-w-[120px] max-w-[200px] border-r border-white/5 cursor-pointer group relative transition-colors rounded-t-md shrink-0",
                   isTabActive 
-                    ? "bg-[#1e1e1e] border-t-2 border-t-blue-500" 
+                    ? `bg-[#1e1e1e] border-t-2 ${isActivePane ? "border-t-blue-500" : "border-t-transparent"}` 
                     : "bg-[#0f0f13] hover:bg-[#18181f] border-t-2 border-t-transparent",
                   textColorClass
                 )}
               >
                 <FileIcon filename={file.name} size={14} className="shrink-0" />
-                <span className="truncate flex-1 text-xs">{file.name}</span>
+                <span className="truncate flex-1 text-xs select-none pointer-events-none">{file.name}</span>
                 {tabIsDirty && <Tooltip content="Unsaved changes"><div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 ml-1" /></Tooltip>}
 
                 {gitStatus && !tabIsDirty && (
@@ -321,22 +333,31 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
                 )}
 
                 <button 
-                  onClick={(e) => {
+                  onPointerDown={(e) => {
                     e.stopPropagation();
                     onTabClose(file.path);
                   }}
                   className={cn(
-                    "p-0.5 rounded transition-all shrink-0",
+                    "p-0.5 rounded transition-all shrink-0 z-10 relative",
                     isTabActive ? "opacity-100 hover:bg-white/10" : "opacity-0 group-hover:opacity-100 hover:bg-white/10"
                   )}
                 >
                   <X size={12} />
                 </button>
-              </div>
+              </Reorder.Item>
             );
           })}
-        </div>
+        </Reorder.Group>
         <div className="flex items-center gap-2 pr-2">
+          
+          <Tooltip content="Split Editor Right (Ctrl+\\)">
+            <button
+              onClick={() => onSplitEditor?.()}
+              className="p-1.5 rounded-md hover:bg-white/5 text-[#8b8b93] hover:text-white transition-colors"
+            >
+              <SplitSquareHorizontal size={14} />
+            </button>
+          </Tooltip>
 
           <button
             onClick={handleSaveFile}
@@ -420,12 +441,13 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden bg-[#1e1e1e] relative">
-        {activeFilePath === 'ide://python-env' ? (
-          <PythonEnvironmentTab projectRoot={projectRoot} />
-        ) : activeFilePath === 'ide://java-env' ? (
-          <JavaEnvironmentTab type="java" />
-        ) : activeFilePath === 'ide://javafx-env' ? (
+      <div className="flex-1 flex overflow-hidden w-full">
+        <div className="flex-1 overflow-hidden bg-[#1e1e1e] relative">
+          {activeFilePath === 'ide://python-env' ? (
+            <PythonEnvironmentTab projectRoot={projectRoot} />
+          ) : activeFilePath === 'ide://java-env' ? (
+            <JavaEnvironmentTab type="java" />
+          ) : activeFilePath === 'ide://javafx-env' ? (
           <JavaEnvironmentTab type="javafx" />
         ) : isImage ? (
           <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
@@ -439,6 +461,30 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] p-4 text-center">
             <span className="text-white text-sm font-medium">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</span>
           </div>
+        ) : activeFile?.isDiff ? (
+          <DiffEditor
+            height="100%"
+            language={getFileLanguage(selectedFileName?.replace(' (Working Tree)', '') || null)}
+            theme="vs-dark"
+            original={activeFile.diffOriginalContent || ''}
+            modified={currentLocalContent}
+            onMount={(editor) => {
+              const modifiedEditor = editor.getModifiedEditor();
+              editorRef.current = modifiedEditor;
+              modifiedEditor.onDidChangeModelContent(() => {
+                if (activeFilePath) {
+                  setLocalContents(prev => ({
+                    ...prev,
+                    [activeFilePath]: modifiedEditor.getValue()
+                  }));
+                }
+              });
+            }}
+            options={{
+              readOnly: false,
+              renderSideBySide: true
+            }}
+          />
         ) : (
           <Editor
             height="100%"
@@ -494,6 +540,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             }}
           />
         )}
+        </div>
       </div>
     </>
   );

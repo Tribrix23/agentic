@@ -25,7 +25,7 @@ export function assertPathWithinWorkspace(projectRoot: string, candidatePath: st
   if (!projectRoot?.trim()) throw new Error('Project root is required for workspace-scoped file access.');
   if (!candidatePath?.trim()) throw new Error('File path is required.');
   const root = canonicalExistingPath(path.resolve(projectRoot));
-  const candidate = canonicalCandidate(path.resolve(candidatePath));
+  const candidate = canonicalCandidate(path.resolve(root, candidatePath));
   
   try {
     const tempDir = canonicalExistingPath(os.tmpdir());

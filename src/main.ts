@@ -491,6 +491,86 @@ function createWindow() {
     };
   });
 
+  ipcMain.handle('remove-folder-from-workspace', async (_event, workspaceRoot: string, folderName: string) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const dest = path.join(workspaceRoot, folderName);
+      if (fs.existsSync(dest)) {
+        if (process.platform === 'win32') {
+          // It's a junction, so rmdir works
+          fs.rmdirSync(dest);
+        } else {
+          // It's a symlink
+          fs.unlinkSync(dest);
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error('[IPC] Failed to remove folder from workspace:', err);
+      return false;
+    }
+  });
+
+  ipcMain.handle('add-folder-to-workspace', async (_event, workspaceRoot: string, folder: { path: string, name: string }) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const dest = path.join(workspaceRoot, folder.name);
+      if (process.platform === 'win32') {
+        fs.symlinkSync(folder.path, dest, 'junction');
+      } else {
+        fs.symlinkSync(folder.path, dest, 'dir');
+      }
+      return true;
+    } catch (err) {
+      console.error('[IPC] Failed to add folder to workspace:', err);
+      return false;
+    }
+  });
+
+  ipcMain.handle('create-virtual-workspace', async (_event, name: string, folders: { path: string, name: string }[]) => {
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    
+    // Create a safe workspace name
+    const safeName = (name || 'Workspace').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const workspaceRoot = path.join(os.homedir(), '.quantix', 'workspaces', safeName + '_' + Date.now());
+    
+    // Make sure the directory exists
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    
+    for (const folder of folders) {
+      try {
+        const dest = path.join(workspaceRoot, folder.name);
+        if (process.platform === 'win32') {
+          fs.symlinkSync(folder.path, dest, 'junction');
+        } else {
+          fs.symlinkSync(folder.path, dest, 'dir');
+        }
+      } catch (err) {
+        console.error('[IPC] Failed to create symlink for workspace:', err);
+      }
+    }
+    
+    return workspaceRoot;
+  });
+
+  ipcMain.handle('read-directory', async (_event, dirPath: string) => {
+    const fs = require('fs');
+    const path = require('path');
+    try {
+      const items = fs.readdirSync(dirPath, { withFileTypes: true });
+      return items.map((item: any) => ({
+        name: item.name,
+        isDirectory: item.isDirectory() || item.isSymbolicLink()
+      }));
+    } catch (e) {
+      return [];
+    }
+  });
+
   ipcMain.handle('read-project-files', async (_event, projectPath: string, projectRoot?: string) => {
     const fs = require('fs');
     const path = require('path');
@@ -811,39 +891,60 @@ function createWindow() {
     console.error('Failed to load node-pty', e);
   }
 
-  ipcMain.handle('start-terminal', (event, cwd) => {
-    if (ptyProcess) {
-      ptyProcess.kill();
+  ipcMain.handle('git-show-file', async (_event, projectRoot: string, filePath: string, commitOrRef: string = 'HEAD') => {
+    try {
+      const relativePath = path.isAbsolute(filePath) 
+        ? path.relative(projectRoot, filePath).replace(/\\/g, '/')
+        : filePath.replace(/\\/g, '/');
+      const content = await runGit(['show', `${commitOrRef}:${relativePath}`], projectRoot);
+      return { success: true, data: content };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  const ptyProcesses = new Map<string, any>();
+
+  ipcMain.handle('start-terminal', (event, cwd, id) => {
+    const termId = id || 'default';
+    if (ptyProcesses.has(termId)) {
+      ptyProcesses.get(termId).kill();
+      ptyProcesses.delete(termId);
     }
 
-    const shellStr = process.env[process.platform === 'win32' ? 'COMSPEC' : 'SHELL'] || (process.platform === 'win32' ? 'cmd.exe' : 'bash');
+    const shellStr = process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || 'bash');
 
     if (pty) {
-      ptyProcess = pty.spawn(shellStr, [], {
-        name: 'xterm-color',
+      const env = Object.assign({}, process.env, { FORCE_COLOR: '1', TERM: 'xterm-256color' });
+      const ptyProcess = pty.spawn(shellStr, [], {
+        name: 'xterm-256color',
         cols: 80,
         rows: 30,
         cwd: cwd || process.cwd(),
-        env: process.env as any
+        env: env as any
       });
 
       ptyProcess.onData((data: string) => {
         if (!event.sender.isDestroyed()) {
-          event.sender.send('terminal-data', data);
+          event.sender.send('terminal-data', termId, data);
         }
       });
+      ptyProcesses.set(termId, ptyProcess);
     }
-
     return true;
   });
 
-  ipcMain.handle('send-terminal-data', (event, data) => {
+  ipcMain.handle('send-terminal-data', (event, data, id) => {
+    const termId = id || 'default';
+    const ptyProcess = ptyProcesses.get(termId);
     if (ptyProcess) {
       ptyProcess.write(data);
     }
   });
 
-  ipcMain.handle('resize-terminal', (event, { cols, rows }) => {
+  ipcMain.handle('resize-terminal', (event, { cols, rows }, id) => {
+    const termId = id || 'default';
+    const ptyProcess = ptyProcesses.get(termId);
     if (ptyProcess && ptyProcess.resize) {
       try {
         ptyProcess.resize(cols, rows);
@@ -853,10 +954,12 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('kill-terminal', () => {
+  ipcMain.handle('kill-terminal', (event, id) => {
+    const termId = id || 'default';
+    const ptyProcess = ptyProcesses.get(termId);
     if (ptyProcess) {
       ptyProcess.kill();
-      ptyProcess = null;
+      ptyProcesses.delete(termId);
     }
   });
   ipcMain.handle('create-file', async (_event, parentPath: string, fileName: string, projectRoot?: string) => {
@@ -1327,6 +1430,41 @@ function createWindow() {
       }
     } catch (err: any) {
       return { error: err.message || String(err) };
+    }
+  });
+
+  const activeTunnels = new Map<number, any>();
+
+  ipcMain.handle('start-port-forward', async (_event, port: number) => {
+    try {
+      if (activeTunnels.has(port)) {
+        return { success: true, url: activeTunnels.get(port).url };
+      }
+      const localtunnel = require('localtunnel');
+      const tunnel = await localtunnel({ port });
+      
+      tunnel.on('close', () => {
+        activeTunnels.delete(port);
+      });
+      
+      activeTunnels.set(port, tunnel);
+      return { success: true, url: tunnel.url };
+    } catch (e: any) {
+      console.error('Port forwarding failed:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('stop-port-forward', async (_event, port: number) => {
+    try {
+      const tunnel = activeTunnels.get(port);
+      if (tunnel) {
+        tunnel.close();
+        activeTunnels.delete(port);
+      }
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   });
 

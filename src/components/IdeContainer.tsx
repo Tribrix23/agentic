@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLeft, PanelLeftClose, FolderPlus, Trash2, Plus, X, Shield, HardDrive, Monitor, Lock, GitBranch, FileJson, FileType2, FileImage, FileText, FileCode2, Database, Save, Menu, Play, StopCircle, Radio, Files, Undo2, Redo2, TerminalSquare, AlertCircle, Activity, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Folder, FolderOpen, File, Code, Terminal, Settings, PanelLeft, PanelLeftClose, FolderPlus, Trash2, Plus, X, Shield, HardDrive, Monitor, Lock, GitBranch, FileJson, FileType2, FileImage, FileText, FileCode2, Database, Save, Menu, Play, StopCircle, Radio, Files, Undo2, Redo2, TerminalSquare, AlertCircle, Activity, Maximize2, Minimize2, SplitSquareHorizontal } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { TitleBar } from './TitleBar';
@@ -10,6 +10,7 @@ import { EnvironmentTaskStatusBar } from './ide/EnvironmentTaskStatusBar';
 import { ContextMenu, ContextMenuItem } from './ide/ContextMenu';
 import { TerminalWidget } from './ide/TerminalWidget';
 import { SourceControl } from './ide/SourceControl';
+import { PortsTab } from './ide/PortsTab';
 import { FileIcon } from './chat/FileIcon';
 import { cn } from '../App';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
@@ -115,6 +116,8 @@ export interface OpenFile {
   path: string;
   name: string;
   originalContent: string;
+  isDiff?: boolean;
+  diffOriginalContent?: string;
 }
 
 type OutputLine = { text: string; stream: 'info' | 'stdout' | 'stderr' };
@@ -124,14 +127,84 @@ const BottomPanel: React.FC<{
   projectPath?: string;
   diagnostics: DiagnosticsByPath;
   outputLines: OutputLine[];
-  requestedTab: 'problems' | 'output' | null;
+  requestedTab: 'problems' | 'output' | 'terminal' | null;
   requestId: number;
 }> = ({ projectPath, diagnostics, outputLines, requestedTab, requestId }) => {
-  const [activeTab, setActiveTab] = useState<'problems' | 'output' | 'terminal'>('terminal');
+  const [activeTab, setActiveTab] = useState<'problems' | 'output' | 'terminal' | 'ports'>('terminal');
   const [isExpanded, setIsExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [panelHeight, setPanelHeight] = useState(250);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Terminal state
+  const [terms, setTerms] = useState<{ id: string, name: string, groupId: string }[]>([{ id: 'term-1', name: 'powershell', groupId: 'group-1' }]);
+  const [activeGroupId, setActiveGroupId] = useState('group-1');
+  const nextTermIdRef = useRef(2);
+  const nextGroupIdRef = useRef(2);
+
+  const addTerminal = () => {
+    const id = `term-${nextTermIdRef.current++}`;
+    const groupId = `group-${nextGroupIdRef.current++}`;
+    setTerms(prev => [...prev, { id, name: 'powershell', groupId }]);
+    setActiveGroupId(groupId);
+    setActiveTab('terminal');
+    setIsExpanded(true);
+  };
+
+  const splitTerminal = (groupId: string) => {
+    const id = `term-${nextTermIdRef.current++}`;
+    setTerms(prev => {
+      const newTerms = [...prev];
+      const insertIdx = newTerms.findLastIndex(t => t.groupId === groupId) + 1;
+      newTerms.splice(insertIdx, 0, { id, name: 'powershell', groupId });
+      return newTerms;
+    });
+    setActiveGroupId(groupId);
+  };
+
+  const removeTerminal = (id: string) => {
+    let nextActiveGroupId = activeGroupId;
+    setTerms(prev => {
+      const termToRemove = prev.find(t => t.id === id);
+      if (!termToRemove) return prev;
+      
+      const filtered = prev.filter(t => t.id !== id);
+      if (filtered.length === 0) {
+        return [];
+      }
+      
+      if (nextActiveGroupId === termToRemove.groupId) {
+        const remainingInGroup = filtered.filter(t => t.groupId === termToRemove.groupId);
+        if (remainingInGroup.length === 0) {
+          nextActiveGroupId = filtered[filtered.length - 1].groupId;
+        }
+      }
+      return filtered;
+    });
+    
+    // We update activeGroupId in a timeout to avoid React state batching issues 
+    // when called inside a loop, but wait, setting it outside the callback is safe if we just enqueue it.
+    // However, if removeTerminal is called in a loop, nextActiveGroupId might be stale.
+    setActiveGroupId(prev => {
+      // Just check if current active group still exists after the change
+      // It will run after the batch.
+      return nextActiveGroupId;
+    });
+  };
+
+  const removeGroup = (groupId: string) => {
+    setTerms(prev => {
+      const filtered = prev.filter(t => t.groupId !== groupId);
+      if (filtered.length > 0) {
+        setActiveGroupId(filtered[filtered.length - 1].groupId);
+      }
+      return filtered;
+    });
+  };
+
+  const updateTerminalTitle = (id: string, title: string) => {
+    setTerms(prev => prev.map(t => t.id === id ? { ...t, name: title } : t));
+  };
   
   const problems = Object.entries(diagnostics).flatMap(([filePath, markers]) =>
     markers.map(marker => ({ filePath, marker }))
@@ -203,7 +276,8 @@ const BottomPanel: React.FC<{
           {[
             { id: 'problems', icon: AlertCircle, label: 'Problems' },
             { id: 'output', icon: Activity, label: 'Output' },
-            { id: 'terminal', icon: TerminalSquare, label: 'Terminal' }
+            { id: 'terminal', icon: TerminalSquare, label: 'Terminal' },
+            { id: 'ports', icon: Radio, label: 'Ports' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -221,14 +295,145 @@ const BottomPanel: React.FC<{
           ))}
         </div>
         <div className="flex items-center gap-2 pr-2">
-          <button onClick={() => setIsExpanded(false)} className="p-1.5 rounded-md text-[#5b5b63] hover:text-white hover:bg-white/10 transition-colors">
-            <Minimize2 size={13} />
-          </button>
+          {activeTab === 'terminal' && (
+            <div className="flex items-center gap-1 mr-2 border-r border-white/10 pr-2">
+              <Tooltip content="New Terminal" align="end">
+                <button onClick={addTerminal} className="p-1.5 rounded-md text-[#5b5b63] hover:text-white hover:bg-white/10 transition-colors">
+                  <Plus size={14} />
+                </button>
+              </Tooltip>
+              {terms.length > 0 && (
+                <>
+                  <Tooltip content="Split Terminal" align="end">
+                    <button onClick={() => splitTerminal(activeGroupId)} className="p-1.5 rounded-md text-[#5b5b63] hover:text-white hover:bg-white/10 transition-colors">
+                      <SplitSquareHorizontal size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Kill Active Group" align="end">
+                    <button onClick={() => removeGroup(activeGroupId)} className="p-1.5 rounded-md text-[#5b5b63] hover:text-[#f48771] hover:bg-[#f48771]/10 transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                  </Tooltip>
+                </>
+              )}
+            </div>
+          )}
+          <Tooltip content="Maximize Panel" align="end">
+            <button onClick={() => setIsExpanded(false)} className="p-1.5 rounded-md text-[#5b5b63] hover:text-white hover:bg-white/10 transition-colors">
+              <Minimize2 size={13} />
+            </button>
+          </Tooltip>
         </div>
       </div>
-      <div className="flex-1 p-0 overflow-hidden font-mono text-xs text-[#a8a8b1] relative bg-[#08080c]">
+      <div className="flex-1 p-0 overflow-hidden font-mono text-xs text-[#a8a8b1] relative bg-[#08080c] flex">
         {activeTab === 'terminal' && (
-          <TerminalWidget cwd={projectPath} />
+          terms.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full w-full gap-4 text-[#5b5b63]">
+              <TerminalSquare size={48} className="opacity-20" />
+              <div className="flex flex-col items-center gap-1">
+                <span className="font-sans text-sm">No active terminals</span>
+                <span className="font-sans text-xs opacity-60">Click the + button above to start a new session</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 h-full p-2 relative">
+                <TerminalWidget 
+                  cwd={projectPath} 
+                  terms={terms.filter(t => t.groupId === activeGroupId)}
+                  activeTermId={''} // not needed
+                  onTitle={updateTerminalTitle}
+                />
+              </div>
+            <div className="w-48 h-full border-l border-white/5 bg-[#0f0f13] flex flex-col overflow-y-auto py-1">
+              {Array.from(new Set(terms.map(t => t.groupId))).map(groupId => {
+                const groupTerms = terms.filter(t => t.groupId === groupId);
+                return groupTerms.map((t, idx) => {
+                  const parseTitle = (title: string) => {
+                    if (!title) return 'terminal';
+                    const parts = title.split('-');
+                    let lastPart = parts[parts.length - 1].trim();
+                    const pathParts = lastPart.split(/[\\/]/);
+                    let name = pathParts[pathParts.length - 1];
+                    name = name.replace('.exe', '');
+                    if (name === 'cmd' || name === 'powershell' || name === 'bash') return name;
+                    const words = name.split(' ');
+                    return words[0] || 'terminal';
+                  };
+                  
+                  const displayName = parseTitle(t.name);
+                  const isGroupActive = activeGroupId === groupId;
+                  
+                  let treeType: 'single' | 'first' | 'middle' | 'last' = 'single';
+                  if (groupTerms.length > 1) {
+                    if (idx === 0) treeType = 'first';
+                    else if (idx === groupTerms.length - 1) treeType = 'last';
+                    else treeType = 'middle';
+                  }
+
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveGroupId(groupId)}
+                      className={cn(
+                        "group w-full text-left pr-1 min-h-[26px] text-[11px] flex items-stretch border-l-2 transition-colors overflow-hidden",
+                        isGroupActive ? "border-blue-500 bg-white/5 text-white" : "border-transparent text-[#a8a8b1] hover:bg-white/5",
+                        treeType === 'single' ? "pl-3" : "pl-1"
+                      )}
+                    >
+                      {treeType !== 'single' && (
+                        <div className="w-3 relative shrink-0">
+                          {treeType === 'first' && (
+                            <>
+                              <div className="absolute top-1/2 bottom-0 left-[50%] w-px bg-[#5b5b63]" />
+                              <div className="absolute top-1/2 left-[50%] right-0 h-px bg-[#5b5b63]" />
+                            </>
+                          )}
+                          {treeType === 'middle' && (
+                            <>
+                              <div className="absolute top-0 bottom-0 left-[50%] w-px bg-[#5b5b63]" />
+                              <div className="absolute top-1/2 left-[50%] right-0 h-px bg-[#5b5b63]" />
+                            </>
+                          )}
+                          {treeType === 'last' && (
+                            <>
+                              <div className="absolute top-0 bottom-1/2 left-[50%] w-px bg-[#5b5b63]" />
+                              <div className="absolute top-1/2 left-[50%] right-0 h-px bg-[#5b5b63]" />
+                            </>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="flex flex-1 items-center gap-1.5 py-1 min-w-0">
+                        <TerminalSquare size={13} className={isGroupActive ? "text-blue-400 shrink-0" : "shrink-0"} />
+                        <span className="truncate flex-1">{displayName}</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity pl-1">
+                        <Tooltip content="Split Terminal" align="end">
+                          <div 
+                            className="p-1 rounded hover:bg-white/10 transition-colors text-[#5b5b63] hover:text-white"
+                            onClick={(e) => { e.stopPropagation(); splitTerminal(groupId); }}
+                          >
+                            <SplitSquareHorizontal size={11} />
+                          </div>
+                        </Tooltip>
+                        <Tooltip content="Kill Terminal" align="end">
+                          <div 
+                            className="p-1 rounded hover:bg-white/10 transition-colors text-[#5b5b63] hover:text-[#f48771]"
+                            onClick={(e) => { e.stopPropagation(); removeTerminal(t.id); }}
+                          >
+                            <Trash2 size={11} />
+                          </div>
+                        </Tooltip>
+                      </div>
+                    </button>
+                  );
+                });
+              })}
+            </div>
+          </>
+          )
         )}
         {activeTab === 'output' && (
           <div className="h-full overflow-auto p-3 space-y-0.5 whitespace-pre-wrap break-words">
@@ -259,6 +464,11 @@ const BottomPanel: React.FC<{
             </div>
           )
         )}
+        {activeTab === 'ports' && (
+          <div className="h-full border-t border-blue-500/20 bg-[#08080c]">
+            <PortsTab />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -266,7 +476,7 @@ const BottomPanel: React.FC<{
 
 export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [explorerOpen, setExplorerOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   
   const [activeSidebarView, setActiveSidebarView] = useState<'explorer' | 'source-control' | 'environment'>('explorer');
@@ -284,14 +494,21 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [gitStatusMap, setGitStatusMap] = useState<Record<string, string>>({});
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  
+  const [splitOpenFiles, setSplitOpenFiles] = useState<OpenFile[]>([]);
+  const [splitActiveFilePath, setSplitActiveFilePath] = useState<string | null>(null);
+  const [activePane, setActivePane] = useState<'left' | 'right'>('left');
+  
+
   const [diagnostics, setDiagnostics] = useState<DiagnosticsByPath>({});
   const [outputLines, setOutputLines] = useState<OutputLine[]>([]);
-  const [bottomPanelRequest, setBottomPanelRequest] = useState<{ tab: 'problems' | 'output' | null; id: number }>({ tab: null, id: 0 });
+  const [bottomPanelRequest, setBottomPanelRequest] = useState<{ tab: 'problems' | 'output' | 'terminal' | null; id: number }>({ tab: null, id: 0 });
 
   // Dropdown & Wizard States
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const [showWizard, setShowWizard] = useState(false);
-  const [wizardStep, setWizardStep] = useState<'create' | 'security'>('create');
+  const [wizardStep, setWizardStep] = useState<'create' | 'security' | 'name'>('create');
+  const [wizardProjectName, setWizardProjectName] = useState('');
   const [wizardFolders, setWizardFolders] = useState<any[]>([]);
   const [selectedSecurity, setSelectedSecurity] = useState<'full' | 'user' | 'semi'>('full');
 
@@ -305,6 +522,58 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const [nodeToDelete, setNodeToDelete] = useState<FileNode | null>(null);
   const [nodeToCreate, setNodeToCreate] = useState<{ parentNode: FileNode, type: 'file' | 'folder' } | null>(null);
   const [createValue, setCreateValue] = useState('');
+
+  // Tree multi-selection state
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [isDragSelecting, setIsDragSelecting] = useState(false);
+  const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+      setIsDragSelecting(false);
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
+
+  const handleNodeSelect = (node: FileNode, toggle: boolean) => {
+    setSelectedPaths(prev => {
+      const next = new Set(toggle ? prev : undefined);
+      if (toggle && next.has(node.path)) {
+        next.delete(node.path);
+      } else {
+        next.add(node.path);
+      }
+      return next;
+    });
+  };
+
+  const handleNodeDown = (node: FileNode) => {
+    dragTimeoutRef.current = setTimeout(() => {
+      setIsDragSelecting(true);
+      setSelectedPaths(prev => {
+        const next = new Set(prev);
+        next.add(node.path);
+        return next;
+      });
+    }, 400); // 400ms for long press to start selection
+  };
+
+  const handleNodeEnter = (node: FileNode) => {
+    if (isDragSelecting) {
+      setSelectedPaths(prev => {
+        const next = new Set(prev);
+        next.add(node.path);
+        return next;
+      });
+    }
+  };
+
+  const handleNodeUp = () => {
+    if (dragTimeoutRef.current) clearTimeout(dragTimeoutRef.current);
+    setIsDragSelecting(false);
+  };
 
   // Undo/Redo States
   const [undoStack, setUndoStack] = useState<{ type: 'move', sourcePath: string, targetPath: string }[]>([]);
@@ -540,21 +809,82 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
 
   const handleFileClick = async (node: FileNode) => {
     if (node.type === 'file') {
-      const existing = openFiles.find(f => f.path === node.path);
+      const targetFiles = activePane === 'right' ? splitOpenFiles : openFiles;
+      const setTargetFiles = activePane === 'right' ? setSplitOpenFiles : setOpenFiles;
+      const setTargetActive = activePane === 'right' ? setSplitActiveFilePath : setActiveFilePath;
+      
+      const existing = targetFiles.find(f => f.path === node.path && !f.isDiff);
       if (existing) {
-        setActiveFilePath(node.path);
+        setTargetActive(node.path);
         return;
       }
       
       const content = await (window as any).electron.readFileContent(node.path, activeProject?.path);
-      if (content !== undefined) {
-        setOpenFiles(prev => [...prev, {
+      if (content !== undefined && content !== null) {
+        setTargetFiles(prev => [...prev, {
           path: node.path,
           name: node.name,
           originalContent: content
         }]);
-        setActiveFilePath(node.path);
+        setTargetActive(node.path);
       }
+    }
+  };
+
+  const handleSplitEditor = () => {
+    if (activeFilePath) {
+      const activeFile = openFiles.find(f => f.path === activeFilePath);
+      if (activeFile && !splitOpenFiles.find(f => f.path === activeFilePath)) {
+        setSplitOpenFiles(prev => [...prev, activeFile]);
+      }
+      setSplitActiveFilePath(activeFilePath);
+      setActivePane('right');
+    }
+  };
+
+  const handleFileDiff = async (relativePath: string) => {
+    if (!activeProject) return;
+    try {
+      const fullPath = relativePath.includes('/') || relativePath.includes('\\') 
+        ? `${activeProject.path}/${relativePath}` 
+        : `${activeProject.path}/${relativePath}`; 
+        
+      const diffId = `diff://${relativePath}`;
+      
+      const targetFiles = activePane === 'right' ? splitOpenFiles : openFiles;
+      const setTargetFiles = activePane === 'right' ? setSplitOpenFiles : setOpenFiles;
+      const setTargetActive = activePane === 'right' ? setSplitActiveFilePath : setActiveFilePath;
+      
+      const existing = targetFiles.find(f => f.path === diffId);
+      if (existing) {
+        setTargetActive(diffId);
+        return;
+      }
+      
+      const originalRes = await (window as any).electron.gitShowFile(activeProject.path, relativePath, 'HEAD');
+      let originalContent = '';
+      if (originalRes.success) {
+        originalContent = originalRes.data;
+      }
+      
+      let modifiedContent = '';
+      try {
+        modifiedContent = await (window as any).electron.readFileContent(relativePath, activeProject.path);
+      } catch(e) {}
+      
+      if (modifiedContent !== undefined && modifiedContent !== null) {
+        setTargetFiles(prev => [...prev, {
+          path: diffId,
+          name: `${relativePath.split('/').pop() || relativePath.split('\\').pop()} (Working Tree)`,
+          originalContent: modifiedContent,
+          isDiff: true,
+          diffOriginalContent: originalContent
+        }]);
+        setTargetActive(diffId);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert('Error opening diff: ' + e.message);
     }
   };
 
@@ -578,18 +908,48 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
   const handleNextStep = () => {
     if (wizardStep === 'create') {
       setWizardStep('security');
+    } else if (wizardStep === 'security') {
+      if (wizardFolders.length > 0) {
+        setWizardProjectName(wizardFolders[0].name || '');
+      }
+      setWizardStep('name');
     } else {
       if (wizardFolders.length > 0) {
-        const newProject = wizardFolders[0];
-        setActiveProject(newProject);
-        localStorage.setItem('quantix_active_project', JSON.stringify(newProject));
+        const createProject = async () => {
+          let projectPath = wizardFolders[0].path;
+          let projectName = wizardProjectName.trim() || wizardFolders[0].name;
 
-        const updatedProjects = [...projects];
-        if (!updatedProjects.some(p => p.path === newProject.path)) {
-          updatedProjects.push(newProject);
+          if (wizardFolders.length > 1) {
+            // Create a virtual workspace combining multiple folders
+            projectPath = await (window as any).electron.createVirtualWorkspace(projectName, wizardFolders);
+          } else {
+            // Keep original behavior for single folder
+            if (wizardProjectName.trim() && wizardProjectName.trim() !== wizardFolders[0].name) {
+              projectName = wizardProjectName.trim();
+            }
+          }
+
+          const newProject = {
+            path: projectPath,
+            name: projectName,
+            branch: wizardFolders.length > 1 ? null : wizardFolders[0].branch
+          };
+
+          const updatedProjects = [...projects];
+          if (!updatedProjects.some(p => p.path === newProject.path)) {
+            updatedProjects.push(newProject);
+          }
+
+          setActiveProject(newProject);
+          localStorage.setItem('quantix_active_project', JSON.stringify(newProject));
           setProjects(updatedProjects);
           localStorage.setItem('quantix_projects', JSON.stringify(updatedProjects));
-        }
+          
+          setShowWizard(false);
+          setWizardFolders([]);
+        };
+        createProject();
+        return; // Early return since we're handling state updates async
       }
       setShowWizard(false);
       setWizardFolders([]);
@@ -738,7 +1098,11 @@ const handleSkip = () => {
       {/* Main Panel Content */}
       <div className="flex-1 flex overflow-hidden pt-[88px]">
         {/* Activity Bar */}
-        <ActivityBar activeView={activeSidebarView} onViewChange={setActiveSidebarView} />
+        <ActivityBar 
+          activeView={activeSidebarView} 
+          onViewChange={setActiveSidebarView} 
+          gitChangesCount={Object.keys(gitStatusMap).length}
+        />
 
         {/* Left File Explorer Panel */}
         <div 
@@ -877,6 +1241,12 @@ const handleSkip = () => {
                 onFileClick={handleFileClick} 
                 onContextMenu={handleContextMenu}
                 selectedPath={activeFilePath} 
+                selectedPaths={selectedPaths}
+                onNodeSelect={handleNodeSelect}
+                onNodeDown={handleNodeDown}
+                onNodeUp={handleNodeUp}
+                onNodeEnter={handleNodeEnter}
+                isDragSelecting={isDragSelecting}
                 depth={0}
                 defaultOpen={true}
                 onMoveFile={handleMoveFile}
@@ -890,6 +1260,7 @@ const handleSkip = () => {
           ) : activeSidebarView === 'source-control' ? (
             <SourceControl 
               projectPath={activeProject?.path} 
+              onFileDiff={handleFileDiff}
               gitStatusMap={gitStatusMap}
               onGitAction={async () => {
                 await fetchProjectFiles();
@@ -937,46 +1308,105 @@ const handleSkip = () => {
             />
           )}
         </div>
-        <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", activeFilePath ? "bg-[#08080c]" : "bg-transparent")}>
-          {activeFilePath ? (
-            <>
-              <div className="flex-1 flex flex-col overflow-hidden relative">
-                <EditorArea 
-                  projectRoot={activeProject?.path}
-                  openFiles={openFiles}
-                  activeFilePath={activeFilePath}
-                  isLiveServerRunning={isLiveServerRunning}
-                  onTabClose={(path) => {
-                    setDiagnostics(previous => {
-                      const next = { ...previous };
-                      delete next[path];
-                      return next;
-                    });
-                    setOpenFiles(prev => {
-                      const filtered = prev.filter(f => f.path !== path);
-                      if (activeFilePath === path) {
-                        setActiveFilePath(filtered.length > 0 ? filtered[filtered.length - 1].path : null);
+        <div className={cn("flex-1 flex flex-col overflow-hidden transition-colors", (openFiles.length > 0 || splitOpenFiles.length > 0) ? "bg-[#08080c]" : "bg-transparent")}>
+          {(openFiles.length > 0 || splitOpenFiles.length > 0) ? (
+            <div className="flex-1 flex overflow-hidden">
+              {/* Left Pane */}
+              <div 
+                className={cn("flex-1 flex flex-col overflow-hidden relative", activePane === 'left' ? "ring-1 ring-blue-500/20 z-10" : "opacity-90")}
+                onClick={() => setActivePane('left')}
+              >
+                {openFiles.length > 0 ? (
+                  <EditorArea 
+                    projectRoot={activeProject?.path}
+                    openFiles={openFiles}
+                    activeFilePath={activeFilePath}
+                    isLiveServerRunning={isLiveServerRunning}
+                    onTabClose={(path) => {
+                      setDiagnostics(previous => {
+                        const next = { ...previous };
+                        delete next[path];
+                        return next;
+                      });
+                      setOpenFiles(prev => {
+                        const filtered = prev.filter(f => f.path !== path);
+                        if (activeFilePath === path) {
+                          setActiveFilePath(filtered.length > 0 ? filtered[filtered.length - 1].path : null);
+                        }
+                        return filtered;
+                      });
+                    }}
+                    onTabClick={(path) => {
+                      setActiveFilePath(path);
+                      setActivePane('left');
+                    }}
+                    handleRunFile={handleRunFile}
+                    handleStopLive={handleStopLive}
+                    onFileSaved={(path, newContent) => {
+                      setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                      setSplitOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                      fetchProjectFiles();
+                    }}
+                    onDiagnosticsChange={(path, markers) => {
+                      setDiagnostics(previous => ({ ...previous, [path]: markers }));
+                      if (markers.some(marker => marker.severity === 8)) {
+                        setBottomPanelRequest(previous => ({ tab: 'problems', id: previous.id + 1 }));
                       }
-                      return filtered;
-                    });
-                  }}
-                  onTabClick={(path) => setActiveFilePath(path)}
-                  handleRunFile={handleRunFile}
-                  handleStopLive={handleStopLive}
-                  onFileSaved={(path, newContent) => {
-                    setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
-                    fetchProjectFiles();
-                  }}
-                  onDiagnosticsChange={(path, markers) => {
-                    setDiagnostics(previous => ({ ...previous, [path]: markers }));
-                    if (markers.some(marker => marker.severity === 8)) {
-                      setBottomPanelRequest(previous => ({ tab: 'problems', id: previous.id + 1 }));
-                    }
-                  }}
-                  gitStatusMap={gitStatusMap}
-                />
+                    }}
+                    gitStatusMap={gitStatusMap}
+                    onTabsReorder={setOpenFiles}
+                    onSplitEditor={handleSplitEditor}
+                    isActivePane={activePane === 'left'}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-[#8b8b93] text-sm select-none">
+                    No files open in this group
+                  </div>
+                )}
               </div>
-            </>
+
+              {/* Right Pane */}
+              {splitOpenFiles.length > 0 && (
+                <div 
+                  className={cn("flex-1 flex flex-col overflow-hidden relative border-l border-white/10", activePane === 'right' ? "ring-1 ring-blue-500/20 z-10" : "opacity-90")}
+                  onClick={() => setActivePane('right')}
+                >
+                  <EditorArea 
+                    projectRoot={activeProject?.path}
+                    openFiles={splitOpenFiles}
+                    activeFilePath={splitActiveFilePath}
+                    isLiveServerRunning={isLiveServerRunning}
+                    onTabClose={(path) => {
+                      setSplitOpenFiles(prev => {
+                        const filtered = prev.filter(f => f.path !== path);
+                        if (splitActiveFilePath === path) {
+                          setSplitActiveFilePath(filtered.length > 0 ? filtered[filtered.length - 1].path : null);
+                        }
+                        if (filtered.length === 0) setActivePane('left');
+                        return filtered;
+                      });
+                    }}
+                    onTabClick={(path) => {
+                      setSplitActiveFilePath(path);
+                      setActivePane('right');
+                    }}
+                    handleRunFile={handleRunFile}
+                    handleStopLive={handleStopLive}
+                    onFileSaved={(path, newContent) => {
+                      setOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                      setSplitOpenFiles(prev => prev.map(f => f.path === path ? { ...f, originalContent: newContent } : f));
+                      fetchProjectFiles();
+                    }}
+                    onDiagnosticsChange={(path, markers) => {
+                      setDiagnostics(previous => ({ ...previous, [path]: markers }));
+                    }}
+                    gitStatusMap={gitStatusMap}
+                    onTabsReorder={setSplitOpenFiles}
+                    isActivePane={activePane === 'right'}
+                  />
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex-1 flex flex-col justify-center items-center text-[#8b8b93] select-none">
               <motion.img 
@@ -1336,6 +1766,53 @@ const handleSkip = () => {
                   </div>
                 </>
               )}
+
+              {/* Wizard Step 3: Project Name */}
+              {wizardStep === 'name' && (
+                <>
+                  <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-bold text-white">Project Name</h3>
+                      <p className="text-[10px] text-[#8b8b93] mt-0.5">Set a name for this project</p>
+                    </div>
+                    <button 
+                      onClick={handleSkip}
+                      className="p-1 hover:bg-white/5 text-[#8b8b93] hover:text-white rounded transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="p-6">
+                    <input
+                      type="text"
+                      value={wizardProjectName}
+                      onChange={(e) => setWizardProjectName(e.target.value)}
+                      placeholder="Enter project name"
+                      autoFocus
+                      className="w-full bg-[#08080c] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#007acc] transition-colors"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleNextStep();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="px-6 py-4 bg-white/5 border-t border-white/10 flex justify-between gap-3">
+                    <button
+                      onClick={() => setWizardStep('security')}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleNextStep}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#007acc] hover:bg-[#0088dd] text-white transition-colors"
+                    >
+                      Finish
+                    </button>
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}
@@ -1539,7 +2016,13 @@ const FileTreeItem = ({
   node, 
   onFileClick, 
   onContextMenu,
-  selectedPath, 
+  selectedPath,
+  selectedPaths,
+  onNodeSelect,
+  onNodeDown,
+  onNodeUp,
+  onNodeEnter,
+  isDragSelecting,
   depth = 0,
   defaultOpen = false,
   onMoveFile,
@@ -1549,6 +2032,12 @@ const FileTreeItem = ({
   onFileClick: (n: FileNode) => void; 
   onContextMenu?: (e: React.MouseEvent, n: FileNode) => void;
   selectedPath: string | null; 
+  selectedPaths?: Set<string>;
+  onNodeSelect?: (node: FileNode, toggle: boolean) => void;
+  onNodeDown?: (node: FileNode) => void;
+  onNodeUp?: () => void;
+  onNodeEnter?: (node: FileNode) => void;
+  isDragSelecting?: boolean;
   depth?: number;
   defaultOpen?: boolean;
   onMoveFile?: (sourcePath: string, targetPath: string) => void;
@@ -1584,18 +2073,55 @@ const FileTreeItem = ({
     }
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onNodeUp) onNodeUp();
+
+    if (e.ctrlKey || e.metaKey) {
+      onNodeSelect?.(node, true);
+      return;
+    }
+
+    onNodeSelect?.(node, false);
+    if (node.type === 'folder') {
+      setIsOpen(!isOpen);
+    } else {
+      onFileClick(node);
+    }
+  };
+
+  const isSelected = selectedPaths ? selectedPaths.has(node.path) : selectedPath === node.path;
+  const normalizedPath = node.path.replace(/\\/g, '/');
+  const gitStatusKey = gitStatusMap ? Object.keys(gitStatusMap).find(k => normalizedPath.endsWith(k)) : undefined;
+  const gitStatus = gitStatusKey ? gitStatusMap[gitStatusKey] : undefined;
+
+  const isModified = gitStatus?.includes('M');
+  const isUntracked = gitStatus?.includes('?') || gitStatus?.includes('A');
+  
+  const textColorClass = isModified ? "text-[#e2c08d]" 
+                       : isUntracked ? "text-[#73c991]" 
+                       : isSelected ? "text-white" 
+                       : "text-[#a8a8b1]";
+
   if (node.type === 'folder') {
     return (
       <div>
         <div 
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={handleClick}
+          onMouseDown={() => onNodeDown?.(node)}
+          onMouseUp={() => onNodeUp?.()}
+          onMouseEnter={() => onNodeEnter?.(node)}
           onContextMenu={(e) => onContextMenu && onContextMenu(e, node)}
-          draggable={true}
+          draggable={!isDragSelecting}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
           style={{ paddingLeft: `${paddingLeft}px` }}
-          className="flex items-center gap-1.5 py-1.5 hover:bg-white/5 rounded-md cursor-pointer text-[#a8a8b1] relative z-10"
+          className={cn(
+            "flex items-center gap-1.5 py-1.5 rounded-md cursor-pointer relative z-10 group transition-colors",
+            isSelected ? "bg-[#007acc]/30 font-medium shadow-[inset_2px_0_0_0_#007acc]" : "hover:bg-white/5",
+            textColorClass
+          )}
         >
           {isOpen ? (
             <FolderOpen size={14} className="text-[#8b8b93] shrink-0" />
@@ -1639,6 +2165,12 @@ const FileTreeItem = ({
                     onFileClick={onFileClick} 
                     onContextMenu={onContextMenu}
                     selectedPath={selectedPath} 
+                    selectedPaths={selectedPaths}
+                    onNodeSelect={onNodeSelect}
+                    onNodeDown={onNodeDown}
+                    onNodeUp={onNodeUp}
+                    onNodeEnter={onNodeEnter}
+                    isDragSelecting={isDragSelecting}
                     depth={depth + 1}
                     onMoveFile={onMoveFile}
                     gitStatusMap={gitStatusMap}
@@ -1652,32 +2184,21 @@ const FileTreeItem = ({
     );
   }
 
-  const isSelected = selectedPath === node.path;
-  
-  const normalizedPath = node.path.replace(/\\/g, '/');
-  const gitStatusKey = gitStatusMap ? Object.keys(gitStatusMap).find(k => normalizedPath.endsWith(k)) : undefined;
-  const gitStatus = gitStatusKey ? gitStatusMap[gitStatusKey] : undefined;
-
-  const isModified = gitStatus?.includes('M');
-  const isUntracked = gitStatus?.includes('?') || gitStatus?.includes('A');
-  
-  const textColorClass = isModified ? "text-[#e2c08d]" 
-                       : isUntracked ? "text-[#73c991]" 
-                       : isSelected ? "text-white" 
-                       : "text-[#a8a8b1]";
-
   return (
     <div 
-      onClick={() => onFileClick(node)}
+      onClick={handleClick}
+      onMouseDown={() => onNodeDown?.(node)}
+      onMouseUp={() => onNodeUp?.()}
+      onMouseEnter={() => onNodeEnter?.(node)}
       onContextMenu={(e) => onContextMenu && onContextMenu(e, node)}
-      draggable={true}
+      draggable={!isDragSelecting}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       style={{ paddingLeft: `${paddingLeft}px` }}
       className={cn(
         "flex items-center gap-2 py-1.5 rounded-md cursor-pointer transition-colors relative z-10 group",
-        isSelected ? "bg-white/10 font-medium" : "hover:bg-white/5",
+        isSelected ? "bg-[#007acc]/30 font-medium shadow-[inset_2px_0_0_0_#007acc]" : "hover:bg-white/5",
         textColorClass
       )}
     >

@@ -63,16 +63,28 @@ contextBridge.exposeInMainWorld('electron', {
   },
   fetchSupabaseEmail: (token: string) => ipcRenderer.invoke('fetch-supabase-email', token),
   getRecentProjects: () => ipcRenderer.invoke('get-recent-projects'),
-  startTerminal: (cwd: string) => ipcRenderer.invoke('start-terminal', cwd),
-  onTerminalData: (callback: (data: string) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, data: string) => callback(data);
+  startTerminal: (cwd: string, id?: string) => ipcRenderer.invoke('start-terminal', cwd, id),
+  onTerminalData: (callback: (id: string, data: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, idOrData: string, dataIfId: string) => {
+      // For backward compatibility: if main sends (data), idOrData is data. 
+      // If main sends (id, data), idOrData is id, dataIfId is data.
+      if (dataIfId !== undefined) {
+        callback(idOrData, dataIfId);
+      } else {
+        callback('default', idOrData);
+      }
+    };
     ipcRenderer.on('terminal-data', listener);
     return () => ipcRenderer.removeListener('terminal-data', listener);
   },
-  sendTerminalData: (data: string) => ipcRenderer.invoke('send-terminal-data', data),
-  resizeTerminal: (cols: number, rows: number) => ipcRenderer.invoke('resize-terminal', { cols, rows }),
-  killTerminal: () => ipcRenderer.invoke('kill-terminal'),
+  sendTerminalData: (data: string, id?: string) => ipcRenderer.invoke('send-terminal-data', data, id),
+  resizeTerminal: (cols: number, rows: number, id?: string) => ipcRenderer.invoke('resize-terminal', { cols, rows }, id),
+  killTerminal: (id?: string) => ipcRenderer.invoke('kill-terminal', id),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
+  removeFolderFromWorkspace: (workspaceRoot: string, folderName: string) => ipcRenderer.invoke('remove-folder-from-workspace', workspaceRoot, folderName),
+  addFolderToWorkspace: (workspaceRoot: string, folder: { path: string, name: string }) => ipcRenderer.invoke('add-folder-to-workspace', workspaceRoot, folder),
+  createVirtualWorkspace: (name: string, folders: { path: string, name: string }[]) => ipcRenderer.invoke('create-virtual-workspace', name, folders),
+  readDirectory: (path: string) => ipcRenderer.invoke('read-directory', path),
   readProjectFiles: (path: string, projectRoot?: string) => ipcRenderer.invoke('read-project-files', path, projectRoot),
   readFileContent: (path: string, projectRoot?: string) => ipcRenderer.invoke('read-file-content', path, projectRoot),
   readFileRange: (path: string, startLine?: number, endLine?: number, projectRoot?: string) => ipcRenderer.invoke('read-file-range', path, startLine, endLine, projectRoot),
@@ -99,6 +111,8 @@ contextBridge.exposeInMainWorld('electron', {
   gitLog: (cwd: string) => ipcRenderer.invoke('git-log', cwd),
   gitLogStructured: (cwd: string) => ipcRenderer.invoke('git-log-structured', cwd),
   gitCommitFiles: (cwd: string, hash: string) => ipcRenderer.invoke('git-commit-files', cwd, hash),
+  gitShowFile: (projectRoot: string, filePath: string, commitOrRef?: string) => ipcRenderer.invoke('git-show-file', projectRoot, filePath, commitOrRef),
+  createGitRemote: (projectRoot: string, repoUrl: string) => ipcRenderer.invoke('create-git-remote', projectRoot, repoUrl),
   gitDiscard: (cwd: string, file: string) => ipcRenderer.invoke('git-discard', cwd, file),
 
   // ── Agentic Tool System ──────────────────────────────────────────────
@@ -120,5 +134,9 @@ contextBridge.exposeInMainWorld('electron', {
     const listener = (_event: Electron.IpcRendererEvent, data: { taskId: string; status: any }) => callback(data);
     ipcRenderer.on('background-task-complete', listener);
     return () => ipcRenderer.removeListener('background-task-complete', listener);
-  }
+  },
+
+  // ── Port Forwarding ────────────────────────────────────────────────────
+  startPortForward: (port: number) => ipcRenderer.invoke('start-port-forward', port),
+  stopPortForward: (port: number) => ipcRenderer.invoke('stop-port-forward', port)
 });

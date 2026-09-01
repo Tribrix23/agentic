@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw } from 'lucide-react';
+import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw, Puzzle, FolderPlus, Mic, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, AIConfig } from '../lib/aiConfig';
@@ -13,7 +13,9 @@ interface ProjectFolder {
   branch: string | null;
 }
 
-const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (val: string) => void, options: string[] }) => {
+type SelectOption = string | { label: string, value: string, description?: string };
+
+const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (val: string) => void, options: SelectOption[] }) => {
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -27,13 +29,23 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Determine width based on whether options have descriptions
+  const hasDescriptions = options.some(opt => typeof opt === 'object' && opt.description);
+  const dropdownWidth = hasDescriptions ? "w-[400px]" : "w-[140px]";
+
+  const getLabel = (opt: SelectOption) => typeof opt === 'string' ? opt : opt.label;
+  const getValue = (opt: SelectOption) => typeof opt === 'string' ? opt : opt.value;
+  const getDescription = (opt: SelectOption) => typeof opt === 'string' ? undefined : opt.description;
+
+  const currentLabel = getLabel(options.find(o => getValue(o) === value) || value);
+
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-black/40 border border-white/10 hover:border-white/20 text-xs text-white rounded-lg px-3 py-2 min-w-[140px] flex items-center justify-between gap-2 outline-none transition-colors shadow-inner"
       >
-        <span>{value}</span>
+        <span>{currentLabel}</span>
         <ChevronDown size={14} className={cn("text-[#8b8b93] transition-transform", isOpen ? "rotate-180" : "")} />
       </button>
       <AnimatePresence>
@@ -43,24 +55,33 @@ const CustomSelect = ({ value, onChange, options }: { value: string, onChange: (
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -5 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full right-0 mt-2 w-[140px] bg-[#141419] border border-white/10 rounded-lg shadow-xl overflow-hidden z-50 py-1"
+            className={cn("absolute top-full right-0 mt-2 bg-[#1a1a21] border border-white/10 rounded-lg shadow-2xl overflow-hidden z-50 py-1", dropdownWidth)}
           >
-            {options.map(opt => (
-              <div
-                key={opt}
-                onClick={() => {
-                  onChange(opt);
-                  setIsOpen(false);
-                }}
-                className={cn(
-                  "px-3 py-2 text-xs cursor-pointer transition-colors flex items-center gap-2",
-                  value === opt ? "bg-[#3b82f6]/10 text-[#3b82f6]" : "text-[#8b8b93] hover:bg-white/5 hover:text-white"
-                )}
-              >
-                {value === opt && <div className="w-1.5 h-1.5 rounded-full bg-[#3b82f6]" />}
-                <span className={cn(value !== opt && "ml-3")}>{opt}</span>
-              </div>
-            ))}
+            {options.map((opt, i) => {
+              const optVal = getValue(opt);
+              const optLabel = getLabel(opt);
+              const optDesc = getDescription(opt);
+              const isSelected = value === optVal;
+              return (
+                <div
+                  key={optVal + i}
+                  onClick={() => {
+                    onChange(optVal);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "px-4 py-3 cursor-pointer transition-colors flex items-start justify-between gap-3",
+                    isSelected ? "bg-white/5" : "hover:bg-white/[0.03]"
+                  )}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className={cn("text-sm font-medium", isSelected ? "text-white" : "text-[#e2e2e3]")}>{optLabel}</span>
+                    {optDesc && <span className="text-xs text-[#8b8b93] leading-relaxed">{optDesc}</span>}
+                  </div>
+                  {isSelected && <Check size={16} className="text-white shrink-0 mt-0.5" />}
+                </div>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
@@ -226,6 +247,8 @@ export const SettingsModal = ({
   // Per-project states
   const [projectSettings, setProjectSettings] = useState<Record<string, any>>({});
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
+  const [isEditingProjectName, setIsEditingProjectName] = useState(false);
+  const [editingProjectName, setEditingProjectName] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem('quantix_projects');
@@ -313,6 +336,18 @@ export const SettingsModal = ({
 
   const selectedProject = projects.find(p => `project-${p.path}` === activeTab);
 
+  const [workspaceSubFolders, setWorkspaceSubFolders] = useState<{name: string, isDirectory: boolean}[]>([]);
+  useEffect(() => {
+    if (selectedProject?.path && selectedProject.path.includes('.quantix') && selectedProject.path.includes('workspaces')) {
+      (window as any).electron.readDirectory(selectedProject.path).then((items: any[]) => {
+        setWorkspaceSubFolders(items.filter((i: any) => i.isDirectory && i.name !== '.git'));
+      }).catch(() => {
+        setWorkspaceSubFolders([]);
+      });
+    } else {
+      setWorkspaceSubFolders([]);
+    }
+  }, [selectedProject]);
   const handleDeleteProject = (pathToDelete: string) => {
     const updated = projects.filter(p => p.path !== pathToDelete);
     setProjects(updated);
@@ -408,11 +443,67 @@ export const SettingsModal = ({
           <div className="flex items-start justify-between p-8 pb-4">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-bold text-white mb-1">{headerInfo.title}</h2>
-                {selectedProject && (
-                  <button className="text-[#8b8b93] hover:text-white transition-colors p-1 rounded">
-                    <Pencil size={14} />
-                  </button>
+                {isEditingProjectName && selectedProject ? (
+                  <input
+                    type="text"
+                    value={editingProjectName}
+                    autoFocus
+                    onChange={e => setEditingProjectName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        setIsEditingProjectName(false);
+                        if (editingProjectName.trim()) {
+                          const updated = projects.map(p => p.path === selectedProject.path ? { ...p, name: editingProjectName.trim() } : p);
+                          setProjects(updated);
+                          localStorage.setItem('quantix_projects', JSON.stringify(updated));
+                          
+                          const active = localStorage.getItem('quantix_active_project');
+                          if (active) {
+                            const parsed = JSON.parse(active);
+                            if (parsed.path === selectedProject.path) {
+                              localStorage.setItem('quantix_active_project', JSON.stringify({ ...parsed, name: editingProjectName.trim() }));
+                            }
+                          }
+                          window.dispatchEvent(new CustomEvent('projects-changed'));
+                        }
+                      } else if (e.key === 'Escape') {
+                        setIsEditingProjectName(false);
+                      }
+                    }}
+                    onBlur={() => {
+                      setIsEditingProjectName(false);
+                      if (editingProjectName.trim()) {
+                        const updated = projects.map(p => p.path === selectedProject.path ? { ...p, name: editingProjectName.trim() } : p);
+                        setProjects(updated);
+                        localStorage.setItem('quantix_projects', JSON.stringify(updated));
+                        
+                        const active = localStorage.getItem('quantix_active_project');
+                        if (active) {
+                          const parsed = JSON.parse(active);
+                          if (parsed.path === selectedProject.path) {
+                            localStorage.setItem('quantix_active_project', JSON.stringify({ ...parsed, name: editingProjectName.trim() }));
+                          }
+                        }
+                        window.dispatchEvent(new CustomEvent('projects-changed'));
+                      }
+                    }}
+                    className="text-2xl font-bold text-white mb-1 bg-transparent border-b border-[#3b82f6] outline-none"
+                  />
+                ) : (
+                  <>
+                    <h2 className="text-2xl font-bold text-white mb-1">{selectedProject ? selectedProject.name : headerInfo.title}</h2>
+                    {selectedProject && (
+                      <button 
+                        onClick={() => {
+                          setEditingProjectName(selectedProject.name);
+                          setIsEditingProjectName(true);
+                        }}
+                        className="text-[#8b8b93] hover:text-white transition-colors p-1 rounded"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
               <p className="text-[#8b8b93] text-sm">{headerInfo.subtitle}</p>
@@ -530,45 +621,13 @@ export const SettingsModal = ({
             {activeTab === 'shortcuts' && (
               <div className="flex flex-col gap-6">
 
-                {/* RECOMMENDED */}
+                {/* APP NAVIGATION & ACTIONS */}
                 <div>
                   <div className="text-[11px] font-semibold text-[#8b8b93] mb-3 uppercase tracking-wider">
-                    Recommended
+                    App Navigation & Actions
                   </div>
                   <div className="flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <MessageSquare size={14} className="text-[#8b8b93]" />
-                        <span>Open Conversation Picker</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">K</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <Search size={14} className="text-[#8b8b93]" />
-                        <span>Open File Search</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">P</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <Edit3 size={14} className="text-[#8b8b93]" />
-                        <span>Focus Input</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">L</kbd>
-                      </div>
-                    </div>
-
+                    
                     <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
                         <SquarePlus size={14} className="text-[#8b8b93]" />
@@ -579,34 +638,82 @@ export const SettingsModal = ({
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">N</kbd>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* NAVIGATION */}
-                <div>
-                  <div className="text-[11px] font-semibold text-[#8b8b93] mb-3 uppercase tracking-wider">
-                    Navigation
-                  </div>
-                  <div className="flex flex-col gap-2.5">
                     <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <ArrowLeft size={14} className="text-[#8b8b93]" />
-                        <span>Go Back</span>
+                        <Clock size={14} className="text-[#8b8b93]" />
+                        <span>Conversation History</span>
                       </div>
                       <div className="flex gap-1">
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">[</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">H</kbd>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <ArrowRight size={14} className="text-[#8b8b93]" />
-                        <span>Go Forward</span>
+                        <Puzzle size={14} className="text-[#8b8b93]" />
+                        <span>Add-ons</span>
                       </div>
                       <div className="flex gap-1">
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">]</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Shift</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">A</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <FolderPlus size={14} className="text-[#8b8b93]" />
+                        <span>New Project</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Shift</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">N</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Settings size={14} className="text-[#8b8b93]" />
+                        <span>Settings</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]"> , </kbd>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* EDITOR / CHAT */}
+                <div>
+                  <div className="text-[11px] font-semibold text-[#8b8b93] mb-3 uppercase tracking-wider">
+                    Editor & Chat
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Plus size={14} className="text-[#8b8b93]" />
+                        <span>Add Context to Chat</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">U</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Mic size={14} className="text-[#8b8b93]" />
+                        <span>Voice Input</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">M</kbd>
                       </div>
                     </div>
 
@@ -620,79 +727,16 @@ export const SettingsModal = ({
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">P</kbd>
                       </div>
                     </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <SquarePlus size={14} className="text-[#8b8b93]" />
-                        <span>New Conversation</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">N</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <MessageSquare size={14} className="text-[#8b8b93]" />
-                        <span>Open Conversation Picker</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">K</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <Clock size={14} className="text-[#8b8b93]" />
-                        <span>Scheduled Tasks</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">U</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3] pl-6">
-                        <span>Select Previous Conversation</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Alt</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">↑</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3] pl-6">
-                        <span>Select Next Conversation</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Alt</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">↓</kbd>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
-                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <Settings size={14} className="text-[#8b8b93]" />
-                        <span>Open Settings</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">,</kbd>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
-                {/* GENERAL & MORE */}
+                {/* ADVANCED & AGENTIC */}
                 <div>
                   <div className="text-[11px] font-semibold text-[#8b8b93] mb-3 uppercase tracking-wider">
-                    General & View
+                    Advanced & Agentic
                   </div>
                   <div className="flex flex-col gap-2.5">
+                    
                     <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
                         <Layout size={14} className="text-[#8b8b93]" />
@@ -706,8 +750,42 @@ export const SettingsModal = ({
 
                     <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Trash2 size={14} className="text-[#8b8b93]" />
+                        <span>Clear Chat</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Shift</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">L</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Bot size={14} className="text-[#8b8b93]" />
+                        <span>Stop Agent</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">K</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Edit3 size={14} className="text-[#8b8b93]" />
+                        <span>Focus Chat Input</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">I</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
                         <Command size={14} className="text-[#8b8b93]" />
-                        <span>Command Palette</span>
+                        <span>Open Command Palette</span>
                       </div>
                       <div className="flex gap-1">
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
@@ -718,15 +796,60 @@ export const SettingsModal = ({
 
                     <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
                       <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
-                        <Trash2 size={14} className="text-[#8b8b93]" />
-                        <span>Clear Active Chat</span>
+                        <Cpu size={14} className="text-[#8b8b93]" />
+                        <span>Model Selection</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">O</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Layout size={14} className="text-[#8b8b93]" />
+                        <span>Toggle Right Panel</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">J</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <RefreshCw size={14} className="text-[#8b8b93]" />
+                        <span>Restart Agent</span>
                       </div>
                       <div className="flex gap-1">
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
                         <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Shift</kbd>
-                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">L</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">R</kbd>
                       </div>
                     </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <Info size={14} className="text-[#8b8b93]" />
+                        <span>Toggle Debug Info</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">D</kbd>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-white/5 transition-colors">
+                      <div className="flex items-center gap-3 text-xs text-[#e2e2e3]">
+                        <ExternalLink size={14} className="text-[#8b8b93]" />
+                        <span>Export Chat Logs</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">Ctrl</kbd>
+                        <kbd className="px-2 py-1 bg-white/5 border border-white/10 rounded text-[11px] font-mono text-[#a8a8b1]">E</kbd>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
 
@@ -891,23 +1014,92 @@ export const SettingsModal = ({
                 <div>
                   <h3 className="text-white font-semibold text-[15px] mb-3">Folders</h3>
                   <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/5">
-                      <div className="flex items-center gap-2 text-xs text-white">
-                        <Folder size={14} className="text-[#8b8b93]" />
-                        <span className="font-mono">{selectedProject.name}/</span>
-                        {selectedProject.branch && (
-                          <span className="flex items-center gap-1 text-[10px] text-[#8b8b93] bg-white/5 px-2 py-0.5 rounded">
-                            <GitBranch size={10} />
-                            {selectedProject.branch}
-                          </span>
-                        )}
+                    {workspaceSubFolders.length > 0 ? (
+                      workspaceSubFolders.map((subFolder, index) => (
+                        <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/5">
+                          <div className="flex items-center gap-2 text-xs text-white">
+                            <Folder size={14} className="text-[#8b8b93]" />
+                            <span className="font-mono">{subFolder.name}/</span>
+                          </div>
+                          <button 
+                            onClick={async () => {
+                              const success = await (window as any).electron.removeFolderFromWorkspace(selectedProject.path, subFolder.name);
+                              if (success) {
+                                const items = await (window as any).electron.readDirectory(selectedProject.path);
+                                setWorkspaceSubFolders(items.filter((i: any) => i.isDirectory && i.name !== '.git'));
+                                window.dispatchEvent(new CustomEvent('projects-changed'));
+                              }
+                            }}
+                            className="text-[#8b8b93] hover:text-white transition-colors" 
+                            title="Remove from Workspace"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/5">
+                        <div className="flex items-center gap-2 text-xs text-white">
+                          <Folder size={14} className="text-[#8b8b93]" />
+                          <span className="font-mono">{selectedProject.name}/</span>
+                          {selectedProject.branch && (
+                            <span className="flex items-center gap-1 text-[10px] text-[#8b8b93] bg-white/5 px-2 py-0.5 rounded">
+                              <GitBranch size={10} />
+                              {selectedProject.branch}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <button className="text-[#8b8b93] hover:text-white transition-colors">
-                        <X size={14} />
-                      </button>
-                    </div>
+                    )}
 
-                    <button className="w-full py-2 border border-dashed border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/5 rounded-lg flex items-center justify-center gap-2 text-xs text-[#8b8b93] hover:text-white transition-all">
+                    <button 
+                      onClick={async () => {
+                        try {
+                          const folderData = await (window as any).electron.selectFolder();
+                          if (folderData) {
+                            if (selectedProject?.path.includes('.quantix') && selectedProject?.path.includes('workspaces')) {
+                              const success = await (window as any).electron.addFolderToWorkspace(selectedProject.path, folderData);
+                              if (success) {
+                                // refresh folders
+                                const items = await (window as any).electron.readDirectory(selectedProject.path);
+                                setWorkspaceSubFolders(items.filter((i: any) => i.isDirectory && i.name !== '.git'));
+                                window.dispatchEvent(new CustomEvent('projects-changed'));
+                              }
+                            } else if (selectedProject) {
+                              // It's a single folder project. Convert it to a virtual workspace!
+                              const projectPath = await (window as any).electron.createVirtualWorkspace(selectedProject.name, [
+                                { path: selectedProject.path, name: selectedProject.name },
+                                folderData
+                              ]);
+                              
+                              const updatedProject: ProjectFolder = {
+                                ...selectedProject,
+                                path: projectPath,
+                                branch: null
+                              };
+
+                              const updated = projects.map(p => p.path === selectedProject.path ? updatedProject : p);
+                              setProjects(updated);
+                              localStorage.setItem('quantix_projects', JSON.stringify(updated));
+                              
+                              const active = localStorage.getItem('quantix_active_project');
+                              if (active) {
+                                const parsed = JSON.parse(active);
+                                if (parsed.path === selectedProject.path) {
+                                  localStorage.setItem('quantix_active_project', JSON.stringify(updatedProject));
+                                }
+                              }
+                              
+                              setActiveTab(`project-${projectPath}`);
+                              window.dispatchEvent(new CustomEvent('projects-changed'));
+                            }
+                          }
+                        } catch (e) {
+                          console.error(e);
+                        }
+                      }}
+                      className="w-full py-2 border border-dashed border-white/10 hover:border-white/20 bg-white/[0.02] hover:bg-white/5 rounded-lg flex items-center justify-center gap-2 text-xs text-[#8b8b93] hover:text-white transition-all"
+                    >
                       <Plus size={14} />
                       <span>Add Folder</span>
                     </button>
@@ -930,7 +1122,12 @@ export const SettingsModal = ({
                     <CustomSelect
                       value={projectSettings[selectedProject.path]?.securityPreset || 'Default'}
                       onChange={(val) => updateProjectSetting(selectedProject.path, 'securityPreset', val)}
-                      options={['Default', 'User Guided', 'Semi Permission', 'Full Permission']}
+                      options={[
+                        { label: 'Default', value: 'Default', description: 'Requires manual review for all terminal commands and file accesses outside of the working folders.' },
+                        { label: 'User Guided', value: 'User Guided', description: 'All actions require user approval before execution.' },
+                        { label: 'Semi Permission', value: 'Semi Permission', description: 'Agent executes simple tasks autonomously but asks for review on risky actions.' },
+                        { label: 'Full Permission', value: 'Full Permission', description: 'Agent has complete autonomy to run any command and edit any file without asking.' }
+                      ]}
                     />
                   </div>
                 </div>

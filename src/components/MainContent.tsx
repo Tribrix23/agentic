@@ -79,7 +79,8 @@ export const MainContent = ({
   const [showModelDropdown, setShowModelDropdown] = useState<boolean>(false);
   const [showModeDropdown, setShowModeDropdown] = useState<boolean>(false);
   const [showWizard, setShowWizard] = useState<boolean>(false);
-  const [wizardStep, setWizardStep] = useState<'create' | 'security'>('create');
+  const [wizardStep, setWizardStep] = useState<'create' | 'security' | 'name'>('create');
+  const [wizardProjectName, setWizardProjectName] = useState('');
 
   // Confirmation state for deleting project
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
@@ -1420,26 +1421,55 @@ IMPORTANT RULES:
   const handleNextStep = () => {
     if (wizardStep === 'create') {
       setWizardStep('security');
+    } else if (wizardStep === 'security') {
+      if (wizardFolders.length > 0) {
+        setWizardProjectName(wizardFolders[0].name || '');
+      }
+      setWizardStep('name');
     } else {
       if (wizardFolders.length > 0) {
-        const newProject = wizardFolders[0];
-        setSelectedProject(newProject);
-        localStorage.setItem('quantix_active_project', JSON.stringify(newProject));
+        const createProject = async () => {
+          let projectPath = wizardFolders[0].path;
+          let projectName = wizardProjectName.trim() || wizardFolders[0].name;
 
-        const updatedProjects = [...projects];
-        if (!updatedProjects.some(p => p.path === newProject.path)) {
-          updatedProjects.push(newProject);
+          if (wizardFolders.length > 1) {
+            // Create a virtual workspace combining multiple folders
+            projectPath = await (window as any).electron.createVirtualWorkspace(projectName, wizardFolders);
+          } else {
+            // Keep original behavior for single folder
+            if (wizardProjectName.trim() && wizardProjectName.trim() !== wizardFolders[0].name) {
+              projectName = wizardProjectName.trim();
+            }
+          }
+
+          const newProject = {
+            path: projectPath,
+            name: projectName,
+            branch: wizardFolders.length > 1 ? null : wizardFolders[0].branch
+          };
+
+          const updatedProjects = [...projects];
+          if (!updatedProjects.some(p => p.path === newProject.path)) {
+            updatedProjects.push(newProject);
+          }
+
+          const presetMap: Record<string, 'full' | 'user_guided' | 'semi' | 'default'> = {
+            'full': 'full',
+            'default': 'default',
+            'turbo': 'semi',
+          };
+          setPermissionConfig({ securityPreset: presetMap[selectedSecurity] }, newProject.path);
+
+          setSelectedProject(newProject);
+          localStorage.setItem('quantix_active_project', JSON.stringify(newProject));
           setProjects(updatedProjects);
           localStorage.setItem('quantix_projects', JSON.stringify(updatedProjects));
-        }
-
-        // Apply the selected security preset to the permission config
-        const presetMap: Record<string, 'full' | 'user_guided' | 'semi' | 'default'> = {
-          'full': 'full',
-          'default': 'default',
-          'turbo': 'semi',
+          
+          setShowWizard(false);
+          setWizardFolders([]);
         };
-        setPermissionConfig({ securityPreset: presetMap[selectedSecurity] }, newProject.path);
+        createProject();
+        return; // Early return since we're handling state updates async
       }
       setShowWizard(false);
       setWizardFolders([]);
@@ -2008,6 +2038,53 @@ IMPORTANT RULES:
                       className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#007acc] hover:bg-[#0088dd] text-white transition-colors"
                     >
                       Next
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* Step 3: Project Name */}
+              {wizardStep === 'name' && (
+                <>
+                  <div className="flex items-start justify-between p-6 pb-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">Project Name</h2>
+                      <p className="text-xs text-[#8b8b93] mt-1.5 font-medium">Set a name for this project</p>
+                    </div>
+                    <button
+                      onClick={() => setShowWizard(false)}
+                      className="p-1 text-[#8b8b93] hover:text-white rounded-md transition-colors"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="px-6 py-1 flex flex-col gap-2.5">
+                    <input
+                      type="text"
+                      value={wizardProjectName}
+                      onChange={(e) => setWizardProjectName(e.target.value)}
+                      placeholder="Enter project name"
+                      autoFocus
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#007acc] transition-colors"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleNextStep();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="p-6 flex justify-end gap-3 mt-2">
+                    <button
+                      onClick={() => setWizardStep('security')}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-white transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleNextStep}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-[#007acc] hover:bg-[#0088dd] text-white transition-colors"
+                    >
+                      Finish
                     </button>
                   </div>
                 </>

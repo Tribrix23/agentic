@@ -200,9 +200,44 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   useEffect(() => {
     const openModelPicker = () => setShowModelDropdown(true);
+    const openContextMenu = () => setShowPlusDropdown(true);
+    const toggleVoiceInput = () => {
+      alert('Voice input triggered via shortcut (Feature coming soon)');
+    };
+    const openFilePicker = () => {
+      fileInputRef.current?.click();
+    };
+    const focusChatInput = () => {
+      textareaRef.current?.focus();
+    };
+    const stopAgent = () => {
+      if (isAgentRunning) {
+        onStop();
+      }
+    };
+    const openCommandPalette = () => {
+      textareaRef.current?.focus();
+      setContent(prev => prev.startsWith('/') ? prev : '/' + prev);
+    };
+    
     window.addEventListener('open-model-picker', openModelPicker);
-    return () => window.removeEventListener('open-model-picker', openModelPicker);
-  }, []);
+    window.addEventListener('open-context-menu', openContextMenu);
+    window.addEventListener('toggle-voice-input', toggleVoiceInput);
+    window.addEventListener('open-file-picker', openFilePicker);
+    window.addEventListener('focus-chat-input', focusChatInput);
+    window.addEventListener('stop-agent', stopAgent);
+    window.addEventListener('open-command-palette', openCommandPalette);
+    
+    return () => {
+      window.removeEventListener('open-model-picker', openModelPicker);
+      window.removeEventListener('open-context-menu', openContextMenu);
+      window.removeEventListener('toggle-voice-input', toggleVoiceInput);
+      window.removeEventListener('open-file-picker', openFilePicker);
+      window.removeEventListener('focus-chat-input', focusChatInput);
+      window.removeEventListener('stop-agent', stopAgent);
+      window.removeEventListener('open-command-palette', openCommandPalette);
+    };
+  }, [isAgentRunning, onStop]);
 
   useEffect(() => {
     if (!userId) {
