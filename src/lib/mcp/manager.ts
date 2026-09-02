@@ -1,4 +1,5 @@
 import Ajv from 'ajv/dist/2020.js';
+import draft7MetaSchema from 'ajv/dist/refs/json-schema-draft-07.json';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -11,6 +12,7 @@ import {
 type ServerRecord = McpServerSnapshot & { config: McpServerConfig; client?: Client; transport?: Transport; reconnectAttempt: number; reconnectTimer?: ReturnType<typeof setTimeout>; disconnectRequested?: boolean; generation: number };
 
 const ajv = new Ajv({ allErrors: true, strict: false });
+ajv.addMetaSchema(draft7MetaSchema);
 const DANGEROUS = /(^|_)(write|delete|remove|create|update|execute|run|send|publish|insert|drop|kill|admin)/i;
 const PLAYWRIGHT_MUTATION = /(^|_)(navigate|click|type|press|select|fill|drag|hover|upload|download|close|evaluate|run|resize|go_back|tabs?)(_|$)/i;
 const MAX_TOOL_OUTPUT_CHARS = 100_000;

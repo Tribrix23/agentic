@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AgenticMessage } from '../../lib/messageTypes';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { Copy, Undo2, ChevronRight, ChevronDown, FileCode, Download, Check } from 'lucide-react';
+import { Copy, Undo2, ChevronRight, ChevronDown, FileCode, Download, Check, Puzzle, Globe } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AgentProgressCard, AgentStep } from './AgentProgressCard';
 import { AgentStepsGroup } from './AgentStepsGroup';
@@ -312,6 +312,26 @@ export function MessageBubble({
     displayContent = messages[0].content || '';
   }
 
+  if (isUser) {
+    const prefixMatch = displayContent.match(/^((?:use [\w-]+(?: skill)?)(?:, use [\w-]+(?: skill)?)*)(?:\n\n|$)/);
+    if (prefixMatch) {
+      const fullPrefix = prefixMatch[1];
+      const pieces = fullPrefix.split(', ').map(p => p.trim());
+      
+      let htmlChips = '';
+      pieces.forEach(p => {
+        if (p.endsWith(' skill')) {
+          const name = p.replace(/^use /, '').replace(/ skill$/, '');
+          htmlChips += `<span data-agentic-chip="true" data-name="${name}" data-type="skill"></span>`;
+        } else {
+          const name = p.replace(/^use /, '');
+          htmlChips += `<span data-agentic-chip="true" data-name="${name}" data-type="tool"></span>`;
+        }
+      });
+      
+      displayContent = htmlChips + displayContent.slice(prefixMatch[0].length);
+    }
+  }
   const stepsToRender = [...steps];
   if (isWorking && steps.length === 0) {
     stepsToRender.push({

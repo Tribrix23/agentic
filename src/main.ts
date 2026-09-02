@@ -497,13 +497,8 @@ function createWindow() {
     try {
       const dest = path.join(workspaceRoot, folderName);
       if (fs.existsSync(dest)) {
-        if (process.platform === 'win32') {
-          // It's a junction, so rmdir works
-          fs.rmdirSync(dest);
-        } else {
-          // It's a symlink
-          fs.unlinkSync(dest);
-        }
+        // Use rmSync with force to guarantee removal, works for symlinks, junctions, and directories
+        fs.rmSync(dest, { recursive: true, force: true });
       }
       return true;
     } catch (err) {
@@ -533,14 +528,14 @@ function createWindow() {
     const fs = require('fs');
     const path = require('path');
     const os = require('os');
-    
+
     // Create a safe workspace name
     const safeName = (name || 'Workspace').replace(/[^a-zA-Z0-9_-]/g, '_');
     const workspaceRoot = path.join(os.homedir(), '.quantix', 'workspaces', safeName + '_' + Date.now());
-    
+
     // Make sure the directory exists
     fs.mkdirSync(workspaceRoot, { recursive: true });
-    
+
     for (const folder of folders) {
       try {
         const dest = path.join(workspaceRoot, folder.name);
@@ -553,7 +548,7 @@ function createWindow() {
         console.error('[IPC] Failed to create symlink for workspace:', err);
       }
     }
-    
+
     return workspaceRoot;
   });
 
@@ -893,7 +888,7 @@ function createWindow() {
 
   ipcMain.handle('git-show-file', async (_event, projectRoot: string, filePath: string, commitOrRef: string = 'HEAD') => {
     try {
-      const relativePath = path.isAbsolute(filePath) 
+      const relativePath = path.isAbsolute(filePath)
         ? path.relative(projectRoot, filePath).replace(/\\/g, '/')
         : filePath.replace(/\\/g, '/');
       const content = await runGit(['show', `${commitOrRef}:${relativePath}`], projectRoot);
@@ -916,6 +911,8 @@ function createWindow() {
 
     if (pty) {
       const env = Object.assign({}, process.env, { FORCE_COLOR: '1', TERM: 'xterm-256color' });
+      delete env.ELECTRON_RUN_AS_NODE;
+      delete env.NODE_OPTIONS;
       const ptyProcess = pty.spawn(shellStr, [], {
         name: 'xterm-256color',
         cols: 80,
@@ -1153,11 +1150,14 @@ function createWindow() {
       let stderr = '';
       let settled = false;
       let timeout: NodeJS.Timeout;
+      const env = { ...process.env, FORCE_COLOR: '0' };
+      delete (env as any).ELECTRON_RUN_AS_NODE;
+      delete (env as any).NODE_OPTIONS;
       const child = spawn(runner.command, runner.args, {
         cwd: resolvedCwd,
         shell: false,
         windowsHide: true,
-        env: { ...process.env, FORCE_COLOR: '0' },
+        env,
       });
       const finish = (result: { success: boolean; stdout: string; stderr: string; exitCode: number }) => {
         if (settled) return;
@@ -1442,11 +1442,11 @@ function createWindow() {
       }
       const localtunnel = require('localtunnel');
       const tunnel = await localtunnel({ port });
-      
+
       tunnel.on('close', () => {
         activeTunnels.delete(port);
       });
-      
+
       activeTunnels.set(port, tunnel);
       return { success: true, url: tunnel.url };
     } catch (e: any) {

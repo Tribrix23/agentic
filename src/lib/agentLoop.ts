@@ -1407,7 +1407,7 @@ export class AgentLoop {
             try {
               // SECURITY INTERCEPTOR: Check if tool needs manual UI approval
               let isApproved = true;
-              if (SecurityInterceptor.requiresApproval(toolCall)) {
+              if (SecurityInterceptor.requiresApproval(toolCall, this.options.toolDefinitions, this.options.projectId)) {
                 toolCall.status = 'pending';
                 this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
                 this.state.status = `Awaiting your approval for ${toolCall.name}...`;

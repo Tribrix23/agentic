@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw, Puzzle, FolderPlus, Mic, Check } from 'lucide-react';
+import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw, Puzzle, FolderPlus, Mic, Check, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, AIConfig } from '../lib/aiConfig';
 import { fetchTokenQuota, getQuotaResetDetails, TokenQuotaSnapshot } from '../lib/tokenQuota';
+import { setPermissionConfig } from '../lib/permissions';
 
 import { Tooltip } from "./ui/Tooltip";
 
@@ -275,6 +276,19 @@ export const SettingsModal = ({
     };
     setProjectSettings(updated);
     localStorage.setItem('quantix_project_settings', JSON.stringify(updated));
+
+    if (key === 'securityPreset') {
+      const presetMap: Record<string, 'full' | 'user_guided' | 'semi' | 'default'> = {
+        'Default': 'default',
+        'User Guided': 'user_guided',
+        'Semi Permission': 'semi',
+        'Full Permission': 'full'
+      };
+      const mapped = presetMap[value];
+      if (mapped) {
+        setPermissionConfig({ securityPreset: mapped }, projectPath);
+      }
+    }
   };
 
   useEffect(() => {
@@ -349,9 +363,12 @@ export const SettingsModal = ({
     }
   }, [selectedProject]);
   const handleDeleteProject = (pathToDelete: string) => {
+    // 1. Remove from projects list
     const updated = projects.filter(p => p.path !== pathToDelete);
     setProjects(updated);
     localStorage.setItem('quantix_projects', JSON.stringify(updated));
+
+    // 2. Clear active project if we're deleting it
     const active = localStorage.getItem('quantix_active_project');
     if (active) {
       const parsed = JSON.parse(active);
@@ -359,8 +376,37 @@ export const SettingsModal = ({
         localStorage.removeItem('quantix_active_project');
       }
     }
+
+    // 3. Clear ALL conversations and their messages for this project
+    try {
+      const raw = localStorage.getItem('quantix_conversations');
+      if (raw) {
+        const convos = JSON.parse(raw);
+        if (convos[pathToDelete]) {
+          // Delete messages for each conversation
+          const projectConvos = convos[pathToDelete];
+          if (Array.isArray(projectConvos)) {
+            projectConvos.forEach((c: any) => {
+              localStorage.removeItem(`quantix_messages_${c.id}`);
+            });
+          }
+          // Remove the project from conversations
+          delete convos[pathToDelete];
+          localStorage.setItem('quantix_conversations', JSON.stringify(convos));
+          window.dispatchEvent(new Event('conversationsUpdated'));
+        }
+      }
+      
+      // Clean up permissions config
+      localStorage.removeItem(`quantix_permissions_${pathToDelete}`);
+    } catch (e) {
+      console.warn('Failed to clean up project conversations:', e);
+    }
+
+    // 4. Return to account tab and close modal
     setActiveTab('account');
     setShowConfirmDelete(false);
+    
     // Dispatch event to notify other components of project changes
     window.dispatchEvent(new CustomEvent('projects-changed'));
   };
@@ -380,6 +426,9 @@ export const SettingsModal = ({
     }
     if (activeTab === 'agent_settings') {
       return { title: 'Agent Settings', subtitle: 'Manage agent behavior, limits, and review policies.' };
+    }
+    if (activeTab === 'feedback') {
+      return { title: 'Feedback', subtitle: 'Share your thoughts, report issues, or suggest new features.' };
     }
     if (selectedProject) {
       return { title: selectedProject.name, subtitle: 'Manage project folders, agent settings, and permissions.' };
@@ -434,7 +483,12 @@ export const SettingsModal = ({
             >
               Shortcuts
             </button>
-            <button className="w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors">Provide Feedback</button>
+            <button
+              onClick={() => setActiveTab('feedback')}
+              className={cn("w-full text-left px-3 py-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'feedback' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
+            >
+              Provide Feedback
+            </button>
           </div>
         </div>
 
@@ -616,6 +670,56 @@ export const SettingsModal = ({
                   </button>
                 </p>
               </>
+            )}
+
+            {activeTab === 'feedback' && (
+              <div className="flex flex-col gap-6 max-w-2xl">
+                <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">We'd Love to Hear From You</h3>
+                  <div className="bg-gradient-to-br from-white/10 to-white/5 border border-white/10 rounded-xl p-6 flex flex-col gap-5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+                      <Mail size={120} />
+                    </div>
+                    
+                    <div className="flex flex-col gap-2 relative z-10">
+                      <h4 className="text-white font-medium text-lg">Send us your feedback directly</h4>
+                      <p className="text-[#8b8b93] text-[13px] leading-relaxed max-w-[90%]">
+                        Whether you have a feature request, found a bug, or just want to share your experience with Quantix, your input helps shape the future of this tool. 
+                        Currently, we use a direct email integration to process your review feedback.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 mt-2 relative z-10">
+                      <button
+                        onClick={() => {
+                          const url = 'https://mail.google.com/mail/?view=cm&fs=1&to=tribrix23@gmail.com&su=Quantix%20Feedback';
+                          if ((window as any).electron) {
+                            (window as any).electron.openExternal(url);
+                          } else {
+                            window.open(url, '_blank');
+                          }
+                        }}
+                        className="px-5 py-2.5 bg-[#3b82f6] hover:bg-[#2563eb] text-white rounded-lg text-[13px] font-semibold transition-all flex items-center gap-2"
+                      >
+                        <Mail size={16} />
+                        Write Feedback via Gmail
+                      </button>
+                      <span className="text-[#8b8b93] text-xs font-mono bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                        tribrix23@gmail.com
+                      </span>
+                    </div>
+                    
+                    <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-2 relative z-10">
+                      <span className="text-[#e2e2e3] text-xs font-medium">What to include in your feedback:</span>
+                      <ul className="text-[#8b8b93] text-xs space-y-1.5 list-disc pl-4">
+                        <li>Description of the issue or idea</li>
+                        <li>Steps to reproduce (if it's a bug)</li>
+                        <li>Your OS and Quantix version</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {activeTab === 'shortcuts' && (
@@ -1023,6 +1127,7 @@ export const SettingsModal = ({
                           </div>
                           <button 
                             onClick={async () => {
+                              if (workspaceSubFolders.length <= 1) return;
                               const success = await (window as any).electron.removeFolderFromWorkspace(selectedProject.path, subFolder.name);
                               if (success) {
                                 const items = await (window as any).electron.readDirectory(selectedProject.path);
@@ -1030,8 +1135,12 @@ export const SettingsModal = ({
                                 window.dispatchEvent(new CustomEvent('projects-changed'));
                               }
                             }}
-                            className="text-[#8b8b93] hover:text-white transition-colors" 
-                            title="Remove from Workspace"
+                            disabled={workspaceSubFolders.length <= 1}
+                            className={cn(
+                              "transition-colors",
+                              workspaceSubFolders.length <= 1 ? "text-white/20 cursor-not-allowed" : "text-[#8b8b93] hover:text-white"
+                            )}
+                            title={workspaceSubFolders.length <= 1 ? "Must have at least one folder" : "Remove from Workspace"}
                           >
                             <X size={14} />
                           </button>
@@ -1229,7 +1338,7 @@ export const SettingsModal = ({
                     <div className="flex flex-col">
                       <span className="text-white font-medium text-[14px]">Delete Project</span>
                       <span className="text-[#8b8b93] text-[13px] mt-0.5">
-                        Permanently delete <strong className="text-white">{selectedProject.name}</strong> including active conversations and archived conversations.
+                        Permanently delete <strong className="text-white">{selectedProject.name}</strong> including active conversations.
                       </span>
                     </div>
                     <button

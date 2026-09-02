@@ -22,15 +22,18 @@ const GithubIcon = ({ className }: { className?: string }) => (
 interface AddonDetailsProps {
   addonId: string;
   onBack: () => void;
+  installedSkillNames: Set<string>;
+  installedSources: Set<string>;
+  installedSourceMap: Record<string, string[]>;
+  isProcessing: boolean;
+  onInstallAction: (addon: Addon) => void;
 }
 
-export const AddonDetails: React.FC<AddonDetailsProps> = ({ addonId, onBack }) => {
+export const AddonDetails: React.FC<AddonDetailsProps> = ({ 
+  addonId, onBack, installedSkillNames, installedSources, installedSourceMap, isProcessing, onInstallAction 
+}) => {
   const [addon, setAddon] = useState<Addon | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [installedSkillNames, setInstalledSkillNames] = useState<Set<string>>(new Set());
-  const [installedSources, setInstalledSources] = useState<Set<string>>(new Set());
-  const [installedSourceMap, setInstalledSourceMap] = useState<Record<string, string[]>>({});
 
   const getSkillNameFromLink = (link?: string) => {
     if (!link) return null;
@@ -48,53 +51,12 @@ export const AddonDetails: React.FC<AddonDetailsProps> = ({ addonId, onBack }) =
   const sourceName = getSourceFromLink(addon?.download_link);
   const isInstalled = (skillName && installedSkillNames.has(skillName)) || (sourceName && installedSources.has(sourceName)) ? true : false;
 
-  const refreshInstalledSkills = async () => {
-    try {
-      const electron = (window as any).electron;
-      if (electron) {
-        const userDataPath = await electron.getUserDataPath();
-        const res = await electron.readFileContent(`${userDataPath}/skills/skills-lock.json`);
-        if (typeof res === 'string') {
-          const data = JSON.parse(res);
-          const sources = new Set<string>();
-          const names = new Set<string>();
-          const sourceMap: Record<string, string[]> = {};
-          if (data && data.skills) {
-            for (const key in data.skills) {
-              names.add(key);
-              const source = data.skills[key].source;
-              if (source) {
-                sources.add(source);
-                if (!sourceMap[source]) sourceMap[source] = [];
-                sourceMap[source].push(key);
-              }
-            }
-          }
-          setInstalledSkillNames(names);
-          setInstalledSources(sources);
-          setInstalledSourceMap(sourceMap);
-          return;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load installed skills', e);
-    }
-    
-    // Fallback
-    try {
-      const { getInstalledSkills } = await import('../lib/agentSkills');
-      const skills = await getInstalledSkills('');
-      setInstalledSkillNames(new Set(skills.map(s => s.name)));
-    } catch (e) {
-      console.error('Failed to load installed skills', e);
-    }
-  };
+
 
   useEffect(() => {
     let mounted = true;
     const loadDetails = async () => {
       setIsLoading(true);
-      await refreshInstalledSkills();
       const data = await fetchAddonDetails(addonId);
       if (mounted && data) {
         setAddon(data);
@@ -184,66 +146,10 @@ export const AddonDetails: React.FC<AddonDetailsProps> = ({ addonId, onBack }) =
               className="flex items-center gap-4"
             >
               <AnimatedInstallButton 
-                onClick={async (e) => {
+                onClick={(e) => {
                   e.stopPropagation();
                   if (!addon.download_link || isProcessing) return;
-                  
-                  setIsProcessing(true);
-                  try {
-                    const electron = (window as any).electron;
-                    if (electron) {
-                      const userDataPath = await electron.getUserDataPath();
-                      const skillsPath = `${userDataPath}/skills`;
-                      let cmd = addon.download_link;
-                      
-                      if (isInstalled) {
-                        const source = getSourceFromLink(addon.download_link);
-                        if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
-                          const skillNames = installedSourceMap[source];
-                          const isWin = navigator.userAgent.toLowerCase().includes('win');
-                          
-                          for (const skill of skillNames) {
-                            const folder = `${skillsPath}/.agents/skills/${skill}`;
-                            const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
-                            await electron.runCommandCapture(rmCmd, skillsPath);
-                          }
-                          
-                          try {
-                            const lockPath = `${skillsPath}/skills-lock.json`;
-                            const res = await electron.readFileContent(lockPath);
-                            if (typeof res === 'string') {
-                              const lockData = JSON.parse(res);
-                              if (lockData && lockData.skills) {
-                                for (const skill of skillNames) {
-                                  delete lockData.skills[skill];
-                                }
-                                await electron.saveFileContent(lockPath, JSON.stringify(lockData, null, 2));
-                              }
-                            }
-                          } catch (err) {
-                            console.error('Failed to update skills-lock.json', err);
-                          }
-                          cmd = '';
-                        } else {
-                          cmd = cmd.replace('add', 'remove').replace('install', 'uninstall');
-                        }
-                      }
-                      
-                      if (cmd) {
-                        if (!cmd.includes('-y')) {
-                          cmd += ' -y';
-                        }
-                        console.log(`[AddonDetails] Executing: ${cmd} in folder: ${skillsPath}`);
-                        const result = await electron.runCommandCapture(cmd, skillsPath);
-                        console.log(`[AddonDetails] Result:`, result);
-                      }
-                    }
-                  } catch (err) {
-                    console.error('Failed to process skill:', err);
-                  } finally {
-                    await refreshInstalledSkills();
-                    setIsProcessing(false);
-                  }
+                  onInstallAction(addon);
                 }}
                 isInstalled={isInstalled}
                 isProcessing={isProcessing}

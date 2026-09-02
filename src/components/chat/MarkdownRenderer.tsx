@@ -2,6 +2,7 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { Copy, Check, ChevronDown, ChevronRight, Download, Globe, Puzzle } from 'lucide-react';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
@@ -58,6 +59,23 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
           th: ({ children }) => <th className="px-3 py-2 font-medium border-b border-white/10">{children}</th>,
           td: ({ children }) => <td className="px-3 py-2 align-top border-b border-white/5 text-inherit">{children}</td>,
           blockquote: ({ children }) => <blockquote className="my-4 last:mb-0 border-l-2 border-violet-500 pl-3 text-inherit opacity-80">{children}</blockquote>,
+          span({node, className, children, ...props}: any) {
+            if (props['data-agentic-chip']) {
+              const name = props['data-name'];
+              const type = props['data-type'];
+              const isBrowser = name === 'playwright' || name === 'mcp__playwright';
+              const displayName = isBrowser ? 'Browser' : name.replace('mcp__', '').replace(/__/g, ' ');
+              return (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px] align-text-bottom mr-1.5" style={{ transform: 'translateY(-1px)' }}>
+                  <span className="opacity-70 flex items-center justify-center">
+                    {isBrowser ? <Globe size={14} className="text-blue-400" /> : <Puzzle size={14} className={type === 'skill' ? "text-orange-400" : "text-purple-400"} />}
+                  </span>
+                  <span className="leading-none">{displayName}</span>
+                </span>
+              );
+            }
+            return <span className={className} {...props}>{children}</span>;
+          },
           code({node, inline, className, children, ...props}: any) {
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : '';

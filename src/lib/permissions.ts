@@ -3,7 +3,7 @@
 // ============================================================================
 
 export interface PermissionRule {
-  type: 'file_read' | 'file_write' | 'terminal' | 'network' | 'git';
+  type: 'file_read' | 'file_write' | 'terminal' | 'network' | 'git' | 'safe';
   pattern: string;
   action: 'allow' | 'deny' | 'ask';
 }
@@ -158,7 +158,7 @@ export function checkPermission(
   }
 
   // ── 4. Fall back to security preset ──────────────────────────────────
-  return getPresetDefault(toolName, config.securityPreset);
+  return getPresetDefault(toolName, config.securityPreset, command, filePath);
 }
 
 /** Get the permission type category for a tool */
@@ -169,15 +169,50 @@ function getToolPermissionType(toolName: string): PermissionRule['type'] {
     listDirectory: 'file_read',
     searchFiles: 'file_read',
     codeAnalysis: 'file_read',
+    getFileInfo: 'file_read',
+    readArtifact: 'file_read',
+    findText: 'file_read',
+    findDuplicates: 'file_read',
+    analyzeDependencies: 'file_read',
+    checkSyntax: 'file_read',
+    validateSchema: 'file_read',
     writeFile: 'file_write',
     editFile: 'file_write',
     createFile: 'file_write',
     renameFile: 'file_write',
+    createFolder: 'file_write',
+    renameFolder: 'file_write',
+    deleteFolder: 'file_write',
+    compressFile: 'file_write',
+    convertFormat: 'file_write',
+    extractArchive: 'file_write',
+    formatCode: 'file_write',
+    generateDocumentation: 'file_write',
+    optimizeImage: 'file_write',
+    refactorCode: 'file_write',
+    downloadFile: 'network',
     runCommand: 'terminal',
+    commandStatus: 'safe',
+    killProcess: 'terminal',
+    listProcesses: 'safe',
+    listWindows: 'safe',
+    screenshot: 'safe',
     gitStatus: 'git',
     gitAdd: 'git',
     gitCommit: 'git',
     gitDiff: 'git',
+    createBranch: 'git',
+    mergeBranch: 'git',
+    getGitBranch: 'git',
+    askUser: 'safe',
+    readSkill: 'safe',
+    createTodoListTasks: 'safe',
+    invokeSubagent: 'safe',
+    sendMessage: 'safe',
+    updateTaskStatus: 'safe',
+    manageTask: 'safe',
+    getClipboard: 'safe',
+    setClipboard: 'safe',
   };
   return map[toolName] || 'terminal';
 }
@@ -185,9 +220,13 @@ function getToolPermissionType(toolName: string): PermissionRule['type'] {
 /** Get the default permission action based on security preset */
 function getPresetDefault(
   toolName: string,
-  preset: PermissionConfig['securityPreset']
+  preset: PermissionConfig['securityPreset'],
+  command: string,
+  filePath: string
 ): 'allow' | 'deny' | 'ask' {
   const permType = getToolPermissionType(toolName);
+
+  if (permType === 'safe') return 'allow';
 
   switch (preset) {
     case 'full':
@@ -197,9 +236,18 @@ function getPresetDefault(
       return 'ask';
 
     case 'semi':
+      if (permType === 'file_read' || permType === 'git' || permType === 'file_write') return 'allow';
+      if (permType === 'terminal' && command) {
+        const lower = command.toLowerCase().trim();
+        const safePrefixes = ['npm run dev', 'npm start', 'npm test', 'npm run build', 'git', 'ls', 'dir', 'cat', 'type', 'echo', 'node ', 'python ', 'tsc', 'npm install', 'cd '];
+        const isSafe = safePrefixes.some(prefix => lower.startsWith(prefix));
+        if (isSafe) return 'allow';
+      }
+      return 'ask';
+
     case 'default':
     default:
-      if (permType === 'file_read' || permType === 'git') return 'allow';
+      if (permType === 'file_read' || permType === 'git' || permType === 'file_write') return 'allow';
       return 'ask';
   }
 }

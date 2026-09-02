@@ -60,14 +60,10 @@ export function buildSkillsBlock(skills: AgentSkill[]): string {
   let block = '<skills>\n';
   block += 'You have access to the following specialized agent skills installed by the user.\n\n';
   block += '## MANDATORY RULES FOR SKILLS — YOU MUST FOLLOW THESE WITHOUT EXCEPTION:\n';
-  block += '1. **NEVER answer questions about a skill from memory or training knowledge.** Skills contain custom user-defined instructions that you do NOT know in advance.\n';
-  block += '2. **ALWAYS call the `readSkill` tool FIRST** before you:\n';
-  block += '   - Describe what a skill does\n';
-  block += '   - Apply a skill to a task\n';
-  block += '   - Answer any question about a skill\'s contents\n';
-  block += '   - List what a skill covers\n';
-  block += '3. If a user asks "what does skill X do?" or "do you have skill X?" — you MUST call `readSkill("X")` immediately. Do NOT answer from your own knowledge.\n';
-  block += '4. The descriptions below are ONLY for discovery — they tell you a skill exists, NOT what it contains. The real instructions are in the SKILL.md file.\n\n';
+  block += '1. **Proactive Skill Usage:** Before starting ANY task, review the list of available skills below. If a skill seems even remotely relevant to the user\'s request, you MUST call `readSkill("skill-name")` to read its instructions BEFORE taking any other action or writing any code.\n';
+  block += '2. **NEVER answer questions about a skill from memory or training knowledge.** Skills contain custom user-defined instructions that you do NOT know in advance.\n';
+  block += '3. If a user asks "what does skill X do?" or "do you have skill X?" — you MUST call `readSkill("X")` immediately.\n';
+  block += '4. The descriptions below are ONLY for discovery — they tell you a skill exists, NOT what it contains. You MUST read the skill to know how to use it.\n\n';
   block += 'Available skills (call readSkill to read their actual contents):\n';
   for (const skill of skills) {
     block += `- ${skill.name}: ${skill.description}\n`;

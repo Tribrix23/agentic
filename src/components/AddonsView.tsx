@@ -103,6 +103,71 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
     }
   };
 
+  const handleInstallAction = async (item: Addon, isInstalled: boolean) => {
+    if (!item.download_link) return;
+    
+    setProcessingStates(prev => ({ ...prev, [item.id]: true }));
+    try {
+      const electron = (window as any).electron;
+      if (electron) {
+        const userDataPath = await electron.getUserDataPath();
+        const skillsPath = `${userDataPath}/skills`;
+        let cmd = item.download_link;
+        
+        if (isInstalled) {
+          const source = getSourceFromLink(item.download_link);
+          if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
+            const skillNames = installedSourceMap[source];
+            const isWin = navigator.userAgent.toLowerCase().includes('win');
+            
+            for (const skill of skillNames) {
+              const folder = `${skillsPath}/.agents/skills/${skill}`;
+              const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
+              await electron.runCommandCapture(rmCmd, skillsPath);
+            }
+            
+            try {
+              const lockPath = `${skillsPath}/skills-lock.json`;
+              const res = await electron.readFileContent(lockPath);
+              if (typeof res === 'string') {
+                const lockData = JSON.parse(res);
+                if (lockData && lockData.skills) {
+                  for (const skill of skillNames) {
+                    delete lockData.skills[skill];
+                  }
+                  await electron.saveFileContent(lockPath, JSON.stringify(lockData, null, 2));
+                }
+              }
+            } catch (err) {
+              console.error('Failed to update skills-lock.json', err);
+            }
+            
+            cmd = '';
+          } else {
+            cmd = cmd.replace('add', 'remove').replace('install', 'uninstall');
+          }
+        }
+        
+        if (cmd) {
+          if (!cmd.includes('-y')) {
+            cmd += ' -y';
+          }
+          console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
+          const result = await electron.runCommandCapture(cmd, skillsPath);
+          if (!result.success || result.exitCode !== 0) {
+            alert(`Failed to install addon:\n${result.stderr || result.error || result.stdout || 'Unknown error'}`);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to process skill:', err);
+      alert(`Failed to install: ${err.message}`);
+    } finally {
+      await refreshInstalledSkills();
+      setProcessingStates(prev => ({ ...prev, [item.id]: false }));
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     const loadData = async () => {
@@ -195,6 +260,16 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                 setSelectedAddon(null);
                 refreshInstalledSkills();
               }} 
+              installedSkillNames={installedSkillNames}
+              installedSources={installedSources}
+              installedSourceMap={installedSourceMap}
+              isProcessing={processingStates[selectedAddon] || false}
+              onInstallAction={(addon) => {
+                const skill = getSkillNameFromLink(addon.download_link);
+                const source = getSourceFromLink(addon.download_link);
+                const isInstalled = (skill && installedSkillNames.has(skill)) || (source && installedSources.has(source)) ? true : false;
+                handleInstallAction(addon, isInstalled);
+              }}
             />
           ) : currentTab === 'store' ? (
             <motion.div 
@@ -299,71 +374,7 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                             onClick={async (e) => { 
                               e.stopPropagation(); 
                               if (!item.download_link || isProcessing) return;
-                              
-                              setProcessingStates(prev => ({ ...prev, [item.id]: true }));
-                              try {
-                                const electron = (window as any).electron;
-                                if (electron) {
-                                  const userDataPath = await electron.getUserDataPath();
-                                  const skillsPath = `${userDataPath}/skills`;
-                                  let cmd = item.download_link;
-                                  
-                                  if (isInstalled) {
-                                    const source = getSourceFromLink(item.download_link);
-                                    if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
-                                      const skillNames = installedSourceMap[source];
-                                      const isWin = navigator.userAgent.toLowerCase().includes('win');
-                                      
-                                      // 1. Delete the physical skill folders
-                                      for (const skill of skillNames) {
-                                        const folder = `${skillsPath}/.agents/skills/${skill}`;
-                                        const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
-                                        await electron.runCommandCapture(rmCmd, skillsPath);
-                                      }
-                                      
-                                      // 2. Remove them from skills-lock.json
-                                      try {
-                                        const lockPath = `${skillsPath}/skills-lock.json`;
-                                        const res = await electron.readFileContent(lockPath);
-                                        if (typeof res === 'string') {
-                                          const lockData = JSON.parse(res);
-                                          if (lockData && lockData.skills) {
-                                            for (const skill of skillNames) {
-                                              delete lockData.skills[skill];
-                                            }
-                                            await electron.saveFileContent(lockPath, JSON.stringify(lockData, null, 2));
-                                          }
-                                        }
-                                      } catch (err) {
-                                        console.error('Failed to update skills-lock.json', err);
-                                      }
-                                      
-                                      // We did manual uninstall, skip running any CLI command
-                                      cmd = '';
-                                    } else {
-                                      // For non-npx-skills, use the replacement fallback
-                                      cmd = cmd.replace('add', 'remove').replace('install', 'uninstall');
-                                    }
-                                  }
-                                  
-                                  if (cmd) {
-                                    if (!cmd.includes('-y')) {
-                                      cmd += ' -y';
-                                    }
-                                    console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
-                                    const result = await electron.runCommandCapture(cmd, skillsPath);
-                                    if (!result.success || result.exitCode !== 0) {
-                                      alert(`Failed to install addon:\n${result.stderr || result.error || result.stdout || 'Unknown error'}`);
-                                    }
-                                  }
-                                }
-                              } catch (err: any) {
-                                console.error('Failed to process skill:', err);
-                                alert(`Failed to install: ${err.message}`);
-                              } finally {
-                                await refreshInstalledSkills();
-                                setProcessingStates(prev => ({ ...prev, [item.id]: false }));
-                              }
+                              await handleInstallAction(item, isInstalled);
                             }}
                           />
                         </div>
@@ -436,64 +447,7 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
                         onClick={async (e) => { 
                           e.stopPropagation(); 
                           if (!item.download_link || processingStates[item.id]) return;
-                          
-                          setProcessingStates(prev => ({ ...prev, [item.id]: true }));
-                          try {
-                            const electron = (window as any).electron;
-                            if (electron) {
-                              const userDataPath = await electron.getUserDataPath();
-                              const skillsPath = `${userDataPath}/skills`;
-                              let cmd = item.download_link;
-                              const source = getSourceFromLink(item.download_link);
-                              
-                              if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
-                                const skillNames = installedSourceMap[source];
-                                const isWin = navigator.userAgent.toLowerCase().includes('win');
-                                
-                                for (const skill of skillNames) {
-                                  const folder = `${skillsPath}/.agents/skills/${skill}`;
-                                  const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
-                                  await electron.runCommandCapture(rmCmd, skillsPath);
-                                }
-                                
-                                try {
-                                  const lockPath = `${skillsPath}/skills-lock.json`;
-                                  const res = await electron.readFileContent(lockPath);
-                                  if (typeof res === 'string') {
-                                    const lockData = JSON.parse(res);
-                                    if (lockData && lockData.skills) {
-                                      for (const skill of skillNames) {
-                                        delete lockData.skills[skill];
-                                      }
-                                      await electron.saveFileContent(lockPath, JSON.stringify(lockData, null, 2));
-                                    }
-                                  }
-                                } catch (err) {
-                                  console.error('Failed to update skills-lock.json', err);
-                                }
-                                cmd = '';
-                              } else {
-                                cmd = cmd.replace('add', 'remove').replace('install', 'uninstall');
-                              }
-                              
-                              if (cmd) {
-                                if (!cmd.includes('-y')) {
-                                  cmd += ' -y';
-                                }
-                                console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
-                                const result = await electron.runCommandCapture(cmd, skillsPath);
-                                if (!result.success || result.exitCode !== 0) {
-                                  alert(`Failed to manage addon:\n${result.stderr || result.error || result.stdout || 'Unknown error'}`);
-                                }
-                              }
-                            }
-                          } catch (err: any) {
-                            console.error('Failed to process skill:', err);
-                            alert(`Error: ${err.message}`);
-                          } finally {
-                            await refreshInstalledSkills();
-                            setProcessingStates(prev => ({ ...prev, [item.id]: false }));
-                          }
+                          await handleInstallAction(item, true);
                         }}
                       />
                     </div>

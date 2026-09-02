@@ -10,6 +10,9 @@ import { OpenAIIcon } from '../icons/OpenAIIcon';
 import { fetchTokenQuota, getQuotaTarget, TokenQuotaSnapshot } from '../../lib/tokenQuota';
 import { TokenBudget } from '../../lib/tokenCounter';
 import { Tooltip } from '../ui/Tooltip';
+import { getInstalledSkills, AgentSkill } from '../../lib/agentSkills';
+import { getAllTools } from '../../lib/tools';
+import { Puzzle, Globe } from 'lucide-react';
 
 const QwenIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
@@ -144,6 +147,84 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [tokenQuota, setTokenQuota] = useState<TokenQuotaSnapshot | null>(null);
   const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
 
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashSearchQuery, setSlashSearchQuery] = useState('');
+  const [availableSkills, setAvailableSkills] = useState<AgentSkill[]>([]);
+  const [availableTools, setAvailableTools] = useState<any[]>([]);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const [selectedSlashCommands, setSelectedSlashCommands] = useState<any[]>([]);
+  const slashMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadItems = async () => {
+      try {
+        const skills = await getInstalledSkills('');
+        if (mounted) setAvailableSkills(skills);
+      } catch (err) {
+        console.error(err);
+      }
+      if (mounted) setAvailableTools(getAllTools());
+    };
+    loadItems();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    if (value) {
+      const prefixMatch = value.match(/^((?:use [\w-]+(?: skill)?)(?:, use [\w-]+(?: skill)?)*)(?:\n\n|$)/);
+      if (prefixMatch) {
+        const fullPrefix = prefixMatch[1];
+        const pieces = fullPrefix.split(', ').map(p => p.trim());
+        
+        const newSelected: any[] = [];
+        pieces.forEach(p => {
+          if (p.endsWith(' skill')) {
+            const name = p.replace(/^use /, '').replace(/ skill$/, '');
+            newSelected.push({ id: `skill-${name}`, type: 'skill', name: name, displayName: name, icon: <Puzzle size={14} className="text-orange-400" /> });
+          } else {
+            const name = p.replace(/^use /, '');
+            const displayName = name === 'playwright' || name === 'mcp__playwright' ? 'Browser' : name.replace('mcp__', '').replace(/__/g, ' ');
+            newSelected.push({ id: name, type: 'tool', name: name, displayName: displayName, icon: name === 'playwright' || name === 'mcp__playwright' ? <Globe size={14} className="text-blue-400" /> : <Puzzle size={14} className="text-purple-400" /> });
+          }
+        });
+        
+        setSelectedSlashCommands(newSelected);
+        if (onChange) {
+          onChange(value.slice(prefixMatch[0].length));
+        } else {
+          setLocalContent(value.slice(prefixMatch[0].length));
+        }
+      }
+    }
+  }, [value, onChange]);
+
+  const slashItems = [
+    // Map Playwright as Browser
+    ...(availableTools.some(t => t.definition.category === 'mcp' && t.definition.name.startsWith('mcp__playwright'))
+      ? [{ id: 'browser', type: 'tool', name: 'playwright', displayName: 'Browser', description: 'Web browsing and automation via Playwright', icon: <Globe size={14} className="text-blue-400" /> }]
+      : []),
+    ...availableTools
+      .filter(t => t.definition.category === 'mcp' && !t.definition.name.startsWith('mcp__playwright'))
+      .map(t => ({ 
+        id: t.definition.name, 
+        type: 'tool', 
+        name: t.definition.name.replace('mcp__', '').replace(/__/g, ' '), 
+        displayName: t.definition.name.replace('mcp__', '').replace(/__/g, ' '),
+        description: t.definition.description || '', 
+        icon: <Puzzle size={14} className="text-purple-400" /> 
+      })),
+    ...availableSkills
+      .map(s => ({ 
+        id: `skill-${s.name}`, 
+        type: 'skill', 
+        name: s.name, 
+        displayName: s.name,
+        description: s.description, 
+        icon: <Puzzle size={14} className="text-orange-400" /> 
+      }))
+  ].filter(item => item.displayName.toLowerCase().includes(slashSearchQuery.toLowerCase()) || item.name.toLowerCase().includes(slashSearchQuery.toLowerCase()));
+
   const allModels = [
     { id: 'dispatcher', name: 'Dispatcher v1', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: [], isPro: false },
     { id: 'gpt-oss', name: 'GPT-OSS 120B', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Medium', 'High'], isPro: false },
@@ -193,6 +274,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(target)) setShowModelDropdown(false);
       if (agentDropdownRef.current && !agentDropdownRef.current.contains(target)) setShowAgentDropdown(false);
       if (plusDropdownRef.current && !plusDropdownRef.current.contains(target)) setShowPlusDropdown(false);
+      if (slashMenuRef.current && !slashMenuRef.current.contains(target)) setShowSlashMenu(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -218,6 +300,9 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     const openCommandPalette = () => {
       textareaRef.current?.focus();
       setContent(prev => prev.startsWith('/') ? prev : '/' + prev);
+      setShowSlashMenu(true);
+      setSlashSearchQuery('');
+      setSlashSelectedIndex(0);
     };
     
     window.addEventListener('open-model-picker', openModelPicker);
@@ -276,14 +361,20 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(Math.max(textareaRef.current.scrollHeight, 40), 200) + 'px';
+      textareaRef.current.style.height = Math.min(Math.max(textareaRef.current.scrollHeight, 26), 200) + 'px';
     }
   }, [content]);
 
   const handleSend = () => {
-    if (content.trim() || selectedImages.length > 0) {
+    if (content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) {
+      let finalContent = content.trim();
+      if (selectedSlashCommands.length > 0) {
+        const prefix = selectedSlashCommands.map(item => item.type === 'skill' ? `use ${item.name} skill` : `use ${item.name}`).join(', ');
+        finalContent = finalContent ? `${prefix}\n\n${finalContent}` : prefix;
+      }
+      
       onSend(
-        content.trim(),
+        finalContent,
         selectedImages.length > 0 ? selectedImages.map(img => ({
           name: img.file.name,
           path: img.file.name,
@@ -295,13 +386,91 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       setContent('');
       setMentionedFiles([]);
       setSelectedImages([]);
+      setSelectedSlashCommands([]);
+      setShowSlashMenu(false);
+    }
+  };
+
+  const insertSlashItem = (item: any) => {
+    if (!textareaRef.current) return;
+    const cursor = textareaRef.current.selectionStart || 0;
+    const textBeforeCursor = content.slice(0, cursor);
+    const textAfterCursor = content.slice(cursor);
+    
+    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
+    if (slashMatch) {
+      const matchLength = slashMatch[1].length + 1; // +1 for the slash
+      const newText = textBeforeCursor.slice(0, -matchLength) + textAfterCursor;
+      setContent(newText);
+      setShowSlashMenu(false);
+      
+      if (!selectedSlashCommands.some(c => c.id === item.id)) {
+        setSelectedSlashCommands(prev => [...prev, item]);
+      }
+      
+      // Update cursor position
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const newCursorPos = textBeforeCursor.length - matchLength;
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+          textareaRef.current.focus();
+        }
+      }, 0);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showSlashMenu) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashSelectedIndex(prev => Math.min(prev + 1, slashItems.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashSelectedIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (slashItems[slashSelectedIndex]) {
+          insertSlashItem(slashItems[slashSelectedIndex]);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSlashMenu(false);
+        return;
+      }
+    }
+    
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+    
+    if (e.key === 'Backspace' && selectedSlashCommands.length > 0) {
+      if (textareaRef.current && textareaRef.current.selectionStart === 0 && textareaRef.current.selectionEnd === 0) {
+        setSelectedSlashCommands(prev => prev.slice(0, -1));
+      }
+    }
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setContent(val);
+    
+    const cursor = e.target.selectionStart || 0;
+    const textBeforeCursor = val.slice(0, cursor);
+    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
+    
+    if (slashMatch) {
+      setShowSlashMenu(true);
+      setSlashSearchQuery(slashMatch[1]);
+      setSlashSelectedIndex(0);
+    } else {
+      setShowSlashMenu(false);
     }
   };
 
@@ -329,6 +498,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
+      {selectedImages.length > 0 && ['GPT-OSS Medium', 'GPT-OSS High', 'Dispatcher v1'].includes(config.model || 'Dispatcher v1') && (
+        <div className="absolute -top-7 right-0 text-yellow-400/90 text-[11px] font-medium pointer-events-none">
+          Limited Visual Capability as the Model does not natively support it
+        </div>
+      )}
       {mentionedFiles.length > 0 && (
         <div className="flex gap-2 flex-wrap px-2">
           {mentionedFiles.map(file => (
@@ -341,7 +515,48 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         </div>
       )}
 
-      <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto">
+      <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto relative">
+        <AnimatePresence>
+          {showSlashMenu && (
+            <motion.div
+              ref={slashMenuRef}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 5 }}
+              className="absolute bottom-full left-0 mb-2 w-[400px] bg-[#1c1c21] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[300px]"
+            >
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                {slashItems.length === 0 ? (
+                  <div className="text-xs text-white/40 text-center py-4">No results found</div>
+                ) : (
+                  slashItems.map((item, index) => (
+                    <button
+                      key={item.id}
+                      onClick={() => insertSlashItem(item)}
+                      onMouseEnter={() => setSlashSelectedIndex(index)}
+                      className={cn(
+                        "w-full px-3 py-2 text-left flex items-center gap-3 rounded-lg transition-colors",
+                        slashSelectedIndex === index ? "bg-white/10" : "hover:bg-white/5"
+                      )}
+                    >
+                      <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded bg-black/40">
+                        {item.icon}
+                      </div>
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-xs font-medium text-white truncate flex items-center gap-2">
+                          <span className="opacity-40 text-[10px] font-mono px-1 rounded bg-black/40">&lt;/&gt;</span>
+                          {item.displayName}
+                        </span>
+                        <span className="text-[10px] text-white/40 truncate">{item.description}</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {selectedImages.length > 0 && (
           <div className="flex gap-2 mb-2 flex-wrap">
             {selectedImages.map((img, i) => (
@@ -360,29 +575,38 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             ))}
           </div>
         )}
-        <textarea
-          ref={textareaRef}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onPaste={(e) => {
-            const items = e.clipboardData.items;
-            for (let i = 0; i < items.length; i++) {
-              if (items[i].type.indexOf('image') !== -1) {
-                const file = items[i].getAsFile();
-                if (file) {
-                  e.preventDefault();
-                  handleImageUpload(file);
+        
+        <div className="flex flex-wrap items-center gap-1.5 w-full">
+          {selectedSlashCommands.length > 0 && selectedSlashCommands.map(cmd => (
+            <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px]">
+              <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
+              <span className="leading-none">{cmd.displayName}</span>
+            </div>
+          ))}
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            onPaste={(e) => {
+              const items = e.clipboardData.items;
+              for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                  const file = items[i].getAsFile();
+                  if (file) {
+                    e.preventDefault();
+                    handleImageUpload(file);
+                  }
                 }
               }
-            }
-          }}
-          placeholder="Ask anything, @ to mention, / for actions"
-          className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[40px] max-h-[200px]"
-          rows={1}
-        />
+            }}
+            placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
+            className="flex-1 min-w-[200px] bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
+            rows={1}
+          />
+        </div>
 
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between mt-[1.2rem]">
           <div className="flex items-center gap-3">
             <div className="relative" ref={plusDropdownRef}>
               <input 
@@ -665,16 +889,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               </button>
             ) : (
               <div className="relative group">
-                  {!hasProject && (
-                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 px-3 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      Choose a project first
-                    </div>
-                  )}
-                <Tooltip content={(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? "Send message" : "Voice input"}>
+                <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) ? "Send message" : "Voice input"}>
                   <button
                     onClick={() => {
                       if (!hasProject) return;
-                      if ((content.trim() || selectedImages.length > 0) && hasProject) {
+                      if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject) {
                         handleSend();
                       }
                     }}
@@ -683,12 +902,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
                       !hasProject
                         ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-                        : (content.trim().length > 0 || selectedImages.length > 0)
+                        : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0)
                         ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
                         : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
                     )}
                   >
-                    {(content.trim().length > 0 || selectedImages.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                    {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
                   </button>
                 </Tooltip>
                 </div>

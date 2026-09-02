@@ -45,9 +45,13 @@ export class ProcessManager {
 
   spawn(command: string, cwd = process.cwd()): string {
     const id = `proc_${Date.now().toString(36)}_${(++this.sequence).toString(36)}`;
+    const env = { ...process.env, FORCE_COLOR: '0' };
+    delete (env as any).ELECTRON_RUN_AS_NODE;
+    delete (env as any).NODE_OPTIONS;
+
     const child = spawn(command, {
       cwd: path.resolve(cwd), shell: true,
-      env: { ...process.env, FORCE_COLOR: '0' },
+      env,
       stdio: 'pipe',
     });
     const status: ManagedProcessRecord = { id, command, cwd: path.resolve(cwd), status: 'running', pid: child.pid, startedAt: Date.now(), outputBytes: 0, truncated: false };
