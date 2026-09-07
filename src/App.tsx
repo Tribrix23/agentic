@@ -153,36 +153,16 @@ const App = () => {
   // Removed aggressive clearAllTasks() on mount to prevent wiping tasks on page refresh.
   // Tasks are now properly scoped to conversations, so this is no longer needed.
 
-  // Color cycling for AI running state
+  // Color cycling for AI running state (disabled per user request)
   React.useEffect(() => {
     if (isAiRunning) {
-      const updateColors = () => {
-        // Pick random colors (skip the first two default colors)
-        const randomIndex1 = Math.floor(Math.random() * (aiRunningColors.length - 2)) + 2;
-        const randomIndex2 = Math.floor(Math.random() * (aiRunningColors.length - 2)) + 2;
-        setOrb1ColorIndex(randomIndex1);
-        setOrb2ColorIndex(randomIndex2);
-      };
-
-      // Set initial random colors immediately
-      updateColors();
-      
-      const interval = setInterval(updateColors, 4000); // 4 seconds per color transition
-
-      return () => clearInterval(interval);
-    } else {
-      // Reset to default colors when AI stops
       setOrb1ColorIndex(0);
       setOrb2ColorIndex(1);
     }
   }, [isAiRunning]);
 
-  // Get current colors based on AI state
+  // Get current colors (locked to default)
   const getOrbColors = () => {
-    if (isAiRunning) {
-      return [aiRunningColors[orb1ColorIndex], aiRunningColors[orb2ColorIndex]];
-    }
-    // Return default colors (first two in the array)
     return [aiRunningColors[0], aiRunningColors[1]];
   };
 

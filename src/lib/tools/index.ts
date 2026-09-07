@@ -1,10 +1,10 @@
 import { registerTool } from './registry';
-import { definition as readFileDef, handler as readFileHandler } from './definitions/readFile';
+
 import { definition as writeFileDef, handler as writeFileHandler } from './definitions/writeFile';
 import { definition as editFileDef, handler as editFileHandler } from './definitions/editFile';
 import { definition as createFileDef, handler as createFileHandler } from './definitions/createFile';
 import { definition as renameFileDef, handler as renameFileHandler } from './definitions/renameFile';
-import { definition as listDirectoryDef, handler as listDirectoryHandler } from './definitions/listDirectory';
+
 import { definition as searchFilesDef, handler as searchFilesHandler } from './definitions/searchFiles';
 import { definition as runCommandDef, handler as runCommandHandler } from './definitions/runCommand';
 import { definition as gitStatusDef, handler as gitStatusHandler } from './definitions/gitStatus';
@@ -60,12 +60,12 @@ export * from './readOnly';
 export * from './planModePolicy';
 
 export function initializeTools() {
-  registerTool(readFileDef, readFileHandler);
+
   registerTool(writeFileDef, writeFileHandler);
   registerTool(editFileDef, editFileHandler);
   registerTool(createFileDef, createFileHandler);
   registerTool(renameFileDef, renameFileHandler);
-  registerTool(listDirectoryDef, listDirectoryHandler);
+
   registerTool(searchFilesDef, searchFilesHandler);
   registerTool(runCommandDef, runCommandHandler);
   registerTool(gitStatusDef, gitStatusHandler);

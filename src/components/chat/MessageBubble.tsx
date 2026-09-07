@@ -176,7 +176,7 @@ export function MessageBubble({
         .replace(/```(?:json)?\s*\{[\s\S]*?"tool_call"[\s\S]*?\}\s*```/gi, '')
         .replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '')
         .replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/gi, '')
-        .replace(/<\/?think(?:ing)?>/gi, '')
+        .replace(/<think(?:ing)?>[\s\S]*?(?:<\/?think(?:ing)?>|$)/gi, '')
         .trim();
 
       thinkingContent = sanitize(thinkingContent);
@@ -209,7 +209,7 @@ export function MessageBubble({
       // If the AI is streaming a tool call as raw text, we want to show the file card immediately!
       if (msg.isStreaming) {
         const rawContent = msg.content || '';
-        const matchToolStr = (tName: string, str: string) => {
+        const matchToolStr = (tName: string, str: string, counter: number) => {
           // Prevent duplicates if it's already gracefully parsed into msg.toolCalls
           if (msg.toolCalls && msg.toolCalls.some(tc => tc.name === tName)) return;
 
@@ -219,12 +219,12 @@ export function MessageBubble({
           const remMatch = str.match(/"TargetContent"\s*:\s*"([\s\S]*?)"(?:\s*,|\s*\})/);
 
           steps.push({
-            id: `stream_tool_${msg.id}_${tName}`,
+            id: `stream_tool_${msg.id}_${tName}_${counter}`,
             type: 'tool',
             status: 'running',
             agentName: msg.name?.startsWith('Subagent') ? msg.name : undefined,
             toolCall: {
-              id: `stream_tool_${msg.id}_${tName}`,
+              id: `stream_tool_${msg.id}_${tName}_${counter}`,
               name: tName,
               arguments: {
                 TargetFile: pathMatch ? pathMatch[1] : 'Unknown',
@@ -240,32 +240,40 @@ export function MessageBubble({
         // Try JSON format
         const jsonRegex = /```(?:json)?\s*(\{[\s\S]*?(?:"name"|"tool_call")[\s\S]*?(?:\}\s*```)?)/gi;
         let jsonMatch;
+        let jsonCounter = 0;
         while ((jsonMatch = jsonRegex.exec(rawContent)) !== null) {
+          jsonCounter++;
           const nameMatch = jsonMatch[1].match(/"name"\s*:\s*"([^"]+)"/);
-          if (nameMatch) matchToolStr(nameMatch[1], jsonMatch[1]);
+          if (nameMatch) matchToolStr(nameMatch[1], jsonMatch[1], jsonCounter);
         }
 
         // Try XML format
         const xmlRegex = /<tool_call>([\s\S]*?)(?:<\/tool_call>|$)/gi;
         let xmlMatch;
+        let xmlCounter = 0;
         while ((xmlMatch = xmlRegex.exec(rawContent)) !== null) {
+          xmlCounter++;
           const nameMatch = xmlMatch[1].match(/"name"\s*:\s*"([^"]+)"/);
-          if (nameMatch) matchToolStr(nameMatch[1], xmlMatch[1]);
+          if (nameMatch) matchToolStr(nameMatch[1], xmlMatch[1], xmlCounter);
         }
 
         // Try Antigravity format: call:tool_name{...
         const antigravityRegex = /call:([a-zA-Z0-9_]+)\s*(\{[\s\S]*?(?:\}|$))/gi;
         let antigravityMatch;
+        let agyCounter = 0;
         while ((antigravityMatch = antigravityRegex.exec(rawContent)) !== null) {
-          matchToolStr(antigravityMatch[1], antigravityMatch[2]);
+          agyCounter++;
+          matchToolStr(antigravityMatch[1], antigravityMatch[2], agyCounter);
         }
 
         // Try Native <function=name> format (Gemini XML style)
         const functionRegex = /<function=([a-zA-Z0-9_-]+)>([\s\S]*?(?:<\/function>|$))/gi;
         let functionMatch;
+        let matchCounter = 0;
         while ((functionMatch = functionRegex.exec(rawContent)) !== null) {
           const tName = functionMatch[1];
           const innerStr = functionMatch[2];
+          matchCounter++;
 
           if (!msg.toolCalls || !msg.toolCalls.some(tc => tc.name === tName)) {
             const pathMatch = innerStr.match(/<parameter=(?:TargetFile|path|file|Target)>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
@@ -273,12 +281,12 @@ export function MessageBubble({
             const remMatch = innerStr.match(/<parameter=TargetContent>\s*([\s\S]*?)(?:<\/parameter>|$)/i);
 
             steps.push({
-              id: `stream_tool_${msg.id}_${tName}`,
+              id: `stream_tool_${msg.id}_${tName}_${matchCounter}`,
               type: 'tool',
               status: 'running',
               agentName: (msg as any).name?.startsWith('Subagent') ? (msg as any).name : undefined,
               toolCall: {
-                id: `stream_tool_${msg.id}_${tName}`,
+                id: `stream_tool_${msg.id}_${tName}_${matchCounter}`,
                 name: tName,
                 arguments: {
                   TargetFile: pathMatch ? pathMatch[1].trim() : 'Unknown',

@@ -29,9 +29,9 @@ export const handler: ToolHandler = async (args, context) => {
     
     let command: string;
     if (pid) {
-      command = `powershell -Command "Stop-Process -Id ${pid} ${force ? '-Force' : ''}"`;
+      command = `powershell -Command 'Stop-Process -Id ${pid} ${force ? '-Force' : ''}'`;
     } else if (name) {
-      command = `powershell -Command "Stop-Process -Name '${name}' ${force ? '-Force' : ''}"`;
+      command = `powershell -Command 'Stop-Process -Name "${name}" ${force ? '-Force' : ''}'`;
     } else {
       return { success: false, output: 'Invalid parameters.' };
     }

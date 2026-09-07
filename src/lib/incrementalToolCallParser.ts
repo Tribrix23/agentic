@@ -21,11 +21,16 @@ const CONTENT_NAMES = 'content|CodeContent|ReplacementContent|file_content|repla
 const PATH_NAMES = 'path|TargetFile|file';
 
 function readElement(source: string, names: string): string | undefined {
-  const direct = source.match(new RegExp(`<(?:${names})>\\s*([\\s\\S]*?)<\\/(?:${names})>`, 'i'));
+  const direct = source.match(new RegExp(`<(?:${names})>\\s*([\\s\\S]*?)(?:<\\/(?:${names})>|(?=<[a-zA-Z0-9_-]+>|<\\/function>|<\\/tool_call>|$))`, 'i'));
   if (direct) return decodeXmlEntities(direct[1].trim());
 
-  const parameter = source.match(new RegExp(`<parameter=(?:${names})>\\s*([\\s\\S]*?)<\\/parameter>`, 'i'));
-  return parameter ? decodeXmlEntities(parameter[1].trim()) : undefined;
+  const parameter = source.match(new RegExp(`<parameter(?:=|\\s+name=["']?)(?:${names})["']?>\\s*([\\s\\S]*?)(?:<\\/parameter>|(?=<parameter|<\\/function>|<\\/tool_call>|$))`, 'i'));
+  if (parameter) return decodeXmlEntities(parameter[1].trim());
+
+  const hallucinated = source.match(new RegExp(`<parameter>\\s*(?:${names})\\s*>\\s*([\\s\\S]*?)(?:<\\/parameter>|(?=<parameter|<\\/function>|<\\/tool_call>|$))`, 'i'));
+  if (hallucinated) return decodeXmlEntities(hallucinated[1].trim());
+
+  return undefined;
 }
 
 function trimPartialClosingTag(value: string, closingTag: string): string {
@@ -41,17 +46,31 @@ function trimPartialClosingTag(value: string, closingTag: string): string {
 
 function readStreamingContent(source: string): string | undefined {
   const direct = source.match(new RegExp(`<(?:${CONTENT_NAMES})>`, 'i'));
-  const parameter = source.match(new RegExp(`<parameter=(?:${CONTENT_NAMES})>`, 'i'));
-  const match = direct && parameter
-    ? (direct.index! < parameter.index! ? direct : parameter)
-    : (direct || parameter);
+  const parameter = source.match(new RegExp(`<parameter(?:=|\\s+name=["']?)(?:${CONTENT_NAMES})["']?>`, 'i'));
+  const hallucinatedNamed = source.match(new RegExp(`<parameter>\\s*(?:${CONTENT_NAMES})\\s*>`, 'i'));
+  const nakedParameter = source.match(/<parameter>(?!\s*[a-zA-Z0-9_-]+>)/i);
 
-  if (!match || match.index === undefined) return undefined;
+  const matches = [direct, parameter, hallucinatedNamed, nakedParameter].filter(Boolean) as RegExpMatchArray[];
+  if (matches.length === 0) return undefined;
+  
+  const match = matches.reduce((prev, curr) => (curr.index! < prev.index! ? curr : prev));
 
-  const isParameter = match[0].toLowerCase().startsWith('<parameter=');
+  if (match.index === undefined) return undefined;
+
+  const matchText = match[0].toLowerCase();
+  const isParameter = matchText.startsWith('<parameter=') || matchText.startsWith('<parameter ') || matchText.startsWith('<parameter>');
   const closingTag = isParameter ? '</parameter>' : `</${match[0].slice(1, -1)}>`;
+  
   let content = source.slice(match.index + match[0].length);
-  const closeIndex = content.toLowerCase().indexOf(closingTag.toLowerCase());
+  
+  let closeIndex = content.toLowerCase().indexOf(closingTag.toLowerCase());
+  if (closeIndex < 0) {
+    const alternativeCloseIndex = content.search(/(?:<\/parameter>|<\/function>|<\/tool_call>)/i);
+    if (alternativeCloseIndex >= 0) {
+      closeIndex = alternativeCloseIndex;
+    }
+  }
+
   content = closeIndex >= 0
     ? content.slice(0, closeIndex)
     : trimPartialClosingTag(content, closingTag);
@@ -73,24 +92,38 @@ export class IncrementalToolCallParser {
       if (start.index === undefined) return;
       const nextStart = starts[index + 1]?.index ?? this.buffer.length;
       const segment = this.buffer.slice(start.index, nextStart);
-      const functionMatch = segment.match(/<function=([a-zA-Z0-9_-]+)>/i);
-      if (!functionMatch || !FILE_TOOLS.has(functionMatch[1])) return;
+      
+      const functionRegex = /<(?:function|invoke)(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>/gi;
+      const functionMatches = Array.from(segment.matchAll(functionRegex));
+      
+      functionMatches.forEach((functionMatch, functionIndex) => {
+        let name = functionMatch[1];
+        if (name === 'write_file') name = 'writeFile';
+        if (name === 'edit_file') name = 'editFile';
+        if (!FILE_TOOLS.has(name)) return;
 
-      const path = readElement(segment, PATH_NAMES);
-      if (!path) return;
+        const nextFunctionStart = functionMatches[functionIndex + 1]?.index ?? segment.length;
+        const functionSegment = segment.slice(functionMatch.index, nextFunctionStart);
 
-      const call: StreamingFileToolCall = {
-        id: `stream_tool_${start.index}`,
-        name: functionMatch[1],
-        path,
-        content: readStreamingContent(segment) ?? '',
-        complete: /<\/tool_call>/i.test(segment),
-      };
-      const signature = `${call.name}\0${call.path}\0${call.content}\0${call.complete}`;
-      if (this.emitted.get(call.id) !== signature) {
-        this.emitted.set(call.id, signature);
-        updates.push(call);
-      }
+        const path = readElement(functionSegment, PATH_NAMES);
+        if (!path) return;
+
+        const isComplete = /<\/tool_call>/i.test(segment) && (functionIndex === functionMatches.length - 1);
+        const hasFunctionClose = /<\/function>/i.test(functionSegment);
+
+        const call: StreamingFileToolCall = {
+          id: `stream_tool_${start.index}_${functionMatch.index}`,
+          name,
+          path,
+          content: readStreamingContent(functionSegment) ?? '',
+          complete: isComplete || hasFunctionClose,
+        };
+        const signature = `${call.name}\0${call.path}\0${call.content}\0${call.complete}`;
+        if (this.emitted.get(call.id) !== signature) {
+          this.emitted.set(call.id, signature);
+          updates.push(call);
+        }
+      });
     });
 
     return updates;

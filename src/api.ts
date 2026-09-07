@@ -341,11 +341,12 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     });
   }
 
+  const clonedMessages = [...messages];
   // ── Build request payload ──────────────────────────────────────────
   const payload: Record<string, any> = {
     model: modelName,
     conversation_id: `${conversationId || 'conv'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    messages,
+    messages: clonedMessages,
     temperature: dynamicTemp,
     top_p: dynamicTopP,
     max_tokens: dynamicMaxTokens,
@@ -371,7 +372,18 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   if (config.enableThinking) {
     payload.chat_template_kwargs = { enable_thinking: true };
     if (config.reasoningBudget) {
-      payload.reasoning_budget = config.reasoningBudget;
+      if (modelName.includes('dispatcher')) {
+        payload.reasoning_budget = config.reasoningBudget;
+      } else {
+        // For non-dispatcher models, enforce reasoning budget via system prompt injection
+        const constraintMsg = `\n\nCRITICAL INSTRUCTION: Your internal reasoning (<think> block) MUST be extremely concise and strictly under ${config.reasoningBudget} tokens. Do not ramble.`;
+        const sysMsgIndex = clonedMessages.findIndex(m => m.role === 'system');
+        if (sysMsgIndex >= 0) {
+          clonedMessages[sysMsgIndex] = { ...clonedMessages[sysMsgIndex], content: clonedMessages[sysMsgIndex].content + constraintMsg };
+        } else {
+          clonedMessages.unshift({ role: 'system', content: constraintMsg });
+        }
+      }
     }
   }
 

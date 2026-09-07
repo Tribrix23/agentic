@@ -21,7 +21,8 @@ export const handler: ToolHandler = async (args, context) => {
   try {
     const { content } = args;
     
-    const command = `powershell -Command "Set-Clipboard -Value '${content.replace(/'/g, "''")}'"`;
+    const base64Content = Buffer.from(content).toString('base64');
+    const command = `powershell -NoProfile -Command "[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64Content}')) | Set-Clipboard"`;
     
     const result = await (window as any).electron.runCommand(command, context.projectRoot);
     

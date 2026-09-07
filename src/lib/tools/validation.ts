@@ -1,6 +1,6 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 
-const ajv = new Ajv({ allErrors: true, strict: false, coerceTypes: false });
+const ajv = new Ajv({ allErrors: true, strict: false, coerceTypes: true });
 const validators = new WeakMap<object, ValidateFunction>();
 
 export interface ToolValidationResult {
@@ -27,12 +27,38 @@ function parseSchemaValue(value: unknown, schema: JsonSchema | undefined): unkno
 export function normalizeToolArguments(schema: Record<string, unknown>, args: unknown): unknown {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
 
-  const properties = schema.properties;
-  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return args;
+  const properties = (schema.properties as Record<string, unknown>) || {};
+  const required = new Set((schema.required as string[]) || []);
 
   const normalized = { ...(args as Record<string, unknown>) };
   for (const [name, propertySchema] of Object.entries(properties)) {
-    if (!propertySchema || typeof propertySchema !== 'object' || Array.isArray(propertySchema)) continue;
+    let val = normalized[name];
+    if (propertySchema && typeof propertySchema === 'object') {
+      const type = (propertySchema as any).type;
+      
+      // If empty string for optional non-string, just delete it
+      if (val === '' && !required.has(name) && type !== 'string') {
+        delete normalized[name];
+        continue;
+      }
+      
+      // Manual coercion for numbers and booleans
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if ((type === 'number' || type === 'integer') && trimmed !== '') {
+          // Strip out things like "ms" from "500ms" just in case AI hallucinates units
+          const num = Number(trimmed.replace(/[^0-9.-]/g, ''));
+          if (!Number.isNaN(num)) {
+            normalized[name] = num;
+            continue;
+          }
+        }
+        if (type === 'boolean') {
+          if (trimmed.toLowerCase() === 'true') { normalized[name] = true; continue; }
+          if (trimmed.toLowerCase() === 'false') { normalized[name] = false; continue; }
+        }
+      }
+    }
     normalized[name] = parseSchemaValue(normalized[name], propertySchema as JsonSchema);
   }
   return normalized;

@@ -468,6 +468,8 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             theme="vs-dark"
             original={activeFile.diffOriginalContent || ''}
             modified={currentLocalContent}
+            keepCurrentOriginalModel={true}
+            keepCurrentModifiedModel={true}
             onMount={(editor) => {
               const modifiedEditor = editor.getModifiedEditor();
               editorRef.current = modifiedEditor;
@@ -492,6 +494,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             theme="vs-dark"
             path={activeFilePath}
             value={currentLocalContent}
+            keepCurrentModel={true}
             onChange={(value) => {
               if (activeFilePath) {
                 setLocalContents(prev => ({

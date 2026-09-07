@@ -293,15 +293,18 @@ export const MainContent = ({
     const handleBackgroundTaskComplete = async (e: any) => {
       const { taskId, status } = e.detail;
 
-      if (!isAgentRunning && aiConfig.agentMode && activeConversationId) {
+      // Use agentLoopRef directly to check if it's running, to avoid stale React state closures
+      const isLoopRunning = agentLoopRef.current ? agentLoopRef.current.getState().isRunning : isAgentRunning;
+
+      if (!isLoopRunning && aiConfig.agentMode && activeConversationId) {
         // Build the system message
         const taskMsg = createUserMessage(`[SYSTEM]: Background task ${taskId} completed with status ${status.status}.\nWait to see if there is any output from manageTask or commandStatus.`);
 
         setMessages(prev => {
           const newMsgs = [...prev, taskMsg];
 
-          // Re-run agent loop
-          if (agentLoopRef.current) {
+          // Re-run agent loop only if it's definitely not running
+          if (agentLoopRef.current && !agentLoopRef.current.getState().isRunning) {
             setIsAgentRunning(true);
             isStreamingRef.current = true;
             agentLoopRef.current.run(newMsgs.map(m => ({
@@ -1817,6 +1820,24 @@ IMPORTANT RULES:
           "w-full max-w-[700px] flex flex-col items-center",
           messages.length > 0 ? "mx-auto pb-6" : ""
         )}>
+
+          <AnimatePresence>
+            {messages.length === 0 && (
+              <motion.div 
+                layout
+                initial={{ opacity: 0, y: 20, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0, scale: 0.95, filter: 'blur(4px)' }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                className="flex flex-col items-center mb-8 w-full max-w-[650px]"
+              >
+                 <div className="flex items-center justify-center gap-3 w-full">
+                   <h1 className="text-[40px] font-bold text-white tracking-tight">Welcome to Quantix</h1>
+                   <img src="./icon.png" alt="QUANTIX Logo" className="w-10 h-10 object-contain" />
+                 </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {messages.length === 0 && projectSelectorNode}
           {messages.length === 0 && quotaExhaustedMessage && (

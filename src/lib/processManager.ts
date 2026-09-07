@@ -49,11 +49,29 @@ export class ProcessManager {
     delete (env as any).ELECTRON_RUN_AS_NODE;
     delete (env as any).NODE_OPTIONS;
 
-    const child = spawn(command, {
-      cwd: path.resolve(cwd), shell: true,
-      env,
-      stdio: 'pipe',
-    });
+    const isPackaged = process.title.includes('Quantix') || __dirname.includes('app.asar');
+    const fs = require('fs');
+    const busyboxPath = (() => {
+      if (!isPackaged) return path.join(__dirname, '../../assets/busybox.exe');
+      const p1 = path.join(process.resourcesPath, 'assets', 'busybox.exe');
+      const p2 = path.join(process.resourcesPath, 'busybox.exe');
+      return fs.existsSync(p1) ? p1 : p2;
+    })();
+
+    const isWin = process.platform === 'win32';
+    const child = isWin
+      ? spawn(busyboxPath, ['bash', '-c', command], {
+          cwd: path.resolve(cwd),
+          shell: false,
+          env,
+          stdio: 'pipe',
+        })
+      : spawn(command, {
+          cwd: path.resolve(cwd),
+          shell: true,
+          env,
+          stdio: 'pipe',
+        });
     const status: ManagedProcessRecord = { id, command, cwd: path.resolve(cwd), status: 'running', pid: child.pid, startedAt: Date.now(), outputBytes: 0, truncated: false };
     const record: InternalRecord = { status, child, chunks: [], bufferedBytes: 0 };
     this.records.set(id, record);
@@ -124,7 +142,10 @@ export class ProcessManager {
   private finish(record: InternalRecord, status: ManagedProcessStatus, exitCode: number | null, error?: string, signal?: NodeJS.Signals | null): void {
     if (record.status.endedAt) return;
     record.status.status = status; record.status.exitCode = exitCode; record.status.signal = signal; record.status.endedAt = Date.now();
-    if (error) record.status.outputBytes += Buffer.byteLength(error);
+    if (error) {
+      record.status.outputBytes += Buffer.byteLength(error);
+      record.chunks.push({ stream: 'stderr', data: Buffer.from(error) });
+    }
     this.onExit?.({ ...record.status });
   }
 

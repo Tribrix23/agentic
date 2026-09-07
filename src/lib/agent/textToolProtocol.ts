@@ -11,6 +11,13 @@ export interface TextToolParseResult {
 
 export type TextToolProtocolMode = 'permissive' | 'xml';
 
+// Module-level counter — guarantees every parsed tool call gets a globally
+// unique callId regardless of where in the source text the match occurs.
+let _callIdCounter = 0;
+function nextCallId(prefix: string): string {
+  return `${prefix}:${++_callIdCounter}`;
+}
+
 function scalar(value: string): unknown {
   const trimmed = value.trim();
   if (trimmed === 'true') return true;
@@ -28,47 +35,81 @@ export function parseTextToolProtocol(source: string, knownToolNames?: Set<strin
   const ranges: Array<[number, number]> = [];
   const diagnostics: string[] = [];
 
+
   for (const call of mode === 'permissive' ? parseMcpToolCalls(source) : []) {
     const name = toMcpAlias(call.server, call.tool);
-    if (validName(name, knownToolNames)) actions.push({ kind: 'tool', callId: `text:mcp:${actions.length}`, name, arguments: call.arguments, source: 'text' });
+    if (validName(name, knownToolNames)) actions.push({ kind: 'tool', callId: nextCallId('text:mcp'), name, arguments: call.arguments, source: 'text' });
   }
 
-  const xml = /<tool_call>\s*<function=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/function>\s*<\/tool_call>/gi;
+  const xml = /<tool_call>\s*([\s\S]*?)(?:<\/tool_call>|$)/gi;
   let match: RegExpExecArray | null;
   while ((match = xml.exec(source)) !== null) {
-    const name = match[1].trim();
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/.test(name)) { diagnostics.push(`Invalid tool name format: ${name}`); continue; }
-    const args: Record<string, unknown> = {};
-    const body = match[2];
-    const parameter = /<parameter=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/parameter>/gi;
-    const consumed: Array<[number, number]> = [];
-    let parameterMatch: RegExpExecArray | null;
-    while ((parameterMatch = parameter.exec(body)) !== null) {
-      const parameterName = parameterMatch[1].trim();
-      args[parameterName] = parseParameterValue(parameterName, parameterMatch[2]);
-      consumed.push([parameterMatch.index, parameterMatch.index + parameterMatch[0].length]);
-    }
-    if (Object.keys(args).length === 0) {
-      const legacy = /<([a-zA-Z0-9_-]+)>([\s\S]*?)<\/\1>/gi;
-      let legacyMatch: RegExpExecArray | null;
-      while ((legacyMatch = legacy.exec(body)) !== null) {
-        const parameterName = legacyMatch[1].trim();
-        args[parameterName] = parseParameterValue(parameterName, legacyMatch[2]);
-        consumed.push([legacyMatch.index, legacyMatch.index + legacyMatch[0].length]);
+    const toolCallBody = match[1];
+    const functionRegex = /<(?:function|invoke)(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>([\s\S]*?)(?:<\/(?:function|invoke)>|(?=<(?:function|invoke)|$))/gi;
+    let functionMatch: RegExpExecArray | null;
+    while ((functionMatch = functionRegex.exec(toolCallBody)) !== null) {
+      let name = functionMatch[1].trim();
+      if (name === 'write_file') name = 'writeFile';
+      if (name === 'edit_file') name = 'editFile';
+      if (name === 'read_file') name = 'readFile';
+      if (name === 'run_command') name = 'runCommand';
+      
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/.test(name)) { diagnostics.push(`Invalid tool name format: ${name}`); continue; }
+      const args: Record<string, unknown> = {};
+      const body = functionMatch[2];
+      const parameter = /<parameter(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/function>|<\/tool_call>|$))/gi;
+      const consumed: Array<[number, number]> = [];
+      let parameterMatch: RegExpExecArray | null;
+      while ((parameterMatch = parameter.exec(body)) !== null) {
+        const parameterName = parameterMatch[1].trim();
+        args[parameterName] = parseParameterValue(parameterName, parameterMatch[2]);
+        consumed.push([parameterMatch.index, parameterMatch.index + parameterMatch[0].length]);
       }
+      
+      const hallucinatedNamed = /<parameter>\s*([a-zA-Z0-9_-]+)\s*>([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/function>|<\/tool_call>|$))/gi;
+      let hallucinatedMatch: RegExpExecArray | null;
+      while ((hallucinatedMatch = hallucinatedNamed.exec(body)) !== null) {
+        // Only add if not already consumed
+        if (!consumed.some(([start, end]) => hallucinatedMatch!.index >= start && hallucinatedMatch!.index < end)) {
+          const parameterName = hallucinatedMatch[1].trim();
+          args[parameterName] = parseParameterValue(parameterName, hallucinatedMatch[2]);
+          consumed.push([hallucinatedMatch.index, hallucinatedMatch.index + hallucinatedMatch[0].length]);
+        }
+      }
+
+      const nakedParameter = /<parameter>(?!\s*[a-zA-Z0-9_-]+>)([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/function>|<\/tool_call>|$))/gi;
+      let nakedMatch: RegExpExecArray | null;
+      while ((nakedMatch = nakedParameter.exec(body)) !== null) {
+        if (!consumed.some(([start, end]) => nakedMatch!.index >= start && nakedMatch!.index < end)) {
+          // Assume naked parameter is the 'content' or 'file_content'
+          const contentName = Object.keys(args).includes('content') ? 'file_content' : 'content';
+          args[contentName] = parseParameterValue(contentName, nakedMatch[1]);
+          consumed.push([nakedMatch.index, nakedMatch.index + nakedMatch[0].length]);
+        }
+      }
+
+      if (Object.keys(args).length === 0) {
+        const legacy = /<([a-zA-Z0-9_-]+)>([\s\S]*?)(?:<\/\1>|(?=<[a-zA-Z0-9_-]+>|<\/function>|<\/tool_call>|$))/gi;
+        let legacyMatch: RegExpExecArray | null;
+        while ((legacyMatch = legacy.exec(body)) !== null) {
+          const parameterName = legacyMatch[1].trim();
+          args[parameterName] = parseParameterValue(parameterName, legacyMatch[2]);
+          consumed.push([legacyMatch.index, legacyMatch.index + legacyMatch[0].length]);
+        }
+      }
+      const residual = consumed
+        .sort((a, b) => a[0] - b[0])
+        .reduce((value, [start, end], index, ranges) => value + body.slice(index === 0 ? 0 : ranges[index - 1][1], start) + (index === ranges.length - 1 ? body.slice(end) : ''), '');
+      if (Object.keys(args).length > 0 && residual.trim()) {
+        diagnostics.push(`Malformed XML parameters for ${name}; parameter content may contain an unencoded closing tag.`);
+        continue;
+      }
+      if (knownToolNames?.size && !knownToolNames.has(name)) {
+        diagnostics.push(`Unknown tool: ${name}.`);
+        continue;
+      }
+      actions.push({ kind: 'tool', callId: nextCallId('text'), name, arguments: args, source: 'text', sourceStart: match.index + functionMatch.index, sourceEnd: match.index + functionMatch.index + functionMatch[0].length });
     }
-    const residual = consumed
-      .sort((a, b) => a[0] - b[0])
-      .reduce((value, [start, end], index, ranges) => value + body.slice(index === 0 ? 0 : ranges[index - 1][1], start) + (index === ranges.length - 1 ? body.slice(end) : ''), '');
-    if (Object.keys(args).length > 0 && residual.trim()) {
-      diagnostics.push(`Malformed XML parameters for ${name}; parameter content may contain an unencoded closing tag.`);
-      continue;
-    }
-    if (knownToolNames?.size && !knownToolNames.has(name)) {
-      diagnostics.push(`Unknown tool: ${name}.`);
-      continue;
-    }
-    actions.push({ kind: 'tool', callId: `text:${match.index}`, name, arguments: args, source: 'text', sourceStart: match.index, sourceEnd: match.index + match[0].length });
     ranges.push([match.index, match.index + match[0].length]);
   }
 
@@ -82,7 +123,7 @@ export function parseTextToolProtocol(source: string, knownToolNames?: Set<strin
     if (!validName(name, knownToolNames)) continue;
     try {
       const args = JSON.parse(match[2]);
-      actions.push({ kind: 'tool', callId: `text:${match.index}`, name, arguments: args, source: 'text', sourceStart: match.index, sourceEnd: match.index + match[0].length });
+      actions.push({ kind: 'tool', callId: nextCallId('text'), name, arguments: args, source: 'text', sourceStart: match.index, sourceEnd: match.index + match[0].length });
       ranges.push([match.index, match.index + match[0].length]);
     } catch { diagnostics.push(`Malformed JSON arguments for ${name}.`); }
   }

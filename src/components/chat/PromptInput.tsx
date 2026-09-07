@@ -155,6 +155,17 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [selectedSlashCommands, setSelectedSlashCommands] = useState<any[]>([]);
   const slashMenuRef = useRef<HTMLDivElement>(null);
 
+  const chipsContainerRef = useRef<HTMLDivElement>(null);
+  const [chipsWidth, setChipsWidth] = useState(0);
+
+  useEffect(() => {
+    if (chipsContainerRef.current) {
+      setChipsWidth(chipsContainerRef.current.offsetWidth);
+    } else {
+      setChipsWidth(0);
+    }
+  }, [selectedSlashCommands]);
+
   useEffect(() => {
     let mounted = true;
     const loadItems = async () => {
@@ -299,7 +310,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     };
     const openCommandPalette = () => {
       textareaRef.current?.focus();
-      setContent(prev => prev.startsWith('/') ? prev : '/' + prev);
+      const currentVal = textareaRef.current?.value || '';
+      setContent(currentVal.startsWith('/') ? currentVal : '/' + currentVal);
       setShowSlashMenu(true);
       setSlashSearchQuery('');
       setSlashSelectedIndex(0);
@@ -576,15 +588,20 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           </div>
         )}
         
-        <div className="flex flex-wrap items-center gap-1.5 w-full">
-          {selectedSlashCommands.length > 0 && selectedSlashCommands.map(cmd => (
-            <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-white/5 text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px]">
-              <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
-              <span className="leading-none">{cmd.displayName}</span>
+        <div className="relative w-full">
+          {selectedSlashCommands.length > 0 && (
+            <div ref={chipsContainerRef} className="absolute top-[-2px] left-0 flex items-center gap-1.5 pointer-events-none z-10">
+              {selectedSlashCommands.map(cmd => (
+                <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-[#2b2b30] text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px] pointer-events-auto">
+                  <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
+                  <span className="leading-none">{cmd.displayName}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
           <textarea
             ref={textareaRef}
+            style={{ textIndent: selectedSlashCommands.length > 0 ? `${chipsWidth + 8}px` : '0px' }}
             value={content}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
@@ -601,7 +618,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               }
             }}
             placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
-            className="flex-1 min-w-[200px] bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
+            className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
             rows={1}
           />
         </div>

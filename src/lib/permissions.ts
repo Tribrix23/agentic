@@ -248,6 +248,13 @@ function getPresetDefault(
     case 'default':
     default:
       if (permType === 'file_read' || permType === 'git' || permType === 'file_write') return 'allow';
+      if (permType === 'terminal' && command) {
+        const lower = command.toLowerCase().trim();
+        // Safe read-only commands that should not require permission in default mode
+        const safeReadPrefixes = ['ls', 'dir', 'cat', 'type', 'echo', 'pwd', 'grep', 'find', 'fd', 'rg', 'tree', 'tail', 'head', 'less', 'more', 'which', 'whereis', 'whoami'];
+        const isSafe = safeReadPrefixes.some(prefix => lower === prefix || lower.startsWith(prefix + ' '));
+        if (isSafe) return 'allow';
+      }
       return 'ask';
   }
 }

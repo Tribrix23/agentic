@@ -14,17 +14,33 @@ const playwrightRuntimePath = path.resolve(__dirname, 'playwright-runtime');
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      unpack: "{**/*.node,**/*.exe,**/*.dll,**/node_modules/node-pty/**/*}"
+    },
+    ignore: (file: string) => {
+      if (!file) return false;
+      const f = file.replace(/\\/g, '/');
+      if (f === '/package.json') return false;
+      if (f.startsWith('/.vite')) return false;
+      if (f === '/node_modules') return false;
+      if (f.startsWith('/node_modules/node-pty')) return false;
+      if (f.startsWith('/node_modules/nan')) return false;
+      if (f.startsWith('/node_modules/')) return true;
+      return true;
+    },
     icon: iconPath,
     extraResource: [
       path.resolve(__dirname, 'public'),
       path.resolve(__dirname, 'agentic-mcp-server'),
       playwrightBrowsersPath,
       playwrightRuntimePath,
+      path.resolve(__dirname, 'assets', 'busybox.exe'),
     ],
   },
 
-  rebuildConfig: {},
+  rebuildConfig: {
+    force: true,
+  },
 
   makers: [
     new MakerZIP({}, ['darwin']),
@@ -63,7 +79,7 @@ const config: ForgeConfig = {
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
-      [FuseV1Options.OnlyLoadAppFromAsar]: true,
+      [FuseV1Options.OnlyLoadAppFromAsar]: false,
     }),
   ],
 };

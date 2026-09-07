@@ -762,7 +762,7 @@ export class AgentLoop {
           }
           if (this.projectContext.fileTree) {
             const treeSummary = truncateToTokens(this.projectContext.fileTree, 200);
-            projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
+            projectLines.push(`\nProject Structure (overview only — use runCommand with ls for actual contents):\n${treeSummary}`);
           }
           if (this.projectContext.activeFilePath) {
             projectLines.push(`\nActive File: ${this.projectContext.activeFilePath}`);
@@ -1176,7 +1176,7 @@ export class AgentLoop {
                 if (callIndex !== -1) {
                   const leaked = afterThink.substring(0, callIndex).trim();
                   if (leaked) {
-                    assistantMsg.thinkingContent += '\n\n' + leaked;
+                    assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
                   }
                   afterThink = '';
                 } else {
@@ -1185,13 +1185,13 @@ export class AgentLoop {
                   if (toolMatch && toolMatch.index !== undefined) {
                     const leaked = afterThink.substring(0, toolMatch.index).trim();
                     if (leaked) {
-                      assistantMsg.thinkingContent += '\n\n' + leaked;
+                      assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
                     }
                     afterThink = '';
                   } else {
                     const leaked = afterThink.trim();
                     if (leaked) {
-                      assistantMsg.thinkingContent += '\n\n' + leaked;
+                      assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
                     }
                     afterThink = '';
                   }
@@ -1228,7 +1228,7 @@ export class AgentLoop {
         if (this.options?.interactionMode === 'plan' && hasToolCalls) {
           // In plan mode, enforce separation between inspection and plan creation
           const hasInspectionTools = assistantMsg.toolCalls?.some(tc => 
-            tc.name === 'listDirectory' || tc.name === 'readFile'
+            tc.name === 'runCommand'
           );
           const hasPlanCreationTools = assistantMsg.toolCalls?.some(tc => 
             tc.name === 'writeFile' || tc.name === 'editFile'
@@ -1245,15 +1245,15 @@ export class AgentLoop {
             
             // Add a system message to guide the AI
             const separationMsg = createUserMessage(
-              '[SYSTEM] In Plan mode, you must inspect the repository first (using listDirectory and readFile), then create the implementation plan in a separate response. Do not call writeFile/editFile in the same turn as inspection tools.'
+              '[SYSTEM] In Plan mode, you must inspect the repository first (using runCommand with ls and cat), then create the implementation plan in a separate response. Do not call writeFile/editFile in the same turn as inspection tools.'
             );
             separationMsg.isHidden = true;
             updatedMessages.push(separationMsg);
             this.emit({ type: 'agent:message-added', data: separationMsg });
           } else if (hasPlanCreationTools && !planArtifactSaved) {
             // Ensure inspection has happened before allowing plan creation
-            const inspectedDirectory = this.executedToolNames.has('listDirectory');
-            const inspectedFile = this.executedToolNames.has('readFile');
+            const inspectedDirectory = this.executedToolNames.has('runCommand');
+            const inspectedFile = this.executedToolNames.has('runCommand');
             
             if (!inspectedDirectory || !inspectedFile) {
               console.log('[Plan Mode] Rejecting plan creation - inspection not completed');
@@ -1263,7 +1263,7 @@ export class AgentLoop {
               hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
               
               const inspectionMsg = createUserMessage(
-                '[SYSTEM] You must complete repository inspection first. Call listDirectory with path "." and readFile for relevant files before creating the implementation plan.'
+                '[SYSTEM] You must complete repository inspection first. Call runCommand with ls and cat for relevant files before creating the implementation plan.'
               );
               inspectionMsg.isHidden = true;
               updatedMessages.push(inspectionMsg);
@@ -1314,7 +1314,7 @@ export class AgentLoop {
           // Only consider write operations and dangerous tools for duplicate detection
           // Legitimate repeated reads (listDirectory, readFile) and subagent spawning are allowed
           const writeTools = assistantMsg.toolCalls!.filter(tc =>
-            !['listDirectory', 'readFile', 'grepSearch', 'findByName', 'searchFiles', 'gitStatus', 'gitDiff', 'invokeSubagent'].includes(tc.name)
+            !['runCommand', 'grepSearch', 'findByName', 'searchFiles', 'gitStatus', 'gitDiff', 'invokeSubagent'].includes(tc.name)
           );
 
           if (writeTools.length > 0) {
@@ -1463,12 +1463,12 @@ export class AgentLoop {
 
                 this.state.status = `Executing ${toolCall.name}...`;
                 if (this.options?.interactionMode === 'plan' && (toolCall.name === 'writeFile' || toolCall.name === 'editFile')) {
-                  const inspectedDirectory = this.executedToolNames.has('listDirectory');
-                  const inspectedFile = this.executedToolNames.has('readFile');
+                  const inspectedDirectory = this.executedToolNames.has('runCommand');
+                  const inspectedFile = this.executedToolNames.has('runCommand');
                   if (!inspectedDirectory || !inspectedFile) {
                     result = {
                       success: false,
-                      output: 'Plan mode requires successful listDirectory and readFile calls before writing the implementation plan.',
+                      output: 'Plan mode requires successful runCommand calls before writing the implementation plan.',
                     };
                   } else if (toolCall.name === 'writeFile' && planArtifactSaved) {
                     result = {
@@ -1651,13 +1651,13 @@ export class AgentLoop {
           } else if (this.options?.interactionMode === 'plan' && planToolRetries < 2) {
             planToolRetries++;
             const nudgeMsg = createUserMessage(
-              `[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call listDirectory with path ".", read the relevant files with readFile, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone. (Retry ${planToolRetries}/2)`
+              `[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call runCommand with ls, read the relevant files with runCommand and cat, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone. (Retry ${planToolRetries}/2)`
             );
             nudgeMsg.isHidden = true;
             updatedMessages.push(nudgeMsg);
             this.emit({ type: 'agent:message-added', data: nudgeMsg });
             continueLoop = true;
-          } else if (this.options?.interactionMode === 'plan' && this.toolExecutor && this.executedToolNames.has('listDirectory') && this.executedToolNames.has('readFile')) {
+          } else if (this.options?.interactionMode === 'plan' && this.toolExecutor && this.executedToolNames.has('runCommand') && this.executedToolNames.has('runCommand')) {
             // Do not allow Plan mode to finish with an unsaved chat-only plan.
             // If the provider still ignored the tool contract after the retry,
             // route its generated plan through the same canonical artifact tool.

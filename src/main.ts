@@ -907,13 +907,22 @@ function createWindow() {
       ptyProcesses.delete(termId);
     }
 
+    const isPackaged = app.isPackaged;
+    const fs = require('fs');
+    const busyboxPath = (() => {
+      if (!isPackaged) return path.join(__dirname, '../../assets/busybox.exe');
+      const p1 = path.join(process.resourcesPath, 'assets', 'busybox.exe');
+      const p2 = path.join(process.resourcesPath, 'busybox.exe');
+      return fs.existsSync(p1) ? p1 : p2;
+    })();
     const shellStr = process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || 'bash');
+    const shellArgs: string[] = process.platform === 'win32' ? [] : [];
 
     if (pty) {
       const env = Object.assign({}, process.env, { FORCE_COLOR: '1', TERM: 'xterm-256color' });
       delete env.ELECTRON_RUN_AS_NODE;
       delete env.NODE_OPTIONS;
-      const ptyProcess = pty.spawn(shellStr, [], {
+      const ptyProcess = pty.spawn(shellStr, shellArgs, {
         name: 'xterm-256color',
         cols: 80,
         rows: 30,
@@ -995,38 +1004,75 @@ function createWindow() {
 
 
 
-  ipcMain.handle('start-live-server', async (event, projectPath: string) => {
-    const { spawn } = require('child_process');
+  ipcMain.handle('start-live-server', async (event, projectPath: string, initialFile?: string) => {
     const { shell } = require('electron');
-    const port = Math.floor(Math.random() * (9000 - 3000) + 3000);
+    const http = require('http');
+    const fs = require('fs');
+    const path = require('path');
+    let port = Math.floor(Math.random() * (9000 - 3000) + 3000);
 
     try {
       if (activeLiveServer) {
-        if (process.platform === 'win32') {
-          const { execSync } = require('child_process');
-          try {
-            execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`);
-          } catch (e) {
-            // ignore
+        if ((activeLiveServer as any).__projectPath === projectPath) {
+           // Reuse the server
+           const existingPort = (activeLiveServer.address() as any)?.port;
+           if (existingPort) {
+             const fileRoute = initialFile ? `/${initialFile}` : '';
+             shell.openExternal(`http://localhost:${existingPort}${fileRoute}`);
+             return { success: true, port: existingPort };
+           }
+        }
+
+        // Close old server
+        if (typeof activeLiveServer.close === 'function') {
+          if (typeof activeLiveServer.closeAllConnections === 'function') {
+            activeLiveServer.closeAllConnections();
           }
+          activeLiveServer.close();
         } else {
-          activeLiveServer.kill();
+          if (process.platform === 'win32') {
+            const { execSync } = require('child_process');
+            try { execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`); } catch (e) {}
+          } else {
+            activeLiveServer.kill();
+          }
         }
         activeLiveServer = null;
       }
 
-      // Spawn npx live-server
-      const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-      activeLiveServer = spawn(npxCmd, ['-y', 'live-server', `--port=${port}`, '--host=localhost', '--no-browser'], { cwd: projectPath, shell: true });
+      const mimeTypes: Record<string, string> = {
+        '.html': 'text/html',
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.svg': 'image/svg+xml'
+      };
 
-      activeLiveServer.on('error', (err: any) => {
-        console.error('[IPC] Failed to start live-server:', err);
+      activeLiveServer = http.createServer((req: any, res: any) => {
+        let reqUrl = req.url.split('?')[0];
+        if (reqUrl === '/') reqUrl = '/index.html';
+        const filePath = path.join(projectPath, reqUrl);
+        const ext = path.extname(filePath).toLowerCase();
+
+        fs.readFile(filePath, (err: any, content: any) => {
+          if (err) {
+            res.writeHead(404);
+            res.end('File not found');
+          } else {
+            res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+            res.end(content, 'utf-8');
+          }
+        });
       });
+      
+      (activeLiveServer as any).__projectPath = projectPath;
 
-      // Manually open the browser after a short delay
-      setTimeout(() => {
-        shell.openExternal(`http://localhost:${port}`);
-      }, 2000);
+      activeLiveServer.listen(port, () => {
+        const fileRoute = initialFile ? `/${initialFile}` : '';
+        shell.openExternal(`http://localhost:${port}${fileRoute}`);
+      });
 
       return { success: true, port };
     } catch (e: any) {
@@ -1036,30 +1082,40 @@ function createWindow() {
   });
 
   ipcMain.handle('check-live-server', async () => {
-    return { isRunning: !!activeLiveServer };
+    return { 
+      isRunning: !!activeLiveServer, 
+      port: activeLiveServer ? (activeLiveServer.address() as any)?.port : null 
+    };
   });
 
   ipcMain.handle('stop-live-server', async () => {
     try {
       if (activeLiveServer) {
-        if (process.platform === 'win32') {
-          const { execSync } = require('child_process');
-          try {
-            execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`);
-          } catch (e) {
-            // ignore
+        if (typeof activeLiveServer.close === 'function') {
+          if (typeof activeLiveServer.closeAllConnections === 'function') {
+            activeLiveServer.closeAllConnections();
           }
+          activeLiveServer.close();
         } else {
-          activeLiveServer.kill();
+          if (process.platform === 'win32') {
+            const { execSync } = require('child_process');
+            try { execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`); } catch (e) {}
+          } else {
+            activeLiveServer.kill();
+          }
         }
         activeLiveServer = null;
-        return { success: true };
       }
-      return { success: true }; // Already stopped
+      return { success: true };
     } catch (e: any) {
       console.error('[IPC] Exception stopping server:', e);
       return { success: false, error: e.message };
     }
+  });
+
+  ipcMain.handle('open-live-server-file', async (event, port: number, file: string) => {
+    const { shell } = require('electron');
+    shell.openExternal(`http://localhost:${port}/${file}`);
   });
 
   ipcMain.removeHandler('get-run-command-for-file');
@@ -1088,8 +1144,8 @@ function createWindow() {
       '.pyw': { command: pyExe, args: [resolvedFile] },
       '.rb': { command: 'ruby', args: [resolvedFile] },
       '.sh': { command: 'bash', args: [resolvedFile] },
-      '.ts': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
-      '.tsx': { command: process.platform === 'win32' ? 'npx.cmd' : 'npx', args: ['--no-install', 'tsx', resolvedFile] },
+      '.ts': { command: 'npx', args: ['--no-install', 'tsx', resolvedFile] },
+      '.tsx': { command: 'npx', args: ['--no-install', 'tsx', resolvedFile] },
     };
 
     const runner = runners[extension];
@@ -1468,7 +1524,7 @@ function createWindow() {
     }
   });
 
-  const isDevtools = true; // Set to false to disable DevTools shortcut
+  const isDevtools = false; // Set to false to disable DevTools shortcut
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isDevToolsShortcut =

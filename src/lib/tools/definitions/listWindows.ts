@@ -17,7 +17,7 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const command = "powershell -NoProfile -Command \"Get-Process | Where-Object {$_.MainWindowTitle -ne ''} | Select-Object Id, ProcessName, MainWindowTitle | Format-Table -AutoSize\"";
+    const command = "powershell -NoProfile -Command 'Get-Process | Where-Object {$_.MainWindowTitle -ne \"\"} | Select-Object Id, ProcessName, MainWindowTitle | Format-Table -AutoSize'";
     
     const result = await (window as any).electron.runCommandCapture(command, context.projectRoot);
     

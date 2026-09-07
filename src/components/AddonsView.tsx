@@ -118,11 +118,10 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
           const source = getSourceFromLink(item.download_link);
           if (cmd.includes('npx skills') && source && installedSourceMap[source]) {
             const skillNames = installedSourceMap[source];
-            const isWin = navigator.userAgent.toLowerCase().includes('win');
             
             for (const skill of skillNames) {
               const folder = `${skillsPath}/.agents/skills/${skill}`;
-              const rmCmd = isWin ? `rmdir /s /q "${folder.replace(/\//g, '\\')}"` : `rm -rf "${folder}"`;
+              const rmCmd = `rm -rf "${folder}"`;
               await electron.runCommandCapture(rmCmd, skillsPath);
             }
             

@@ -22,10 +22,10 @@ export const handler: ToolHandler = async (args, context) => {
   try {
     const { filter, top = 20 } = args;
     
-    let command = `powershell -Command "Get-Process | Sort-Object CPU -Descending | Select-Object -First ${top} | Select-Object Id, ProcessName, CPU, WorkingSet, StartTime | Format-Table -AutoSize"`;
+    let command = `powershell -Command 'Get-Process | Sort-Object CPU -Descending | Select-Object -First ${top} | Select-Object Id, ProcessName, CPU, WorkingSet, StartTime | Format-Table -AutoSize'`;
     
     if (filter) {
-      command = `powershell -Command "Get-Process -Name '*${filter}*' | Select-Object Id, ProcessName, CPU, WorkingSet, StartTime | Format-Table -AutoSize"`;
+      command = `powershell -Command 'Get-Process -Name "*${filter}*" | Select-Object Id, ProcessName, CPU, WorkingSet, StartTime | Format-Table -AutoSize'`;
     }
     
     const result = await (window as any).electron.runCommand(command, context.projectRoot);

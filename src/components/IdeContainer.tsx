@@ -356,6 +356,7 @@ const BottomPanel: React.FC<{
                     const pathParts = lastPart.split(/[\\/]/);
                     let name = pathParts[pathParts.length - 1];
                     name = name.replace('.exe', '');
+                    if (name === 'busybox') return 'terminal';
                     if (name === 'cmd' || name === 'powershell' || name === 'bash') return name;
                     const words = name.split(' ');
                     return words[0] || 'terminal';
@@ -581,33 +582,52 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
 
   // Editor Menu & Live Server States
   const [showEditorMenu, setShowEditorMenu] = useState<boolean>(false);
-  const [liveServerInfo, setLiveServerInfo] = useState<{ port: number; active: boolean; progress: number } | null>(null);
+  const [liveServerInfo, setLiveServerInfo] = useState<{ port: number; active: boolean; currentFile?: string } | null>(null);
+  const [showLiveServerToast, setShowLiveServerToast] = useState<boolean>(false);
   const [isLiveServerRunning, setIsLiveServerRunning] = useState<boolean>(false);
   const editorMenuRef = useRef<HTMLDivElement>(null);
 
-  const handleRunLive = async () => {
+  const handleRunLive = async (filePath?: string) => {
     if (!activeProject?.path) return;
     setShowEditorMenu(false);
     
-    // Call our new backend python server launcher
-    const res = await (window as any).electron.startLiveServer(activeProject.path);
+    // Convert absolute path to relative for the server
+    const targetPath = filePath || activeFilePath;
+    let relativePath = '';
+    if (targetPath && targetPath.startsWith(activeProject.path)) {
+      relativePath = targetPath.substring(activeProject.path.length + 1).replace(/\\/g, '/');
+    }
+
+    // Call our fast native backend server launcher
+    const res = await (window as any).electron.startLiveServer(activeProject.path, relativePath);
     if (res.success) {
       setIsLiveServerRunning(true);
-      setLiveServerInfo({ port: res.port, active: true, progress: 100 });
+      setLiveServerInfo({ port: res.port, active: true, currentFile: relativePath });
+      setShowLiveServerToast(true);
       // The progress animation is handled purely by Framer Motion.
       // We just need to hide it after 5 seconds.
       setTimeout(() => {
-        setLiveServerInfo(null);
+        setShowLiveServerToast(false);
       }, 5000);
     } else {
       console.error("Failed to start live server:", res.error);
     }
   };
 
+  const handleChangeLiveFile = async (filePath: string) => {
+    if (!liveServerInfo) return;
+    let relativePath = '';
+    if (filePath && filePath.startsWith(activeProject.path!)) {
+      relativePath = filePath.substring(activeProject.path!.length + 1).replace(/\\/g, '/');
+    }
+    await (window as any).electron.openLiveServerFile(liveServerInfo.port, relativePath);
+    setLiveServerInfo(prev => prev ? { ...prev, currentFile: relativePath } : null);
+  };
+
   const handleRunFile = async (filePath: string, fileName: string) => {
     if (!activeProject?.path) return;
     if (isHtmlFile(fileName)) {
-      await handleRunLive();
+      await handleRunLive(filePath);
       return;
     }
 
@@ -660,6 +680,9 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
         const res = await (window as any).electron.checkLiveServer();
         if (res && res.isRunning) {
           setIsLiveServerRunning(true);
+          if (res.port) {
+            setLiveServerInfo({ port: res.port, active: true });
+          }
         }
       } catch (e) {
         // ignore
@@ -1474,25 +1497,49 @@ const handleSkip = () => {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            className="fixed bottom-6 right-6 z-[90] group"
+            className="fixed bottom-20 right-6 z-[90] group flex items-center gap-3"
           >
-            <div className="flex items-center justify-center p-2 rounded-full bg-purple-500/20 text-purple-400 relative cursor-pointer shadow-lg backdrop-blur-sm border border-purple-500/20">
-              <motion.div
-                animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
-                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-              >
-                <Radio size={18} />
-              </motion.div>
-              <motion.div
-                animate={{ scale: [1, 2], opacity: [0.8, 0] }}
-                transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-                className="absolute inset-0 rounded-full border border-purple-500/60"
-              />
-            </div>
-            
-            {/* Tooltip */}
-            <div className="absolute bottom-full mb-3 right-0 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black/90 text-white text-[12px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap z-50 border border-white/10 shadow-xl">
-              Live server is on
+            {/* The "Change" button if active HTML file is different */}
+            {(() => {
+               if (!activeProject?.path || !activeFilePath) return null;
+               const currentRelative = activeFilePath.startsWith(activeProject.path) 
+                 ? activeFilePath.substring(activeProject.path.length + 1).replace(/\\/g, '/')
+                 : '';
+               const isHtml = currentRelative.toLowerCase().endsWith('.html');
+               if (isHtml && currentRelative !== liveServerInfo?.currentFile && liveServerInfo?.port) {
+                 return (
+                   <motion.button
+                     initial={{ opacity: 0, x: 20 }}
+                     animate={{ opacity: 1, x: 0 }}
+                     onClick={() => handleChangeLiveFile(activeFilePath!)}
+                     className="px-3 py-1.5 bg-blue-500/20 text-blue-400 text-[11px] font-medium rounded-md border border-blue-500/20 shadow-lg backdrop-blur-sm hover:bg-blue-500/30 transition-colors"
+                   >
+                     Preview {currentRelative}
+                   </motion.button>
+                 );
+               }
+               return null;
+            })()}
+
+            <div className="relative">
+              <div className="flex items-center justify-center p-2 rounded-full bg-purple-500/20 text-purple-400 relative cursor-pointer shadow-lg backdrop-blur-sm border border-purple-500/20">
+                <motion.div
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                >
+                  <Radio size={18} />
+                </motion.div>
+                <motion.div
+                  animate={{ scale: [1, 2], opacity: [0.8, 0] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
+                  className="absolute inset-0 rounded-full border border-purple-500/60"
+                />
+              </div>
+              
+              {/* Tooltip */}
+              <div className="absolute bottom-full mb-3 right-0 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity bg-black/90 text-white text-[12px] font-semibold px-3 py-1.5 rounded-md whitespace-nowrap z-50 border border-white/10 shadow-xl">
+                Live server is on
+              </div>
             </div>
           </motion.div>
         )}
@@ -1500,13 +1547,13 @@ const handleSkip = () => {
 
       {/* Live Server Notification */}
       <AnimatePresence>
-        {liveServerInfo && (
+        {showLiveServerToast && liveServerInfo && (
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="fixed bottom-6 right-6 z-[100] w-80 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl overflow-hidden flex flex-col"
+            className="fixed bottom-20 right-6 z-[100] w-80 bg-black/40 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl overflow-hidden flex flex-col"
           >
             {/* Shimmer Effect */}
             <motion.div
@@ -1530,7 +1577,7 @@ const handleSkip = () => {
                 </p>
               </div>
               <button 
-                onClick={() => setLiveServerInfo(null)}
+                onClick={() => setShowLiveServerToast(false)}
                 className="text-[#5b5b63] hover:text-white transition-colors"
               >
                 <X size={14} />

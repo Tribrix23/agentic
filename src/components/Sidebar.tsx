@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Clock, Calendar, Settings, FolderPlus, Folder, FolderOpen, GitBranch, Trash2, Puzzle } from 'lucide-react';
+import { Plus, Clock, Calendar, Settings, FolderPlus, Folder, FolderOpen, GitBranch, Trash2, Puzzle, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../App';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ConversationHistoryModal } from './ConversationHistoryModal';
@@ -14,6 +14,7 @@ interface ProjectFolder {
 
 export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSettings: () => void }) => {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [showAllConversations, setShowAllConversations] = useState<Set<string>>(new Set());
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const [projects, setProjects] = useState<ProjectFolder[]>(() => {
@@ -186,7 +187,11 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
 
         {/* Project List */}
         <motion.div
-          className="px-2 flex-1 overflow-y-auto flex flex-col gap-[2px]"
+          className="px-2 flex-1 overflow-y-auto flex flex-col gap-[2px] pb-10"
+          style={{
+            WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 40px), transparent 100%)',
+            maskImage: 'linear-gradient(to bottom, black calc(100% - 40px), transparent 100%)'
+          }}
           initial="hidden"
           animate="show"
           variants={{
@@ -272,53 +277,81 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                       transition={{ duration: 0.2 }}
                       className="flex flex-col overflow-hidden"
                     >
-                      <div className="mb-2 ml-[9px] pl-4 border-l border-white/5">
-                        {conversations[proj.path] && conversations[proj.path].length > 0 ? (
-                          <div className="flex flex-col gap-1 mt-1">
-                            {conversations[proj.path].map(conv => {
-                              const isRunning = runningConversations.has(conv.id);
-                              return (
-                                <div key={conv.id} className="group/conv flex items-center w-full relative">
-                                  <button
-                                    onClick={() => window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: conv.id, title: conv.title } }))}
-                                    className={cn(
-                                      "flex-1 text-left px-2 py-1.5 text-[11px] hover:text-white rounded transition-colors truncate",
-                                      activeChatId === conv.id ? "bg-white/10 text-white font-medium" : "text-[#8b8b93] hover:bg-white/5",
-                                      isRunning ? "pr-8" : ""
-                                    )}
-                                  >
-                                    {conv.title}
-                                  </button>
+                        <div className="mb-2 ml-[9px] pl-4 border-l border-white/5 relative">
+                          {conversations[proj.path] && conversations[proj.path].length > 0 ? (
+                            <>
+                              <div className="flex flex-col gap-1 mt-1 transition-all">
+                                {(showAllConversations.has(proj.path) ? conversations[proj.path] : conversations[proj.path].slice(0, 5)).map(conv => {
+                                  const isRunning = runningConversations.has(conv.id);
+                                  return (
+                                    <div key={conv.id} className="group/conv flex items-center w-full relative">
+                                      <button
+                                        onClick={() => window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: conv.id, title: conv.title } }))}
+                                        className={cn(
+                                          "flex-1 text-left px-2 py-1.5 text-[11px] hover:text-white rounded transition-colors truncate",
+                                          activeChatId === conv.id ? "bg-white/10 text-white font-medium" : "text-[#8b8b93] hover:bg-white/5",
+                                          isRunning ? "pr-8" : ""
+                                        )}
+                                      >
+                                        {conv.title}
+                                      </button>
 
-                                  {isRunning && (
-                                    <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                                      <Tooltip content="Stop Agent"><button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.dispatchEvent(new CustomEvent('request-stop-agent'));
-                                          }}
-                                          className="group/spinner text-white/50 hover:text-red-400 p-1">
-                                          <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
-                                          <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
+                                      {isRunning && (
+                                        <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                                          <Tooltip content="Stop Agent"><button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.dispatchEvent(new CustomEvent('request-stop-agent'));
+                                              }}
+                                              className="group/spinner text-white/50 hover:text-red-400 p-1">
+                                              <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
+                                              <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
+                                            </button></Tooltip>
+                                        </div>
+                                      )}
+
+                                      <Tooltip content="Delete Conversation"><button
+                                          onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
+                                          className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1">
+                                          <Trash2 size={12} />
                                         </button></Tooltip>
                                     </div>
+                                  );
+                                })}
+                              </div>
+                              {conversations[proj.path].length > 5 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowAllConversations(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(proj.path)) next.delete(proj.path);
+                                      else next.add(proj.path);
+                                      return next;
+                                    });
+                                  }}
+                                  className="flex items-center justify-center gap-1.5 w-[calc(100%-8px)] ml-2 mt-1.5 mb-1 px-3 py-1.5 text-[10px] text-[#a8a8b1] bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 hover:text-white rounded-md transition-all font-medium"
+                                >
+                                  {showAllConversations.has(proj.path) ? (
+                                    <>
+                                      <ChevronUp size={12} />
+                                      <span>Show Less</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown size={12} />
+                                      <span>Show All ({conversations[proj.path].length - 5} remaining)</span>
+                                    </>
                                   )}
-
-                                  <Tooltip content="Delete Conversation"><button
-                                      onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
-                                      className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1">
-                                      <Trash2 size={12} />
-                                    </button></Tooltip>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="py-2 pl-2 text-xs text-[#5b5b63]">
-                            No conversations yet
-                          </div>
-                        )}
-                      </div>
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <div className="py-2 pl-2 text-xs text-[#5b5b63]">
+                              No conversations yet
+                            </div>
+                          )}
+                        </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
