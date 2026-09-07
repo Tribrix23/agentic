@@ -12,6 +12,18 @@ interface ProjectFolder {
   branch: string | null;
 }
 
+function formatRelativeTime(timestamp?: number) {
+  if (!timestamp) return '';
+  const diff = Date.now() - timestamp;
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
 export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSettings: () => void }) => {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [showAllConversations, setShowAllConversations] = useState<Set<string>>(new Set());
@@ -27,7 +39,7 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [conversations, setConversations] = useState<Record<string, { id: string, title: string }[]>>(() => {
+  const [conversations, setConversations] = useState<Record<string, { id: string, title: string, updatedAt?: number }[]>>(() => {
     const saved = localStorage.getItem('quantix_conversations');
     if (saved) {
       try {
@@ -281,43 +293,53 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                           {conversations[proj.path] && conversations[proj.path].length > 0 ? (
                             <>
                               <div className="flex flex-col gap-1 mt-1 transition-all">
-                                {(showAllConversations.has(proj.path) ? conversations[proj.path] : conversations[proj.path].slice(0, 5)).map(conv => {
-                                  const isRunning = runningConversations.has(conv.id);
-                                  return (
-                                    <div key={conv.id} className="group/conv flex items-center w-full relative">
-                                      <button
-                                        onClick={() => window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: conv.id, title: conv.title } }))}
-                                        className={cn(
-                                          "flex-1 text-left px-2 py-1.5 text-[11px] hover:text-white rounded transition-colors truncate",
-                                          activeChatId === conv.id ? "bg-white/10 text-white font-medium" : "text-[#8b8b93] hover:bg-white/5",
-                                          isRunning ? "pr-8" : ""
+                                {(() => {
+                                  const projConvos = [...conversations[proj.path]].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+                                  const visibleConvos = showAllConversations.has(proj.path) ? projConvos : projConvos.slice(0, 5);
+                                  
+                                  return visibleConvos.map(conv => {
+                                    const isRunning = runningConversations.has(conv.id);
+                                    return (
+                                      <div key={conv.id} className="group/conv flex items-center w-full relative">
+                                        <button
+                                          onClick={() => window.dispatchEvent(new CustomEvent('load-conversation', { detail: { id: conv.id, title: conv.title } }))}
+                                          className={cn(
+                                            "flex-1 flex items-center justify-between text-left px-2 py-1.5 text-[11px] hover:text-white rounded transition-colors overflow-hidden",
+                                            activeChatId === conv.id ? "bg-white/10 text-white font-medium" : "text-[#8b8b93] hover:bg-white/5",
+                                            isRunning ? "pr-8" : ""
+                                          )}
+                                        >
+                                          <span className="truncate flex-1">{conv.title}</span>
+                                          {conv.updatedAt && !isRunning && (
+                                            <span className="text-[10px] text-white/30 whitespace-nowrap ml-2 group-hover/conv:hidden">
+                                              {formatRelativeTime(conv.updatedAt)}
+                                            </span>
+                                          )}
+                                        </button>
+
+                                        {isRunning && (
+                                          <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                                            <Tooltip content="Stop Agent"><button
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  window.dispatchEvent(new CustomEvent('request-stop-agent'));
+                                                }}
+                                                className="group/spinner text-white/50 hover:text-red-400 p-1">
+                                                <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
+                                                <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
+                                              </button></Tooltip>
+                                          </div>
                                         )}
-                                      >
-                                        {conv.title}
-                                      </button>
 
-                                      {isRunning && (
-                                        <div className="absolute right-7 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                                          <Tooltip content="Stop Agent"><button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                window.dispatchEvent(new CustomEvent('request-stop-agent'));
-                                              }}
-                                              className="group/spinner text-white/50 hover:text-red-400 p-1">
-                                              <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />
-                                              <div className="w-2.5 h-2.5 bg-current rounded-sm hidden group-hover/spinner:block" />
-                                            </button></Tooltip>
-                                        </div>
-                                      )}
-
-                                      <Tooltip content="Delete Conversation"><button
-                                          onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
-                                          className="opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 mr-1">
-                                          <Trash2 size={12} />
-                                        </button></Tooltip>
-                                    </div>
-                                  );
-                                })}
+                                        <Tooltip content="Delete Conversation"><button
+                                            onClick={(e) => handleDeleteConversation(e, proj.path, conv.id)}
+                                            className="absolute right-1 opacity-0 group-hover/conv:opacity-100 p-1.5 text-[#8b8b93] hover:text-red-400 transition-all rounded hover:bg-white/5 shrink-0 bg-[#0f0f13]">
+                                            <Trash2 size={12} />
+                                          </button></Tooltip>
+                                      </div>
+                                    );
+                                  });
+                                })()}
                               </div>
                               {conversations[proj.path].length > 5 && (
                                 <button

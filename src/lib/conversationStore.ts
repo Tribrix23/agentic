@@ -119,6 +119,34 @@ export function saveMessages(
       toolCallsCount: stats.toolCalls,
       filesChanged: stats.filesChanged,
     });
+
+    // Patch legacy quantix_conversations to update 'updatedAt'
+    const legacyRaw = localStorage.getItem('quantix_conversations');
+    if (legacyRaw) {
+      try {
+        const legacy = JSON.parse(legacyRaw);
+        let updatedLegacy = false;
+        if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+          for (const projId of Object.keys(legacy)) {
+            const arr = legacy[projId];
+            if (Array.isArray(arr)) {
+              const existing = arr.find((c: any) => c.id === conversationId);
+              if (existing) {
+                existing.updatedAt = Date.now();
+                updatedLegacy = true;
+                break;
+              }
+            }
+          }
+        }
+        if (updatedLegacy) {
+          localStorage.setItem('quantix_conversations', JSON.stringify(legacy));
+          window.dispatchEvent(new Event('conversationsUpdated'));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
   } catch (e) {
     console.warn('[ConversationStore] Failed to save messages:', e);
   }

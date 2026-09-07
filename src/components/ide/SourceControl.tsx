@@ -277,7 +277,7 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
             {changes.map((file, i) => (
               <div 
                 key={i} 
-                className="flex items-center justify-between px-3 py-1 hover:bg-white/5 cursor-pointer text-xs group"
+                className="flex items-center justify-between px-3 py-1 hover:bg-white/5 cursor-pointer text-xs group min-w-0"
                 onClick={() => onFileDiff?.(file.path)}
               >
                 <span className="truncate pr-2 flex-1 text-[#d4d4d8]">
@@ -378,7 +378,7 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                   <div className="flex-1 min-w-0 pb-1">
                     <div 
                       onClick={() => handleCommitClick(commit.hash)}
-                      className="flex items-center h-[30px] group hover:bg-white/5 rounded-md pr-2 transition-colors cursor-pointer"
+                      className="flex items-center h-[30px] group hover:bg-white/5 rounded-md pr-2 transition-colors cursor-pointer min-w-0"
                     >
                     <div className="flex-1 min-w-0 flex items-center overflow-hidden pr-2 gap-2">
                       <Tooltip content={commit.subject}><span
@@ -424,7 +424,7 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                               return (
                                 <div 
                                   key={idx} 
-                                  className="flex items-center relative h-6 group/file pr-2 hover:bg-white/5 rounded-md transition-colors cursor-pointer"
+                                  className="flex items-center relative h-6 group/file pr-2 hover:bg-white/5 rounded-md transition-colors cursor-pointer min-w-0"
                                   onClick={() => onFileDiff?.(file.path)}
                                 >
                                   {/* Horizontal branch line connecting to the main trunk */}
@@ -439,7 +439,7 @@ export const SourceControl: React.FC<SourceControlProps> = ({ projectPath, onGit
                                       opacity: 0.3
                                     }}
                                   />
-                                  <div className="flex-1 flex items-center justify-between ml-[10px] pr-2">
+                                  <div className="flex-1 min-w-0 flex items-center justify-between ml-[10px] pr-2">
                                   <span className="truncate pr-2 flex-1 text-[#e2e2e3]">
                                       {file.path.split('/').pop() || file.path.split('\\').pop()}
                                     </span>

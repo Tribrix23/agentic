@@ -1050,7 +1050,7 @@ IMPORTANT RULES:
 
       // Register the conversation before title generation so the sidebar never
       // depends on the title API completing successfully.
-      let savedConvos: Record<string, Array<{ id: string; title: string }>> = {};
+      let savedConvos: Record<string, Array<{ id: string; title: string; updatedAt?: number }>> = {};
       try {
         const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
         if (!Array.isArray(parsed)) savedConvos = parsed;
@@ -1059,7 +1059,7 @@ IMPORTANT RULES:
       }
       const projectConversations = savedConvos[projectPath] || [];
       if (!projectConversations.some(conversation => conversation.id === titleConversationId)) {
-        projectConversations.unshift({ id: titleConversationId, title: 'New Conversation' });
+        projectConversations.unshift({ id: titleConversationId, title: 'New Conversation', updatedAt: Date.now() });
         savedConvos[projectPath] = projectConversations;
         localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
         window.dispatchEvent(new Event('conversationsUpdated'));
@@ -1067,7 +1067,7 @@ IMPORTANT RULES:
 
       void generateChatTitle(runConfig, content, titleConversationId)
         .then(title => {
-          let titledConvos: Record<string, Array<{ id: string; title: string }>> = {};
+          let titledConvos: Record<string, Array<{ id: string; title: string; updatedAt?: number }>> = {};
           try {
             const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
             if (!Array.isArray(parsed)) titledConvos = parsed;
@@ -1077,8 +1077,11 @@ IMPORTANT RULES:
 
           const titledProjectConversations = titledConvos[projectPath] || [];
           const existing = titledProjectConversations.find(conversation => conversation.id === titleConversationId);
-          if (existing) existing.title = title;
-          else titledProjectConversations.unshift({ id: titleConversationId, title });
+          if (existing) {
+            existing.title = title;
+            existing.updatedAt = Date.now();
+          }
+          else titledProjectConversations.unshift({ id: titleConversationId, title, updatedAt: Date.now() });
           titledConvos[projectPath] = titledProjectConversations;
           localStorage.setItem('quantix_conversations', JSON.stringify(titledConvos));
 
@@ -1098,7 +1101,7 @@ IMPORTANT RULES:
             .join(' ')
             .slice(0, 72)
             .trim() || 'New Conversation';
-          let fallbackConvos: Record<string, Array<{ id: string; title: string }>> = {};
+          let fallbackConvos: Record<string, Array<{ id: string; title: string; updatedAt?: number }>> = {};
           try {
             const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
             if (!Array.isArray(parsed)) fallbackConvos = parsed;
@@ -1107,8 +1110,11 @@ IMPORTANT RULES:
           }
           const fallbackProjectConversations = fallbackConvos[projectPath] || [];
           const existing = fallbackProjectConversations.find(conversation => conversation.id === titleConversationId);
-          if (existing) existing.title = fallbackTitle;
-          else fallbackProjectConversations.unshift({ id: titleConversationId, title: fallbackTitle });
+          if (existing) {
+            existing.title = fallbackTitle;
+            existing.updatedAt = Date.now();
+          }
+          else fallbackProjectConversations.unshift({ id: titleConversationId, title: fallbackTitle, updatedAt: Date.now() });
           fallbackConvos[projectPath] = fallbackProjectConversations;
           localStorage.setItem('quantix_conversations', JSON.stringify(fallbackConvos));
           if (activeConversationIdRef.current === titleConversationId) setChatTitle(fallbackTitle);
