@@ -16,6 +16,9 @@ if (started) {
   app.quit();
 }
 
+// Disable QUIC to prevent ERR_QUIC_PROTOCOL_ERROR with Cloudflare tunnels
+app.commandLine.appendSwitch('disable-quic');
+
 // Register custom protocol for auth deep links
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
@@ -1014,13 +1017,13 @@ function createWindow() {
     try {
       if (activeLiveServer) {
         if ((activeLiveServer as any).__projectPath === projectPath) {
-           // Reuse the server
-           const existingPort = (activeLiveServer.address() as any)?.port;
-           if (existingPort) {
-             const fileRoute = initialFile ? `/${initialFile}` : '';
-             shell.openExternal(`http://localhost:${existingPort}${fileRoute}`);
-             return { success: true, port: existingPort };
-           }
+          // Reuse the server
+          const existingPort = (activeLiveServer.address() as any)?.port;
+          if (existingPort) {
+            const fileRoute = initialFile ? `/${initialFile}` : '';
+            shell.openExternal(`http://localhost:${existingPort}${fileRoute}`);
+            return { success: true, port: existingPort };
+          }
         }
 
         // Close old server
@@ -1032,7 +1035,7 @@ function createWindow() {
         } else {
           if (process.platform === 'win32') {
             const { execSync } = require('child_process');
-            try { execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`); } catch (e) {}
+            try { execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`); } catch (e) { }
           } else {
             activeLiveServer.kill();
           }
@@ -1066,7 +1069,7 @@ function createWindow() {
           }
         });
       });
-      
+
       (activeLiveServer as any).__projectPath = projectPath;
 
       activeLiveServer.listen(port, () => {
@@ -1082,9 +1085,9 @@ function createWindow() {
   });
 
   ipcMain.handle('check-live-server', async () => {
-    return { 
-      isRunning: !!activeLiveServer, 
-      port: activeLiveServer ? (activeLiveServer.address() as any)?.port : null 
+    return {
+      isRunning: !!activeLiveServer,
+      port: activeLiveServer ? (activeLiveServer.address() as any)?.port : null
     };
   });
 
@@ -1099,7 +1102,7 @@ function createWindow() {
         } else {
           if (process.platform === 'win32') {
             const { execSync } = require('child_process');
-            try { execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`); } catch (e) {}
+            try { execSync(`taskkill /pid ${activeLiveServer.pid} /t /f`); } catch (e) { }
           } else {
             activeLiveServer.kill();
           }
@@ -1524,7 +1527,7 @@ function createWindow() {
     }
   });
 
-  const isDevtools = false; // Set to false to disable DevTools shortcut
+  const isDevtools = true; // Set to false to disable DevTools shortcut
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isDevToolsShortcut =

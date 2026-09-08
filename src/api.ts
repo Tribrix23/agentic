@@ -167,7 +167,7 @@ function getModelInfo(model: string): {
     }
     return {
       endpoint: 'https://api.devctr.com/api/models',
-      modelName: 'openai/gpt-oss-120b',
+      modelName: 'glm-5.3',
       level
     };
   }
@@ -457,7 +457,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'close',
+            'Connection': 'keep-alive',
           },
           body: JSON.stringify(payload),
           signal: controller.signal,
@@ -779,7 +779,7 @@ async function handleStreamingResponse(
   } finally {
     try { reader.releaseLock(); } catch (_) { }
     // Ensure the response body is fully released so the connection is not left dangling
-    try { if (!streamCancelled) response.body?.cancel(); } catch (_) { }
+    // try { if (!streamCancelled) response.body?.cancel(); } catch (_) { }
   }
 
   if (!streamCancelled) {

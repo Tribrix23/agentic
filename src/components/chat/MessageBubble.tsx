@@ -155,6 +155,13 @@ export function MessageBubble({
           thinkingContent = displayContentLocal;
           displayContentLocal = '';
         }
+      } else {
+        // If thinkingContent was populated by agentLoop, it may still contain the <think> tags.
+        // We must extract the inner content so `sanitize` doesn't erase the whole block.
+        const thinkMatch = thinkingContent.match(/<think(?:ing)?>([\s\S]*?)(?:<\/?think(?:ing)?>|$)/i);
+        if (thinkMatch) {
+          thinkingContent = thinkMatch[1];
+        }
       }
 
       const sanitize = (text: string) => text

@@ -12,6 +12,7 @@ import { cn } from '../../App';
 import { CodeBlock } from './CodeBlock';
 
 import { Tooltip } from "../ui/Tooltip";
+import { Citation } from "../ui/Citation";
 
 interface MarkdownRendererProps {
   content: string;
@@ -59,6 +60,37 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
           th: ({ children }) => <th className="px-3 py-2 font-medium border-b border-white/10">{children}</th>,
           td: ({ children }) => <td className="px-3 py-2 align-top border-b border-white/5 text-inherit">{children}</td>,
           blockquote: ({ children }) => <blockquote className="my-4 last:mb-0 border-l-2 border-violet-500 pl-3 text-inherit opacity-80">{children}</blockquote>,
+          a: ({ href, title, children, ...props }) => {
+            const text = String(children);
+            // Simple heuristic: if text is short (like a domain, a number, or short acronym)
+            // and it has an href, it's a citation pill.
+            const isCitation = text.length > 0 && text.length <= 40 && href?.startsWith('http');
+            
+            if (isCitation) {
+              return <Citation href={href!} title={title} text={text} />;
+            }
+            
+            // Check if it's an artifact/file link
+            if (href?.startsWith('file://')) {
+              return (
+                <Tooltip content={href}><button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (onArtifactClick) {
+                        // Strip file:/// and #anchor
+                        const rawPath = href.replace('file:///', '').split('#')[0];
+                        // Normalize slashes
+                        const path = rawPath.replace(/\\/g, '/');
+                        onArtifactClick(path);
+                      }
+                    }}
+                    className="text-blue-400 hover:underline inline-flex items-center gap-1 bg-blue-500/10 px-1.5 rounded-sm cursor-pointer">
+                    {children}
+                  </button></Tooltip>
+              );
+            }
+            return <a href={href} title={title} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+          },
           span({node, className, children, ...props}: any) {
             if (props['data-agentic-chip']) {
               const name = props['data-name'];
@@ -95,28 +127,6 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
                 {children}
               </code>
             );
-          },
-          a({node, href, children, ...props}: any) {
-            // Check if it's an artifact/file link
-            if (href?.startsWith('file://')) {
-              return (
-                <Tooltip content={href}><button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      if (onArtifactClick) {
-                        // Strip file:/// and #anchor
-                        const rawPath = href.replace('file:///', '').split('#')[0];
-                        // Normalize slashes
-                        const path = rawPath.replace(/\\/g, '/');
-                        onArtifactClick(path);
-                      }
-                    }}
-                    className="text-blue-400 hover:underline inline-flex items-center gap-1 bg-blue-500/10 px-1.5 rounded-sm cursor-pointer">
-                    {children}
-                  </button></Tooltip>
-              );
-            }
-            return <a href={href} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
           }
         }}
       >

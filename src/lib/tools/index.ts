@@ -51,6 +51,7 @@ import { definition as setClipboardDef, handler as setClipboardHandler } from '.
 import { definition as listProcessesDef, handler as listProcessesHandler } from './definitions/listProcesses';
 import { definition as killProcessDef, handler as killProcessHandler } from './definitions/killProcess';
 import { definition as readArtifactDef, handler as readArtifactHandler } from './definitions/readArtifact';
+import { definition as deepResearchDef, handler as deepResearchHandler } from './definitions/deepResearch';
 
 export * from './types';
 export * from './registry';
@@ -68,6 +69,7 @@ export function initializeTools() {
 
   registerTool(searchFilesDef, searchFilesHandler);
   registerTool(runCommandDef, runCommandHandler);
+  registerTool(deepResearchDef, deepResearchHandler);
   registerTool(gitStatusDef, gitStatusHandler);
   registerTool(gitAddDef, gitAddHandler);
   registerTool(gitCommitDef, gitCommitHandler);
