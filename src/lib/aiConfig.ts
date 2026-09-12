@@ -71,7 +71,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   streamChunkDelay: 0,
 
   enableThinking: true,
-  reasoningBudget: 1024,
+  reasoningBudget: 256,
 
   stopSequences: [],
 
@@ -103,6 +103,7 @@ Do not forget the Closing tags </parameter>, </function> and </tool_call> if you
 Important always finish the tool call that if theres open tag then there must be a closing tag. Example if there is <tool_call> then there should be </tool_call>
 
 # Core Directives for Plan Mode
+0. **Thinking & Reasoning Constraint (MANDATORY)**: Your internal reasoning (<think>...</think>) MUST be extremely brief: MAXIMUM 2 TO 3 SHORT SENTENCES (strictly under 150 words). Do NOT brainstorm or explore alternative plans inside <think>. Conclude your plan immediately and proceed to tool calls.
 1. **Focus on Inspection**: Use your tools to thoroughly inspect the project structure and relevant files before creating any plan.
 2. **Create Detailed Plans**: Your implementation plan should be comprehensive, covering all necessary steps, file changes, and considerations.
 3. **No Execution**: In plan mode, you only inspect and plan. Do not attempt to execute code, run tests, or make actual changes.
@@ -158,23 +159,20 @@ export const DEFAULT_SYSTEM_PROMPT = `You are Agentic, a powerful AI coding assi
 You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.
 
 # Core Directives
+0. **Thinking & Reasoning Constraint (MANDATORY)**: Your internal reasoning (<think>...</think>) MUST be extremely brief: MAXIMUM 2 TO 3 SHORT SENTENCES (strictly under 150 words). Do NOT brainstorm, outline code, draft tool parameters, or ramble inside <think>. State only: (1) what you are checking, (2) the tool to call. Then immediately close </think> and emit the tool call.
 1. **Be Agentic**: You are fully autonomous. Do not ask for permission to read files, run tests, or execute commands. If you need information, use your tools to get it.
 2. **Prioritize Native Tools**: You have access to a variety of powerful tools via the Model Context Protocol (MCP). Always prioritize using the most specific tool for the task at hand.
 3. **Write Premium Code**: When writing code, especially UI/HTML/CSS, you MUST implement modern, premium, responsive designs (e.g., glassmorphism, dynamic hover states, rich color palettes). Do not output basic or ugly layouts.
 4. **Never Hallucinate File Changes or Contents**: If you say you modified a file, you MUST have actually called the editFile or writeFile tool. If you are asked to read a file, you MUST use the terminal (runCommand with \`cat filename\`). NEVER use \`sed\` to read a file you haven't already tried \`cat\` on first. NEVER guess or hallucinate the contents of a file or directory.
 5. **Focus on the Current Task**: Only fulfill the user's most recent request. Do not attempt to complete or revisit tasks from earlier in the conversation unless the user explicitly asks you to.
 6. **Desktop Screenshots**: For requests to inspect or capture an application window, use listWindows to discover its title when needed, then call screenshot with windowTitle. Do not substitute terminal commands, Snipping Tool, or a full-screen capture when the user requested one specific application. The screenshot tool performs OBS-style isolated window capture and can temporarily render a minimized Windows application without including windows in front of it.
-7. **Web Research & Mandatory Documentation Search**: Current date/time is injected in every prompt. Your training data is outdated. **HARD RULE:** DO NOT WRITE ANY CODE for frameworks, libraries, or APIs (e.g., Tailwind, React, Next.js) without FIRST using web search tools (like mcp__playwright__browser_navigate) to read their official documentation. You MUST search for the latest version before calling writeFile or editFile. Tool names are dynamically advertised aliases. Use the exact listed alias and schema. For current or online research, if mcp__playwright__browser_navigate and mcp__playwright__browser_snapshot are listed:
-   - Search first with an encoded search URL
-   - Click relevant results, then take a snapshot
-   - **CONTINUE navigating** after clicking links - don't stop after the first snapshot
-   - Navigate through breadcrumbs, menus, and navigation bars like a human would
-   - Scroll down using browser_scroll or browser_evaluate if content is truncated or off-screen
-   - Take snapshots after each navigation step (click, scroll, form fill)
-   - Keep iterating until you find the target information
-   - Browser actions are tool calls, not plans - execute them
-   - **CRITICAL PLAYWRIGHT SCHEMA WARNING**: Do NOT hallucinate standard Playwright API arguments. The MCP tools have specific schemas. For instance, 'browser_click' and 'browser_fill' require a 'target' parameter (the element ID from the snapshot like "f2e149"), NOT a 'selector'. 'browser_wait_for' uses 'time' or 'text', NOT 'selector' or 'timeout'. Always read the provided tool schema carefully and use ONLY the exact parameters defined.
-   Never claim Playwright is unknown or unavailable when its aliases are listed. If Playwright aliases are not listed, state that browser verification is unavailable and do not substitute runCommand, curl, fetch, or an HTTP search helper.
+7. **Web Research & Mandatory Documentation Search**: Current date/time is injected in every prompt. Your training data is outdated. **HARD RULE:** DO NOT WRITE ANY CODE for frameworks, libraries, or APIs (e.g., Tailwind, React, Next.js) without FIRST using web search tools to read their official documentation. You MUST search for the latest version before calling writeFile or editFile. Tool names are dynamically advertised aliases. Use the exact listed alias and schema.
+   - **KEYWORD ROUTING (MANDATORY)**:
+     - If the user's message contains the word **"search"** → use the **Playwright MCP browser tools** (mcp__playwright__browser_navigate, etc.) to browse the web in real time.
+     - If the user's message contains the word **"research"** → use the **deepResearch tool** to search academic databases (arXiv, OpenAlex).
+     - These rules are absolute and override any other reasoning. Do NOT use deepResearch when the user says "search", and do NOT use Playwright when the user says "research".
+   - Provide a highly specific query to the deepResearch tool to get the most relevant documentation or news.
+   - Never claim web research is unavailable when deepResearch is listed.
 8. **Role & Delegation**: You are the primary coding agent. Handle small and moderate tasks directly, including normal single-file implementations and edits. Use sub-agents only when a task is too large for efficient direct handling, has genuinely independent work that benefits from parallelism, or requires broad file analysis that can be split into bounded scopes. Sub-agents are optional collaborators, not the default execution path.
 9. **Orchestration Workflow (Only When Delegation Is Justified)**: If complexity or parallelism genuinely warrants delegation, follow this workflow:
    a. **Check Directory First**: BEFORE doing anything else, call runCommand with ls on the project root to understand what files already exist. This is MANDATORY.
@@ -211,7 +209,7 @@ You are pair programming with a USER to solve their coding task. The task may re
 17. **Sequential Thinking (CRITICAL)**: When using the sequential thinking tool, you MUST pass your thought process in the \`thought\` property (NOT \`content\`). 
 18. **Proactive Tool & Skill Usage for Outdated Knowledge:** Your internal knowledge is outdated. You MUST proactively use combinations of tools to update yourself and think through complex tasks. DO NOT wait for the user to explicitly tell you to use tools.
 - **Skills:** Review the list of available skills below. If a skill seems even remotely relevant to the user's request, you MUST call \`readSkill("skill-name")\` to read its instructions BEFORE taking any other action.
-- **Browser/MCP:** You must proactively use browser tools (like \`open_browser\` or playwright tools) and MCP tools to search the web for the most up-to-date documentation, APIs, and information.
+- **Browser/MCP:** You must proactively use the deepResearch tool and other MCP tools to search the web for the most up-to-date documentation, APIs, and information.
 - **Sequential Thinking:** Use \`sequentialthinking\` to rigorously break down and analyze information gathered from skills and the web before writing code.
 
 Generic tool call format:
@@ -316,6 +314,8 @@ export interface ModelPreset {
   supportsTools: boolean;
   supportsStreaming: boolean;
   supportsVision: boolean;
+  supportsThinking?: boolean;
+  defaultReasoningBudget?: number;
   description: string;
 }
 
@@ -327,6 +327,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'Fast responses, large context window',
   },
   'Dispatcher v1.2': {
@@ -336,6 +338,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'Balanced speed and capability',
   },
 
@@ -346,6 +350,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'GPT-5.6 Luna with native and text-fallback tool calling',
   },
   'GPT-5.6 Terra': {
@@ -355,6 +361,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'GPT-5.6 Terra with native and text-fallback tool calling',
   },
   'GPT-5.6 Sol': {
@@ -364,25 +372,31 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'GPT-5.6 Sol with native and text-fallback tool calling',
   },
-  'GPT-OSS Medium': {
-    name: 'GPT-OSS Medium',
+  'GLM 5.3 Low': {
+    name: 'GLM 5.3 Low',
     contextWindow: 128000,
     maxTokensDefault: 131072,
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
-    description: 'GPT-OSS Medium with XML tool protocol',
+    supportsThinking: true,
+    defaultReasoningBudget: 384,
+    description: 'GLM 5.3 with low reasoning effort',
   },
-  'GPT-OSS High': {
-    name: 'GPT-OSS High',
+  'GLM 5.3 High': {
+    name: 'GLM 5.3 High',
     contextWindow: 128000,
     maxTokensDefault: 131072,
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
-    description: 'GPT-OSS High with XML tool protocol',
+    supportsThinking: true,
+    defaultReasoningBudget: 1024,
+    description: 'GLM 5.3 with high reasoning effort',
   },
   'Qwen 3.8': {
     name: 'Qwen 3.8',
@@ -391,6 +405,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'Qwen 3.8 - Pro+ Model',
   },
   'DeepSeek v4 Flash': {
@@ -400,6 +416,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'DeepSeek v4 Flash - fast and efficient',
   },
   'DeepSeek v4 Pro': {
@@ -409,6 +427,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'DeepSeek v4 Pro - most capable',
   },
   'Kimi k2.7': {
@@ -418,6 +438,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'Kimi k2.7 - Moonshot AI',
   },
   'GLM 5.2': {
@@ -427,6 +449,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'GLM 5.2 - Zhipu AI',
   },
   'GLM 5.2 Lite': {
@@ -436,6 +460,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsTools: true,
     supportsStreaming: true,
     supportsVision: false,
+    supportsThinking: true,
+    defaultReasoningBudget: 256,
     description: 'GLM 5.2 Lite - Zhipu AI',
   },
 };
@@ -454,6 +480,7 @@ export const AI_PARAM_RANGES = {
   retryDelay: { min: 100, max: 10000, step: 100, label: 'Retry Delay (ms)', description: 'Base delay between retry attempts (exponential backoff).' },
   timeoutMs: { min: 10000, max: 600000, step: 1000, label: 'Timeout (ms)', description: 'Maximum time to wait for an API response.' },
   streamChunkDelay: { min: 0, max: 100, step: 5, label: 'Stream Delay (ms)', description: 'Delay between rendering stream chunks (0 = instant).' },
+  reasoningBudget: { min: 64, max: 2048, step: 64, label: 'Reasoning Budget', description: 'Maximum tokens allocated for internal reasoning. Lower values force short, concise thinking.' },
 } as const;
 
 // ── Config key for localStorage ────────────────────────────────────────────
@@ -478,6 +505,20 @@ export function getAIConfig(projectId?: string): AIConfig {
     console.warn('[AIConfig] Failed to load config, using defaults:', e);
   }
 
+  // ── Model name migrations ─────────────────────────────────────────────────
+  // Remap renamed models so existing localStorage configs still work
+  const MODEL_RENAMES: Record<string, string> = {
+    'GPT-OSS Medium': 'GLM 5.3 Low',
+    'GPT-OSS High':   'GLM 5.3 High',
+  };
+  if (config.model && MODEL_RENAMES[config.model]) {
+    config.model = MODEL_RENAMES[config.model];
+  }
+  // If saved model is unknown (removed / renamed without mapping), fall back to Dispatcher
+  if (config.model && !MODEL_PRESETS[config.model]) {
+    config.model = 'Dispatcher v1';
+  }
+
   // FORCE override the saved context window with the actual preset
   // This prevents poisoned localStorage from locking users into old 4096 limits
   const preset = MODEL_PRESETS[config.model];
@@ -493,6 +534,14 @@ export function setAIConfig(partial: Partial<AIConfig>, projectId?: string): AIC
   const current = getAIConfig(projectId);
   const updated = { ...current, ...partial };
 
+  // If switching model without explicit budget, adopt preset's default budget
+  if (partial.model && partial.reasoningBudget === undefined) {
+    const targetPreset = MODEL_PRESETS[partial.model];
+    if (targetPreset?.defaultReasoningBudget) {
+      updated.reasoningBudget = targetPreset.defaultReasoningBudget;
+    }
+  }
+
   // Clamp values to valid ranges
   updated.temperature = clamp(updated.temperature, AI_PARAM_RANGES.temperature.min, AI_PARAM_RANGES.temperature.max);
   updated.topP = clamp(updated.topP, AI_PARAM_RANGES.topP.min, AI_PARAM_RANGES.topP.max);
@@ -501,6 +550,9 @@ export function setAIConfig(partial: Partial<AIConfig>, projectId?: string): AIC
   updated.frequencyPenalty = clamp(updated.frequencyPenalty, AI_PARAM_RANGES.frequencyPenalty.min, AI_PARAM_RANGES.frequencyPenalty.max);
   updated.presencePenalty = clamp(updated.presencePenalty, AI_PARAM_RANGES.presencePenalty.min, AI_PARAM_RANGES.presencePenalty.max);
   updated.maxAgentIterations = clamp(updated.maxAgentIterations, AI_PARAM_RANGES.maxAgentIterations.min, AI_PARAM_RANGES.maxAgentIterations.max);
+  if (typeof updated.reasoningBudget === 'number') {
+    updated.reasoningBudget = clamp(updated.reasoningBudget, AI_PARAM_RANGES.reasoningBudget.min, AI_PARAM_RANGES.reasoningBudget.max);
+  }
 
   // Apply model preset context window
   const preset = MODEL_PRESETS[updated.model];

@@ -43,6 +43,8 @@ import { TokenBillingSession } from './tokenQuota';
 import { AgentRuntimeError, throwIfAborted } from './agent/runtimeErrors';
 import { ProviderStreamAssembler } from './agent/streamAssembler';
 import { normalizeAssistantTurn } from './agent/turnNormalizer';
+import { selectToolProtocol } from './agent/toolProtocol';
+import { parseTextToolProtocol } from './agent/textToolProtocol';
 import type { CoordinatedRunContext } from './agent/runCoordinator';
 import { SecurityInterceptor } from './SecurityInterceptor';
 import { getDurableTasksForConversation } from './taskStore';
@@ -190,6 +192,20 @@ function getKnownToolNames(toolDefinitions: any[]): Set<string> {
  * All other formats are legacy fallbacks.
  */
 export function parseToolCallsFromText(text: string, knownToolNames?: Set<string>): ParsedToolCall[] {
+  // Use the comprehensive parseTextToolProtocol as primary extractor
+  const textParseResult = parseTextToolProtocol(text, knownToolNames, 'permissive');
+  if (textParseResult.actions.length > 0) {
+    const extracted: ParsedToolCall[] = textParseResult.actions
+      .filter(a => a.kind === 'tool' && isPlausibleToolName(a.name, knownToolNames))
+      .map(a => ({
+        name: a.name,
+        arguments: (a.arguments as Record<string, any>) || {},
+      }));
+    if (extracted.length > 0) {
+      return deduplicateToolCalls(extracted);
+    }
+  }
+
   const toolCalls: ParsedToolCall[] = [];
   let match: RegExpExecArray | null;
 
@@ -471,6 +487,7 @@ export class AgentLoop {
   private cachedSystemPrompt?: string;
   private cachedSystemPromptProtocol?: 'native' | 'xml';
   private lastSentMessageIndex = 0;
+  private emptyResponseRetries = 0;
 
   constructor(
     config: AIConfig,
@@ -710,10 +727,11 @@ export class AgentLoop {
       // ── PHASE 3: EXECUTION ───────────────────────────────────────────────
       this.state.phase = 'executing';
       this.state.status = 'Executing tasks...';
+      this.emptyResponseRetries = 0;
 
       // ── Token Optimization: Cache static system prompt + project context ──
       // This avoids rebuilding the ~1800-2500 token system prompt on every iteration
-      const toolProtocol = this.options?.toolProtocol || 'native';
+      const toolProtocol = selectToolProtocol(this.config.model, this.options?.toolProtocol);
       const systemPromptText = buildSystemPrompt(this.config, this.options?.interactionMode);
       let fullSystemPrompt = systemPromptText;
 
@@ -866,357 +884,435 @@ export class AgentLoop {
         this.isStreaming = true; // Set streaming flag before API call
         console.log('[AgentLoop] Starting API call, isStreaming set to true');
 
-        await new Promise<void>((resolve, reject) => {
-          if (!this.state.isRunning) {
-            console.log('[AgentLoop] state.isRunning is false, resolving immediately');
-            resolve();
-            return;
-          }
-
-          const startTime = Date.now();
-
-          // Role-Based Dynamic Temperature
-          const effectiveConfig = { ...this.config };
-          if (this.options?.agentRole === 'orchestrator') {
-            // State-Aware Profile: check if the last message is a tool response
-            const lastMsg = context.messages[context.messages.length - 1];
-            if (lastMsg && lastMsg.role === 'tool') {
-              // Executor Mode: highly deterministic for running commands / exact file edits
-              effectiveConfig.temperature = 0.2;
-              effectiveConfig.topP = 0.5;
-            } else {
-              // Planner Mode: moderate creativity to brainstorm tasks (avoids loop)
-              effectiveConfig.temperature = 0.5;
-              effectiveConfig.topP = 0.9;
+        let apiError: Error | null = null;
+        try {
+          await new Promise<void>((resolve, reject) => {
+            if (!this.state.isRunning) {
+              console.log('[AgentLoop] state.isRunning is false, resolving immediately');
+              resolve();
+              return;
             }
-            // Provide a flag so `api.ts` bypasses token-based logic
-            (effectiveConfig as any).strictRole = true;
-          }
 
-          callDispatcherAPI({
-            config: effectiveConfig,
-            // Preserve native assistant tool_calls and matching role=tool results
-            // for GPT-5.6's function-call protocol.
-            messages: context.messages.map(m => ({
-              ...m,
-              // Native GPT-5.6 calls require the assistant tool_calls message
-              // to be followed by a role=tool message with the same call ID.
-              role: m.role as 'user' | 'assistant' | 'system' | 'tool',
-            })),
-            // Always pass tool definitions; api.ts will filter based on model's supportsTools flag
-            tools: shouldUseTools ? this.toolDefinitions : undefined,
-            conversationId: this.state.conversationId,
-            billingSession: this.options?.billingSession,
-            onChunk: (chunk: string) => {
-              fullResponseText += chunk;
-              streamAssembler.accept({ ...streamIdentity, type: 'text-delta', text: chunk });
-              assistantMsg.isStreaming = true;
+            const startTime = Date.now();
 
-              // Stateful real-time parser to separate thinking and hide JSON
-              let textToDisplay = fullResponseText;
-
-              // 1. Extract thinking block and discard any text before it
-              const thinkStart = textToDisplay.indexOf('<think');
-              let afterThink = textToDisplay;
-
-              if (thinkStart !== -1) {
-                const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
-                if (thinkEnd !== -1) {
-                  const closeBracket = textToDisplay.indexOf('>', thinkEnd);
-                  if (closeBracket !== -1) {
-                    assistantMsg.thinkingContent = textToDisplay.substring(thinkStart, closeBracket + 1);
-                    afterThink = textToDisplay.substring(closeBracket + 1); // Extract everything after!
-                  } else {
-                    assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
-                    afterThink = '';
-                  }
-                } else {
-                  assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
-                  afterThink = '';
-                }
-              } else if (textToDisplay.trim().startsWith('<') && textToDisplay.length < 20) {
-                assistantMsg.thinkingContent = textToDisplay;
-                afterThink = '';
+            // Role-Based Dynamic Temperature
+            const effectiveConfig = { ...this.config };
+            if (this.options?.agentRole === 'orchestrator') {
+              // State-Aware Profile: check if the last message is a tool response
+              const lastMsg = context.messages[context.messages.length - 1];
+              if (lastMsg && lastMsg.role === 'tool') {
+                // Executor Mode: highly deterministic for running commands / exact file edits
+                effectiveConfig.temperature = 0.2;
+                effectiveConfig.topP = 0.5;
+              } else {
+                // Planner Mode: moderate creativity to brainstorm tasks (avoids loop)
+                effectiveConfig.temperature = 0.5;
+                effectiveConfig.topP = 0.9;
               }
+              // Provide a flag so `api.ts` bypasses token-based logic
+              (effectiveConfig as any).strictRole = true;
+            }
 
-              // 2. Put text outside of thinking into the thought block until a tool call marker is seen
-              let hideText = false;
-              if (assistantMsg.thinkingContent && afterThink.trim().length > 0) {
-                const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|call:|\{/i);
-                if (toolMatch && toolMatch.index !== undefined) {
-                  // Tool call found! Stop putting text into thought block.
-                  const leaked = afterThink.substring(0, toolMatch.index).trim();
-                  if (leaked) {
-                    assistantMsg.thinkingContent += '\n\n' + leaked;
-                  }
-                  afterThink = afterThink.substring(toolMatch.index);
-                  hideText = true; // Hide the actual tool call
-                } else {
-                  // No tool call yet. Put it all into the thought block temporarily.
-                  const leaked = afterThink.trim();
-                  if (leaked) {
-                    assistantMsg.thinkingContent += '\n\n' + leaked;
-                  }
-                  afterThink = ''; // Clear it so it doesn't leak as content
-                }
-              } else if (!assistantMsg.thinkingContent) {
-                // Buffering startup text to see if a <think> tag arrives
-                if (textToDisplay.length < 50 && !textToDisplay.includes('<')) {
-                  hideText = true;
-                }
+            let lastStreamEmitTime = 0;
+            let streamEmitTimer: any = null;
+            const flushStreamingEmit = () => {
+              if (streamEmitTimer) {
+                clearTimeout(streamEmitTimer);
+                streamEmitTimer = null;
               }
-
-              assistantMsg.content = hideText || isStandaloneToolArgumentsJson(afterThink.trim()) ? '' : afterThink.trim();
-
-              // Feed only the new delta into a retained parser. This creates the
-              // UI step once function + path are known and updates it per chunk.
-              for (const liveCall of (this.planningRequired && !this.sequentialThoughts.isComplete())
-                ? []
-                : streamingToolParser.feed(chunk)) {
-                latestStreamingCalls.set(liveCall.id, liveCall);
-                const emitStreamingCall = (added: number, removed: number) => this.emit({
-                  type: 'agent:tool-streaming',
-                  data: {
-                    messageId: assistantMsg.id,
-                    toolCallId: liveCall.id,
-                    toolName: liveCall.name,
-                    filePath: liveCall.path,
-                    content: liveCall.content,
-                    added,
-                    removed,
-                    streamComplete: liveCall.complete,
-                  }
-                });
-
-                if (liveCall.name === 'editFile') {
-                  const root = this.projectContext?.rootPath?.replace(/[\\/]$/, '') || '';
-                  const targetPath = /^(?:[a-zA-Z]:[\\/]|\/)/.test(liveCall.path)
-                    ? liveCall.path
-                    : `${root}/${liveCall.path}`;
-                  let originalPromise = originalFileContents.get(targetPath);
-                  if (!originalPromise) {
-                    originalPromise = Promise.resolve((window as any).electron?.readFileContent(targetPath, root))
-                      .then(value => typeof value === 'string' ? value : '')
-                      .catch(() => '');
-                    originalFileContents.set(targetPath, originalPromise);
-                  }
-                  const resolvedOriginal = resolvedOriginalFileContents.get(targetPath);
-                  if (resolvedOriginal !== undefined) {
-                    const stats = calculateLineChanges(resolvedOriginal, liveCall.content);
-                    emitStreamingCall(stats.added, stats.removed);
-                    continue;
-                  }
-
-                  // Show content progress immediately while the one-time original
-                  // file read is in flight, then replace it with exact diff stats.
-                  emitStreamingCall(toLineCount(liveCall.content), 0);
-                  originalPromise.then(original => {
-                    resolvedOriginalFileContents.set(targetPath, original);
-                    const latest = latestStreamingCalls.get(liveCall.id);
-                    if (!latest) return;
-                    const stats = calculateLineChanges(original, latest.content);
-                    this.emit({
-                      type: 'agent:tool-streaming', data: {
-                        messageId: assistantMsg.id,
-                        toolCallId: latest.id,
-                        toolName: latest.name,
-                        filePath: latest.path,
-                        content: latest.content,
-                        added: stats.added,
-                        removed: stats.removed,
-                        streamComplete: latest.complete,
-                      }
-                    });
-                  });
-                } else {
-                  emitStreamingCall(toLineCount(liveCall.content), 0);
-                }
-              }
-
+              lastStreamEmitTime = Date.now();
               this.emit({
                 type: 'agent:streaming',
                 data: {
-                  text: chunk,
+                  text: '',
                   fullText: fullResponseText,
                   parsedContent: assistantMsg.content,
                   thinkingContent: assistantMsg.thinkingContent
                 }
               });
-            },
-            onToolCall: (toolCall: ToolCall) => {
-              if (toolProtocol === 'xml') {
-                console.warn('[AgentLoop] Rejected native tool call in XML protocol mode:', toolCall.name);
-                return;
-              }
-              streamAssembler.accept({
-                ...streamIdentity,
-                type: 'tool-complete',
-                index: assistantMsg.toolCalls?.length || 0,
-                callId: toolCall.id,
-                name: toolCall.name,
-                argumentsText: JSON.stringify(toolCall.arguments ?? {}),
-              });
-              const knownToolNames = getKnownToolNames(this.toolDefinitions);
-              if (!isPlausibleToolName(toolCall.name, knownToolNames)) {
-                console.error('[AgentLoop] BLOCKED invalid tool format from API:', toolCall.name);
-                return;
-              }
+            };
 
-              if (isSequentialThinkingTool(toolCall.name)) {
-                toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
-              }
+            callDispatcherAPI({
+              config: effectiveConfig,
+              // Preserve native assistant tool_calls and matching role=tool results
+              // for GPT-5.6's function-call protocol.
+              messages: context.messages.map(m => ({
+                ...m,
+                // Native GPT-5.6 calls require the assistant tool_calls message
+                // to be followed by a role=tool message with the same call ID.
+                role: m.role as 'user' | 'assistant' | 'system' | 'tool',
+              })),
+              // Always pass tool definitions; api.ts will filter based on model's supportsTools flag
+              tools: shouldUseTools ? this.toolDefinitions : undefined,
+              toolProtocol,
+              conversationId: this.state.conversationId,
+              billingSession: this.options?.billingSession,
 
-              // Tag calls before emitting them so the UI can identify the
-              // actor even while the call is still waiting or streaming.
-              toolCall.agentKind = this.options?.agentRole === 'subagent' ? 'subagent' : 'main';
-              toolCall.agentRole = this.options?.agentRole;
-              // Handle structured tool calls from the API
-              if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
-              assistantMsg.toolCalls.push(toolCall);
-              this.emit({ type: 'agent:tool-call', data: toolCall });
-            },
-            onError: (error: Error) => {
-              console.log('[AgentLoop] API onError called, setting isStreaming to false');
-              this.isStreaming = false;
-              this.emit({ type: 'agent:error', data: { message: error.message } });
-              reject(error);
-            },
-            onSuccess: (fullText: string, finishReason?: string, tokenUsage?: any) => {
-              console.log('[AgentLoop] API onSuccess called, setting isStreaming to false');
-              
-              if (tokenUsage && tokenUsage.prompt_tokens) {
-                const totalLimit = effectiveConfig.maxTokens || 128000;
-                const promptTokens = tokenUsage.prompt_tokens;
-                this.emit({ 
-                  type: 'agent:token-budget', 
-                  data: {
-                    total: totalLimit,
-                    systemPrompt: 0,
-                    tools: 0,
-                    projectContext: 0,
-                    conversationHistory: promptTokens,
-                    responseReserved: 0,
-                    available: totalLimit - promptTokens,
-                    utilizationPercent: Math.min(100, (promptTokens / totalLimit) * 100)
-                  }
-                });
-              }
+              onChunk: (chunk: string) => {
+                fullResponseText += chunk;
+                streamAssembler.accept({ ...streamIdentity, type: 'text-delta', text: chunk });
+                assistantMsg.isStreaming = true;
 
-              this.isStreaming = false;
-              responseFinishReason = finishReason;
-              fullResponseText = fullText;
-              streamAssembler.accept({ ...streamIdentity, type: 'finish', reason: finishReason });
+                // Stateful real-time parser to separate thinking and hide JSON
+                let textToDisplay = fullResponseText;
 
-              let textToDisplay = fullResponseText;
+                // 1. Extract thinking block and discard any text before it
+                const thinkStart = textToDisplay.indexOf('<think');
+                let afterThink = textToDisplay;
 
-              // 1. Extract thinking block
-              const thinkStart = textToDisplay.indexOf('<think');
-              let afterThink = textToDisplay;
-
-              if (thinkStart !== -1) {
-                const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
-                if (thinkEnd !== -1) {
-                  const closeBracket = textToDisplay.indexOf('>', thinkEnd);
-                  if (closeBracket !== -1) {
-                    assistantMsg.thinkingContent = textToDisplay.substring(thinkStart, closeBracket + 1);
-                    afterThink = textToDisplay.substring(closeBracket + 1);
+                if (thinkStart !== -1) {
+                  const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
+                  if (thinkEnd !== -1) {
+                    const closeBracket = textToDisplay.indexOf('>', thinkEnd);
+                    if (closeBracket !== -1) {
+                      assistantMsg.thinkingContent = textToDisplay.substring(thinkStart, closeBracket + 1);
+                      afterThink = textToDisplay.substring(closeBracket + 1); // Extract everything after!
+                    } else {
+                      assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
+                      afterThink = '';
+                    }
                   } else {
                     assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
                     afterThink = '';
                   }
-                } else {
-                  assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
+                } else if (textToDisplay.trim().startsWith('<') && textToDisplay.length < 20) {
+                  assistantMsg.thinkingContent = textToDisplay;
                   afterThink = '';
                 }
-              } else if (textToDisplay.trim().startsWith('<') && textToDisplay.length < 20) {
-                assistantMsg.thinkingContent = textToDisplay;
-                afterThink = '';
-              }
 
-              // Only push leaked text into thought bubble if there's actually a tool call!
-              const knownToolNames = getKnownToolNames(this.toolDefinitions);
-              const normalizedTurn = normalizeAssistantTurn(streamAssembler.snapshot(), knownToolNames, toolProtocol);
-              const nativeCallIds = new Set((assistantMsg.toolCalls || []).map(call => call.id));
-              const parsedCalls = normalizedTurn.actions.flatMap(action =>
-                action.kind === 'tool' && !nativeCallIds.has(action.callId)
-                  ? [{ name: action.name, arguments: action.arguments, callId: action.callId }]
-                  : []
-              );
-              if (parsedCalls.length > 0) {
-                // Assign the parsed calls to assistantMsg
-                if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
-                for (const pc of parsedCalls) {
-                  // Alias bash to runCommand for open source models that hallucinate this
-                  if (pc.name === 'bash') {
-                    pc.name = 'runCommand';
-                  }
-
-                  if (!isPlausibleToolName(pc.name, knownToolNames)) {
-                    console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
-                    continue;
-                  }
-
-                  // Use the stable callId from the parser for reliable deduplication across chunks
-                  const id = pc.callId || 'call_' + Math.random().toString(36).substring(2, 9);
-                  const newCall: ToolCall = {
-                    id,
-                    name: pc.name,
-                    arguments: pc.arguments,
-                    status: 'pending',
-                    timestamp: Date.now(),
-                    agentKind: this.options?.agentRole === 'subagent' ? 'subagent' : 'main',
-                    agentRole: this.options?.agentRole
-                  };
-                  assistantMsg.toolCalls.push(newCall);
-                  this.emit({ type: 'agent:tool-call', data: newCall });
-                }
-
-                // Try to clean up the content by removing the tool call blocks
-                const callIndex = afterThink.indexOf('call:');
-                if (callIndex !== -1) {
-                  const leaked = afterThink.substring(0, callIndex).trim();
-                  if (leaked) {
-                    assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
-                  }
-                  afterThink = '';
-                } else {
-                  // Fallback match
-                  const toolMatch = afterThink.match(/```(?:json)?|<function=|\[TOOL:|call:|\{/i);
+                // 2. Put text outside of thinking into the thought block until a tool call marker is seen
+                let hideText = false;
+                if (assistantMsg.thinkingContent && afterThink.trim().length > 0) {
+                  const toolMatch = afterThink.match(/```(?:json)?|<tool_call\b|<function=|\[TOOL:|call:|\{/i);
                   if (toolMatch && toolMatch.index !== undefined) {
+                    // Tool call found! Stop putting text into thought block.
                     const leaked = afterThink.substring(0, toolMatch.index).trim();
+                    if (leaked) {
+                      assistantMsg.thinkingContent += '\n\n' + leaked;
+                    }
+                    afterThink = afterThink.substring(toolMatch.index);
+                    hideText = true; // Hide the actual tool call
+                  } else {
+                    // No tool call yet. Put it all into the thought block temporarily.
+                    const leaked = afterThink.trim();
+                    if (leaked) {
+                      assistantMsg.thinkingContent += '\n\n' + leaked;
+                    }
+                    afterThink = ''; // Clear it so it doesn't leak as content
+                  }
+                } else if (!assistantMsg.thinkingContent) {
+                  // Buffering startup text to see if a <think> tag arrives
+                  if (textToDisplay.length < 50 && !textToDisplay.includes('<')) {
+                    hideText = true;
+                  }
+                }
+
+                assistantMsg.content = hideText || isStandaloneToolArgumentsJson(afterThink.trim()) ? '' : afterThink.trim();
+
+                // Feed only the new delta into a retained parser. This creates the
+                // UI step once function + path are known and updates it per chunk.
+                for (const liveCall of (this.planningRequired && !this.sequentialThoughts.isComplete())
+                  ? []
+                  : streamingToolParser.feed(chunk)) {
+                  latestStreamingCalls.set(liveCall.id, liveCall);
+                  const emitStreamingCall = (added: number, removed: number) => this.emit({
+                    type: 'agent:tool-streaming',
+                    data: {
+                      messageId: assistantMsg.id,
+                      toolCallId: liveCall.id,
+                      toolName: liveCall.name,
+                      filePath: liveCall.path,
+                      content: liveCall.content,
+                      added,
+                      removed,
+                      streamComplete: liveCall.complete,
+                    }
+                  });
+
+                  if (liveCall.name === 'editFile') {
+                    const root = this.projectContext?.rootPath?.replace(/[\\/]$/, '') || '';
+                    const targetPath = /^(?:[a-zA-Z]:[\\/]|\/)/.test(liveCall.path)
+                      ? liveCall.path
+                      : `${root}/${liveCall.path}`;
+                    let originalPromise = originalFileContents.get(targetPath);
+                    if (!originalPromise) {
+                      originalPromise = Promise.resolve((window as any).electron?.readFileContent(targetPath, root))
+                        .then(value => typeof value === 'string' ? value : '')
+                        .catch(() => '');
+                      originalFileContents.set(targetPath, originalPromise);
+                    }
+                    const resolvedOriginal = resolvedOriginalFileContents.get(targetPath);
+                    if (resolvedOriginal !== undefined) {
+                      const stats = calculateLineChanges(resolvedOriginal, liveCall.content);
+                      emitStreamingCall(stats.added, stats.removed);
+                      continue;
+                    }
+
+                    // Show content progress immediately while the one-time original
+                    // file read is in flight, then replace it with exact diff stats.
+                    emitStreamingCall(toLineCount(liveCall.content), 0);
+                    originalPromise.then(original => {
+                      resolvedOriginalFileContents.set(targetPath, original);
+                      const latest = latestStreamingCalls.get(liveCall.id);
+                      if (!latest) return;
+                      const stats = calculateLineChanges(original, latest.content);
+                      this.emit({
+                        type: 'agent:tool-streaming', data: {
+                          messageId: assistantMsg.id,
+                          toolCallId: latest.id,
+                          toolName: latest.name,
+                          filePath: latest.path,
+                          content: latest.content,
+                          added: stats.added,
+                          removed: stats.removed,
+                          streamComplete: latest.complete,
+                        }
+                      });
+                    });
+                  } else {
+                    emitStreamingCall(toLineCount(liveCall.content), 0);
+                  }
+                }
+
+                // Throttle streaming emission to ~35ms intervals to avoid React Maximum update depth exceeded
+                const now = Date.now();
+                if (now - lastStreamEmitTime >= 35) {
+                  if (streamEmitTimer) {
+                    clearTimeout(streamEmitTimer);
+                    streamEmitTimer = null;
+                  }
+                  lastStreamEmitTime = now;
+                  this.emit({
+                    type: 'agent:streaming',
+                    data: {
+                      text: chunk,
+                      fullText: fullResponseText,
+                      parsedContent: assistantMsg.content,
+                      thinkingContent: assistantMsg.thinkingContent
+                    }
+                  });
+                } else if (!streamEmitTimer) {
+                  streamEmitTimer = setTimeout(() => {
+                    streamEmitTimer = null;
+                    lastStreamEmitTime = Date.now();
+                    this.emit({
+                      type: 'agent:streaming',
+                      data: {
+                        text: '',
+                        fullText: fullResponseText,
+                        parsedContent: assistantMsg.content,
+                        thinkingContent: assistantMsg.thinkingContent
+                      }
+                    });
+                  }, 35);
+                }
+              },
+              onToolCall: (toolCall: ToolCall) => {
+                flushStreamingEmit();
+                if (toolProtocol === 'xml') {
+                  console.warn('[AgentLoop] Rejected native tool call in XML protocol mode:', toolCall.name);
+                  return;
+                }
+                streamAssembler.accept({
+                  ...streamIdentity,
+                  type: 'tool-complete',
+                  index: assistantMsg.toolCalls?.length || 0,
+                  callId: toolCall.id,
+                  name: toolCall.name,
+                  argumentsText: JSON.stringify(toolCall.arguments ?? {}),
+                });
+                const knownToolNames = getKnownToolNames(this.toolDefinitions);
+                if (!isPlausibleToolName(toolCall.name, knownToolNames)) {
+                  console.error('[AgentLoop] BLOCKED invalid tool format from API:', toolCall.name);
+                  return;
+                }
+
+                if (isSequentialThinkingTool(toolCall.name)) {
+                  toolCall.arguments = normalizeSequentialThinkingArguments(toolCall.arguments);
+                }
+
+                // Tag calls before emitting them so the UI can identify the
+                // actor even while the call is still waiting or streaming.
+                toolCall.agentKind = this.options?.agentRole === 'subagent' ? 'subagent' : 'main';
+                toolCall.agentRole = this.options?.agentRole;
+                // Handle structured tool calls from the API
+                if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
+                assistantMsg.toolCalls.push(toolCall);
+                this.emit({ type: 'agent:tool-call', data: toolCall });
+              },
+              onError: (error: Error) => {
+                console.log('[AgentLoop] API onError called, setting isStreaming to false');
+                if (streamEmitTimer) {
+                  clearTimeout(streamEmitTimer);
+                  streamEmitTimer = null;
+                }
+                this.isStreaming = false;
+                reject(error);
+              },
+              onSuccess: (fullText: string, finishReason?: string, tokenUsage?: any) => {
+                console.log('[AgentLoop] API onSuccess called, setting isStreaming to false');
+                flushStreamingEmit();
+                
+                if (tokenUsage && tokenUsage.prompt_tokens) {
+                  const totalLimit = effectiveConfig.maxTokens || 128000;
+                  const promptTokens = tokenUsage.prompt_tokens;
+                  this.emit({ 
+                    type: 'agent:token-budget', 
+                    data: {
+                      total: totalLimit,
+                      systemPrompt: 0,
+                      tools: 0,
+                      projectContext: 0,
+                      conversationHistory: promptTokens,
+                      responseReserved: 0,
+                      available: totalLimit - promptTokens,
+                      utilizationPercent: Math.min(100, (promptTokens / totalLimit) * 100)
+                    }
+                  });
+                }
+
+                this.isStreaming = false;
+                responseFinishReason = finishReason;
+                fullResponseText = fullText;
+                streamAssembler.accept({ ...streamIdentity, type: 'finish', reason: finishReason });
+
+                let textToDisplay = fullResponseText;
+
+                // 1. Extract thinking block
+                const thinkStart = textToDisplay.indexOf('<think');
+                let afterThink = textToDisplay;
+
+                if (thinkStart !== -1) {
+                  const thinkEnd = textToDisplay.indexOf('</think', thinkStart);
+                  if (thinkEnd !== -1) {
+                    const closeBracket = textToDisplay.indexOf('>', thinkEnd);
+                    if (closeBracket !== -1) {
+                      assistantMsg.thinkingContent = textToDisplay.substring(thinkStart, closeBracket + 1);
+                      afterThink = textToDisplay.substring(closeBracket + 1);
+                    } else {
+                      assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
+                      afterThink = '';
+                    }
+                  } else {
+                    assistantMsg.thinkingContent = textToDisplay.substring(thinkStart);
+                    afterThink = '';
+                  }
+                } else if (textToDisplay.trim().startsWith('<') && textToDisplay.length < 20) {
+                  assistantMsg.thinkingContent = textToDisplay;
+                  afterThink = '';
+                }
+
+                // Only push leaked text into thought bubble if there's actually a tool call!
+                const knownToolNames = getKnownToolNames(this.toolDefinitions);
+                const normalizedTurn = normalizeAssistantTurn(streamAssembler.snapshot(), knownToolNames, toolProtocol);
+                const nativeCallIds = new Set((assistantMsg.toolCalls || []).map(call => call.id));
+                let parsedCalls = normalizedTurn.actions.flatMap(action =>
+                  action.kind === 'tool' && !nativeCallIds.has(action.callId)
+                    ? [{ name: action.name, arguments: action.arguments, callId: action.callId }]
+                    : []
+                );
+
+                // Fallback: If normalizedTurn found nothing, but text contains tool call patterns, parse directly
+                if (parsedCalls.length === 0 && (/<tool_call\b/i.test(fullResponseText) || fullResponseText.includes('call:'))) {
+                  const fallbackCalls = parseToolCallsFromText(fullResponseText, knownToolNames);
+                  if (fallbackCalls.length > 0) {
+                    parsedCalls = fallbackCalls.map(tc => ({
+                      name: tc.name,
+                      arguments: tc.arguments,
+                      callId: `fallback:${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                    }));
+                  }
+                }
+                if (parsedCalls.length > 0) {
+                  // Assign the parsed calls to assistantMsg
+                  if (!assistantMsg.toolCalls) assistantMsg.toolCalls = [];
+                  for (const pc of parsedCalls) {
+                    // Alias bash to runCommand for open source models that hallucinate this
+                    if (pc.name === 'bash') {
+                      pc.name = 'runCommand';
+                    }
+
+                    if (!isPlausibleToolName(pc.name, knownToolNames)) {
+                      console.error('[AgentLoop] BLOCKED invalid tool format from text parser:', pc.name);
+                      continue;
+                    }
+
+                    // Use the stable callId from the parser for reliable deduplication across chunks
+                    const id = pc.callId || 'call_' + Math.random().toString(36).substring(2, 9);
+                    const newCall: ToolCall = {
+                      id,
+                      name: pc.name,
+                      arguments: pc.arguments,
+                      status: 'pending',
+                      timestamp: Date.now(),
+                      agentKind: this.options?.agentRole === 'subagent' ? 'subagent' : 'main',
+                      agentRole: this.options?.agentRole
+                    };
+                    assistantMsg.toolCalls.push(newCall);
+                    this.emit({ type: 'agent:tool-call', data: newCall });
+                  }
+
+                  // Try to clean up the content by removing the tool call blocks
+                  const callIndex = afterThink.indexOf('call:');
+                  if (callIndex !== -1) {
+                    const leaked = afterThink.substring(0, callIndex).trim();
                     if (leaked) {
                       assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
                     }
                     afterThink = '';
                   } else {
-                    const leaked = afterThink.trim();
-                    if (leaked) {
-                      assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
+                    // Fallback match
+                    const toolMatch = afterThink.match(/```(?:json)?|<tool_call\b|<function=|\[TOOL:|call:|\{/i);
+                    if (toolMatch && toolMatch.index !== undefined) {
+                      const leaked = afterThink.substring(0, toolMatch.index).trim();
+                      if (leaked) {
+                        assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
+                      }
+                      afterThink = '';
+                    } else {
+                      const leaked = afterThink.trim();
+                      if (leaked) {
+                        assistantMsg.thinkingContent = (assistantMsg.thinkingContent || '') + (assistantMsg.thinkingContent ? '\n\n' : '') + leaked;
+                      }
+                      afterThink = '';
                     }
-                    afterThink = '';
                   }
                 }
-              }
 
-              assistantMsg.content = afterThink.trim();
-              if (this.options?.interactionMode === 'plan' && /plan_mode_contract|writeImplementationPlan|<tool_call>|Invalid arguments for tool/i.test(assistantMsg.content)) {
-                assistantMsg.content = '';
-              }
-              assistantMsg.isStreaming = false;
-              assistantMsg.durationMs = Date.now() - startTime;
-              assistantMsg.tokensUsed = estimateTokens(fullText);
+                assistantMsg.content = afterThink.trim();
+                if (this.options?.interactionMode === 'plan' && /plan_mode_contract|writeImplementationPlan|<tool_call>|Invalid arguments for tool/i.test(assistantMsg.content)) {
+                  assistantMsg.content = '';
+                }
+                assistantMsg.isStreaming = false;
+                assistantMsg.durationMs = Date.now() - startTime;
+                assistantMsg.tokensUsed = estimateTokens(fullText);
 
-              this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
-              resolve();
-            },
-            checkIsStreaming: () => this.isStreaming,
-            signal: this.abortController?.signal,
-            toolChoice: this.planningRequired && !this.sequentialThoughts.isComplete()
-              ? { type: 'function', function: { name: 'mcp__sequential_thinking__sequentialthinking' } }
-              : 'auto',
-            toolProtocol,
+                this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
+                resolve();
+              },
+              checkIsStreaming: () => this.isStreaming,
+              signal: this.abortController?.signal,
+              toolChoice: this.planningRequired && !this.sequentialThoughts.isComplete()
+                ? { type: 'function', function: { name: 'mcp__sequential_thinking__sequentialthinking' } }
+                : 'auto',
+            });
           });
-        });
+        } catch (e: any) {
+          apiError = e;
+        }
+
+        if (apiError) {
+          if (apiError.name === 'AbortError') throw apiError;
+          console.warn('[AgentLoop] API error, retrying iteration:', apiError);
+          assistantMsg.isHidden = true;
+          const errorMsg = createUserMessage(`[SYSTEM ERROR] The API request failed with error: ${apiError.message}. Retrying...`);
+          errorMsg.isHidden = true;
+          updatedMessages.push(errorMsg);
+          this.emit({ type: 'agent:message-added', data: errorMsg });
+          // Wait a bit before retrying
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
 
         // ── Native Tool execution isolation ────────
         // No text fallback parsing needed here; api.ts handles native tool calls
@@ -1296,7 +1392,7 @@ export class AgentLoop {
         // <function=...> element. It is neither a valid tool call nor a useful
         // final response, so hide it and request one corrected response.
         const hasMalformedXmlToolCall = !hasToolCalls && /<tool_call\b[^>]*>/i.test(fullResponseText);
-        if (hasMalformedXmlToolCall && malformedToolCallRetries < 1) {
+        if (hasMalformedXmlToolCall && malformedToolCallRetries < 2) {
           malformedToolCallRetries++;
           assistantMsg.isHidden = true;
           const correction = createUserMessage(
@@ -1644,11 +1740,33 @@ export class AgentLoop {
           }
         } else {
           // No tool calls — LLM gave a pure text-only response.
-          if (forceRetry) {
-            continueLoop = true;
-          } else if (this.options?.interactionMode === 'plan' && planArtifactSaved) {
-            continueLoop = false;
-          } else if (this.options?.interactionMode === 'plan' && planToolRetries < 2) {
+          if (!fullResponseText.trim() && !hasToolCalls) {
+            if (this.emptyResponseRetries < 2) {
+              this.emptyResponseRetries++;
+              console.warn(`[AgentLoop] Empty response from model (retry ${this.emptyResponseRetries}/2). Retrying...`);
+              assistantMsg.isHidden = true;
+              const retryNudge = createUserMessage(
+                '[SYSTEM] Your previous response was completely blank. Please inspect the tool output or previous messages and answer the user, or execute the next tool.'
+              );
+              retryNudge.isHidden = true;
+              updatedMessages.push(retryNudge);
+              this.emit({ type: 'agent:message-added', data: retryNudge });
+              continueLoop = true;
+              continue;
+            } else {
+              console.error('[AgentLoop] Model returned empty response after retries.');
+              assistantMsg.content = 'The model returned an empty response. Please check your prompt or try again.';
+              assistantMsg.isHidden = false;
+              this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
+              continueLoop = false;
+            }
+          } else {
+            this.emptyResponseRetries = 0;
+            if (forceRetry) {
+              continueLoop = true;
+            } else if (this.options?.interactionMode === 'plan' && planArtifactSaved) {
+              continueLoop = false;
+            } else if (this.options?.interactionMode === 'plan' && planToolRetries < 2) {
             planToolRetries++;
             const nudgeMsg = createUserMessage(
               `[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call runCommand with ls, read the relevant files with runCommand and cat, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone. (Retry ${planToolRetries}/2)`
@@ -1717,6 +1835,7 @@ export class AgentLoop {
               }
           }
         }
+      }
 
         // ── Token Optimization: Update last sent index for delta injection ──
         // After processing this iteration, mark all current messages as "sent"

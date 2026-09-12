@@ -6,6 +6,7 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   optimizeDeps: {
-    exclude: ['monaco-editor']
+    exclude: ['monaco-editor'],
+    include: ['docx-preview'],
   }
 });

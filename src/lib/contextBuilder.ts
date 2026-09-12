@@ -44,7 +44,7 @@ function isGpt56Model(model: string): boolean {
 export function getGptOssToolProtocol(model: string): ToolProtocol { return selectToolProtocol(model); }
 
 export function detectCurrentWebIntent(text: string): boolean {
-  return /(?:latest|current|recent|today|now|live|as of|release|version|news|browse|online|search the web|search internet|look up|find online|current version|documentation|docs|api reference|guide|tutorial)/i.test(text);
+  return /(?:latest|current|recent|today|now|live|as of|release|version|news|browse|online|search|web|google|playwright|browser|internet|look up|find online|current version|documentation|docs|api reference|guide|tutorial|who is|what is|find out)/i.test(text);
 }
 
 export function buildCurrentWebContract(toolDefinitions: any[]): string {
@@ -130,6 +130,9 @@ export function buildXmlToolPrompt(toolDefinitions: any[]): string {
   const tools = toolDefinitions.map((definition) => definition?.function ?? definition)
     .filter((definition) => typeof definition?.name === 'string')
     .map((tool) => ({ name: tool.name, description: tool.description || '', parameters: tool.parameters || {} }));
+  
+  const toolList = tools.map(t => `- ${t.name}: ${t.description.split('\n')[0]}`).join('\n');
+
   return [
     '<xml_tool_protocol>',
     'XML is the only permitted tool-call syntax in this sub-agent. Native function calling is unavailable.',
@@ -140,7 +143,8 @@ export function buildXmlToolPrompt(toolDefinitions: any[]): string {
     'Do not trim, summarize, replace, or omit source content. Encode a source literal &amp;lt; as &amp;amp;lt; so the resulting file contains &amp;lt;.',
     'Do not wrap parameter values in CDATA. CDATA is not part of this tool protocol; use the entity escaping rule above.',
     'Example: <tool_call><function=readFile><parameter=path>notes.txt</parameter></function></tool_call>',
-    `Available tools: ${JSON.stringify(tools)}`,
+    `Available tools (${tools.length}):\n${toolList}`,
+    `Tool schemas: ${JSON.stringify(tools)}`,
     '</xml_tool_protocol>',
   ].join('\n');
 }
@@ -273,7 +277,8 @@ export function buildContext(
   if (toolProtocol === 'xml' && toolDefinitions?.length) {
     systemPromptParts.push(buildXmlToolPrompt(toolDefinitions));
   }
-  if (toolDefinitions?.length && detectCurrentWebIntent(messages.map(m => m.content || '').join('\n'))) {
+  const hasPlaywrightTools = toolDefinitions?.some(def => (def?.function?.name ?? def?.name)?.startsWith('mcp__playwright__'));
+  if (toolDefinitions?.length && (hasPlaywrightTools || detectCurrentWebIntent(messages.map(m => m.content || '').join('\n')))) {
     systemPromptParts.push(buildCurrentWebContract(toolDefinitions));
   }
 
@@ -361,7 +366,8 @@ export function buildContext(
     const isMsgNew = isNewMessage(i);
     const preserveNativeToolHistory = toolProtocol !== 'xml' && isGpt56Model(config.model) && Boolean(toolDefinitions?.length);
 
-    if (toolProtocol !== 'xml' && msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
+    // XML protocol: assistant toolCalls must be injected as XML text (no native tool_calls field)
+    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
       const toolCallDesc = msg.toolCalls
         .map((tc) => {
           let xml = `<tool_call>\n<function=${tc.name}>\n`;
@@ -377,13 +383,16 @@ export function buildContext(
       delete chatMsg.tool_calls;
     }
 
-    if (toolProtocol !== 'xml' && msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
+    // XML protocol OR non-native-tool-history: role:tool must become role:user.
+    // Models using text/XML tool protocols (GLM, Dispatcher, etc.) only understand user/assistant roles.
+    // The old condition `toolProtocol !== 'xml'` was wrong — XML mode is exactly when we need this.
+    if (msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
       chatMsg.role = 'user';
       // Plain-text marker — no XML that the AI might mimic.
       // For new messages (delta), keep full output. For old messages, compress aggressively.
       // For consumed messages, compress even more aggressively.
       const MAX_TOOL_RESULT_NEW = 60000;      // ~45k tokens — enough for most large files
-      const MAX_TOOL_RESULT_OLD = 20000;       // Increased to 20k to avoid truncating small-medium files in history (fixes the 5KB truncation bug)
+      const MAX_TOOL_RESULT_OLD = 20000;       // 20k to avoid truncating small-medium files in history
       const MAX_TOOL_RESULT_CONSUMED = 1000;   // Ultra-compressed for consumed messages
 
       let maxResult = isMsgNew ? MAX_TOOL_RESULT_NEW : MAX_TOOL_RESULT_OLD;
@@ -392,8 +401,30 @@ export function buildContext(
       }
 
       let truncated = chatMsg.content;
-      if (chatMsg.content.length > maxResult) {
-        const sliced = chatMsg.content.slice(0, maxResult);
+      
+      // Sanitize tool result content to avoid AI content filters (same logic as in createToolMessage)
+      // Apply BEFORE truncation to ensure the filter works on all content
+      if (typeof truncated === 'string') {
+        // 0. Remove all non-ASCII characters to comply with language filter (only CN/EN/FR/DE/RU allowed)
+        truncated = truncated.replace(/[^\x00-\x7F]/g, '');
+        // 1. Strip raw unix permissions from `ls -l` (e.g. "-rw-rw-r--", "drwxrwxr-x")
+        truncated = truncated.replace(/^[d\-l][rwx\-]{9,10}\+?\s+/gm, (match) => {
+          if (match.startsWith('d')) return '[DIR]  ';
+          if (match.startsWith('l')) return '[LINK] ';
+          return '[FILE] ';
+        });
+        // 2. Strip the "total" summary line from ls output
+        truncated = truncated.replace(/^total\s+\d+\s*$/gm, '');
+        // 3. Strip usernames, groups, file sizes, and dates from ls -l output in one pass
+        truncated = truncated.replace(/^(\[DIR\]  |\[FILE\] |\[LINK] )\s*\d+\s+[A-Za-z0-9_\-]+\s+[A-Za-z0-9_\-]+\s+\d+\s+[A-Za-z]{3}\s+\d+\s+[\d:]+\s+/gm, '$1');
+        // 4. Strip long numeric sequences from filenames (e.g., screenshot_1788729987988.png -> screenshot_[NUM].png)
+        truncated = truncated.replace(/_\d{8,}/g, '_[NUM]');
+        // 5. Strip large contiguous hex/base64 strings if they are ridiculously long to prevent similar filter issues
+        truncated = truncated.replace(/[A-Za-z0-9+/=]{1000,}/g, '[BASE64_DATA_REMOVED]');
+      }
+      
+      if (truncated.length > maxResult) {
+        const sliced = truncated.slice(0, maxResult);
         // Estimate which line we stopped at so the AI knows the exact next startLine
         const linesRead = sliced.split('\n').length;
         const artifactId = msg.toolCalls?.find(call => call.result?.artifactRef)?.result?.artifactRef?.id;
@@ -403,6 +434,7 @@ export function buildContext(
             ? ` — continue with readArtifact({ artifactId: "${artifactId}", offset: ${maxResult} }).`
             : ' — rerun the originating tool with a narrower range or result limit.');
       }
+      
       chatMsg.content = `TOOL RESULT (${msg.toolName}):\n${truncated}`;
       delete chatMsg.tool_call_id;
       delete chatMsg.name;

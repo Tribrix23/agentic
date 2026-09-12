@@ -10,6 +10,7 @@ import { readFileLineRange } from './lib/fileRangeReader';
 import { assertChildName, assertPathWithinWorkspace } from './lib/workspaceBoundary';
 import { EnvironmentManager } from './lib/environment/manager';
 import { registerEnvironmentIpc } from './lib/environment/ipc';
+import { extractHeaderFooterPositions, cleanDocxBuffer } from './backend/docxParser';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -1457,6 +1458,36 @@ function createWindow() {
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('read-docx-buffer', async (_event, filePath: string) => {
+    try {
+      const buffer = await cleanDocxBuffer(filePath);
+      return buffer.toString('base64');
+    } catch (err: any) {
+      console.error('[IPC] Failed to read docx buffer:', err);
+      throw new Error(err.message || 'Failed to read DOCX file');
+    }
+  });
+
+  ipcMain.handle('get-docx-positions', async (_event, filePath: string) => {
+    try {
+      return await extractHeaderFooterPositions(filePath);
+    } catch (err: any) {
+      console.error('[IPC] Failed to get docx positions:', err);
+      return { header: [], footer: [] };
+    }
+  });
+
+  ipcMain.handle('save-docx-html', async (_event, filePath: string, htmlContent: string) => {
+    const fs = require('fs');
+    try {
+      fs.writeFileSync(filePath, htmlContent, 'utf-8');
+      return true;
+    } catch (err: any) {
+      console.error('[IPC] Failed to save docx html:', err);
+      return false;
     }
   });
 

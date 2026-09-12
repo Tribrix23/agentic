@@ -94,8 +94,15 @@ export class IncrementalToolCallParser {
       const segment = this.buffer.slice(start.index, nextStart);
       
       const functionRegex = /<(?:function|invoke)(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>/gi;
-      const functionMatches = Array.from(segment.matchAll(functionRegex));
-      
+      const functionMatches = Array.from(segment.matchAll(functionRegex))
+        // Filter out matches that appear inside a <parameter> tag by checking if there's an unclosed <parameter> before it
+        .filter(match => {
+          const before = segment.slice(0, match.index);
+          const lastParamOpen = Math.max(before.lastIndexOf('<parameter='), before.lastIndexOf('<parameter '));
+          const lastParamClose = before.lastIndexOf('</parameter>');
+          return lastParamOpen === -1 || lastParamClose > lastParamOpen;
+        });
+
       functionMatches.forEach((functionMatch, functionIndex) => {
         let name = functionMatch[1];
         if (name === 'write_file') name = 'writeFile';

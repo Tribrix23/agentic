@@ -186,7 +186,11 @@ export function MessageBubble({
         .replace(/<think(?:ing)?>[\s\S]*?(?:<\/?think(?:ing)?>|$)/gi, '')
         .trim();
 
-      thinkingContent = sanitize(thinkingContent);
+      const sanitizeThinking = (text: string) => text
+        .replace(/<\/?think(?:ing)?>/gi, '')
+        .trim();
+
+      thinkingContent = sanitizeThinking(thinkingContent);
       displayContentLocal = sanitize(displayContentLocal);
 
       let actualThinkingContent = thinkingContent;
@@ -274,12 +278,22 @@ export function MessageBubble({
         }
 
         // Try Native <function=name> format (Gemini XML style)
-        const functionRegex = /<function=([a-zA-Z0-9_-]+)>([\s\S]*?(?:<\/function>|$))/gi;
+        const functionRegex = /<function=([a-zA-Z0-9_-]+)>/gi;
         let functionMatch;
         let matchCounter = 0;
-        while ((functionMatch = functionRegex.exec(rawContent)) !== null) {
+        
+        const allMatches = Array.from(rawContent.matchAll(functionRegex)).filter(match => {
+          const before = rawContent.slice(0, match.index);
+          const lastParamOpen = Math.max(before.lastIndexOf('<parameter='), before.lastIndexOf('<parameter '));
+          const lastParamClose = before.lastIndexOf('</parameter>');
+          return lastParamOpen === -1 || lastParamClose > lastParamOpen;
+        });
+
+        for (let i = 0; i < allMatches.length; i++) {
+          functionMatch = allMatches[i];
           const tName = functionMatch[1];
-          const innerStr = functionMatch[2];
+          const nextStart = allMatches[i + 1]?.index ?? rawContent.length;
+          const innerStr = rawContent.slice(functionMatch.index, nextStart);
           matchCounter++;
 
           if (!msg.toolCalls || !msg.toolCalls.some(tc => tc.name === tName)) {

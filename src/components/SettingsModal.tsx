@@ -1008,6 +1008,29 @@ export const SettingsModal = ({
                 </div>
 
                 <div>
+                  <h3 className="text-white font-semibold text-[15px] mb-3">Reasoning & Thinking</h3>
+                  <div className="flex flex-col gap-4">
+                    <ToggleSetting
+                      label="Enable Model Thinking"
+                      description="Allow models to perform internal reasoning (<think>) before responding."
+                      checked={aiConfig.enableThinking ?? true}
+                      onChange={val => handleAIConfigChange({ enableThinking: val })}
+                    />
+                    <div className={cn("flex flex-col gap-4 transition-opacity", !(aiConfig.enableThinking ?? true) ? "opacity-50 pointer-events-none" : "opacity-100")}>
+                      <SliderSetting
+                        label="Reasoning Budget"
+                        description={AI_PARAM_RANGES.reasoningBudget.description}
+                        min={AI_PARAM_RANGES.reasoningBudget.min}
+                        max={AI_PARAM_RANGES.reasoningBudget.max}
+                        step={AI_PARAM_RANGES.reasoningBudget.step}
+                        value={aiConfig.reasoningBudget ?? 256}
+                        onChange={val => handleAIConfigChange({ reasoningBudget: val })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <h3 className="text-white font-semibold text-[15px] mb-3">Output</h3>
                   <div className="flex flex-col gap-4">
                     <ToggleSetting label="Streaming" description="Stream response chunks as they arrive." checked={aiConfig.stream} onChange={val => handleAIConfigChange({ stream: val })} />

@@ -64,19 +64,40 @@
     "@monaco-editor/react": "^4.7.0",
     "@playwright/mcp": "0.0.79",
     "@supabase/supabase-js": "^2.110.7",
+    "@tiptap/extension-color": "^3.31.3",
+    "@tiptap/extension-font-family": "^3.31.3",
+    "@tiptap/extension-highlight": "^3.31.3",
+    "@tiptap/extension-link": "^3.31.3",
+    "@tiptap/extension-subscript": "^3.31.3",
+    "@tiptap/extension-superscript": "^3.31.3",
+    "@tiptap/extension-table": "^3.31.3",
+    "@tiptap/extension-table-cell": "^3.31.3",
+    "@tiptap/extension-table-header": "^3.31.3",
+    "@tiptap/extension-table-row": "^3.31.3",
+    "@tiptap/extension-text-align": "^3.31.3",
+    "@tiptap/extension-text-style": "^3.31.3",
+    "@tiptap/extension-underline": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/react": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
     "@types/prismjs": "^1.26.6",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@xterm/addon-fit": "^0.11.0",
     "ajv": "^8.20.0",
     "clsx": "^2.1.1",
+    "docx-preview": "^0.4.0",
     "electron-squirrel-startup": "^1.0.1",
     "framer-motion": "^12.42.2",
+    "html-to-docx": "^1.8.0",
+    "jszip": "^3.10.2",
     "katex": "^0.18.5",
     "localtunnel": "^2.0.2",
     "lucide-react": "^1.25.0",
+    "mammoth": "^1.12.2",
     "monaco-editor": "^0.55.1",
     "node-pty": "^1.1.0",
     "p-limit": "^7.3.1",
+    "pagedjs": "^0.4.3",
     "prismjs": "^1.30.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -107,12 +128,16 @@
       {
         "from": "playwright-browsers",
         "to": "playwright-browsers",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "playwright-runtime",
         "to": "playwright-runtime",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       "assets/busybox.exe"
     ],

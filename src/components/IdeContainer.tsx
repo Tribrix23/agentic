@@ -842,6 +842,19 @@ export const IdeContainer: React.FC<IdeContainerProps> = ({ onBack, user }) => {
         return;
       }
       
+      const isDocxFile = node.name?.toLowerCase().endsWith('.docx') || node.name?.toLowerCase().endsWith('.doc');
+      
+      // DOCX files are binary — don't read as text; DocxEditor loads them via its own IPC
+      if (isDocxFile) {
+        setTargetFiles(prev => [...prev, {
+          path: node.path,
+          name: node.name,
+          originalContent: 'DOCX_BINARY'
+        }]);
+        setTargetActive(node.path);
+        return;
+      }
+
       const content = await (window as any).electron.readFileContent(node.path, activeProject?.path);
       if (content !== undefined && content !== null) {
         setTargetFiles(prev => [...prev, {

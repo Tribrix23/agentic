@@ -169,6 +169,16 @@ export class McpClientManager {
           args.target = args.selector;
           delete args.selector;
         }
+        if ('ref' in args) {
+          if (!('target' in args)) {
+            args.target = args.ref;
+          }
+          delete args.ref;
+        }
+        if ('element' in args && typeof args.element === 'string' && /^e\d+$/.test(args.element) && !('target' in args)) {
+          args.target = args.element;
+          delete args.element;
+        }
         if (toolName === 'browser_wait_for' && 'timeout' in args) {
           args.time = typeof args.timeout === 'number' ? args.timeout / 1000 : 5;
           delete args.timeout;

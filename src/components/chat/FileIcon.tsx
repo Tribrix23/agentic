@@ -84,5 +84,25 @@ export function FileIcon({ filename, size = 16, className = "" }: FileIconProps)
   // Media
   if (name.match(/\.(png|jpe?g|gif|svg|webp|ico|bmp|mp4|webm|mkv|avi|mov)$/)) return <VscFileMedia size={size} className={`text-purple-400 ${className}`} />;
   
+  // Microsoft Office
+  if (name.endsWith('.docx') || name.endsWith('.doc')) return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="24" rx="3" fill="#2B579A"/>
+      <text x="4" y="17" fontFamily="Arial" fontSize="13" fontWeight="bold" fill="white">W</text>
+    </svg>
+  );
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="24" rx="3" fill="#217346"/>
+      <text x="4" y="17" fontFamily="Arial" fontSize="13" fontWeight="bold" fill="white">X</text>
+    </svg>
+  );
+  if (name.endsWith('.pptx') || name.endsWith('.ppt')) return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="24" rx="3" fill="#D24726"/>
+      <text x="4" y="17" fontFamily="Arial" fontSize="13" fontWeight="bold" fill="white">P</text>
+    </svg>
+  );
+
   return <VscFileCode size={size} className={`text-gray-400 ${className}`} />;
 }

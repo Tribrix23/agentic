@@ -183,8 +183,7 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
   }, []);
   
   // Parallax for hero section
-  const heroY = useTransform(scrollY, [0, 300], [0, 100]);
-  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0]);
+
 
   return (
     <motion.div 
@@ -279,29 +278,13 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
               transition={{ duration: 0.2 }}
               className="p-8 space-y-10 max-w-7xl mx-auto w-full"
             >
-              {/* Hero Section with Parallax */}
-              <div className="relative w-full h-[360px] rounded-2xl overflow-hidden border border-white/5 flex items-end p-10 bg-[#0f0f13]">
-                {/* Parallax Background */}
-                <motion.div 
-                  style={{ y: heroY, opacity: heroOpacity }}
-                  className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-blue-600/20 z-0" 
+              {/* Hero Section */}
+              <div className="relative w-full rounded-2xl overflow-hidden border border-white/5 bg-[#0f0f13]">
+                <img 
+                  src="./SkillBanner.png" 
+                  alt="Add-ons Banner" 
+                  className="w-full h-auto object-cover block"
                 />
-                
-                <div className="absolute inset-0 bg-gradient-to-t from-[#08080c] via-[#08080c]/40 to-transparent z-0" />
-                
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 25 }}
-                  className="relative z-10 w-full max-w-2xl space-y-5"
-                >
-                  <div className="w-40 h-6 bg-white/10 rounded-md animate-pulse" />
-                  <div className="w-3/4 h-14 bg-white/10 rounded-md animate-pulse" />
-                  <div className="w-1/2 h-4 bg-white/10 rounded-md animate-pulse" />
-                  <div className="pt-2">
-                    <div className="w-28 h-10 bg-purple-500/40 rounded-md animate-pulse" />
-                  </div>
-                </motion.div>
               </div>
 
               {/* Addons Grid Section */}

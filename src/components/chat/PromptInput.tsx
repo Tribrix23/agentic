@@ -142,7 +142,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [hoveredCategoryPosition, setHoveredCategoryPosition] = useState<{ top: number; left: number } | null>(null);
+  const [hoveredCategoryPosition, setHoveredCategoryPosition] = useState<{ top: number; left: number; right: number; bottom: number; width: number } | null>(null);
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const [tokenQuota, setTokenQuota] = useState<TokenQuotaSnapshot | null>(null);
   const modelItemRefs = useRef<Record<string, HTMLDivElement>>({});
@@ -238,10 +238,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const allModels = [
     { id: 'dispatcher', name: 'Dispatcher v1', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: [], isPro: false },
-    { id: 'gpt-oss', name: 'GPT-OSS 120B', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Medium', 'High'], isPro: false },
+    { id: 'glm53', name: 'GLM 5.3', icon: <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />, submodels: ['Low', 'High'], isPro: false },
     { id: 'qwen', name: 'Qwen 3.7', icon: <QwenIcon className="w-3.5 h-3.5 text-[#FF6A00]" />, submodels: ['Flash', 'Plus', 'Max'], isPro: true },
     { id: 'qwen38', name: 'Qwen 3.8', icon: <QwenIcon className="w-3.5 h-3.5 text-[#623AE7]" />, submodels: [], isPro: true },
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
+    { id: 'gpt6astra', name: 'GPT-6 Astra', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: [], isPro: true },
     { id: 'deepseek', name: 'DeepSeek v4', icon: <DeepSeekIcon className="w-3.5 h-3.5 text-[#4D6BFE]" />, submodels: ['Flash', 'Pro'], isPro: true },
     { id: 'kimi', name: 'Kimi k2.7', icon: <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />, submodels: [], isPro: true },
     { id: 'glm', name: 'GLM 5.2', icon: <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />, submodels: ['5.2', '5.2 Lite'], isPro: true },
@@ -270,7 +271,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   };
 
   const getModelIcon = (model: string) => {
-    if (model.includes('GPT-OSS') || model.includes('GPT-5.6')) return <OpenAIIcon className="w-3.5 h-3.5 text-white" />;
+    if (model.includes('GPT-5.6')) return <OpenAIIcon className="w-3.5 h-3.5 text-white" />;
     if (model.includes('Qwen')) return <QwenIcon className="w-4 h-4 text-[#FF6A00]" />;
     if (model.includes('DeepSeek')) return <DeepSeekIcon className="w-3.5 h-3.5 text-[#4D6BFE]" />;
     if (model.includes('Kimi')) return <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />;
@@ -360,11 +361,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     };
   }, [userId]);
 
+
+
   // Update position when hovered category changes
   useEffect(() => {
     if (hoveredCategory && modelItemRefs.current[hoveredCategory]) {
       const rect = modelItemRefs.current[hoveredCategory].getBoundingClientRect();
-      setHoveredCategoryPosition({ top: rect.top, left: rect.right });
+      setHoveredCategoryPosition({ top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom, width: rect.width });
     } else {
       setHoveredCategoryPosition(null);
     }
@@ -510,7 +513,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
-      {selectedImages.length > 0 && ['GPT-OSS Medium', 'GPT-OSS High', 'Dispatcher v1'].includes(config.model || 'Dispatcher v1') && (
+      {selectedImages.length > 0 && ['GLM 5.3 Low', 'GLM 5.3 High', 'Dispatcher v1'].includes(config.model || 'Dispatcher v1') && (
         <div className="absolute -top-7 right-0 text-yellow-400/90 text-[11px] font-medium pointer-events-none">
           Limited Visual Capability as the Model does not natively support it
         </div>
@@ -762,73 +765,117 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     </span>
                   </span>
                 )}
-                <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showModelDropdown ? "rotate-180" : "")} />
               </button>
-              <AnimatePresence>
-                {showModelDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 5 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl z-50 overflow-visible flex flex-col h-[320px]"
-                  >
-                    {/* Search Input */}
-                    <div className="px-2 pb-2 mt-2 flex-shrink-0">
-                      <div className="relative">
-                        <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-white/40" />
-                        <input
-                          type="text"
-                          placeholder="Search models..."
-                          value={modelSearchQuery}
-                          onChange={(e) => setModelSearchQuery(e.target.value)}
-                          className="w-full bg-[#1a1a20] border border-white/10 rounded-md pl-7 pr-2 py-1.5 text-xs text-white placeholder-white/40 outline-none focus:border-white/20"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
-                      {filteredModels.map((model) => (
-                        <div
-                          key={model.id}
-                          className="relative w-full"
-                          ref={(el) => {
-                            if (el) {
-                              modelItemRefs.current[model.id] = el;
-                            }
-                          }}
-                          onMouseEnter={() => setHoveredCategory(model.id)}
-                        >
-                          {model.submodels.length > 0 ? (
-                            <>
-                              <button disabled={model.isPro} className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center justify-between transition-colors", hoveredCategory === model.id ? "bg-white/10 text-white" : "text-[#a8a8b1]", model.isPro ? "opacity-50 cursor-not-allowed" : "hover:text-white hover:bg-white/5")}>
-                                <span className="flex items-center gap-2">
-                                  {model.icon}
-                                  {model.name}
-                                  {model.isPro && <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded font-medium">PRO+</span>}
-                                </span>
-                                <ChevronRight size={12} />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              disabled={model.isPro}
-                              onClick={() => { if(!model.isPro) { updateConfig({ model: model.name }); setShowModelDropdown(false); } }}
-                              className={cn("w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 transition-colors", model.isPro ? "opacity-50 cursor-not-allowed text-[#a8a8b1]" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
-                            >
-                              <span className="flex items-center gap-2">
-                                {model.icon}
-                                {model.name}
-                                {model.isPro && <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded font-medium">PRO+</span>}
-                              </span>
-                            </button>
-                          )}
+              {typeof document !== 'undefined' && createPortal(
+                <AnimatePresence>
+                  {showModelDropdown && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        onClick={() => setShowModelDropdown(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                        transition={{ type: "spring", duration: 0.4, bounce: 0.1 }}
+                        className="relative w-full max-w-[650px] bg-[#16161a] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[70vh] overflow-hidden"
+                      >
+                        {/* Header: Search and Close */}
+                        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.05]">
+                          <div className="relative flex-1">
+                            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                            <input
+                              type="text"
+                              placeholder="Search models..."
+                              value={modelSearchQuery}
+                              onChange={(e) => setModelSearchQuery(e.target.value)}
+                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.08] border border-white/5 transition-all rounded-lg pl-10 pr-4 py-2 text-[13px] text-white placeholder-white/40 outline-none focus:border-purple-500/50"
+                            />
+                          </div>
+                          <button onClick={() => setShowModelDropdown(false)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
+                            <X size={20} />
+                          </button>
                         </div>
-                      ))}
+
+                        {/* Content: Single Grid */}
+                        <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {filteredModels.map(model => {
+                              const isSelected = config.model === model.name || (config.model && config.model.includes(model.name));
+                              return (
+                                <div
+                                  key={model.id}
+                                  ref={(el) => { if (el) modelItemRefs.current[model.id] = el; }}
+                                  onMouseEnter={() => setHoveredCategory(model.id)}
+                                >
+                                  <button
+                                    disabled={model.isPro}
+                                    onClick={() => {
+                                      if(!model.isPro && model.submodels.length === 0) {
+                                        updateConfig({ model: model.name });
+                                        setShowModelDropdown(false);
+                                      }
+                                    }}
+                                    className={cn(
+                                      "w-full p-3.5 rounded-xl border text-left transition-all flex flex-col relative h-[80px] group",
+                                      isSelected ? "bg-white/[0.08] border-purple-500/50" : "bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]",
+                                      model.isPro && !isSelected && "opacity-50"
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between w-full">
+                                      <div className="flex items-center gap-3">
+                                        <div className="text-white/80 p-1.5 rounded-lg bg-white/5">{model.icon}</div>
+                                        <div>
+                                          <div className="font-semibold text-white text-[13px] tracking-tight flex items-center gap-1.5">
+                                            {model.name}
+                                            {model.id === 'glm53' ? (
+                                              <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
+                                            ) : model.isPro && (
+                                              ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? (
+                                                <img src="./PRO.png" alt="PRO" className="h-[28px] object-contain ml-1.5 -my-2" />
+                                              ) : ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? (
+                                                <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
+                                              ) : (
+                                                <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1 py-0.5 rounded font-bold ml-1.5">PRO+</span>
+                                              )
+                                            )}
+                                          </div>
+                                          <div className="text-[11px] text-white/40 mt-1">
+                                            {model.id === 'glm53' ? 'Free Limited Time Tier' :
+                                             ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? 'Pro Tier' :
+                                             ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? 'Premium Tier' :
+                                             model.isPro ? 'Pro+ Tier' : 'Standard Tier'}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className={cn("w-[16px] h-[16px] rounded-full border flex items-center justify-center shrink-0", isSelected ? "border-purple-400" : "border-white/20 group-hover:border-white/40")}>
+                                        {isSelected && <div className="w-[8px] h-[8px] rounded-full bg-purple-400" />}
+                                      </div>
+                                    </div>
+                                    
+                                    {model.submodels.length > 0 && (
+                                      <div className={cn("absolute bottom-2.5 right-2.5", isSelected ? "text-purple-400" : "text-white/30 group-hover:text-white/60")}>
+                                        <ChevronDown size={14} />
+                                      </div>
+                                    )}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </motion.div>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  )}
+                </AnimatePresence>,
+                document.body
+              )}
 
               {/* Portal for submodel dropdown and tooltips */}
               {showModelDropdown && hoveredCategory && hoveredCategoryPosition && (() => {
@@ -836,6 +883,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 if (!model) return null;
                 
                 if (model.isPro) {
+                  const getTooltipText = (modelId: string) => {
+                    if (['glm', 'kimi', 'qwen', 'deepseek'].includes(modelId)) return 'Upgrade your plan to Pro tier or Higher';
+                    if (['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(modelId)) return 'Upgrade your plan to Premium';
+                    return 'Upgrade your plan to Pro+';
+                  };
+
                   return createPortal(
                     <AnimatePresence>
                       <motion.div
@@ -845,13 +898,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         transition={{ duration: 0.15 }}
                         style={{
                           position: 'fixed',
-                          top: hoveredCategoryPosition.top + 2,
-                          left: hoveredCategoryPosition.left + 8,
+                          top: hoveredCategoryPosition.bottom - 32,
+                          left: hoveredCategoryPosition.left + 16,
                           zIndex: 9999,
                         }}
-                        className="px-3 py-1.5 bg-[#1f2937] text-white text-xs rounded whitespace-nowrap shadow-xl border border-white/5"
+                        className="px-3 py-1.5 bg-[#1f2937] text-white text-[12px] rounded-lg whitespace-nowrap shadow-xl border border-white/5"
                       >
-                        Upgrade your plan to Pro+
+                        {getTooltipText(model.id)}
                       </motion.div>
                     </AnimatePresence>,
                     document.body
@@ -868,17 +921,17 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       transition={{ duration: 0.15 }}
                       style={{
                         position: 'fixed',
-                        top: hoveredCategoryPosition.top,
-                        left: hoveredCategoryPosition.left + 4,
+                        top: hoveredCategoryPosition.top + 45,
+                        left: hoveredCategoryPosition.left + 16,
                         zIndex: 9999,
                       }}
-                      className="w-32 bg-[#16161a] border border-white/10 rounded-lg shadow-xl py-1 flex flex-col"
+                      className="w-36 bg-[#16161a] border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col ml-1"
                     >
                       {model.submodels.map(m => (
                         <button
                           key={m}
-                          onClick={() => { updateConfig({ model: model.id === 'gpt-oss' ? `GPT-OSS ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
-                          className="px-3 py-1.5 text-xs text-left text-[#a8a8b1] hover:text-white hover:bg-white/10"
+                          onClick={() => { updateConfig({ model: model.id === 'glm53' ? `GLM 5.3 ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
+                          className="px-3 py-2 text-[13px] font-medium text-left text-white/70 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all mb-0.5"
                         >
                           {m}
                         </button>

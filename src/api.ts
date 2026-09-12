@@ -6,6 +6,7 @@ import { AIConfig, DEFAULT_AI_CONFIG, buildSystemPrompt, MODEL_PRESETS } from '.
 import { ToolCall, createToolCall } from './lib/messageTypes';
 import { isQuotaError, TokenBillingSession } from './lib/tokenQuota';
 import { extractImageUrls } from './lib/imageAttachments';
+import { selectToolProtocol } from './lib/agent/toolProtocol';
 
 // ── Legacy exports for backward compatibility ──────────────────────────────
 export interface ChatMessage {
@@ -159,16 +160,12 @@ function getModelInfo(model: string): {
 } {
   const lowerModel = model.toLowerCase();
 
-  // Check for GPT-OSS models
-  if (lowerModel.includes('gpt-oss')) {
-    let level = 'medium'; // default
-    if (lowerModel.includes('high')) {
-      level = 'high';
-    }
+  // Check for GLM 5.3 models (new name) or legacy GPT-OSS names
+  if (lowerModel.includes('gpt-oss') || lowerModel.includes('glm 5.3')) {
     return {
       endpoint: 'https://api.devctr.com/api/models',
       modelName: 'glm-5.3',
-      level
+      level: null // GLM doesn't support level parameter
     };
   }
 
@@ -302,7 +299,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     signal = p.signal;
     conversationId = p.conversationId;
     billingSession = p.billingSession;
-    toolProtocol = p.toolProtocol || 'native';
+    toolProtocol = p.toolProtocol || selectToolProtocol(config.model);
   }
 
   let dynamicTemp = config.temperature;
@@ -369,21 +366,53 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     payload.level = level;
   }
 
-  if (config.enableThinking) {
-    payload.chat_template_kwargs = { enable_thinking: true };
-    if (config.reasoningBudget) {
-      if (modelName.includes('dispatcher')) {
-        payload.reasoning_budget = config.reasoningBudget;
-      } else {
-        // For non-dispatcher models, enforce reasoning budget via system prompt injection
-        const constraintMsg = `\n\nCRITICAL INSTRUCTION: Your internal reasoning (<think> block) MUST be extremely concise and strictly under ${config.reasoningBudget} tokens. Do not ramble.`;
-        const sysMsgIndex = clonedMessages.findIndex(m => m.role === 'system');
-        if (sysMsgIndex >= 0) {
-          clonedMessages[sysMsgIndex] = { ...clonedMessages[sysMsgIndex], content: clonedMessages[sysMsgIndex].content + constraintMsg };
-        } else {
-          clonedMessages.unshift({ role: 'system', content: constraintMsg });
-        }
-      }
+  const isGlm = modelName.toLowerCase().includes('glm');
+  const budget = config.reasoningBudget || 256;
+  if (config.enableThinking !== false) {
+    payload.enable_thinking = true;
+    payload.reasoning_budget = budget;
+    payload.thinking_budget = budget;
+    payload.max_thinking_tokens = budget;
+    // When reasoning_budget is set, avoid sending reasoning_effort to prevent backend parameter conflicts
+    payload.chat_template_kwargs = {
+      enable_thinking: true,
+      thinking_budget: budget,
+      max_thinking_tokens: budget,
+    };
+    payload.reasoning = { max_tokens: budget };
+
+    // Inject strict brevity constraint into system prompt with high priority
+    const constraintMsg = `CRITICAL INSTRUCTION: Your internal reasoning (<think> block) MUST be extremely concise and strictly under ${budget} tokens (max 2-3 sentences). Do not ramble, outline code, or brainstorm alternatives. State your immediate action and conclude thinking immediately.\n\n`;
+    const sysMsgIndex = clonedMessages.findIndex(m => m.role === 'system');
+    if (sysMsgIndex >= 0) {
+      clonedMessages[sysMsgIndex] = { ...clonedMessages[sysMsgIndex], content: constraintMsg + clonedMessages[sysMsgIndex].content };
+    } else {
+      clonedMessages.unshift({ role: 'system', content: constraintMsg });
+    }
+  } else {
+    if (isGlm) {
+      // GLM always thinks and rejects enable_thinking: false and reasoning_effort: 'none' with 400.
+      // Use 'low' effort so upstream succeeds without error.
+      payload.reasoning_effort = 'low';
+      payload.reasoning_budget = 64;
+      payload.thinking_budget = 64;
+      payload.max_thinking_tokens = 64;
+    } else {
+      payload.enable_thinking = false;
+      payload.reasoning_budget = 0;
+      payload.thinking_budget = 0;
+      payload.max_thinking_tokens = 0;
+      payload.reasoning_effort = 'none';
+      payload.chat_template_kwargs = { enable_thinking: false };
+      payload.reasoning = { enabled: false };
+    }
+
+    const noThinkMsg = `CRITICAL INSTRUCTION: Do NOT output any <think> block or internal reasoning. Answer and invoke tools immediately.\n\n`;
+    const sysMsgIndex = clonedMessages.findIndex(m => m.role === 'system');
+    if (sysMsgIndex >= 0) {
+      clonedMessages[sysMsgIndex] = { ...clonedMessages[sysMsgIndex], content: noThinkMsg + clonedMessages[sysMsgIndex].content };
+    } else {
+      clonedMessages.unshift({ role: 'system', content: noThinkMsg });
     }
   }
 
@@ -457,7 +486,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
             'Content-Type': 'application/json',
             'Accept': 'text/event-stream',
             'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',   // Disable nginx/proxy buffering for SSE
           },
           body: JSON.stringify(payload),
           signal: controller.signal,
@@ -648,6 +677,7 @@ async function handleStreamingResponse(
   let streamCancelled = false;
   let finishReason: string | undefined;
   let tokenUsage: any = undefined;
+  let emittedAnyToolCall = false;
 
   try {
     while (true) {
@@ -755,6 +785,7 @@ async function handleStreamingResponse(
                   try {
                     const args = tc.arguments ? JSON.parse(tc.arguments) : {};
                     onToolCall(createToolCall(tc.name, args, tc.id));
+                    emittedAnyToolCall = true;
                   } catch (e) {
                     throw new Error(`Stream Error: Failed to parse streamed tool call arguments: ${e instanceof Error ? e.message : String(e)}`);
                   }
@@ -779,7 +810,7 @@ async function handleStreamingResponse(
   } finally {
     try { reader.releaseLock(); } catch (_) { }
     // Ensure the response body is fully released so the connection is not left dangling
-    // try { if (!streamCancelled) response.body?.cancel(); } catch (_) { }
+    try { if (!streamCancelled) response.body?.cancel(); } catch (_) { }
   }
 
   if (!streamCancelled) {
@@ -787,6 +818,25 @@ async function handleStreamingResponse(
       fullContent += '\n</think>\n';
       onChunk('\n</think>\n');
     }
+
+    // Flush any pending tool calls that completed right before stream closed
+    for (const [, tc] of Object.entries(pendingToolCalls)) {
+      if (tc.name && onToolCall) {
+        try {
+          const args = tc.arguments ? JSON.parse(tc.arguments) : {};
+          onToolCall(createToolCall(tc.name, args, tc.id));
+          emittedAnyToolCall = true;
+        } catch (e) {
+          console.warn('[API] Failed to parse pending tool call at end of stream:', e);
+        }
+      }
+    }
+    pendingToolCalls = {};
+
+    if (!fullContent.trim() && !emittedAnyToolCall) {
+      throw new Error('Stream Error: Model returned an empty response with no content or tool calls');
+    }
+
     onSuccess(fullContent, finishReason, tokenUsage);
   }
 }

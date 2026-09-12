@@ -179,28 +179,30 @@ export const MainContent = ({
 
   // ── Save messages whenever they change ───────────────────────────────
   useEffect(() => {
-    if (activeConversationId) {
-      localStorage.setItem('quantix_active_chat_id', activeConversationId);
-      if (messages.length > 0) {
-        saveMessages(activeConversationId, messages);
-      }
-    } else {
+    if (!activeConversationId) {
       localStorage.removeItem('quantix_active_chat_id');
+      return;
+    }
+    localStorage.setItem('quantix_active_chat_id', activeConversationId);
+    if (messages.length === 0) return;
+
+    const isStreaming = messages.some(m => m.isStreaming);
+    if (isStreaming) {
+      // Debounce saving during active streaming to prevent thrashing localStorage and sidebar
+      const timer = setTimeout(() => {
+        saveMessages(activeConversationId, messages);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      saveMessages(activeConversationId, messages);
     }
   }, [messages, activeConversationId]);
 
-  // ── Broadcast Agent Running State for Sidebar and cleanup MCP ─────────
-  const wasRunningRef = useRef(isAgentRunning);
+  // ── Broadcast Agent Running State for Sidebar ─────────────────────────
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('agent-running-state', {
       detail: { isRunning: isAgentRunning, activeConversationId }
     }));
-
-    if (wasRunningRef.current && !isAgentRunning) {
-      // Clean up playwright browser when agent stops
-      (window as any).electron?.mcp?.reconnectServer('playwright').catch(() => {});
-    }
-    wasRunningRef.current = isAgentRunning;
   }, [isAgentRunning, activeConversationId]);
 
   // ── Listen for chat switching and deletion ───────────────────────────
@@ -685,27 +687,34 @@ IMPORTANT RULES:
       case 'agent:thinking':
         // Don't overwrite askUser or tool approval states — those are blocking UI states
         if (agentState === 'awaiting_user_response' || agentState === 'awaiting_tool_approval') break;
-        setAgentStatus('Thinking...');
-        setAgentState('executing_parallel');
+        setAgentStatus(prev => prev === 'Thinking...' ? prev : 'Thinking...');
+        setAgentState(prev => (prev === 'executing_parallel' || prev === 'awaiting_user_response' || prev === 'awaiting_tool_approval') ? prev : 'executing_parallel');
         break;
       case 'agent:streaming':
         if (agentState === 'awaiting_user_response' || agentState === 'awaiting_tool_approval') break;
-        setAgentStatus('Generating response...');
-        setAgentState('executing_parallel');
+        setAgentStatus(prev => prev === 'Generating response...' ? prev : 'Generating response...');
+        setAgentState(prev => (prev === 'executing_parallel' || prev === 'awaiting_user_response' || prev === 'awaiting_tool_approval') ? prev : 'executing_parallel');
         // Update the last assistant message with streaming content
         setMessages(prev => {
+          const nextContent = event.data.parsedContent ?? event.data.fullText;
+          const nextThinking = event.data.thinkingContent;
+          let changed = false;
           const newMsgs = [...prev];
           for (let i = newMsgs.length - 1; i >= 0; i--) {
             if (newMsgs[i].role === 'assistant' && newMsgs[i].isStreaming) {
+              if (newMsgs[i].content === nextContent && newMsgs[i].thinkingContent === nextThinking) {
+                return prev;
+              }
               newMsgs[i] = {
                 ...newMsgs[i],
-                content: event.data.parsedContent ?? event.data.fullText,
-                thinkingContent: event.data.thinkingContent
+                content: nextContent,
+                thinkingContent: nextThinking
               };
+              changed = true;
               break;
             }
           }
-          return newMsgs;
+          return changed ? newMsgs : prev;
         });
         break;
       case 'agent:tool-streaming':
@@ -1763,44 +1772,41 @@ IMPORTANT RULES:
 
                   const isUndoingFirstMessage = messages.findIndex(m => m.id === msgId) === 0;
 
-                  // ── 4. Update messages - use functional update to ensure we have latest state
-                  setMessages(prevMessages => {
-                    const currentIdx = prevMessages.findIndex(m => m.id === msgId);
-                    if (currentIdx === -1) return prevMessages;
+                  // ── 4. Update messages
+                  const currentIdx = messages.findIndex(m => m.id === msgId);
+                  if (currentIdx === -1) return false;
 
-                    const currentUserMsg = prevMessages[currentIdx];
+                  const currentUserMsg = messages[currentIdx];
+                  // Restore user text to input
+                  setInputValue(currentUserMsg.content || '');
 
-                    // Restore user text to input
-                    setInputValue(currentUserMsg.content || '');
-
-                    if (currentIdx === 0) {
-                      // ── 4a. Undoing the first message -> delete the entire conversation
-                      if (convId && selectedProject?.path) {
-                        const projPath = selectedProject.path;
-                        localStorage.removeItem(`quantix_messages_${convId}`);
-                        let savedConvos: any = {};
-                        try {
-                          const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
-                          if (!Array.isArray(parsed)) savedConvos = parsed;
-                        } catch { }
-                        if (savedConvos[projPath]) {
-                          savedConvos[projPath] = savedConvos[projPath].filter((c: any) => c.id !== convId);
-                          localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
-                        }
+                  if (currentIdx === 0) {
+                    // ── 4a. Undoing the first message -> delete the entire conversation
+                    if (convId && selectedProject?.path) {
+                      const projPath = selectedProject.path;
+                      localStorage.removeItem(`quantix_messages_${convId}`);
+                      let savedConvos: any = {};
+                      try {
+                        const parsed = JSON.parse(localStorage.getItem('quantix_conversations') || '{}');
+                        if (!Array.isArray(parsed)) savedConvos = parsed;
+                      } catch { }
+                      if (savedConvos[projPath]) {
+                        savedConvos[projPath] = savedConvos[projPath].filter((c: any) => c.id !== convId);
+                        localStorage.setItem('quantix_conversations', JSON.stringify(savedConvos));
                       }
-                      setActiveConversationId(null);
-                      setChatTitle(null);
-                      setTokenBudget(undefined);
-                      return [];
-                    } else {
-                      // ── 4b. Undoing a subsequent message -> trim the messages array to remove this user message and all subsequent messages
-                      const newMessages = prevMessages.slice(0, currentIdx);
-                      if (convId) {
-                        saveMessages(convId, newMessages);
-                      }
-                      return newMessages;
                     }
-                  });
+                    setActiveConversationId(null);
+                    setChatTitle(null);
+                    setTokenBudget(undefined);
+                    setMessages([]);
+                  } else {
+                    // ── 4b. Undoing a subsequent message -> trim the messages array
+                    const newMessages = messages.slice(0, currentIdx);
+                    if (convId) {
+                      saveMessages(convId, newMessages);
+                    }
+                    setMessages(newMessages);
+                  }
                   if (isUndoingFirstMessage) {
                     window.dispatchEvent(new Event('conversationsUpdated'));
                   }

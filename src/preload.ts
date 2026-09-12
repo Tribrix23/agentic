@@ -120,7 +120,8 @@ contextBridge.exposeInMainWorld('electron', {
   runCommandCapture: (command: string, cwd: string) => ipcRenderer.invoke('run-command-capture', command, cwd),
   // Backward-compatible alias used by older tool definitions.
   runCommand: (command: string, cwd: string) => ipcRenderer.invoke('run-command-capture', command, cwd),
-  captureWindow: (options: { windowTitle: string; savePath: string; format?: 'png' | 'jpg' }) => ipcRenderer.invoke('capture-window', options),
+  captureWindow: (options: { windowTitle?: string; savePath: string; format?: 'png' | 'jpg'; projectRoot?: string }) => ipcRenderer.invoke('capture-window', options),
+  listCaptureWindows: () => ipcRenderer.invoke('list-capture-windows'),
   gitDiff: (cwd: string, file?: string) => ipcRenderer.invoke('git-diff', cwd, file),
   searchFiles: (projectPath: string, query: string, options?: { regex?: boolean; fileFilter?: string; maxResults?: number }) => ipcRenderer.invoke('search-files', projectPath, query, options),
   fileExists: (filePath: string, projectRoot?: string) => ipcRenderer.invoke('file-exists', filePath, projectRoot),
@@ -139,5 +140,10 @@ contextBridge.exposeInMainWorld('electron', {
 
   // ── Port Forwarding ────────────────────────────────────────────────────
   startPortForward: (port: number) => ipcRenderer.invoke('start-port-forward', port),
-  stopPortForward: (port: number) => ipcRenderer.invoke('stop-port-forward', port)
+  stopPortForward: (port: number) => ipcRenderer.invoke('stop-port-forward', port),
+  
+  readDocxHtml: (path: string) => ipcRenderer.invoke('read-docx-html', path),
+  readDocxBuffer: (path: string) => ipcRenderer.invoke('read-docx-buffer', path),
+  getDocxPositions: (path: string) => ipcRenderer.invoke('get-docx-positions', path),
+  saveDocxHtml: (path: string, htmlContent: string) => ipcRenderer.invoke('save-docx-html', path, htmlContent)
 });

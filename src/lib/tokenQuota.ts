@@ -77,8 +77,8 @@ export function getModelUsageMultiplier(model: string): number {
   if (normalized.includes('dispatcher v1') && !normalized.includes('v1.2')) return 0.75;
   if (normalized.includes('dispatcher v1.2')) return 0.9;
 
-  if (normalized.includes('gpt-oss') && normalized.includes('high')) return 1.5;
-  if (normalized.includes('gpt-oss')) return 1;
+  if ((normalized.includes('gpt-oss') || normalized.includes('glm 5.3')) && (normalized.includes('high'))) return 1.5;
+  if (normalized.includes('gpt-oss') || normalized.includes('glm 5.3')) return 1;
   if (normalized.includes('lite') || normalized.includes('flash')) return 1;
   if (normalized.includes('pro') || normalized.includes('max') || normalized.includes('terra') || normalized.includes('sol')) return 2;
   return 1.25;

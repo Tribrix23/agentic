@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, Square, X } from 'lucide-react';
+import { Minus, Square, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 import { Tooltip } from "./ui/Tooltip";
 
@@ -21,6 +21,18 @@ export const TitleBar = ({ userName, userAvatar }: TitleBarProps) => {
     (window as any).electron?.windowControls?.close();
   };
 
+  const handleZoomIn = () => {
+    const currentZoom = parseFloat(document.documentElement.style.zoom || '1');
+    const newZoom = Math.min(currentZoom + 0.1, 2.0);
+    document.documentElement.style.zoom = newZoom.toString();
+  };
+
+  const handleZoomOut = () => {
+    const currentZoom = parseFloat(document.documentElement.style.zoom || '1');
+    const newZoom = Math.max(currentZoom - 0.1, 0.8);
+    document.documentElement.style.zoom = newZoom.toString();
+  };
+
   return (
     <div className="shrink-0 w-full h-8 flex justify-between items-center z-[100] region-drag bg-transparent absolute top-0 left-0 right-0 pointer-events-none">
       <div className="flex items-center h-full pl-4 pointer-events-auto region-no-drag gap-2 select-none">
@@ -28,9 +40,25 @@ export const TitleBar = ({ userName, userAvatar }: TitleBarProps) => {
         <span className="shimmer-text font-bold text-[13px] tracking-wider">QUANTIX</span>
       </div>
       <div className="flex h-full region-no-drag pointer-events-auto bg-[#08080c]">
+        <Tooltip content="Zoom In">
+          <button 
+            className="w-[32px] h-full flex justify-center items-center text-[#8b8b93] hover:bg-white/10 hover:text-white transition-colors duration-100" 
+            onClick={handleZoomIn}
+          >
+            <ZoomIn size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip content="Zoom Out">
+          <button 
+            className="w-[32px] h-full flex justify-center items-center text-[#8b8b93] hover:bg-white/10 hover:text-white transition-colors duration-100" 
+            onClick={handleZoomOut}
+          >
+            <ZoomOut size={14} />
+          </button>
+        </Tooltip>
         {(userName || userAvatar) && (
           <Tooltip content={userName}><div
-              className="flex max-w-[260px] items-center gap-2 border-r border-white/10 px-3 text-[12px] font-medium text-[#c7c7cc] select-none">
+              className="flex max-w-[260px] items-center gap-2 border-r border-l border-white/10 px-3 text-[12px] font-medium text-[#c7c7cc] select-none">
               {userName && <span className="truncate">{userName}</span>}
               {userAvatar && (
                 <img

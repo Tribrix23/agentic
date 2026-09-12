@@ -112,14 +112,9 @@ export function chatMessageToAgenticMessage(msg: ChatMessage, index: number): Ag
 }
 
 export function agenticMessageToChatMessage(msg: AgenticMessage, toolProtocol: 'native' | 'xml' = 'native'): ChatMessage {
-  let combinedContent = msg.content || '';
-  if (msg.thinkingContent) {
-    combinedContent = `${msg.thinkingContent}\n\n${combinedContent}`.trim();
-  }
-
   const chatMsg: ChatMessage = {
     role: msg.role,
-    content: combinedContent,
+    content: msg.content || '',
   };
 
   if (toolProtocol !== 'xml' && msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
@@ -133,25 +128,9 @@ export function agenticMessageToChatMessage(msg: AgenticMessage, toolProtocol: '
     }));
   }
 
-  if (toolProtocol === 'xml' && msg.role === 'assistant' && msg.toolCalls?.length) {
-    const toolCalls = msg.toolCalls.map(tc => {
-      const parameters = Object.entries(tc.arguments || {})
-        .map(([name, value]) => `<parameter=${name}>${escapeXmlText(typeof value === 'string' ? value : JSON.stringify(value))}</parameter>`)
-        .join('');
-      return `<tool_call><function=${escapeXmlText(tc.name)}>${parameters}</function></tool_call>`;
-    }).join('\n');
-    chatMsg.content = chatMsg.content ? `${chatMsg.content}\n\n${toolCalls}` : toolCalls;
-  }
-
   if (msg.role === 'tool') {
     chatMsg.tool_call_id = msg.toolCallId;
     chatMsg.name = msg.toolName;
-    if (toolProtocol === 'xml') {
-      chatMsg.role = 'user';
-      delete chatMsg.tool_call_id;
-      delete chatMsg.name;
-      chatMsg.content = `<tool_result name="${escapeXmlText(msg.toolName || 'unknown')}">\n${escapeXmlText(msg.content)}\n</tool_result>`;
-    }
   }
 
   if (msg.attachments && msg.attachments.length > 0) {
@@ -210,10 +189,48 @@ export function createToolMessage(
   toolName: string,
   result: ToolResult
 ): AgenticMessage {
+  // Sanitize specific known patterns that trip Zhipu GLM's aggressive language/content filters
+  let safeOutput = result.output;
+  if (typeof safeOutput === 'string') {
+    // 0. Remove all non-ASCII characters to comply with language filter (only CN/EN/FR/DE/RU allowed)
+    safeOutput = safeOutput.replace(/[^\x00-\x7F]/g, '');
+    // 1. Strip raw unix permissions from `ls -l` (e.g. "-rw-rw-r--", "drwxrwxr-x")
+    safeOutput = safeOutput.replace(/^[d\-l][rwx\-]{9,10}\+?\s+/gm, (match) => {
+      if (match.startsWith('d')) return '[DIR]  ';
+      if (match.startsWith('l')) return '[LINK] ';
+      return '[FILE] ';
+    });
+    // 2. Strip the "total" summary line from ls output
+    safeOutput = safeOutput.replace(/^total\s+\d+\s*$/gm, '');
+    // 3. Strip usernames, groups, file sizes, and dates from ls -l output in one pass
+    // Pattern: [DIR/FILE] followed by number, username, group, size, date/time - strip all but type and filename
+    safeOutput = safeOutput.replace(/^(\[DIR\]  |\[FILE\] |\[LINK] )\s*\d+\s+[A-Za-z0-9_\-]+\s+[A-Za-z0-9_\-]+\s+\d+\s+[A-Za-z]{3}\s+\d+\s+[\d:]+\s+/gm, '$1');
+    // 4. Strip long numeric sequences from filenames (e.g., screenshot_1788729987988.png -> screenshot_[NUM].png)
+    safeOutput = safeOutput.replace(/_\d{8,}/g, '_[NUM]');
+    // 5. Strip large contiguous hex/base64 strings if they are ridiculously long to prevent similar filter issues
+    safeOutput = safeOutput.replace(/[A-Za-z0-9+/=]{1000,}/g, '[BASE64_DATA_REMOVED]');
+    // 6. Playwright DOM snapshots generate huge amounts of YAML structural noise that triggers language filters
+    if (toolName && toolName.includes('snapshot')) {
+      safeOutput = safeOutput
+        .replace(/\s*\[cursor=pointer\]/g, '') // Remove cursor pointers
+        .replace(/- generic /g, '- ')          // Remove generic tags
+        .replace(/^\s*- generic:\s*\n/gm, '')  // Remove empty generic parents
+        .replace(/\[ref=([^\]]+)\]/g, '($1)')  // Convert [ref=x] to (x) for smoother prose parsing
+        .replace(/\/url: https:\/\/www\.google\.com\/url\?q=([^&\s]+)[^\n]*/g, '/url: $1') // Clean google redirect URLs
+        .replace(/\/url: \/goto\?url=([^&\s]+)[^\n]*/g, '/url: [REDIRECT]') // Clean google redirect URLs
+        .replace(/(https?:\/\/[^\s]{60})[^\s]+/g, '$1...'); // Truncate very long URLs to 60 chars
+
+      // Hard limit snapshot size to prevent Zhipu length/density blocks
+      if (safeOutput.length > 8000) {
+        safeOutput = safeOutput.substring(0, 8000) + '\n... [SNAPSHOT TRUNCATED DUE TO SIZE]';
+      }
+    }
+  }
+
   return {
     id: generateId(),
     role: 'tool',
-    content: result.output,
+    content: safeOutput,
     timestamp: Date.now(),
     toolCallId,
     toolName,

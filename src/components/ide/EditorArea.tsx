@@ -120,6 +120,8 @@ import { OpenFile } from '../IdeContainer';
 
 import { Tooltip } from "../ui/Tooltip";
 
+import { DocxEditor } from './DocxEditor';
+
 interface EditorAreaProps {
   projectRoot?: string;
   openFiles: OpenFile[];
@@ -223,7 +225,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   }, [activeFilePath, selectedFileName, currentLocalContent]);
 
   const handleSaveFile = async (): Promise<boolean> => {
-    if (activeFilePath && isDirty) {
+    if (activeFilePath && isDirty && !activeFilePath.toLowerCase().endsWith('.docx')) {
       const res = await (window as any).electron.saveFileContent(activeFilePath, currentLocalContent, { projectRoot });
       if (res.success) {
         onFileSaved(activeFilePath, currentLocalContent);
@@ -279,6 +281,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   const ext = selectedFileName?.split('.').pop()?.toLowerCase() || '';
   const isImage = ['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext);
   const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext);
+  const isDocx = ext === 'docx';
   const isBinary = ['exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z'].includes(ext);
 
   return (
@@ -361,19 +364,19 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
 
           <button
             onClick={handleSaveFile}
-            disabled={!isDirty}
+            disabled={!isDirty || isDocx}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all shadow-sm border",
-              isDirty 
+              isDirty && !isDocx
                 ? "bg-[#25252d] hover:bg-[#2f2f38] border-white/5 text-white shadow-md" 
                 : "bg-transparent border-transparent text-[#5b5b63] cursor-not-allowed shadow-none"
             )}
           >
-            <Save size={13} className={cn(isDirty ? "text-white" : "text-[#5b5b63]")} />
+            <Save size={13} className={cn(isDirty && !isDocx ? "text-white" : "text-[#5b5b63]")} />
             Save
             <div className={cn(
               "flex items-center ml-1.5 px-2 py-0.5 rounded backdrop-blur-md shadow-inner text-[10px] tracking-wider font-bold transition-all",
-              isDirty ? "bg-white/10 text-white border border-white/5" : "bg-black/20 text-[#5b5b63]"
+              isDirty && !isDocx ? "bg-white/10 text-white border border-white/5" : "bg-black/20 text-[#5b5b63]"
             )}>
               CTRL + S
             </div>
@@ -457,6 +460,29 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
           <div className="w-full h-full flex items-center justify-center bg-[#0f0f13] overflow-auto p-4">
             <video controls src={`file://${activeFilePath.replace(/\\/g, '/')}`} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
           </div>
+        ) : isDocx ? (
+          <DocxEditor
+            filePath={activeFilePath}
+            onSave={(newHtml) => {
+              // Since it's handled via IPC inside DocxEditor or EditorArea, 
+              // we can update localContents or let the save IPC handle it
+              (window as any).electron.saveDocxHtml(activeFilePath, newHtml)
+                .then((res: any) => {
+                  if (res.success) {
+                    onFileSaved(activeFilePath, "DOCX_BINARY");
+                  }
+                });
+            }}
+            isDirty={isDirty}
+            setIsDirty={(dirty) => {
+              if (dirty && activeFilePath) {
+                setLocalContents(prev => ({
+                  ...prev,
+                  [activeFilePath]: "DOCX_MODIFIED"
+                }));
+              }
+            }}
+          />
         ) : isBinary || currentLocalContent.startsWith('data:application/octet-stream') ? (
           <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] p-4 text-center">
             <span className="text-white text-sm font-medium">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</span>
