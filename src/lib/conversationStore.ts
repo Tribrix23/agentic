@@ -109,7 +109,17 @@ export function saveMessages(
   messages: AgenticMessage[]
 ): void {
   try {
-    localStorage.setItem(getMessagesKey(conversationId), JSON.stringify(messages));
+    const key = getMessagesKey(conversationId);
+    const serialized = JSON.stringify(messages);
+    const existing = localStorage.getItem(key);
+    
+    if (existing === serialized) {
+      // Messages are identical to what's on disk. 
+      // Skip saving and do NOT bump the updatedAt timestamp just because the user viewed the chat.
+      return;
+    }
+    
+    localStorage.setItem(key, serialized);
 
     // Update conversation metadata with stats
     const stats = getConversationStats(messages);

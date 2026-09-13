@@ -13,6 +13,7 @@ import { Tooltip } from '../ui/Tooltip';
 import { getInstalledSkills, AgentSkill } from '../../lib/agentSkills';
 import { getAllTools } from '../../lib/tools';
 import { Puzzle, Globe } from 'lucide-react';
+import Strands from '../Strands';
 
 const QwenIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
@@ -137,6 +138,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [selectedImages, setSelectedImages] = useState<{ url: string; file: File }[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isImageCopied, setIsImageCopied] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
@@ -531,8 +533,40 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         </div>
       )}
 
-      <div className="w-full bg-[#1c1c21] border border-white/5 rounded-2xl p-3 flex flex-col shadow-2xl focus-within:border-white/20 transition-colors pointer-events-auto relative">
-        <AnimatePresence>
+      <div className={cn(
+        "bg-[#1c1c21] border shadow-2xl transition-all duration-300 pointer-events-auto relative mx-auto",
+        isListening 
+          ? "w-[120px] h-[120px] rounded-full p-0 flex items-center justify-center overflow-hidden cursor-pointer hover:border-white/20 border-white/10" 
+          : "w-full rounded-2xl p-3 flex flex-col focus-within:border-white/20 border-white/5"
+      )}
+      onClick={isListening ? () => setIsListening(false) : undefined}
+      >
+        {isListening ? (
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <Strands
+              colors={["#d28753","#7C3AED","#06B6D4"]}
+              count={3}
+              speed={0.5}
+              amplitude={1}
+              waviness={1}
+              thickness={0.7}
+              glow={2.6}
+              taper={3}
+              spread={1}
+              intensity={0.6}
+              saturation={2}
+              opacity={1}
+              scale={1.5}
+              glass={true}
+              refraction={1}
+              dispersion={1}
+              glassSize={1}
+              hueShift={0}
+            />
+          </div>
+        ) : (
+          <>
+            <AnimatePresence>
           {showSlashMenu && (
             <motion.div
               ref={slashMenuRef}
@@ -966,6 +1000,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       if (!hasProject) return;
                       if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject) {
                         handleSend();
+                      } else {
+                        setIsListening(true);
                       }
                     }}
                     aria-disabled={!hasProject}
@@ -985,6 +1021,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             )}
           </div>
         </div>
+          </>
+        )}
       </div>
 
       <div className="flex justify-start pl-2 -mt-1">
@@ -1021,7 +1059,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./gmail.png" alt="GMail" className="w-7 h-7 object-contain" />
                         </div>
@@ -1032,8 +1070,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./drive.png" alt="Google Drive" className="w-7 h-7 object-contain" />
                         </div>
@@ -1044,8 +1085,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./github.png" alt="GitHub" className="w-7 h-7 object-contain opacity-90" />
                         </div>
@@ -1056,8 +1100,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./canva.png" alt="Canva" className="w-7 h-7 object-contain" />
                         </div>
@@ -1068,8 +1115,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./supabase.png" alt="Supabase" className="w-7 h-7 object-contain" />
                         </div>
@@ -1080,8 +1130,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./vercel.png" alt="Vercel" className="w-7 h-7 object-contain" />
                         </div>
@@ -1092,8 +1145,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./mongodb.png" alt="MongoDB" className="w-7 h-7 object-contain" />
                         </div>
@@ -1104,8 +1160,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
-                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
+                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./figma.png" alt="Figma" className="w-7 h-7 object-contain" />
                         </div>
@@ -1116,7 +1175,10 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
                           </div>
                         </div>
-                      </button>
+                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          Connect
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
