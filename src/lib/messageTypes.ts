@@ -111,7 +111,7 @@ export function chatMessageToAgenticMessage(msg: ChatMessage, index: number): Ag
   };
 }
 
-export function agenticMessageToChatMessage(msg: AgenticMessage, toolProtocol: 'native' | 'xml' = 'native'): ChatMessage {
+export function agenticMessageToChatMessage(msg: AgenticMessage, toolProtocol: 'native' | 'xml' = 'xml'): ChatMessage {
   const chatMsg: ChatMessage = {
     role: msg.role,
     content: msg.content || '',

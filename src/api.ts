@@ -274,7 +274,7 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
   let signal: AbortSignal | undefined;
   let conversationId: string | undefined;
   let billingSession: TokenBillingSession | undefined;
-  let toolProtocol: 'native' | 'xml' = 'native';
+  let toolProtocol: 'native' | 'xml' = 'xml';
 
   if (isLegacy) {
     const p = params as LegacyDispatcherParams;
@@ -299,7 +299,8 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
     signal = p.signal;
     conversationId = p.conversationId;
     billingSession = p.billingSession;
-    toolProtocol = p.toolProtocol || selectToolProtocol(config.model);
+    // Always force XML protocol — never native function calling
+    toolProtocol = 'xml';
   }
 
   let dynamicTemp = config.temperature;

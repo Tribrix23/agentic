@@ -117,7 +117,7 @@ export function buildGpt56ToolPrompt(toolDefinitions: any[]): string {
     '<gpt56_tool_contract>',
     'You have access to every tool listed below. These tools are available in this session; never claim that a listed tool is unavailable.',
     'Use native function calling whenever it is available. If native function calling is not available, invoke tools using exactly:',
-    '<tool_call><function=TOOL_NAME><parameter=ARGUMENT_NAME>ARGUMENT_VALUE</parameter></function></tool_call>',
+    '<tool_call><invoke name="TOOL_NAME"><parameter=ARGUMENT_NAME>ARGUMENT_VALUE</parameter></invoke></tool_call>',
     'For object or array argument values, put valid JSON inside the parameter element.',
     'When the user explicitly asks you to invoke a listed tool, invoke it instead of only describing it.',
     `Available tools (${tools.length}):`,
@@ -137,12 +137,12 @@ export function buildXmlToolPrompt(toolDefinitions: any[]): string {
     '<xml_tool_protocol>',
     'XML is the only permitted tool-call syntax in this sub-agent. Native function calling is unavailable.',
     'Do not emit raw JSON, JSON inside a tool_call wrapper, call:name{...}, or a natural-language description instead of executing a tool.',
-    'Use exactly: <tool_call><function=TOOL_NAME><parameter=ARGUMENT_NAME>VALUE</parameter></function></tool_call>',
+    'Use exactly: <tool_call><invoke name="TOOL_NAME"><ARGUMENT_NAME>VALUE</ARGUMENT_NAME></invoke></tool_call>',
     'Parameter values are text unless the schema says object or array. XML-escape text exactly once before placing it in a parameter: & becomes &amp;, < becomes &lt;, > becomes &gt;, " becomes &quot;, and \' becomes &apos;. The parser decodes these five entities exactly once before execution.',
-    'Write complete source as the parameter value. Example: <tool_call><function=writeFile><parameter=path>index.html</parameter><parameter=content>&lt;!doctype html&gt;\n&lt;html&gt;\n&lt;body&gt;&lt;h1 class=&quot;title&quot;&gt;Hello &amp; welcome&lt;/h1&gt;&lt;/body&gt;\n&lt;/html&gt;</parameter></function></tool_call>',
+    'Write complete source as the parameter value. Example: <tool_call><invoke name="writeFile"><path>index.html</path><content>&lt;!doctype html&gt;\n&lt;html&gt;\n&lt;body&gt;&lt;h1 class=&quot;title&quot;&gt;Hello &amp; welcome&lt;/h1&gt;&lt;/body&gt;\n&lt;/html&gt;</content></invoke></tool_call>',
     'Do not trim, summarize, replace, or omit source content. Encode a source literal &amp;lt; as &amp;amp;lt; so the resulting file contains &amp;lt;.',
     'Do not wrap parameter values in CDATA. CDATA is not part of this tool protocol; use the entity escaping rule above.',
-    'Example: <tool_call><function=readFile><parameter=path>notes.txt</parameter></function></tool_call>',
+    'Example: <tool_call><invoke name="runCommand"><command>ls -la</command></invoke></tool_call>',
     `Available tools (${tools.length}):\n${toolList}`,
     `Tool schemas: ${JSON.stringify(tools)}`,
     '</xml_tool_protocol>',
@@ -260,7 +260,7 @@ export function buildContext(
   toolDefinitions?: any[],
   cachedSystemPrompt?: string,
   lastSentIndex?: number,
-  toolProtocol: ToolProtocol = selectToolProtocol(config.model),
+  toolProtocol: ToolProtocol = 'xml',
   interactionMode?: 'ask' | 'plan' | 'agent'
 ): BuiltContext {
   // ── 1. System Prompt ─────────────────────────────────────────────────
@@ -374,7 +374,7 @@ export function buildContext(
           for (const [k, v] of Object.entries(tc.arguments || {})) {
             xml += `<parameter=${k}>${typeof v === 'string' ? v : JSON.stringify(v)}</parameter>\n`;
           }
-          xml += `</function>\n</tool_call>`;
+          xml += `</invoke>\n</tool_call>`;
           return xml;
         })
         .join('\n');

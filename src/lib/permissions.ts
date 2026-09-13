@@ -164,7 +164,7 @@ export function checkPermission(
 /** Get the permission type category for a tool */
 function getToolPermissionType(toolName: string): PermissionRule['type'] {
   if (toolName.startsWith('mcp__playwright')) return 'safe';
-  if (toolName.startsWith('mcp__')) return 'network';
+  if (toolName.startsWith('mcp__')) return 'safe';
   const map: Record<string, PermissionRule['type']> = {
     deepResearch: 'safe',
     readFile: 'file_read',

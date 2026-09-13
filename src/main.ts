@@ -426,6 +426,18 @@ function createWindow() {
   ipcMain.handle('mcp-list-prompts', (_event, serverId: string) => mcpClientManager.listPrompts(serverId));
   ipcMain.removeHandler('mcp-get-prompt');
   ipcMain.handle('mcp-get-prompt', (_event, serverId: string, name: string, args?: Record<string, string>) => mcpClientManager.getPrompt(serverId, name, args));
+  ipcMain.removeHandler('list-capture-windows');
+  ipcMain.handle('list-capture-windows', async () => {
+    try {
+      const { desktopCapturer } = require('electron');
+      const sources = await desktopCapturer.getSources({ types: ['window'] });
+      return sources.map((s: any) => ({ name: s.name, id: s.id }));
+    } catch (e: any) {
+      console.error('[IPC] Failed to list capture windows:', e);
+      return [];
+    }
+  });
+
   ipcMain.removeHandler('capture-window');
   ipcMain.handle('capture-window', async (_event, options: WindowCaptureOptions) => {
     if (!options?.windowTitle?.trim() || !options?.savePath?.trim()) {
@@ -1349,8 +1361,8 @@ function createWindow() {
 
   // ── Agentic Tool System IPC Handlers ─────────────────────────────────────
 
-  ipcMain.handle('run-command-capture', async (_event, command: string, cwd: string) => {
-    return ProcessManager.getInstance().runCapture(command, cwd || process.cwd());
+  ipcMain.handle('run-command-capture', async (_event, command: string, cwd: string, taskId?: string) => {
+    return ProcessManager.getInstance().runCapture(command, cwd || process.cwd(), 30000, taskId);
   });
 
   // ── Async Task Manager IPC Handlers ──────────────────────────────────────

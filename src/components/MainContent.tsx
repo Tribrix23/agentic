@@ -1,3 +1,4 @@
+import ParticleText from './ParticleText';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, User, Paperclip, Mic, Send, PanelLeft, ArrowLeft, ArrowRight, PanelRight, Folder, ChevronDown, Plus, HardDrive, Shield, ShieldAlert, ShieldCheck, X, GitBranch, Monitor, Lock, Trash2, PanelRightClose, PanelLeftClose, Cloud, Zap, Plug2, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -113,7 +114,20 @@ export const MainContent = ({
   const aiConfigRef = useRef(aiConfig);
   useEffect(() => { aiConfigRef.current = aiConfig; }, [aiConfig]);
 
-  const agentLoopRef = useRef<ReturnType<typeof createAgentLoop> | null>(null);
+  const agentLoopsMapRef = useRef<Map<string, ReturnType<typeof createAgentLoop>>>(new Map());
+  const closePlaywrightIfIdle = () => {
+    let anyRunning = false;
+    for (const loop of agentLoopsMapRef.current.values()) {
+      if (loop.getState().isRunning) {
+        anyRunning = true;
+        break;
+      }
+    }
+    if (!anyRunning && (window as any).mcp) {
+      (window as any).mcp.disconnectServer('playwright').catch(() => {});
+    }
+  };
+  const getAgentLoop = () => activeConversationIdRef.current ? agentLoopsMapRef.current.get(activeConversationIdRef.current) || null : null;
   // Events from a stopped/replaced loop can arrive after a new run starts.
   // Keep ownership explicit so late callbacks cannot mutate the new run.
   const activeRunIdRef = useRef<string | null>(null);
@@ -229,8 +243,17 @@ export const MainContent = ({
           setMessages([]);
         }
       }
-      setIsAgentRunning(false);
-      isStreamingRef.current = false;
+      const loop = agentLoopsMapRef.current.get(id);
+      const isRunning = loop ? loop.getState().isRunning : false;
+      setIsAgentRunning(isRunning);
+      isStreamingRef.current = isRunning;
+      if (loop) {
+        const state = loop.getState();
+        setAgentState(state.status === 'sleeping' || state.status === 'running' ? 'executing_parallel' : 'idle');
+      } else {
+        setAgentState('idle');
+        setAgentStatus('');
+      }
       const savedBudget = localStorage.getItem(`quantix_token_budget_${id}`);
       if (savedBudget) {
         try {
@@ -296,7 +319,7 @@ export const MainContent = ({
       const { taskId, status } = e.detail;
 
       // Use agentLoopRef directly to check if it's running, to avoid stale React state closures
-      const isLoopRunning = agentLoopRef.current ? agentLoopRef.current.getState().isRunning : isAgentRunning;
+      const isLoopRunning = getAgentLoop() ? getAgentLoop().getState().isRunning : isAgentRunning;
 
       if (!isLoopRunning && aiConfig.agentMode && activeConversationId) {
         // Build the system message
@@ -306,10 +329,10 @@ export const MainContent = ({
           const newMsgs = [...prev, taskMsg];
 
           // Re-run agent loop only if it's definitely not running
-          if (agentLoopRef.current && !agentLoopRef.current.getState().isRunning) {
+          if (getAgentLoop() && !getAgentLoop().getState().isRunning) {
             setIsAgentRunning(true);
             isStreamingRef.current = true;
-            agentLoopRef.current.run(newMsgs.map(m => ({
+            getAgentLoop().run(newMsgs.map(m => ({
               ...m,
               role: m.role as any,
             }))).catch(err => console.error('Agent loop failed:', err));
@@ -327,7 +350,7 @@ export const MainContent = ({
         if (finalizedSubagentsRef.current.has(conversationId)) return false;
         finalizedSubagentsRef.current.add(conversationId);
         subagentLoopsRef.current.delete(conversationId);
-        agentLoopRef.current?.notifySubagentDone();
+        getAgentLoop()?.notifySubagentDone();
         return true;
       };
 
@@ -373,11 +396,11 @@ export const MainContent = ({
           if (taskId) {
             updateTask(taskId, { status: 'failed', metadata: { ...getTask(taskId)?.metadata, error: event.data?.message } });
           }
-          if (agentLoopRef.current) {
-            if (agentLoopRef.current.activeSubagentCount === 0) {
-              const state = agentLoopRef.current.getState();
+          if (getAgentLoop()) {
+            if (getAgentLoop().activeSubagentCount === 0) {
+              const state = getAgentLoop().getState();
               if (state.status === 'sleeping') {
-                agentLoopRef.current.wakeup();
+                getAgentLoop().wakeup();
                 setIsAgentRunning(true);
                 isStreamingRef.current = true;
               }
@@ -531,21 +554,21 @@ export const MainContent = ({
           setMessages(prev => {
             const newMsgs = [...prev, resultMsg];
             // Use addPendingMessage() and only wakeup() if it's the last subagent
-            if (agentLoopRef.current) {
-              const state = agentLoopRef.current.getState();
+            if (getAgentLoop()) {
+              const state = getAgentLoop().getState();
               if (state.status === 'sleeping') {
                 // Add the result message to the sleeping loop's pending queue
-                agentLoopRef.current.addPendingMessage({ ...resultMsg, role: 'user' as const });
+                getAgentLoop().addPendingMessage({ ...resultMsg, role: 'user' as const });
 
                 // Only wake up if this is the LAST active subagent (after decrement)
                 // Check count AFTER notifySubagentDone has been called
-                if (agentLoopRef.current.activeSubagentCount === 0) {
-                  agentLoopRef.current.wakeup();
+                if (getAgentLoop().activeSubagentCount === 0) {
+                  getAgentLoop().wakeup();
                   setIsAgentRunning(true);
                   isStreamingRef.current = true;
                 }
               } else if (state.status === 'done' || state.status === 'error') {
-                if (agentLoopRef.current.activeSubagentCount === 0) {
+                if (getAgentLoop().activeSubagentCount === 0) {
                   setIsAgentRunning(false);
                   isStreamingRef.current = false;
                   setAgentStatus('');
@@ -555,7 +578,7 @@ export const MainContent = ({
                 // If loop is fully done, start a fresh one with the result injected (but not if cancelled)
                 setIsAgentRunning(true);
                 isStreamingRef.current = true;
-                agentLoopRef.current.run(newMsgs.map(m => ({
+                getAgentLoop().run(newMsgs.map(m => ({
                   ...m,
                   role: m.role as any,
                 }))).catch(err => console.error('Agent loop failed after subagent:', err));
@@ -623,10 +646,10 @@ IMPORTANT RULES:
         const taskMsg = createUserMessage(`[Subagent (${conversationId})]: Received your message: "${message}". I am processing it.`);
         setMessages(prev => {
           const newMsgs = [...prev, taskMsg];
-          if (!isAgentRunning && aiConfig.agentMode && activeConversationId && agentLoopRef.current) {
+          if (!isAgentRunning && aiConfig.agentMode && activeConversationId && getAgentLoop()) {
             setIsAgentRunning(true);
             isStreamingRef.current = true;
-            agentLoopRef.current.run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
+            getAgentLoop().run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
           }
           return newMsgs;
         });
@@ -842,7 +865,7 @@ IMPORTANT RULES:
         break;
       case 'agent:done': {
         // Check if sub-agents are still running before fully shutting down
-        const hasRunningSubagents = agentLoopRef.current && agentLoopRef.current.activeSubagentCount > 0;
+        const hasRunningSubagents = getAgentLoop() && getAgentLoop().activeSubagentCount > 0;
         if (hasRunningSubagents) {
           // Sub-agents are still working — keep the Stop button visible
           setIsAgentRunning(true);
@@ -857,6 +880,7 @@ IMPORTANT RULES:
           if (event.data?.reason !== 'user_cancelled') {
             sendNotification('Task complete', chatTitleRef.current || 'New Conversation');
           }
+          closePlaywrightIfIdle();
         }
         // Mark all streaming messages as complete
         setMessages(prev => prev.map(m =>
@@ -882,6 +906,7 @@ IMPORTANT RULES:
       case 'agent:error':
         setIsAgentRunning(false);
         isStreamingRef.current = false;
+        closePlaywrightIfIdle();
         if (quotaExhaustedRef.current) {
           setAgentState('quota_exhausted');
         } else {
@@ -904,7 +929,7 @@ IMPORTANT RULES:
     }
     const mcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
     if (interactionMode !== 'plan') {
-      const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
+      const mcpResult = await executeMcpTool(toolCall, mcpServers, signal, runContext?.projectRoot || selectedProject?.path || '');
       if (mcpResult) return mcpResult;
     }
     const permConfig = getPermissionConfig(selectedProject?.path);
@@ -916,7 +941,7 @@ IMPORTANT RULES:
       userMessageId: runContext?.userMessageId,
       readOnly: runContext?.readOnly,
       interactionMode,
-      parentLoop: agentLoopRef.current || undefined,
+      parentLoop: getAgentLoop() || undefined,
       subagentManager: subagentManagerRef.current || undefined,
       agentKind: 'main',
     };
@@ -952,7 +977,7 @@ IMPORTANT RULES:
         subagentManager: undefined,
       };
       const mcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
-      const mcpResult = await executeMcpTool(toolCall, mcpServers, signal);
+      const mcpResult = await executeMcpTool(toolCall, mcpServers, signal, request.projectRoot || '');
       return mcpResult || executeTool(toolCall, context, permissions);
     };
     const loop = createAgentLoop((event: AgentEvent) => {
@@ -1015,8 +1040,8 @@ IMPORTANT RULES:
 
     const isSleepingAgent = Boolean(
       runConfig.agentMode &&
-      agentLoopRef.current &&
-      agentLoopRef.current.getState().status === 'sleeping'
+      getAgentLoop() &&
+      getAgentLoop().getState().status === 'sleeping'
     );
 
     let isFirstMessage = false;
@@ -1184,8 +1209,8 @@ IMPORTANT RULES:
     isSubmittingRef.current = false;
 
     // If agent loop already exists and is just sleeping, wake it up!
-    if (isSleepingAgent && agentLoopRef.current) {
-      agentLoopRef.current.wakeup([{ ...userMsg, role: 'user' }]);
+    if (isSleepingAgent && getAgentLoop()) {
+      getAgentLoop().wakeup([{ ...userMsg, role: 'user' }]);
       return; // Skip the rest of initialization
     }
 
@@ -1224,7 +1249,7 @@ IMPORTANT RULES:
         : readOnly ? getReadOnlyToolDefinitions(getAllTools()) : getToolsForLLM();
       const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       activeRunIdRef.current = runId;
-      agentLoopRef.current = createAgentLoop(handleAgentEvent, {
+      const newLoop = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
         // Ask deliberately excludes MCP tools until the server advertises a
@@ -1242,10 +1267,12 @@ IMPORTANT RULES:
         executionPlanInstruction,
       });
 
-      agentLoopRef.current.updateConfig(runConfig);
+      agentLoopsMapRef.current.set(convId, newLoop);
+      console.log('newLoop:', newLoop, 'createAgentLoop:', createAgentLoop);
+      newLoop.updateConfig(runConfig);
 
       try {
-        await agentLoopRef.current.run(allMessages.map((m, idx) => {
+        await newLoop.run(allMessages.map((m, idx) => {
           const mapped = { ...m, role: m.role as any };
           // The UI bubble shows "Execute Implementation Plan" as a friendly label,
           // but the model must receive the full detailed instruction so it knows
@@ -1328,8 +1355,8 @@ IMPORTANT RULES:
     billingSessionRef.current?.stop();
     billingSessionRef.current = null;
     isSubmittingRef.current = false;
-    if (agentLoopRef.current) {
-      agentLoopRef.current.stop();
+    if (getAgentLoop()) {
+      getAgentLoop().stop();
     }
     subagentManagerRef.current?.cancelAll();
     // Forcefully stop all running sub-agents
@@ -1340,6 +1367,7 @@ IMPORTANT RULES:
     setIsAgentRunning(false);
     setAgentStatus('');
     setAgentState('idle');
+    closePlaywrightIfIdle();
     setMessages(prev => prev.map(m => {
       let updated = m;
       if (updated.isStreaming) {
@@ -1363,7 +1391,7 @@ IMPORTANT RULES:
     const handleQuotaExhausted = (event: Event) => {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message || 'Weekly token quota is exhausted.';
       quotaExhaustedRef.current = true;
-      if (agentLoopRef.current) agentLoopRef.current.stop();
+      if (getAgentLoop()) getAgentLoop().stop();
       subagentManagerRef.current?.cancelAll();
       subagentLoopsRef.current.forEach(loop => loop.stop());
       subagentLoopsRef.current.clear();
@@ -1372,6 +1400,7 @@ IMPORTANT RULES:
       setQuotaExhaustedMessage(message);
       setAgentStatus(`Quota exhausted: ${message}`);
       setAgentState('quota_exhausted');
+        closePlaywrightIfIdle();
       setMessages(prev => prev.map(m => m.isStreaming ? {
         ...m,
         content: `${m.content}\n\n**Stopped:** ${message}`.trim(),
@@ -1660,7 +1689,38 @@ IMPORTANT RULES:
       </div>
 
       {/* Main Content Area */}
-      <motion.div layout className={cn("flex-1 flex flex-col px-6", messages.length === 0 ? "justify-center items-center" : "overflow-hidden")}>
+      <motion.div layout className={cn("flex-1 flex flex-col px-6 relative", messages.length === 0 ? "justify-center items-center" : "overflow-hidden")}>
+        <AnimatePresence>
+          {messages.length === 0 && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
+              // absolute inset-0 fills the flex container exactly; -top-48 shifts the center further up
+              className="absolute inset-0 -top-48 pointer-events-none z-0"
+            >
+              <ParticleText
+                text="QUANTIX"
+                particleSize={2.4} 
+                density={3} // 3 is a good middle ground (more particles than 6, fewer than 2)
+                color="#f8fafc"
+                highlightColor="#8b5cf6"
+                scatter={1000}
+                gatherDuration={1600}
+                stagger={420}
+                pointerRepel={42}
+                repelRadius={120}
+                idleDrift={0.8}
+                trigger="mount"
+                fontSize={72}
+                fontWeight={800}
+                fontFamily="inherit"
+                glow
+                className="pointer-events-auto"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Agentic Chat Interface ─────────────────────────────────── */}
         {messages.length > 0 && (
@@ -1843,10 +1903,8 @@ IMPORTANT RULES:
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 className="flex flex-col items-center mb-8 w-full max-w-[650px]"
               >
-                 <div className="flex items-center justify-center gap-3 w-full">
-                   <h1 className="text-[40px] font-bold text-white tracking-tight">Welcome to Quantix</h1>
-                   <img src="./icon.png" alt="QUANTIX Logo" className="w-10 h-10 object-contain" />
-                 </div>
+                 {/* Height placeholder so the layout flow still reserves space */}
+                 <div style={{ width: '100%', height: 110 }} />
               </motion.div>
             )}
           </AnimatePresence>

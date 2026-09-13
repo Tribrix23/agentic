@@ -18,17 +18,33 @@ export function hasReadyPlaywrightBrowser(servers: McpServerSnapshot[]): boolean
   return toolNames.has('browser_navigate') && toolNames.has('browser_snapshot');
 }
 
-export async function executeMcpTool(toolCall: ToolCall, servers: McpServerSnapshot[], signal?: AbortSignal): Promise<ToolResult | null> {
+export async function executeMcpTool(toolCall: ToolCall, servers: McpServerSnapshot[], signal?: AbortSignal, projectRoot?: string): Promise<ToolResult | null> {
   const entry = buildMcpCatalog(servers).find(item => item.externalName === toolCall.name);
   if (!entry) return null;
   const { serverId, toolName } = entry.identity;
   if (signal?.aborted) {
     return { success: false, output: 'MCP tool call cancelled.', diagnostics: [{ category: 'cancelled', message: 'MCP tool call cancelled.' }] };
   }
+  
+  let args = toolCall.arguments || {};
+  if (serverId === 'agentic-mcp-server' && projectRoot) {
+    args = { ...args };
+    const pathArgs = ['path', 'destination', 'sourcePath', 'targetPath'];
+    for (const key of pathArgs) {
+      if (typeof args[key] === 'string') {
+        const p = args[key];
+        if (!p.startsWith('/') && !p.match(/^[a-zA-Z]:\\/) && !p.match(/^[a-zA-Z]:\//)) {
+          const sep = projectRoot.includes('\\') ? '\\' : '/';
+          args[key] = projectRoot.endsWith(sep) ? projectRoot + p : projectRoot + sep + p;
+        }
+      }
+    }
+  }
+
   const cancel = () => { void (window as any).electron.mcp.cancelCall(toolCall.id); };
   signal?.addEventListener('abort', cancel, { once: true });
   try {
-    return await (window as any).electron.mcp.callTool(serverId, toolName, toolCall.arguments || {}, {
+    return await (window as any).electron.mcp.callTool(serverId, toolName, args, {
       callId: toolCall.id,
       timeoutMs: entry.definition.timeout,
     });

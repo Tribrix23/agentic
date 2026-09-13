@@ -138,7 +138,8 @@ export interface AgentStep {
 // Removed duplicate interface
 
 function getBashLikeCommand(name: string, args: Record<string, any>): { cmd: string; argsStr: string } {
-  switch (name) {
+  const normalizedName = name.replace(/^mcp__[a-zA-Z0-9_-]+__/, '');
+  switch (normalizedName) {
     case 'listDirectory':
     case 'list_dir':
       return { cmd: 'ls', argsStr: args.path || args.DirectoryPath || '.' };

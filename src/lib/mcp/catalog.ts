@@ -17,7 +17,7 @@ export function buildMcpCatalog(servers: McpServerSnapshot[]): McpCatalogEntry[]
   const ready = [...servers].filter(server => server.status === 'ready').sort((a, b) => a.id.localeCompare(b.id));
   for (const server of ready) {
     for (const tool of [...server.tools].sort((a, b) => a.name.localeCompare(b.name))) {
-      const identity = { serverId: server.id, toolName: tool.name };
+      if (server.id === 'agentic-mcp-server' && ['runCommand', 'commandStatus', 'manageTask'].includes(tool.name)) continue; const identity = { serverId: server.id, toolName: tool.name };
       const externalName = stableMcpAlias(identity, occupied);
       occupied.add(externalName);
       const mutating = tool.permissions.some(permission => permission === 'write' || permission === 'execute');

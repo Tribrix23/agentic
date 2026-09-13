@@ -49,7 +49,7 @@ export const handler: ToolHandler = async (args, context) => {
     let hasSkill = false;
     
     for (const p of possiblePaths) {
-      const pFiles = await electron.readProjectFiles(p, projectRoot);
+      const pFiles = await electron.readProjectFiles(p);
       if (pFiles && pFiles.length > 0) {
         targetDir = p;
         hasSkill = true;
@@ -71,21 +71,21 @@ export const handler: ToolHandler = async (args, context) => {
     }
 
     // Read the main SKILL.md
-    const rangeRes = await electron.readFileRange(skillMdPath, 1, 9999, projectRoot);
+    const rangeRes = await electron.readFileRange(skillMdPath, 1, 9999);
     if (!rangeRes?.success) {
       return { success: false, output: `Failed to read SKILL.md: ${rangeRes?.error || 'Unknown error'}` };
     }
-    let content = `> **SYSTEM NOTE: This skill's files are located at: ${targetDir}**\n\n` + rangeRes.content;
+    let content = `> **SYSTEM NOTE: The full contents of the skill '${skillName}' (including SKILL.md) are provided below. DO NOT attempt to run 'cat' on these files, you already have the complete documentation here.**\n> **(Source directory: ${targetDir})**\n\n` + rangeRes.content;
 
     // Load references if exist
     const refsDir = `${targetDir}/references`;
-    const refsFiles = await electron.readProjectFiles(refsDir, projectRoot);
+    const refsFiles = await electron.readProjectFiles(refsDir);
     
     if (refsFiles && refsFiles.length > 0) {
       content += '\n\n--- Additional References ---\n';
       for (const ref of refsFiles) {
         if (ref.type === 'file' && ref.name.endsWith('.md')) {
-          const refRes = await electron.readFileRange(ref.path, 1, 9999, projectRoot);
+          const refRes = await electron.readFileRange(ref.path, 1, 9999);
           if (refRes?.success) {
             content += `\n### [Reference] ${ref.name}\n`;
             content += refRes.content + '\n';

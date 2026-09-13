@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
 import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check } from 'lucide-react';
-import { SiAnthropic, SiAlibabacloud } from 'react-icons/si';
+import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
 import { OpenAIIcon } from '../icons/OpenAIIcon';
@@ -139,6 +139,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [isImageCopied, setIsImageCopied] = useState(false);
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -590,36 +591,36 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             ))}
           </div>
         )}
-        
+        {/* Selected Slash Commands / Skills Chips */}
+        {selectedSlashCommands.length > 0 && (
+          <div ref={chipsContainerRef} className="flex items-center flex-wrap gap-1.5 w-full pt-1 pb-2">
+            {selectedSlashCommands.map(cmd => (
+              <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-[#2b2b30] text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px]">
+                <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
+                <span className="leading-none">{cmd.displayName}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="relative w-full">
-          {selectedSlashCommands.length > 0 && (
-            <div ref={chipsContainerRef} className="absolute top-[-2px] left-0 flex items-center gap-1.5 pointer-events-none z-10">
-              {selectedSlashCommands.map(cmd => (
-                <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-[#2b2b30] text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px] pointer-events-auto">
-                  <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
-                  <span className="leading-none">{cmd.displayName}</span>
-                </div>
-              ))}
-            </div>
-          )}
           <textarea
             ref={textareaRef}
-            style={{ textIndent: selectedSlashCommands.length > 0 ? `${chipsWidth + 8}px` : '0px' }}
             value={content}
-            onChange={handleTextChange}
-            onKeyDown={handleKeyDown}
-            onPaste={(e) => {
-              const items = e.clipboardData.items;
-              for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                  const file = items[i].getAsFile();
-                  if (file) {
-                    e.preventDefault();
-                    handleImageUpload(file);
+              onChange={handleTextChange}
+              onKeyDown={handleKeyDown}
+              onPaste={(e) => {
+                const items = e.clipboardData.items;
+                for (let i = 0; i < items.length; i++) {
+                  if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    if (file) {
+                      e.preventDefault();
+                      handleImageUpload(file);
+                    }
                   }
                 }
-              }
-            }}
+              }}
             placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
             className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
             rows={1}
@@ -942,7 +943,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 );
               })()}
             </div>
-
+            
           </div>
 
           <div className="flex items-center gap-2">
@@ -985,6 +986,147 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           </div>
         </div>
       </div>
+
+      <div className="flex justify-start pl-2 -mt-1">
+        <button
+          onClick={() => setShowConnectModal(!showConnectModal)}
+          className="text-[13px] text-[#a8a8b1] hover:text-white transition-colors"
+        >
+          <span className="font-semibold text-white/80 hover:text-white">Connect +</span>
+        </button>
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {showConnectModal && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                  onClick={() => setShowConnectModal(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: 8 }}
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                  className="relative w-full max-w-[640px] bg-[#18181b] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[75vh] overflow-hidden"
+                >
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
+                    <div className="text-[15px] font-semibold text-zinc-100 tracking-wide">Connect External Services</div>
+                    <button onClick={() => setShowConnectModal(false)} className="text-zinc-500 hover:text-zinc-200 transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./gmail.png" alt="GMail" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">GMail</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./drive.png" alt="Google Drive" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Google Drive</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./github.png" alt="GitHub" className="w-7 h-7 object-contain opacity-90" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">GitHub</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./canva.png" alt="Canva" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Canva</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./supabase.png" alt="Supabase" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Supabase</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./vercel.png" alt="Vercel" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Vercel</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./mongodb.png" alt="MongoDB" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">MongoDB</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                      <button className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
+                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                          <img src="./figma.png" alt="Figma" className="w-7 h-7 object-contain" />
+                        </div>
+                        <div className="flex-1 flex flex-col gap-0.5">
+                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Figma</div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
+                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
+      </div>
+
       <AnimatePresence>
         {previewImage && (
           <motion.div

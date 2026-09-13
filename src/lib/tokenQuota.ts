@@ -64,8 +64,8 @@ export class QuotaBillingError extends Error {
   }
 }
 
-export function isQuotaError(error: unknown): error is QuotaExhaustedError | QuotaBillingError {
-  return error instanceof QuotaExhaustedError || error instanceof QuotaBillingError;
+export function isQuotaError(error: unknown): error is QuotaExhaustedError {
+  return error instanceof QuotaExhaustedError;
 }
 
 export function getQuotaTarget(model: string): TokenQuotaTarget {
@@ -92,7 +92,7 @@ export async function fetchTokenQuota(userId: string): Promise<TokenQuotaSnapsho
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new QuotaBillingError(data.message || 'Unable to verify the weekly token quota.');
+    throw new QuotaBillingError(data.message || `Server error (${response.status}) while checking tokens.`);
   }
   return data as TokenQuotaSnapshot;
 }
@@ -105,8 +105,8 @@ async function deductTokens(userId: string, amount: number, target: TokenQuotaTa
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    const message = data.message || 'Unable to deduct the token quota.';
-    if (response.status === 402 || response.status === 403 || response.status === 409 || /insufficient|quota|remaining/i.test(message)) {
+    const message = data.message || `Server error (${response.status}) while deducting tokens.`;
+    if (response.status < 500 && (response.status === 402 || response.status === 403 || response.status === 409 || /insufficient|quota|remaining/i.test(message))) {
       throw new QuotaExhaustedError(target, amount);
     }
     throw new QuotaBillingError(message);

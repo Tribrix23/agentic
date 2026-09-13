@@ -43,8 +43,8 @@ export class ProcessManager {
 
   static getInstance(): ProcessManager { return this.instance || (this.instance = new ProcessManager()); }
 
-  spawn(command: string, cwd = process.cwd()): string {
-    const id = `proc_${Date.now().toString(36)}_${(++this.sequence).toString(36)}`;
+  spawn(command: string, cwd = process.cwd(), customId?: string): string {
+    const id = customId || `proc_${Date.now().toString(36)}_${(++this.sequence).toString(36)}`;
     const env = { ...process.env, FORCE_COLOR: '0' };
     delete (env as any).ELECTRON_RUN_AS_NODE;
     delete (env as any).NODE_OPTIONS;
@@ -59,15 +59,24 @@ export class ProcessManager {
     })();
 
     const isWin = process.platform === 'win32';
+    let targetCwd = path.resolve(cwd);
+    if (!fs.existsSync(targetCwd)) {
+      try {
+        fs.mkdirSync(targetCwd, { recursive: true });
+      } catch (e) {
+        throw new Error(`Working directory does not exist: ${targetCwd}`);
+      }
+    }
+
     const child = isWin
       ? spawn(busyboxPath, ['bash', '-c', command], {
-          cwd: path.resolve(cwd),
+          cwd: targetCwd,
           shell: false,
           env,
           stdio: 'pipe',
         })
       : spawn(command, {
-          cwd: path.resolve(cwd),
+          cwd: targetCwd,
           shell: true,
           env,
           stdio: 'pipe',
@@ -100,8 +109,8 @@ export class ProcessManager {
     return id;
   }
 
-  async runCapture(command: string, cwd = process.cwd(), timeoutMs = 30_000): Promise<RunCaptureResult> {
-    const id = this.spawn(command, cwd);
+  async runCapture(command: string, cwd = process.cwd(), timeoutMs = 30_000, customId?: string): Promise<RunCaptureResult> {
+    const id = this.spawn(command, cwd, customId);
     const record = this.records.get(id)!;
     return new Promise(resolve => {
       const timer = setTimeout(() => { this.kill(id); }, timeoutMs);
@@ -113,7 +122,7 @@ export class ProcessManager {
           stderr: this.streamOutput(record, 'stderr'),
           exitCode: record.status.exitCode ?? null,
           error: record.status.status === 'killed'
-            ? `Process timed out after ${timeoutMs}ms and was terminated.`
+            ? `Process was terminated.`
             : record.status.status === 'error' ? `Process exited with ${record.status.exitCode ?? 'an error'}.` : undefined,
           truncated: record.status.truncated,
         });

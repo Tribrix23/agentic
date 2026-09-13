@@ -145,3 +145,13 @@ body {
 .anaglyph {
   text-shadow: -1px 0px 0px #ef4444, 1px 0px 0px #3b82f6;
 }
+
+@keyframes pixel-in {
+  0% { transform: scale(0); }
+  100% { transform: scale(1.05); }
+}
+
+@keyframes pixel-out {
+  0% { transform: scale(1.05); }
+  100% { transform: scale(0); }
+}

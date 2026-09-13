@@ -150,11 +150,15 @@ export class McpClientManager {
   async reconnectServer(id: string): Promise<McpServerSnapshot> { await this.disconnectServer(id); return this.connectServer(id); }
 
   async callTool(serverId: string, toolName: string, args: Record<string, any>, signal?: AbortSignal, timeoutMs = 60000): Promise<{ success: boolean; output: string; data?: unknown; diagnostics?: Array<{ category: string; message: string }> }> {
-    let record: ServerRecord;
-    try {
-      record = this.requireConnected(serverId);
-    } catch (error: any) {
-      return { success: false, output: error?.message || String(error), diagnostics: [{ category: 'transport', message: error?.message || String(error) }] };
+    let record = this.servers.get(serverId);
+    if (!record) return { success: false, output: `MCP server not found: ${serverId}` };
+    if (record.status !== 'ready' || !record.client) {
+      try {
+        await this.connectServer(serverId);
+        record = this.servers.get(serverId)!;
+      } catch (error: any) {
+        return { success: false, output: `Failed to connect MCP server ${serverId}: ${error?.message || String(error)}`, diagnostics: [{ category: 'transport', message: error?.message || String(error) }] };
+      }
     }
     const generation = record.generation;
     const tool = record.tools.find(item => item.name === toolName);

@@ -11,6 +11,10 @@ import { RightSidebar, AgentActivity, FileChange } from './components/RightSideb
 import { MainContent } from './components/MainContent';
 import { SettingsModal } from './components/SettingsModal';
 import { IdeContainer } from './components/IdeContainer';
+import { ToolApprovalCard } from './components/chat/ToolApprovalCard';
+import { sendNotification } from './lib/notification';
+import MetallicPaint from './components/MetallicPaint';
+import PixelTransitionOverlay from './components/PixelTransitionOverlay';
 import { ModelAnnouncementCard } from './components/ModelAnnouncementCard';
 import { AddonsView } from './components/AddonsView';
 import { getDurableTasksForConversation, clearAllTasks, clearConversationTasks } from './lib/taskStore';
@@ -149,6 +153,7 @@ const App = () => {
   const [orb1ColorIndex, setOrb1ColorIndex] = React.useState(0);
   const [orb2ColorIndex, setOrb2ColorIndex] = React.useState(1);
   const [accountCreated, setAccountCreated] = React.useState(false);
+  const [pixelPhase, setPixelPhase] = React.useState<'idle' | 'in' | 'out'>('idle');
 
   // Removed aggressive clearAllTasks() on mount to prevent wiping tasks on page refresh.
   // Tasks are now properly scoped to conversations, so this is no longer needed.
@@ -497,15 +502,27 @@ const App = () => {
             avatar: data.avatar || "https://i.pravatar.cc/150?img=11",
             token: data.token
           };
-          setUser(newUser);
-          // Persist to local storage
-          localStorage.setItem('quantix_session', JSON.stringify(newUser));
-          
-          // Create account after successful login (only once)
-          if (data.token && !accountCreated) {
-            createAccount(data.token);
-            setAccountCreated(true);
-          }
+
+          // Phase 1: pixels animate IN (black squares cover the screen)
+          setPixelPhase('in');
+
+          // Phase 2: while fully covered, swap the underlying page
+          setTimeout(() => {
+            setUser(newUser);
+            localStorage.setItem('quantix_session', JSON.stringify(newUser));
+            if (data.token && !accountCreated) {
+              createAccount(data.token);
+              setAccountCreated(true);
+            }
+
+            // Phase 3: give React two frames to fully render the new page,
+            // then start the OUT animation so pixels shrink away revealing it
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                setPixelPhase('out');
+              });
+            });
+          }, 900); // wait for IN animation to finish (duration 600ms + 300ms stagger)
         }
       });
     }
@@ -540,26 +557,116 @@ const App = () => {
     setSettingsOpen(false);
   };
 
-  // If user is logged in, show the full IDE three-pane dashboard or full IDE container
-  if (user) {
-    if (showFullIde) {
-      return <IdeContainer user={user} onBack={() => setShowFullIde(false)} />;
-    }
+  // Separate Login Screen content
+  const loginContent = (
+    <div className="w-full h-screen flex flex-col text-white selection:bg-purple-500/30 overflow-hidden relative bg-[#08080c]">
+      <TitleBar />
 
-    return (
+      {/* Live Animated Background Orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <motion.div
+          variants={orb1Variants}
+          animate="animate"
+          className={`absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb1Color}`}
+        />
+        <motion.div
+          variants={orb2Variants}
+          animate="animate"
+          className={`absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb2Color}`}
+        />
+      </div>
+
+      <main className="flex-1 flex flex-col justify-center items-center text-center pb-20 relative z-10">
+        <motion.div
+          key="login"
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="flex flex-col items-center"
+        >
+          <motion.div variants={itemVariants} className="mb-10 w-[160px] h-[160px]">
+            <MetallicPaint
+              imageSrc="./icon.png"
+              seed={42}
+              scale={4}
+              patternSharpness={1}
+              noiseScale={0.5}
+              speed={0.3}
+              liquid={0.75}
+              mouseAnimation={false}
+              brightness={2}
+              contrast={0.5}
+              refraction={0.01}
+              blur={0.015}
+              chromaticSpread={2}
+              fresnel={1}
+              angle={0}
+              waveAmplitude={1}
+              distortion={1}
+              contour={0.2}
+              lightColor="#ffffff"
+              darkColor="#000000"
+              tintColor="#feb3ff"
+            />
+          </motion.div>
+
+          <motion.h1
+            variants={itemVariants}
+            className="text-[48px] font-bold mb-4 tracking-[1.5px] text-white"
+          >
+            QUANTIX CODE
+          </motion.h1>
+
+          <motion.p
+            variants={itemVariants}
+            className="text-[18px] text-[#94a3b8] font-normal mb-16 tracking-wide max-w-[500px]"
+          >
+            Code faster and build better software with AI.
+          </motion.p>
+
+          <motion.div variants={itemVariants}>
+            <motion.button
+              variants={buttonVariants}
+              initial="rest"
+              whileHover="hover"
+              whileTap="tap"
+              onClick={handleLogin}
+              className={cn(
+                "relative overflow-hidden region-no-drag group",
+                "flex items-center justify-center",
+                "w-[280px] h-[40px] rounded-md",
+                "transition-all duration-300 ease-out cursor-pointer"
+              )}
+            >
+              <motion.div
+                variants={shimmerVariants}
+                className="absolute inset-0 w-full z-0 skew-x-[-20deg]"
+                style={{
+                  background: "linear-gradient(90deg, transparent, rgba(147,197,253,0.4), transparent)"
+                }}
+              />
+
+              <div className="relative z-10 flex items-center justify-center w-full h-full pointer-events-none gap-3">
+                <span className="text-[14px] font-semibold text-white tracking-wide">
+                  Log In
+                </span>
+              </div>
+            </motion.button>
+          </motion.div>
+        </motion.div>
+      </main>
+    </div>
+  );
+
+  // Main Screen content
+  const mainContent = user ? (
+    showFullIde ? (
+      <IdeContainer user={user} onBack={() => setShowFullIde(false)} />
+    ) : (
       <div className="w-full h-screen flex text-white overflow-hidden bg-[#08080c] relative">
-        {/* Live Animated Background Orbs (Behind everything) */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <motion.div
-            variants={orb1Variants}
-            animate="animate"
-            className={`absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb1Color}`}
-          />
-          <motion.div
-            variants={orb2Variants}
-            animate="animate"
-            className={`absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb2Color}`}
-          />
+          <motion.div variants={orb1Variants} animate="animate" className={`absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb1Color}`} />
+          <motion.div variants={orb2Variants} animate="animate" className={`absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb2Color}`} />
         </div>
 
         <TitleBar userName={user.name} userAvatar={user.avatar} />
@@ -598,7 +705,6 @@ const App = () => {
           />
         </div>
         
-        {/* Settings Modal */}
         {settingsOpen && (
           <SettingsModal 
             user={user} 
@@ -607,93 +713,21 @@ const App = () => {
           />
         )}
       </div>
-    );
-  }
+    )
+  ) : (
+    <div className="w-full h-screen bg-[#08080c]" />
+  );
 
-  // Otherwise, show the Login Screen
   return (
-    <div className="w-full h-screen flex flex-col text-white selection:bg-purple-500/30 overflow-hidden relative bg-[#08080c]">
-      <TitleBar />
-
-      {/* Live Animated Background Orbs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <motion.div
-          variants={orb1Variants}
-          animate="animate"
-          className={`absolute top-[0%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb1Color}`}
-        />
-        <motion.div
-          variants={orb2Variants}
-          animate="animate"
-          className={`absolute bottom-[0%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] transition-colors duration-1000 ease-in-out ${orb2Color}`}
-        />
-      </div>
-
-      <main className="flex-1 flex flex-col justify-center items-center text-center pb-20 relative z-10">
-        <motion.div
-          key="login"
-          variants={containerVariants}
-          initial="hidden"
-          animate="show"
-          className="flex flex-col items-center"
-        >
-          <motion.div variants={itemVariants} className="mb-10">
-            <img
-              src="./icon.png"
-              alt="QUANTIX Logo"
-              className="w-[120px] h-[120px] object-contain drop-shadow-[0_30px_40px_rgba(0,0,0,0.8)]"
-            />
-          </motion.div>
-
-          <motion.h1
-            variants={itemVariants}
-            className="text-[48px] font-bold mb-4 tracking-[1.5px] text-white"
-          >
-            QUANTIX CODE
-          </motion.h1>
-
-          <motion.p
-            variants={itemVariants}
-            className="text-[18px] text-[#94a3b8] font-normal mb-16 tracking-wide max-w-[500px]"
-          >
-            Code faster and build better software with AI.
-          </motion.p>
-
-          {/* Stunning Solid Gradient Button */}
-          <motion.div variants={itemVariants}>
-            <motion.button
-              variants={buttonVariants}
-              initial="rest"
-              whileHover="hover"
-              whileTap="tap"
-              onClick={handleLogin}
-              className={cn(
-                "relative overflow-hidden region-no-drag group",
-                "flex items-center justify-center",
-                "w-[280px] h-[40px] rounded-md",
-                "transition-all duration-300 ease-out cursor-pointer"
-              )}
-            >
-              {/* The Shimmer Layer */}
-              <motion.div
-                variants={shimmerVariants}
-                className="absolute inset-0 w-full z-0 skew-x-[-20deg]"
-                style={{
-                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)"
-                }}
-              />
-
-              <div className="relative z-10 flex items-center justify-center w-full h-full pointer-events-none gap-3">
-                <span className="text-[14px] font-semibold text-white tracking-wide">
-                  Log In
-                </span>
-              </div>
-            </motion.button>
-          </motion.div>
-
-        </motion.div>
-      </main>
-    </div>
+    <>
+      <PixelTransitionOverlay
+        phase={pixelPhase}
+        pixelSize={80}
+        duration={600}
+        onComplete={() => setPixelPhase('idle')}
+      />
+      {user ? mainContent : loginContent}
+    </>
   );
 };
 

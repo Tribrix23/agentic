@@ -39,7 +39,18 @@ const SingleTerminal = ({ id, cwd, isActive, onTitle }: { id: string, cwd?: stri
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     
-    term.open(terminalRef.current);
+    const openTimeout = setTimeout(() => {
+      if (terminalRef.current) {
+        term.open(terminalRef.current);
+        if (terminalRef.current.offsetParent !== null) {
+          try {
+            fitAddon.fit();
+          } catch (e) {
+            console.warn('fitAddon.fit() failed', e);
+          }
+        }
+      }
+    }, 10);
     
     termRef.current = term;
     fitAddonRef.current = fitAddon;
@@ -68,12 +79,17 @@ const SingleTerminal = ({ id, cwd, isActive, onTitle }: { id: string, cwd?: stri
     const resizeObserver = new ResizeObserver(() => {
       // only fit if visible
       if (terminalRef.current && terminalRef.current.offsetParent !== null) {
-        fitAddon.fit();
+        try {
+          fitAddon.fit();
+        } catch (e) {
+          // ignore
+        }
       }
     });
     resizeObserver.observe(terminalRef.current);
 
     return () => {
+      clearTimeout(openTimeout);
       resizeObserver.disconnect();
       removeTerminalDataListener();
       window.electron.killTerminal(id);

@@ -30,6 +30,9 @@ function validName(name: string, known?: Set<string>): boolean {
   // We intentionally DO NOT strictly enforce known names here.
   // If we silently drop well-formed loose <function=X> blocks just because X is unknown,
   // the LLM never gets an "Unknown tool" feedback and might enter a format error loop.
+  // However, we MUST reject reserved keywords to prevent parser hallucinations where it parses
+  // `<function>{"arg":"val"}</function>` as a tool named "function".
+  if (/^(?:function|invoke|tool_call|tool)$/i.test(name)) return false;
   return /^[a-zA-Z_][a-zA-Z0-9_]{0,63}$/.test(name);
 }
 
@@ -243,7 +246,14 @@ export function parseTextToolProtocol(
     ranges.push([start, end]);
   };
 
-  // ── Pass 1: MCP tool calls (permissive mode) ──────────────────────────────
+  // 🔍 Pass 0: Mask out <think>...</think> tags so hallucinated tool calls inside are ignored
+  const thinkRegex = /<think\b[^>]*>([\s\S]*?)(?:<\/?think(?:ing)?\b[^>]*>|$)/gi;
+  let thinkMatch: RegExpExecArray | null;
+  while ((thinkMatch = thinkRegex.exec(source)) !== null) {
+    ranges.push([thinkMatch.index, thinkMatch.index + thinkMatch[0].length]);
+  }
+
+  // 🔍 Pass 1: MCP tool calls (permissive mode) 🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍
   for (const call of mode === 'permissive' ? parseMcpToolCalls(source) : []) {
     const name = toMcpAlias(call.server, call.tool);
     if (validName(name, knownToolNames)) {
@@ -251,13 +261,15 @@ export function parseTextToolProtocol(
     }
   }
 
-  // ── Pass 2: <tool_call> blocks (all formats) ──────────────────────────────
-  const xmlRegex = /<tool_call\b[^>]*>\s*([\s\S]*?)(?:<\/tool_call>|$)/gi;
+  // 🔍 Pass 2: <tool_call> blocks (all formats) 🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍
+  const xmlRegex = /<tool_call\b[^>]*>\s*([\s\S]*?)(?:<\/tool_call>|(?=<tool_call\b)|$)/gi;
   let match: RegExpExecArray | null;
   while ((match = xmlRegex.exec(source)) !== null) {
-    const toolCallBody = match[1];
     const matchStart = match.index;
     const matchEnd = match.index + match[0].length;
+    if (isOverlapping(matchStart, matchEnd)) continue;
+
+    const toolCallBody = match[1];
     ranges.push([matchStart, matchEnd]);
 
     const invocations = extractToolInvocationsFromSegment(toolCallBody, knownToolNames);

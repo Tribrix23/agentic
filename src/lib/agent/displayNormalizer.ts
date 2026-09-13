@@ -10,7 +10,7 @@ export interface NormalizedAssistantDisplay {
 export function normalizeAssistantDisplay(
   source: string,
   knownToolNames?: Set<string>,
-  protocol: ToolProtocol = 'native',
+  protocol: ToolProtocol = 'xml',
 ): NormalizedAssistantDisplay {
   const open = /<think(?:ing)?\b[^>]*>/i.exec(source);
   let thinking = '';

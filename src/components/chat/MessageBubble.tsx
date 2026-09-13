@@ -154,6 +154,11 @@ export function MessageBubble({
           // Fallback: if no tags, but it looks exactly like the planning template, treat all as thinking
           thinkingContent = displayContentLocal;
           displayContentLocal = '';
+        } else if (msg.isStreaming && displayContentLocal.trim().length > 0 && !msg.toolCalls?.length) {
+          // Fallback: If streaming and there is text but no tag (and no tool calls yet), assume it is thinking.
+          // This prevents the UI from hiding streaming text when the LLM forgets the <think> tag.
+          thinkingContent = displayContentLocal;
+          displayContentLocal = '';
         }
       } else {
         // If thinkingContent was populated by agentLoop, it may still contain the <think> tags.
@@ -202,12 +207,12 @@ export function MessageBubble({
         displayContentLocal = '';
       }
 
-      if (actualThinkingContent) {
+      if (actualThinkingContent || msg.isStreaming) {
         steps.push({
           id: `think_${msg.id}`,
           type: 'thinking',
           status: msg.isStreaming ? 'running' : 'completed',
-          content: actualThinkingContent,
+          content: actualThinkingContent || (msg.isStreaming ? 'Thinking...' : ''),
           agentName: (msg as any).name?.startsWith('Subagent') ? (msg as any).name : undefined
         });
       }

@@ -5,7 +5,7 @@ export class TerminalTools {
    * to their Windows equivalents when running on a Windows platform.
    * Also implements context truncation to prevent token overflow.
    */
-  static async executeCommand(args: { command: string, cwd?: string }): Promise<string> {
+  static async executeCommand(args: { command: string, cwd?: string }, signal?: AbortSignal): Promise<string> {
     let finalCommand = args.command;
     
     const isWindows = typeof process !== 'undefined' ? process.platform === 'win32' : navigator.userAgent.toLowerCase().includes('windows');
@@ -18,11 +18,31 @@ export class TerminalTools {
       finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-r\s+/g, `$1${rmScript} `);
       finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+-f\s+/g, `$1${rmScript} `);
       finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)rm\s+(?!-)/g, `$1${rmScript} `);
+      // The user requested pure terminal cat. To make it work in BusyBox bash on Windows, convert backslashes to forward slashes.
+      finalCommand = finalCommand.replace(/(^|&&\s*|\|\s*|;\s*)cat\s+([^&|;]+)/g, (match, prefix, args) => {
+        return prefix + 'cat ' + args.replace(/\\/g, '/');
+      });
     }
 
     try {
+        if (signal?.aborted) return 'Command aborted.';
+        
+        const taskId = `cmd_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+        
+        let abortListener: () => void;
+        if (signal) {
+          abortListener = () => {
+            (window as any).electron.invoke('task-kill', taskId).catch(console.error);
+          };
+          signal.addEventListener('abort', abortListener);
+        }
+
         // Dispatch to Electron Backend via the existing exposed method
-        const res = await (window as any).electron.runCommandCapture(finalCommand, args.cwd);
+        const res = await (window as any).electron.runCommandCapture(finalCommand, args.cwd, taskId);
+        
+        if (signal && abortListener!) {
+          signal.removeEventListener('abort', abortListener);
+        }
         
         // CONTEXT TRUNCATION: Prevent terminal outputs from blowing out the LLM context window
         let output = res.stdout || res.stderr || 'Command executed successfully.';
