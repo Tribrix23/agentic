@@ -6,6 +6,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
+const os = require("os");
 
 // Load .env from both the script's directory and the project root just to be safe
 require("dotenv").config({ path: path.join(__dirname, '.env') });
@@ -17,7 +18,24 @@ const CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
 const REDIRECT_URI = "http://localhost:3001/oauth2callback";
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'];
 
-const TOKEN_PATH = path.join(__dirname, 'token.json');
+const getAppDataPath = () => {
+  const appName = 'AgenticCoder';
+  let baseDir;
+  if (process.platform === 'win32') {
+    baseDir = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  } else if (process.platform === 'darwin') {
+    baseDir = path.join(os.homedir(), 'Library', 'Application Support');
+  } else {
+    baseDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  }
+  const appDir = path.join(baseDir, appName);
+  if (!fs.existsSync(appDir)) {
+    fs.mkdirSync(appDir, { recursive: true });
+  }
+  return appDir;
+};
+
+const TOKEN_PATH = path.join(getAppDataPath(), 'gmail-token.json');
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
