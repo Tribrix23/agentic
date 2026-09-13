@@ -334,6 +334,27 @@ function createWindow() {
     }
   }
 
+  if (!mcpClientManager.getServer('gmail')) {
+    const isPackaged = app.isPackaged;
+    const gmailServerPath = isPackaged
+      ? path.join(process.resourcesPath, 'servers', 'gmail-mcp', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'gmail-mcp', 'index.js');
+
+    mcpClientManager.addServer({
+      id: 'gmail',
+      name: 'GMail',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [gmailServerPath],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('gmail').catch(error => console.error('[MCP] GMail failed to connect:', error));
+  }
+
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,

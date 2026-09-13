@@ -142,6 +142,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -168,6 +169,21 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       setChipsWidth(0);
     }
   }, [selectedSlashCommands]);
+
+  // Poll GMail connection status while the Connect modal is open
+  useEffect(() => {
+    if (!showConnectModal) return;
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3001/auth/status');
+        const data = await res.json();
+        setGmailConnected(data.connected === true);
+      } catch { /* server not running yet */ }
+    };
+    void check();
+    const interval = setInterval(check, 2000);
+    return () => clearInterval(interval);
+  }, [showConnectModal]);
 
   useEffect(() => {
     let mounted = true;
@@ -1066,13 +1082,44 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         <div className="flex-1 flex flex-col gap-0.5">
                           <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">GMail</div>
                           <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                            <div className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? 'bg-green-500' : 'bg-zinc-600'}`}></div>
+                            <span className={`text-[12px] font-medium ${gmailConnected ? 'text-green-400' : 'text-zinc-500'}`}>
+                              {gmailConnected ? 'Connected' : 'Not connected'}
+                            </span>
                           </div>
                         </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
+                        {!gmailConnected ? (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('http://localhost:3001/auth/url');
+                                const data = await res.json();
+                                if ((window as any).electron?.openExternal) {
+                                  (window as any).electron.openExternal(data.url);
+                                } else {
+                                  window.open(data.url, '_blank');
+                                }
+                              } catch (e) {
+                                alert('GMail MCP Server is not running yet. Please restart Quantix.');
+                              }
+                            }}
+                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                            Connect
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await fetch('http://localhost:3001/auth/disconnect', { method: 'POST' });
+                                setGmailConnected(false);
+                              } catch (e) {
+                                alert('Failed to disconnect GMail.');
+                              }
+                            }}
+                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                            Disconnect
+                          </button>
+                        )}
                       </div>
                       <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
