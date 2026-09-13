@@ -206,10 +206,14 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
     }
   }
 
+  // Strip <think> blocks before running fallback extraction logic
+  // to prevent hallucinated tool calls from being executed.
+  const textWithoutThink = text.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '');
+
   const toolCalls: ParsedToolCall[] = [];
   let match: RegExpExecArray | null;
 
-  const mcpCalls = parseMcpToolCalls(text);
+  const mcpCalls = parseMcpToolCalls(textWithoutThink);
   for (const call of mcpCalls) {
     const name = toMcpAlias(call.server, call.tool);
     if (isPlausibleToolName(name, knownToolNames)) toolCalls.push({ name, arguments: call.arguments });
@@ -218,7 +222,7 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
 
   // ── Format 1 (PRIMARY): <tool_call><function=name><parameter=x>val</parameter></function></tool_call> ──
   const primaryRegex = /<tool_call>\s*<function=([a-zA-Z0-9_-]+)>([\s\S]*?)<\/function>\s*<\/tool_call>/gi;
-  while ((match = primaryRegex.exec(text)) !== null) {
+  while ((match = primaryRegex.exec(textWithoutThink)) !== null) {
     const name = match[1].trim();
     const argsStr = match[2];
     const args: Record<string, any> = {};
@@ -300,7 +304,7 @@ export function parseToolCallsFromText(text: string, knownToolNames?: Set<string
 
   // ── Fallback: JSON <tool_call> with JSON body ────────────────────────────
   const xmlRegex = /<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/gi;
-  while ((match = xmlRegex.exec(text)) !== null) {
+  while ((match = xmlRegex.exec(textWithoutThink)) !== null) {
     const innerText = match[1].trim();
     if (innerText.startsWith('<')) continue;
     try {
@@ -780,7 +784,7 @@ export class AgentLoop {
           }
           if (this.projectContext.fileTree) {
             const treeSummary = truncateToTokens(this.projectContext.fileTree, 200);
-            projectLines.push(`\nProject Structure (overview only — use runCommand with ls for actual contents):\n${treeSummary}`);
+            projectLines.push(`\nProject Structure (overview only — use runCommand with ls -la for actual contents):\n${treeSummary}`);
           }
           if (this.projectContext.activeFilePath) {
             projectLines.push(`\nActive File: ${this.projectContext.activeFilePath}`);
@@ -1341,7 +1345,7 @@ export class AgentLoop {
             
             // Add a system message to guide the AI
             const separationMsg = createUserMessage(
-              '[SYSTEM] In Plan mode, you must inspect the repository first (using runCommand with ls and cat), then create the implementation plan in a separate response. Do not call writeFile/editFile in the same turn as inspection tools.'
+              '[SYSTEM] In Plan mode, you must inspect the repository first (using runCommand with ls -la and cat), then create the implementation plan in a separate response. Do not call writeFile/editFile in the same turn as inspection tools.'
             );
             separationMsg.isHidden = true;
             updatedMessages.push(separationMsg);
@@ -1359,7 +1363,7 @@ export class AgentLoop {
               hasToolCalls = assistantMsg.toolCalls && assistantMsg.toolCalls.length > 0;
               
               const inspectionMsg = createUserMessage(
-                '[SYSTEM] You must complete repository inspection first. Call runCommand with ls and cat for relevant files before creating the implementation plan.'
+                '[SYSTEM] You must complete repository inspection first. Call runCommand with ls -la and cat for relevant files before creating the implementation plan.'
               );
               inspectionMsg.isHidden = true;
               updatedMessages.push(inspectionMsg);
@@ -1396,7 +1400,7 @@ export class AgentLoop {
           malformedToolCallRetries++;
           assistantMsg.isHidden = true;
           const correction = createUserMessage(
-            '[SYSTEM FORMAT ERROR] The previous <tool_call> block was invalid. Do not wrap action history or tool results in <tool_call>. Retry now using exactly <tool_call><function=TOOL_NAME><parameter=ARGUMENT_NAME>VALUE</parameter></function></tool_call>, or provide a normal final response.'
+            '[SYSTEM FORMAT ERROR] The previous <tool_call> block was invalid. Do not wrap action history or tool results in <tool_call>. Retry now using exactly <tool_call><invoke name="TOOL_NAME"><ARGUMENT_NAME>VALUE</ARGUMENT_NAME></invoke></tool_call>, or provide a normal final response.'
           );
           correction.isHidden = true;
           updatedMessages.push(correction);
@@ -1769,7 +1773,7 @@ export class AgentLoop {
             } else if (this.options?.interactionMode === 'plan' && planToolRetries < 2) {
             planToolRetries++;
             const nudgeMsg = createUserMessage(
-              `[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call runCommand with ls, read the relevant files with runCommand and cat, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone. (Retry ${planToolRetries}/2)`
+              `[SYSTEM] Plan mode requires real repository inspection and a saved artifact. You did not call any tools. Call runCommand with ls -la, read the relevant files with runCommand and cat, then call writeFile with path "implementation_plan.md" and the complete plan. Do not answer with plan text alone. (Retry ${planToolRetries}/2)`
             );
             nudgeMsg.isHidden = true;
             updatedMessages.push(nudgeMsg);
