@@ -46,8 +46,6 @@ export function GmailEmailPreview({ content }: GmailEmailPreviewProps) {
           isSent = true;
           recipientName = fromName;
           recipientEmail = fromEmail;
-          fromName = 'Me';
-          fromEmail = '';
         }
 
         if (headerMatch[4]) {
@@ -120,7 +118,7 @@ export function GmailEmailPreview({ content }: GmailEmailPreviewProps) {
           <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-4">
             <div className="flex items-baseline gap-2 truncate">
               <span className="font-bold text-[14px] text-[#202124] truncate">{fromName}</span>
-              <span className="text-[12px] text-[#5f6368] truncate">&lt;{fromEmail}&gt;</span>
+              {fromEmail && <span className="text-[12px] text-[#5f6368] truncate">&lt;{fromEmail}&gt;</span>}
             </div>
             <div className="flex items-center gap-3 text-[#5f6368] shrink-0">
               <span className="text-[12px]">{dateStr}</span>
@@ -190,3 +188,5 @@ export function GmailEmailPreview({ content }: GmailEmailPreviewProps) {
     </div>
   );
 }
+
+

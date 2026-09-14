@@ -551,7 +551,16 @@ const App = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      // Revoke external service connections
+      await Promise.all([
+        fetch('http://localhost:3001/auth/disconnect', { method: 'POST' }).catch(() => {}),
+        fetch('http://localhost:3002/auth/disconnect', { method: 'POST' }).catch(() => {})
+      ]);
+    } catch (e) {
+      console.error("Failed to disconnect external services on logout", e);
+    }
     setUser(null);
     localStorage.removeItem('quantix_session');
     setSettingsOpen(false);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
-import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2, Mail, Star, Square, ArrowLeft, ArrowRight, RotateCcw, Lock, Code } from 'lucide-react';
+import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2, Mail, Star, Square, ArrowLeft, ArrowRight, RotateCcw, Lock, Code, Folder, FileText, File, Image as ImageIcon, MoreVertical } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
@@ -380,6 +380,121 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     return (
       <div className="space-y-2">
         <FileEditCard step={step} />
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__gdrive__')) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+    const args = step.toolCall.arguments || {};
+    
+    const isList = step.toolCall.name === 'mcp__gdrive__list_files' || step.toolCall.name === 'mcp__gdrive__search_files';
+    const isRead = step.toolCall.name === 'mcp__gdrive__read_file';
+    const isUpload = step.toolCall.name === 'mcp__gdrive__upload_file';
+    
+    const files = [];
+    if (isList && typeof output === 'string' && output) {
+      const blocks = output.split('\n---');
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+        const idMatch = block.match(/ID:\s*([^\n]+)/);
+        const nameMatch = block.match(/Name:\s*([^\n]+)/);
+        const typeMatch = block.match(/Type:\s*([^\n]+)/);
+        const modifiedMatch = block.match(/Modified:\s*([^\n]+)/);
+        
+        if (idMatch && nameMatch) {
+          files.push({
+            id: idMatch[1].trim(),
+            name: nameMatch[1].trim(),
+            mimeType: typeMatch ? typeMatch[1].trim() : '',
+            modified: modifiedMatch ? modifiedMatch[1].trim() : ''
+          });
+        }
+      }
+    }
+
+
+
+    return (
+      <div className={cn(
+          "w-full my-2 rounded-xl overflow-hidden shadow-sm border border-gray-200 bg-white",
+          isRunning || step.status === 'pending' ? "opacity-70 animate-pulse" : ""
+      )}>
+        {/* Header - Drive Style */}
+        <div className="flex items-center gap-4 px-4 py-3 bg-white border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <img src="./drive.png" alt="Drive" className="w-6 h-6 object-contain" />
+            <span className="font-medium text-gray-600 text-lg tracking-tight" style={{fontFamily: 'Product Sans, Roboto, sans-serif'}}>Drive</span>
+          </div>
+          
+          <div className="flex-1 max-w-xl">
+            <div className="flex items-center gap-3 px-4 py-2 bg-[#f1f3f4] rounded-full text-gray-600">
+              <Search size={18} className="text-gray-500" />
+              <span className="text-[14px] text-gray-600 truncate font-sans">
+                {isList ? (args.query || 'Search in Drive') : isRead ? 'Read File' : isUpload ? 'Upload File' : 'Google Drive Action'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white min-h-[100px] text-sm font-sans text-gray-800">
+          {isList ? (
+            <div className="p-4 flex flex-wrap gap-4">
+              {files.length > 0 ? (
+                files.map((file, idx) => {
+                  let FileIconComponent = File;
+                  let iconColor = "text-gray-400";
+                  if (file.mimeType.includes('pdf')) { FileIconComponent = FileText; iconColor = "text-red-500"; }
+                  else if (file.mimeType.includes('image')) { FileIconComponent = ImageIcon; iconColor = "text-red-400"; }
+                  else if (file.mimeType.includes('document')) { FileIconComponent = FileText; iconColor = "text-blue-500"; }
+                  else if (file.mimeType.includes('folder')) { FileIconComponent = Folder; iconColor = "text-gray-500"; }
+
+                  return (
+                    <div key={idx} className="flex flex-col w-48 border border-gray-200 rounded-lg overflow-hidden hover:bg-gray-50 cursor-pointer group transition-colors">
+                      <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 bg-gray-50">
+                        <FileIconComponent size={16} className={iconColor} />
+                        <span className="font-semibold text-gray-800 truncate text-[13px]">{file.name}</span>
+                        <MoreVertical size={14} className="ml-auto text-gray-400 opacity-0 group-hover:opacity-100" />
+                      </div>
+                      <div className="h-24 bg-white flex flex-col justify-center items-center p-3">
+                         {file.mimeType.includes('image') ? (
+                           <ImageIcon size={32} className="text-gray-200" />
+                         ) : file.mimeType.includes('pdf') ? (
+                           <FileText size={32} className="text-gray-200" />
+                         ) : file.mimeType.includes('folder') ? (
+                           <Folder size={32} className="text-gray-200" />
+                         ) : (
+                           <div className="text-[10px] text-gray-400 text-center line-clamp-3 w-full break-all">
+                             {file.mimeType}
+                           </div>
+                         )}
+                      </div>
+                      <div className="px-3 py-2 border-t border-gray-100 bg-white flex items-center gap-2 text-xs text-gray-500">
+                         <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                           <span className="text-[10px] font-bold">ME</span>
+                         </div>
+                         <span className="truncate flex-1">{file.modified ? new Date(file.modified).toLocaleDateString() : ''}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : isRunning ? (
+                <div className="p-6 w-full text-center text-gray-500 italic flex justify-center items-center gap-2"><Loader2 className="animate-spin" size={16}/> Loading files...</div>
+              ) : (
+                <div className="p-6 w-full text-center text-gray-500">{typeof output === 'string' && output.includes('Error') ? output : 'No files found.'}</div>
+              )}
+            </div>
+          ) : (
+            <div className="p-4 bg-gray-50 flex justify-center">
+              {output ? (
+                 <div className="w-full max-w-3xl bg-white border border-gray-200 rounded-lg p-6 shadow-sm whitespace-pre-wrap font-mono text-[13px] text-gray-800 break-all overflow-x-hidden">
+                   {typeof output === 'string' ? output : JSON.stringify(output)}
+                 </div>
+              ) : (isRunning ? <span className="flex items-center gap-1"><Loader2 className="animate-spin" size={12}/> Loading...</span> : 'No content')}
+            </div>
+          )}
+        </div>
       </div>
     );
   }

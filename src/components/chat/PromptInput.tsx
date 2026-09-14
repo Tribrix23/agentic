@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2 } from 'lucide-react';
+import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2, Folder, FileText, Upload } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -145,6 +145,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [gdriveConnected, setGdriveConnected] = useState(false);
+  const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -171,6 +173,27 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       setChipsWidth(0);
     }
   }, [selectedSlashCommands]);
+
+    // Check GDrive connection status on load and poll while modal is open
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3002/auth/status');
+        const data = await res.json();
+        setGdriveConnected(data.connected === true);
+        setGdriveEmail(data.email || null);
+      } catch { /* server not running yet */ }
+    };
+    
+    // Always check status immediately
+    void check();
+    
+    // Only set up polling if the modal is open
+    if (!showConnectModal) return;
+    
+    const interval = setInterval(check, 2000);
+    return () => clearInterval(interval);
+  }, [showConnectModal]);
 
   // Check GMail connection status on load and poll while modal is open
   useEffect(() => {
@@ -538,6 +561,36 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       }
     : null;
 
+  const suggestedActions = React.useMemo(() => {
+    let pool = [];
+    if (gmailConnected) {
+      pool.push(
+        { icon: <Mail size={14} />, label: "Read unread emails", prompt: "Read my latest unread emails" },
+        { icon: <PenLine size={14} />, label: "Draft an email", prompt: "Help me draft a new email" },
+        { icon: <Search size={14} />, label: "Search inbox", prompt: "Search my inbox for recent newsletters" },
+        { icon: <Trash2 size={14} />, label: "Clean up spam", prompt: "Find and delete spam emails" }
+      );
+    }
+    if (gdriveConnected) {
+      pool.push(
+        { icon: <Folder size={14} />, label: "List recent files", prompt: "List my recent files from Google Drive" },
+        { icon: <Search size={14} />, label: "Search drive", prompt: "Search my Google Drive for reports" },
+        { icon: <FileText size={14} />, label: "Summarize a doc", prompt: "Find the latest project spec and summarize it" },
+        { icon: <Upload size={14} />, label: "Upload workspace", prompt: "Upload my current workspace files to a new Drive folder" }
+      );
+    }
+    
+    if (pool.length === 0) return [];
+    
+    const shuffled = [...pool];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    
+    return shuffled.slice(0, 4);
+  }, [gmailConnected, gdriveConnected]);
+
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
       <div className="absolute -top-6 right-2 z-10 flex justify-end">
@@ -545,11 +598,21 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           onClick={() => setShowConnectModal(!showConnectModal)}
           className="text-[12px] text-[#a8a8b1] hover:text-white transition-colors flex items-center"
         >
-          {gmailConnected ? (
-            <div className="flex items-center gap-1.5 transition-colors group">
+          {gmailConnected || gdriveConnected ? (
+            <div className="flex items-center gap-3 transition-colors group">
               <Link2 size={12} className="text-white/40 group-hover:text-white/70" />
-              <img src="./gmail.png" alt="Gmail" className="w-3.5 h-3.5" />
-              <span className="font-semibold text-white/80 group-hover:text-white">Gmail</span>
+              {gmailConnected && (
+                <div className="flex items-center gap-1.5">
+                  <img src="./gmail.png" alt="Gmail" className="w-3.5 h-3.5" />
+                  <span className="font-semibold text-white/80 group-hover:text-white">Gmail</span>
+                </div>
+              )}
+              {gdriveConnected && (
+                <div className="flex items-center gap-1.5">
+                  <img src="./drive.png" alt="Google Drive" className="w-3.5 h-3.5" />
+                  <span className="font-semibold text-white/80 group-hover:text-white">Drive</span>
+                </div>
+              )}
             </div>
           ) : (
             <span className="font-semibold text-white/80 hover:text-white">Connect +</span>
@@ -1060,18 +1123,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         )}
       </div>
 
-      {gmailConnected && !hasMessages && (
+      {suggestedActions.length > 0 && !hasMessages && (
         <motion.div 
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex gap-3 items-center justify-between w-full mt-3 z-10"
         >
-          {[
-            { icon: <Mail size={14} />, label: "Read unread emails", prompt: "Read my latest unread emails" },
-            { icon: <PenLine size={14} />, label: "Draft an email", prompt: "Help me draft a new email" },
-            { icon: <Search size={14} />, label: "Search inbox", prompt: "Search my inbox for recent newsletters" },
-            { icon: <Trash2 size={14} />, label: "Clean up spam", prompt: "Find and delete spam emails" }
-          ].map((suggestion, i) => (
+          {suggestedActions.map((suggestion, i) => (
             <button
               key={i}
               onClick={() => setContent(suggestion.prompt)}
@@ -1120,7 +1178,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                           <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
                             <div className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
                             <span className={`text-[12px] font-medium truncate ${gmailConnected ? 'text-green-400' : 'text-zinc-500'}`}>
-                              {gmailConnected ? (gmailEmail || 'Connected') : 'Not connected'}
+                              {gmailConnected ? 'Connected' : 'Not connected'}
                             </span>
                           </div>
                         </div>
@@ -1163,14 +1221,45 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         </div>
                         <div className="flex-1 flex flex-col gap-0.5">
                           <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Google Drive</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
+                            <div className={`w-1.5 h-1.5 rounded-full ${gdriveConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
+                            <span className={`text-[12px] font-medium truncate ${gdriveConnected ? 'text-green-400' : 'text-zinc-500'}`}>
+                              {gdriveConnected ? 'Connected' : 'Not connected'}
+                            </span>
                           </div>
                         </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
+                        {!gdriveConnected ? (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('http://localhost:3002/auth/url');
+                                const data = await res.json();
+                                if ((window as any).electron?.openExternal) {
+                                  (window as any).electron.openExternal(data.url);
+                                } else {
+                                  window.open(data.url, '_blank');
+                                }
+                              } catch (e) {
+                                alert('Google Drive MCP Server is not running yet. Please restart Quantix.');
+                              }
+                            }}
+                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                            Connect
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await fetch('http://localhost:3002/auth/disconnect', { method: 'POST' });
+                                setGdriveConnected(false);
+                              } catch (e) {
+                                alert('Failed to disconnect Google Drive.');
+                              }
+                            }}
+                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                            Disconnect
+                          </button>
+                        )}
                       </div>
                       <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
@@ -1353,3 +1442,5 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     </div>
   );
 }
+
+

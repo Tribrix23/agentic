@@ -15,8 +15,8 @@ require("dotenv").config({ path: path.join(__dirname, '..', '..', '.env') });
 // OAuth2 Setup
 const CLIENT_ID = process.env.GMAIL_CLIENT_ID || "YOUR_CLIENT_ID";
 const CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
-const REDIRECT_URI = "http://localhost:3001/oauth2callback";
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'];
+const REDIRECT_URI = "http://localhost:3002/oauth2callback";
+const SCOPES = ['https://www.googleapis.com/auth/drive'];
 
 const getAppDataPath = () => {
   const appName = 'Quantix Code';
@@ -35,7 +35,7 @@ const getAppDataPath = () => {
   return appDir;
 };
 
-const TOKEN_PATH = path.join(getAppDataPath(), 'gmail-token.json');
+const TOKEN_PATH = path.join(getAppDataPath(), 'gdrive-token.json');
 
 const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
@@ -78,7 +78,7 @@ app.get('/oauth2callback', async (req, res) => {
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <title>Successfully connected to GMail!</title>
+        <title>Successfully connected to Google Drive!</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
         <style>
           body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #080A0F; font-family: 'Inter', sans-serif; }
@@ -103,7 +103,7 @@ app.get('/oauth2callback', async (req, res) => {
       <body>
         <div class="content">
           <img class="logo" src="http://localhost:5173/icon.png" alt="Quantix" onerror="this.style.display='none'" />
-          <h1>Gmail Connected</h1>
+          <h1>Google Drive Connected</h1>
           <p>Authentication complete. You can safely close this browser tab and return to the app.</p>
         </div>
         
@@ -250,9 +250,9 @@ app.get('/auth/status', async (req, res) => {
       } else {
         // Fetch it once and save it
         oauth2Client.setCredentials(tokens);
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-        const profile = await gmail.users.getProfile({ userId: 'me' });
-        emailAddress = profile.data.emailAddress;
+        const drive = google.drive({ version: 'v3', auth: oauth2Client });
+        const about = await drive.about.get({ fields: 'user' });
+        emailAddress = about.data.user.emailAddress;
         tokens.emailAddress = emailAddress;
         fs.writeFileSync(TOKEN_PATH, JSON.stringify(tokens));
       }
@@ -285,16 +285,16 @@ app.post('/auth/disconnect', async (req, res) => {
   }
 });
 
-const httpServer = app.listen(3001, () => {
-  console.error("GMail OAuth Server listening on http://localhost:3001");
+const httpServer = app.listen(3002, () => {
+  console.error("Google Drive OAuth Server listening on http://localhost:3002");
 });
 
 httpServer.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    // Another instance of this server is already running on port 3001 — that's fine.
-    console.error('[GMail MCP] Port 3001 already in use — existing OAuth server will handle requests.');
+    // Another instance of this server is already running on port 3002 — that's fine.
+    console.error('[GDrive MCP] Port 3002 already in use — existing OAuth server will handle requests.');
   } else {
-    console.error('[GMail MCP] HTTP server error:', err);
+    console.error('[GDrive MCP] HTTP server error:', err);
   }
 });
 
@@ -303,7 +303,7 @@ httpServer.on('error', (err) => {
 // ---------------------------------------------------------
 const server = new Server(
   {
-    name: "gmail-mcp-server",
+    name: "gdrive-mcp-server",
     version: "1.0.0",
   },
   {
@@ -318,38 +318,59 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "list_emails",
-        description: "List recent emails from GMail",
+        name: "list_files",
+        description: "List recent files from Google Drive",
         inputSchema: {
           type: "object",
           properties: {
-            maxResults: { type: "number", description: "Maximum number of emails to return" },
-            query: { type: "string", description: "GMail search query (e.g. 'is:unread')" }
+            maxResults: { type: "number", description: "Maximum number of files to return (default 10)" },
           }
         }
       },
       {
-        name: "read_email",
-        description: "Read the full text body of a specific email",
+        name: "search_files",
+        description: "Search for files in Google Drive",
         inputSchema: {
           type: "object",
           properties: {
-            messageId: { type: "string", description: "The ID of the email to read" }
+            query: { type: "string", description: "Drive search query (e.g. 'name contains \"report\"')" },
+            maxResults: { type: "number", description: "Maximum number of files to return (default 10)" }
           },
-          required: ["messageId"]
+          required: ["query"]
         }
       },
       {
-        name: "send_email",
-        description: "Send an email using GMail",
+        name: "read_file",
+        description: "Read the text content of a specific file from Google Drive (supports normal text files and Google Docs)",
         inputSchema: {
           type: "object",
           properties: {
-            to: { type: "string" },
-            subject: { type: "string" },
-            body: { type: "string" }
+            fileId: { type: "string", description: "The ID of the file to read" }
           },
-          required: ["to", "subject", "body"]
+          required: ["fileId"]
+        }
+      },
+      {
+        name: "upload_file",
+        description: "Upload a file to Google Drive. Requires local file path.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: { type: "string", description: "Absolute path of the local file to upload" },
+            fileName: { type: "string", description: "Optional name for the file in Drive (defaults to local file name)" }
+          },
+          required: ["filePath"]
+        }
+      },
+      {
+        name: "delete_file",
+        description: "Delete a file from Google Drive by its file ID.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            fileId: { type: "string", description: "The ID of the file to delete" }
+          },
+          required: ["fileId"]
         }
       }
     ]
@@ -359,7 +380,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 // Handle Tool Calls
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (!fs.existsSync(TOKEN_PATH)) {
-    throw new Error("GMail is not connected. Please connect via the UI first.");
+    throw new Error("Google Drive is not connected. Please connect via the UI first.");
   }
   
   // Always reload the token from disk right before making a request.
@@ -371,100 +392,104 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw new Error(`Failed to read token: ${err.message}`);
   }
   
-  const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+  const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-  if (request.params.name === "list_emails") {
+  if (request.params.name === "list_files") {
     const maxResults = request.params.arguments?.maxResults || 10;
-    const q = request.params.arguments?.query || "";
-    
     try {
-      const res = await gmail.users.messages.list({ userId: 'me', maxResults, q });
-      const messages = res.data.messages || [];
-      
-      const emailDetails = await Promise.all(messages.map(async (msg) => {
-        const msgRes = await gmail.users.messages.get({ userId: 'me', id: msg.id });
-        const headers = msgRes.data.payload.headers;
-        const subject = headers.find(h => h.name === 'Subject')?.value;
-        const from = headers.find(h => h.name === 'From')?.value;
-        return `ID: ${msg.id}\nFrom: ${from}\nSubject: ${subject}\nSnippet: ${msgRes.data.snippet}\n---`;
-      }));
-      
-      return {
-        content: [{ type: "text", text: emailDetails.length ? emailDetails.join('\n') : "No emails found." }]
-      };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-    }
-  }
-
-  if (request.params.name === "read_email") {
-    const { messageId } = request.params.arguments;
-    try {
-      const msgRes = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
-      const headers = msgRes.data.payload.headers;
-      const subject = headers.find(h => h.name === 'Subject')?.value;
-      const from = headers.find(h => h.name === 'From')?.value;
-      
-      let bodyText = "";
-      
-      function getPlaintextPart(parts) {
-        for (let i = 0; i < parts.length; i++) {
-          if (!parts[i].parts) {
-            if (parts[i].mimeType === 'text/plain') {
-              return parts[i].body?.data || '';
-            } else if (parts[i].mimeType === 'text/html' && !bodyText) {
-              bodyText = parts[i].body?.data || ''; // fallback
-            }
-          } else {
-            const found = getPlaintextPart(parts[i].parts);
-            if (found && parts[i].mimeType !== 'multipart/alternative') return found; // keep looking if it's alternative, preferring plain
-            if (found) return found;
-          }
-        }
-        return bodyText;
-      }
-
-      if (msgRes.data.payload.parts) {
-        bodyText = getPlaintextPart(msgRes.data.payload.parts);
-      } else {
-        bodyText = msgRes.data.payload.body?.data || '';
-      }
-
-      if (bodyText) {
-        bodyText = Buffer.from(bodyText.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-      }
-
-      return {
-        content: [{ type: "text", text: `From: ${from}\nSubject: ${subject}\n\n${bodyText}` }]
-      };
-    } catch (error) {
-      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-    }
-  }
-
-  if (request.params.name === "send_email") {
-    const { to, subject, body } = request.params.arguments;
-    try {
-      const messageParts = [
-        `To: ${to}`,
-        'Content-Type: text/html; charset=utf-8',
-        'MIME-Version: 1.0',
-        `Subject: ${subject}`,
-        '',
-        body
-      ];
-      const message = messageParts.join('\n');
-      const encodedMessage = Buffer.from(message)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-        
-      await gmail.users.messages.send({
-        userId: 'me',
-        requestBody: { raw: encodedMessage }
+      const res = await drive.files.list({
+        pageSize: maxResults,
+        fields: 'nextPageToken, files(id, name, mimeType, modifiedTime)',
+        orderBy: 'modifiedTime desc'
       });
-      return { content: [{ type: "text", text: "Email sent successfully." }] };
+      const files = res.data.files || [];
+      const fileDetails = files.map(f => `ID: ${f.id}\nName: ${f.name}\nType: ${f.mimeType}\nModified: ${f.modifiedTime}\n---`);
+      return {
+        content: [{ type: "text", text: fileDetails.length ? fileDetails.join('\n') : "No files found." }]
+      };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
+    }
+  }
+
+  if (request.params.name === "search_files") {
+    const { query, maxResults = 10 } = request.params.arguments;
+    try {
+      const res = await drive.files.list({
+        q: query,
+        pageSize: maxResults,
+        fields: 'nextPageToken, files(id, name, mimeType, modifiedTime)'
+      });
+      const files = res.data.files || [];
+      const fileDetails = files.map(f => `ID: ${f.id}\nName: ${f.name}\nType: ${f.mimeType}\nModified: ${f.modifiedTime}\n---`);
+      return {
+        content: [{ type: "text", text: fileDetails.length ? fileDetails.join('\n') : "No matching files found." }]
+      };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
+    }
+  }
+
+  if (request.params.name === "read_file") {
+    const { fileId } = request.params.arguments;
+    try {
+      // First get metadata to check mimeType (useful if it's a Google Doc that needs exporting)
+      const metaRes = await drive.files.get({ fileId, fields: 'mimeType, name' });
+      const mimeType = metaRes.data.mimeType;
+      let textContent = "";
+
+      if (mimeType.startsWith('application/vnd.google-apps.document')) {
+        // Export Google Doc as text
+        const res = await drive.files.export({
+          fileId: fileId,
+          mimeType: 'text/plain'
+        }, { responseType: 'text' });
+        textContent = res.data;
+      } else {
+        // Normal file download
+        const res = await drive.files.get(
+          { fileId: fileId, alt: 'media' },
+          { responseType: 'text' }
+        );
+        textContent = res.data;
+      }
+
+      return {
+        content: [{ type: "text", text: `Name: ${metaRes.data.name}\n\n${textContent}` }]
+      };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
+    }
+  }
+
+  if (request.params.name === "upload_file") {
+    const { filePath, fileName } = request.params.arguments;
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { content: [{ type: "text", text: `Error: File not found at path ${filePath}` }], isError: true };
+      }
+      const parsed = path.parse(filePath);
+      const nameToUse = fileName || parsed.base;
+      const res = await drive.files.create({
+        requestBody: { name: nameToUse },
+        media: { body: fs.createReadStream(filePath) },
+        fields: 'id, name, webViewLink'
+      });
+      return {
+        content: [{ type: "text", text: `File uploaded successfully!\nID: ${res.data.id}\nName: ${res.data.name}\nLink: ${res.data.webViewLink}` }]
+      };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
+    }
+  }
+
+  if (request.params.name === "delete_file") {
+    const { fileId } = request.params.arguments;
+    try {
+      await drive.files.delete({ fileId });
+      return {
+        content: [{ type: "text", text: `File with ID ${fileId} successfully deleted.` }]
+      };
     } catch (error) {
       return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
     }
@@ -476,16 +501,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("GMail MCP Server running on stdio");
+  console.error("GDrive MCP Server running on stdio");
 
   // When the parent (Quantix) closes, stdin is closed. We must exit to avoid zombie processes 
-  // keeping the Express port (3001) open in the background.
+  // keeping the Express port (3002) open in the background.
   process.stdin.on('close', () => {
-    console.error("GMail MCP Server stdio closed. Exiting...");
+    console.error("GDrive MCP Server stdio closed. Exiting...");
     process.exit(0);
   });
   process.stdin.on('end', () => {
-    console.error("GMail MCP Server stdio ended. Exiting...");
+    console.error("GDrive MCP Server stdio ended. Exiting...");
     process.exit(0);
   });
 }
@@ -494,3 +519,8 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
+
+
+
+
+
