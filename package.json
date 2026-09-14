@@ -142,7 +142,12 @@
           "**/*"
         ]
       },
-      "assets/busybox.exe"
+      "assets/busybox.exe",
+      {
+        "from": "servers",
+        "to": "servers",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "icon": "assets/icon.ico",

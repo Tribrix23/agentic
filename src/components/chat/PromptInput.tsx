@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
 import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2, Folder, FileText, Upload } from 'lucide-react';
-import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub } from 'react-icons/si';
+import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub, SiSupabase } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
 import { OpenAIIcon } from '../icons/OpenAIIcon';
@@ -12,7 +12,7 @@ import { TokenBudget } from '../../lib/tokenCounter';
 import { Tooltip } from '../ui/Tooltip';
 import { getInstalledSkills, AgentSkill } from '../../lib/agentSkills';
 import { getAllTools } from '../../lib/tools';
-import { Puzzle, Globe } from 'lucide-react';
+import { Puzzle, Globe, Database } from 'lucide-react';
 import Strands from '../Strands';
 
 const QwenIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -147,6 +147,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [gdriveConnected, setGdriveConnected] = useState(false);
   const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
+  const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -182,6 +183,26 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const data = await res.json();
         setGdriveConnected(data.connected === true);
         setGdriveEmail(data.email || null);
+      } catch { /* server not running yet */ }
+    };
+    
+    // Always check status immediately
+    void check();
+    
+    // Only set up polling if the modal is open
+    if (!showConnectModal) return;
+    
+    const interval = setInterval(check, 2000);
+    return () => clearInterval(interval);
+  }, [showConnectModal]);
+
+  // Check Supabase connection status on load and poll while modal is open
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3003/auth/status');
+        const data = await res.json();
+        setSupabaseConnected(data.connected === true);
       } catch { /* server not running yet */ }
     };
     
@@ -579,6 +600,14 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         { icon: <Upload size={14} />, label: "Upload workspace", prompt: "Upload my current workspace files to a new Drive folder" }
       );
     }
+    if (supabaseConnected) {
+      pool.push(
+        { icon: <Database size={14} />, label: "List tables", prompt: "List all tables in my Supabase database" },
+        { icon: <Search size={14} />, label: "Query users", prompt: "Show me the first 10 rows of the users table in Supabase" },
+        { icon: <PenLine size={14} />, label: "Create a table", prompt: "Create a new table in Supabase for tracking blog posts" },
+        { icon: <FileText size={14} />, label: "Schema summary", prompt: "Summarize the database schema from my Supabase project" }
+      );
+    }
     
     if (pool.length === 0) return [];
     
@@ -589,7 +618,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
     
     return shuffled.slice(0, 4);
-  }, [gmailConnected, gdriveConnected]);
+  }, [gmailConnected, gdriveConnected, supabaseConnected]);
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
@@ -598,22 +627,41 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           onClick={() => setShowConnectModal(!showConnectModal)}
           className="text-[12px] text-[#a8a8b1] hover:text-white transition-colors flex items-center"
         >
-          {gmailConnected || gdriveConnected ? (
-            <div className="flex items-center gap-3 transition-colors group">
-              <Link2 size={12} className="text-white/40 group-hover:text-white/70" />
-              {gmailConnected && (
-                <div className="flex items-center gap-1.5">
+          {gmailConnected || gdriveConnected || supabaseConnected ? (
+            (() => {
+              const connectedServices = [];
+              if (gmailConnected) connectedServices.push(
+                <div key="gmail" className="flex items-center gap-1.5">
                   <img src="./gmail.png" alt="Gmail" className="w-3.5 h-3.5" />
                   <span className="font-semibold text-white/80 group-hover:text-white">Gmail</span>
                 </div>
-              )}
-              {gdriveConnected && (
-                <div className="flex items-center gap-1.5">
+              );
+              if (gdriveConnected) connectedServices.push(
+                <div key="gdrive" className="flex items-center gap-1.5">
                   <img src="./drive.png" alt="Google Drive" className="w-3.5 h-3.5" />
                   <span className="font-semibold text-white/80 group-hover:text-white">Drive</span>
                 </div>
-              )}
-            </div>
+              );
+              if (supabaseConnected) connectedServices.push(
+                <div key="supabase" className="flex items-center gap-1.5">
+                  <img src="./supabase.png" alt="Supabase" className="w-3.5 h-3.5" />
+                  <span className="font-semibold text-white/80 group-hover:text-white">Supabase</span>
+                </div>
+              );
+              
+              return (
+                <div className="flex items-center transition-colors group">
+                  {connectedServices.map((service, index) => (
+                    <React.Fragment key={service.key}>
+                      {service}
+                      {index < connectedServices.length - 1 && (
+                        <Link2 size={12} className="text-white/30 group-hover:text-white/60 mx-2.5" />
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+              );
+            })()
           ) : (
             <span className="font-semibold text-white/80 hover:text-white">Connect +</span>
           )}
@@ -1297,14 +1345,45 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         </div>
                         <div className="flex-1 flex flex-col gap-0.5">
                           <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Supabase</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
+                          <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
+                            <div className={`w-1.5 h-1.5 rounded-full ${supabaseConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
+                            <span className={`text-[12px] font-medium truncate ${supabaseConnected ? 'text-green-400' : 'text-zinc-500'}`}>
+                              {supabaseConnected ? 'Connected' : 'Not connected'}
+                            </span>
                           </div>
                         </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
+                        {!supabaseConnected ? (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('http://localhost:3003/auth/url');
+                                const data = await res.json();
+                                if ((window as any).electron?.openExternal) {
+                                  (window as any).electron.openExternal(data.url);
+                                } else {
+                                  window.open(data.url, '_blank');
+                                }
+                              } catch (e) {
+                                alert('Supabase MCP Server is not running yet. Please restart Quantix.');
+                              }
+                            }}
+                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                            Connect
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await fetch('http://localhost:3003/auth/disconnect', { method: 'POST' });
+                                setSupabaseConnected(false);
+                              } catch (e) {
+                                alert('Failed to disconnect Supabase.');
+                              }
+                            }}
+                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                            Disconnect
+                          </button>
+                        )}
                       </div>
                       <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">

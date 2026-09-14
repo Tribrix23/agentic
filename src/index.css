@@ -103,6 +103,9 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* Animated Running Border for Terminal */
 @keyframes border-spin {

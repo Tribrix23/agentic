@@ -613,6 +613,120 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     );
   }
 
+  if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__supabase__') || step.toolCall.name.startsWith('mcp_supabase_'))) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+    const args = step.toolCall.arguments || {};
+    
+    let parsedData = null;
+    let columns: string[] = [];
+    try {
+      if (output) {
+        parsedData = JSON.parse(output);
+        if (Array.isArray(parsedData) && parsedData.length > 0) {
+          columns = Object.keys(parsedData[0]);
+        }
+      }
+    } catch (e) {}
+
+    const renderSkeleton = () => (
+      <div className="animate-pulse">
+        <div className="flex items-center gap-4 border-b border-white/5 px-4 py-2">
+          <div className="h-4 w-24 bg-white/5 rounded"></div>
+          <div className="h-4 w-32 bg-white/5 rounded"></div>
+          <div className="h-4 w-24 bg-white/5 rounded"></div>
+        </div>
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} className="flex items-center gap-4 border-b border-white/5 px-4 py-3">
+            <div className="h-3 w-5/6 bg-white/5 rounded"></div>
+            <div className="h-3 w-1/4 bg-white/5 rounded"></div>
+          </div>
+        ))}
+      </div>
+    );
+
+    return (
+      <div className="my-3 rounded-md overflow-hidden bg-[#1c1c1c] border border-white/10 font-sans text-white flex shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+        <div className="w-48 flex-shrink-0 border-r border-white/10 bg-[#161616] flex flex-col">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
+            <img src="./supabase.png" alt="Supabase" className="w-4 h-4" />
+            <span className="text-sm font-medium">Table Editor</span>
+          </div>
+          <div className="p-2 flex-1">
+            <div className="text-[11px] text-white/50 uppercase py-1.5 px-2 font-semibold tracking-wider">schema public</div>
+            <div className="mt-1 space-y-0.5">
+              {args.table ? (
+                <div className="flex items-center gap-2 px-2 py-1.5 bg-white/10 rounded text-[13px] text-[#3ecf8e]">
+                  <Terminal size={12} className="opacity-70" />
+                  {args.table}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-2 py-1.5 bg-white/10 rounded text-[13px] text-[#3ecf8e]">
+                  <Terminal size={12} className="opacity-70" />
+                  SQL Query
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between bg-[#1c1c1c]">
+            <div className="flex items-center gap-3">
+              <div className="text-[14px] font-medium text-white/90">{args.table || 'SQL Results'}</div>
+              <div className="text-[11px] font-medium text-[#3ecf8e] bg-[#3ecf8e]/10 border border-[#3ecf8e]/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                {args.action ? args.action.toUpperCase() : 'SQL'}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1 bg-[#3ecf8e] text-black text-[12px] font-semibold rounded flex items-center gap-1.5 shadow-[0_0_10px_rgba(62,207,142,0.2)]">
+                <CheckCircle2 size={12} />
+                Executed
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar max-h-[350px]">
+            {isRunning || step.status === 'pending' ? renderSkeleton() : (
+              isError ? (
+                <div className="p-4 text-red-400 font-mono text-sm whitespace-pre-wrap">{output}</div>
+              ) : (
+                parsedData && columns.length > 0 ? (
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 bg-[#1c1c1c] z-10 shadow-[0_1px_0_rgba(255,255,255,0.1)]">
+                      <tr>
+                        {columns.map(col => (
+                          <th key={col} className="px-4 py-2.5 text-[12px] font-medium text-white/50 whitespace-nowrap border-r border-white/5 last:border-0">
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {
+                        parsedData.map((row: any, i: number) => (
+                          <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                            {columns.map(col => (
+                              <td key={col} className="px-4 py-2 text-[13px] text-white/80 whitespace-nowrap border-r border-white/5 last:border-0 truncate max-w-[200px]" title={row[col] !== null ? String(row[col]) : ''}>
+                                {row[col] === null ? <span className="text-white/30 italic">NULL</span> : String(row[col])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                      }
+                    </tbody>
+                  </table>
+                ) : (
+                  <pre className="p-4 text-[12px] text-white/50 font-mono whitespace-pre-wrap break-all">
+                    {output}
+                  </pre>
+                )
+              )
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__playwright__')) {
     const isError = step.status === 'error' || step.status === 'rejected';
     const output = step.toolCall.result?.output || '';

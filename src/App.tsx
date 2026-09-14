@@ -556,7 +556,9 @@ const App = () => {
       // Revoke external service connections
       await Promise.all([
         fetch('http://localhost:3001/auth/disconnect', { method: 'POST' }).catch(() => {}),
-        fetch('http://localhost:3002/auth/disconnect', { method: 'POST' }).catch(() => {})
+        fetch('http://localhost:3002/auth/disconnect', { method: 'POST' }).catch(() => {}),
+        fetch('http://localhost:3003/auth/disconnect', { method: 'POST' }).catch(() => {}),
+        fetch('http://localhost:3003/auth/clear-token').catch(() => {})
       ]);
     } catch (e) {
       console.error("Failed to disconnect external services on logout", e);

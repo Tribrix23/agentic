@@ -376,6 +376,27 @@ function createWindow() {
     void mcpClientManager.connectServer('gmail').catch(error => console.error('[MCP] GMail failed to connect:', error));
   }
 
+  if (!mcpClientManager.getServer('supabase')) {
+    const isPackaged = app.isPackaged;
+    const supabaseServerPath = isPackaged
+      ? path.join(process.resourcesPath, 'servers', 'supabase-mcp', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'supabase-mcp', 'index.js');
+
+    mcpClientManager.addServer({
+      id: 'supabase',
+      name: 'Supabase',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [supabaseServerPath],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('supabase').catch(error => console.error('[MCP] Supabase failed to connect:', error));
+  }
+
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,
