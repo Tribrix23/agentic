@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check } from 'lucide-react';
+import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2 } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -126,9 +126,10 @@ interface PromptInputProps {
   hasProject?: boolean;
   userId?: string;
   tokenBudget?: TokenBudget;
+  hasMessages?: boolean;
 }
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget }: PromptInputProps) {
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget, hasMessages = false }: PromptInputProps) {
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
@@ -143,6 +144,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -170,17 +172,23 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
   }, [selectedSlashCommands]);
 
-  // Poll GMail connection status while the Connect modal is open
+  // Check GMail connection status on load and poll while modal is open
   useEffect(() => {
-    if (!showConnectModal) return;
     const check = async () => {
       try {
         const res = await fetch('http://localhost:3001/auth/status');
         const data = await res.json();
         setGmailConnected(data.connected === true);
+        setGmailEmail(data.email || null);
       } catch { /* server not running yet */ }
     };
+    
+    // Always check status immediately
     void check();
+    
+    // Only set up polling if the modal is open
+    if (!showConnectModal) return;
+    
     const interval = setInterval(check, 2000);
     return () => clearInterval(interval);
   }, [showConnectModal]);
@@ -532,11 +540,22 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
-      {selectedImages.length > 0 && ['GLM 5.3 Low', 'GLM 5.3 High', 'Dispatcher v1'].includes(config.model || 'Dispatcher v1') && (
-        <div className="absolute -top-7 right-0 text-yellow-400/90 text-[11px] font-medium pointer-events-none">
-          Limited Visual Capability as the Model does not natively support it
-        </div>
-      )}
+      <div className="absolute -top-6 right-2 z-10 flex justify-end">
+        <button
+          onClick={() => setShowConnectModal(!showConnectModal)}
+          className="text-[12px] text-[#a8a8b1] hover:text-white transition-colors flex items-center"
+        >
+          {gmailConnected ? (
+            <div className="flex items-center gap-1.5 transition-colors group">
+              <Link2 size={12} className="text-white/40 group-hover:text-white/70" />
+              <img src="./gmail.png" alt="Gmail" className="w-3.5 h-3.5" />
+              <span className="font-semibold text-white/80 group-hover:text-white">Gmail</span>
+            </div>
+          ) : (
+            <span className="font-semibold text-white/80 hover:text-white">Connect +</span>
+          )}
+        </button>
+      </div>
       {mentionedFiles.length > 0 && (
         <div className="flex gap-2 flex-wrap px-2">
           {mentionedFiles.map(file => (
@@ -1041,50 +1060,67 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         )}
       </div>
 
-      <div className="flex justify-start pl-2 -mt-1">
-        <button
-          onClick={() => setShowConnectModal(!showConnectModal)}
-          className="text-[13px] text-[#a8a8b1] hover:text-white transition-colors"
+      {gmailConnected && !hasMessages && (
+        <motion.div 
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex gap-3 items-center justify-between w-full mt-3 z-10"
         >
-          <span className="font-semibold text-white/80 hover:text-white">Connect +</span>
-        </button>
-        {typeof document !== 'undefined' && createPortal(
-          <AnimatePresence>
-            {showConnectModal && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                  onClick={() => setShowConnectModal(false)}
-                />
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.98, y: 8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.98, y: 8 }}
-                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-                  className="relative w-full max-w-[640px] bg-[#18181b] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[75vh] overflow-hidden"
-                >
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
-                    <div className="text-[15px] font-semibold text-zinc-100 tracking-wide">Connect External Services</div>
-                    <button onClick={() => setShowConnectModal(false)} className="text-zinc-500 hover:text-zinc-200 transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
-                      <X size={18} />
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {[
+            { icon: <Mail size={14} />, label: "Read unread emails", prompt: "Read my latest unread emails" },
+            { icon: <PenLine size={14} />, label: "Draft an email", prompt: "Help me draft a new email" },
+            { icon: <Search size={14} />, label: "Search inbox", prompt: "Search my inbox for recent newsletters" },
+            { icon: <Trash2 size={14} />, label: "Clean up spam", prompt: "Find and delete spam emails" }
+          ].map((suggestion, i) => (
+            <button
+              key={i}
+              onClick={() => setContent(suggestion.prompt)}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-[#1c1c21] hover:bg-[#25252b] border border-white/5 hover:border-white/10 rounded-xl text-[12px] text-zinc-300 hover:text-white transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.7)] hover:-translate-y-1 truncate"
+            >
+              {suggestion.icon}
+              <span className="font-medium truncate">{suggestion.label}</span>
+            </button>
+          ))}
+        </motion.div>
+      )}
+
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showConnectModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={() => setShowConnectModal(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: 8 }}
+                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                className="relative w-full max-w-[640px] bg-[#18181b] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[75vh] overflow-hidden"
+              >
+                <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
+                  <div className="text-[15px] font-semibold text-zinc-100 tracking-wide">Connect External Services</div>
+                  <button onClick={() => setShowConnectModal(false)} className="text-zinc-500 hover:text-zinc-200 transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
                         <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
                           <img src="./gmail.png" alt="GMail" className="w-7 h-7 object-contain" />
                         </div>
                         <div className="flex-1 flex flex-col gap-0.5">
                           <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">GMail</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? 'bg-green-500' : 'bg-zinc-600'}`}></div>
-                            <span className={`text-[12px] font-medium ${gmailConnected ? 'text-green-400' : 'text-zinc-500'}`}>
-                              {gmailConnected ? 'Connected' : 'Not connected'}
+                          <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
+                            <div className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
+                            <span className={`text-[12px] font-medium truncate ${gmailConnected ? 'text-green-400' : 'text-zinc-500'}`}>
+                              {gmailConnected ? (gmailEmail || 'Connected') : 'Not connected'}
                             </span>
                           </div>
                         </div>
@@ -1234,8 +1270,6 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           </AnimatePresence>,
           document.body
         )}
-      </div>
-
       <AnimatePresence>
         {previewImage && (
           <motion.div

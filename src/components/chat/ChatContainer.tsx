@@ -119,19 +119,21 @@ export function ChatContainer({
                 options={pendingAskUser.options}
                 onSubmit={onUserResponse}
               />
-            ) : null}
-            <PromptInput
-              onSend={onSendMessage}
-              onStop={onStopAgent}
-              isAgentRunning={isRunActive}
-              config={config}
-              projectFiles={projectFiles}
-              onConfigChange={onConfigChange}
-              value={inputValue}
-              onChange={onInputChange}
-              userId={userId}
-              tokenBudget={tokenBudget}
-            />
+            ) : (
+              <PromptInput
+                onSend={onSendMessage}
+                onStop={onStopAgent}
+                isAgentRunning={isRunActive}
+                config={config}
+                projectFiles={projectFiles}
+                onConfigChange={onConfigChange}
+                value={inputValue}
+                onChange={onInputChange}
+                userId={userId}
+                tokenBudget={tokenBudget}
+                hasMessages={messages.length > 0}
+              />
+            )}
           </div>
         </div>
       </div>

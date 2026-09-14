@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
-import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2 } from 'lucide-react';
+import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2, Mail, Star, Square, ArrowLeft, ArrowRight, RotateCcw, Lock, Code } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { FileIcon } from './FileIcon';
 import { getFileActivityPrefix } from '../../lib/fileActivity';
+import { GmailEmailPreview } from './GmailEmailPreview';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -379,6 +380,205 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     return (
       <div className="space-y-2">
         <FileEditCard step={step} />
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__gmail__')) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+    const args = step.toolCall.arguments || {};
+    
+    // Parse emails if it's a list operation and output is a string
+    const isList = step.toolCall.name === 'mcp__gmail__list_emails';
+    const isRead = step.toolCall.name === 'mcp__gmail__read_email';
+    const emails = [];
+    if (isList && typeof output === 'string' && output) {
+      const blocks = output.split('\n---');
+      for (const block of blocks) {
+        if (!block.trim()) continue;
+        const fromMatch = block.match(/From:\s*([^\n]+)/);
+        const subjectMatch = block.match(/Subject:\s*([^\n]+)/);
+        const snippetMatch = block.match(/Snippet:\s*([\s\S]+)/);
+        
+        const from = fromMatch ? fromMatch[1].trim() : 'Unknown';
+        const subject = subjectMatch ? subjectMatch[1].trim() : '(no subject)';
+        const snippet = snippetMatch ? snippetMatch[1].replace(/\n/g, ' ').trim() : '';
+        
+        emails.push({ from, subject, snippet });
+      }
+    }
+
+    const GmailLogo = () => (
+      <svg viewBox="0 0 24 24" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2.25 7.042v10.457c0 1.05.85 1.9 1.9 1.9h2.85V10.85L12 14.65l5-3.8v8.549h2.85c1.05 0 1.9-.85 1.9-1.9V7.042c0-.365-.1-.722-.294-1.026-.543-.85-1.636-1.127-2.527-.61L12 10.65 4.921 5.405c-.89-.517-1.984-.24-2.527.61-.194.304-.294.661-.294 1.027z" fill="#4285F4"/>
+        <path d="M16.999 19.399h3.8c1.05 0 1.9-.85 1.9-1.9V7.042c0-.365-.1-.722-.294-1.026l-5.406 4.834v8.549z" fill="#34A853"/>
+        <path d="M2.25 7.042c0-.365.1-.722.294-1.026.543-.85 1.636-1.127 2.527-.61l6.93 5.244L16.999 5.405c.891-.517 1.985-.24 2.528.61.194.304.294.661.294 1.027V9.75L12 15.65 2.25 9.75V7.042z" fill="#EA4335"/>
+        <path d="M2.25 19.399V9.75L12 15.65v-5.05L4.921 5.405c-.89-.517-1.984-.24-2.527.61-.194.304-.294.661-.294 1.027v12.357z" fill="#FBBC05"/>
+      </svg>
+    );
+    
+    return (
+      <div className={cn(
+          "w-full my-2 rounded-xl overflow-hidden shadow-sm border border-gray-200 bg-white",
+          isRunning || step.status === 'pending' ? "opacity-70 animate-pulse" : ""
+      )}>
+        {/* Header - Gmail Style */}
+        <div className="flex items-center gap-4 px-4 py-3 bg-white border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <GmailLogo />
+            <span className="font-medium text-gray-600 text-lg tracking-tight" style={{fontFamily: 'Product Sans, Roboto, sans-serif'}}>Gmail</span>
+          </div>
+          
+          <div className="flex-1 max-w-xl">
+            <div className="flex items-center gap-3 px-4 py-2 bg-[#f1f3f4] rounded-full text-gray-600">
+              <Search size={18} className="text-gray-500" />
+              <span className="text-[14px] text-gray-600 truncate font-sans">
+                {isList ? (args.query || 'Search mail') : isRead ? 'Read Message' : (args.to || 'Compose')}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white min-h-[100px] text-sm font-sans text-gray-800">
+          {isList ? (
+            <div className="flex flex-col">
+              {emails.length > 0 ? (
+                emails.map((email, idx) => {
+                  const senderName = email.from.split('<')[0].replace(/"/g, '').trim();
+                  return (
+                    <div key={idx} className="flex items-center gap-3 px-4 py-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer group transition-colors">
+                      <div className="flex items-center gap-3 text-gray-300">
+                        <Square size={16} className="group-hover:text-gray-400" />
+                        <Star size={16} className="group-hover:text-gray-400" />
+                      </div>
+                      <div className="w-40 font-semibold text-gray-800 truncate">
+                        {senderName}
+                      </div>
+                      <div className="flex-1 truncate text-gray-600 flex items-center">
+                        <span className="font-semibold text-gray-800 mr-2">{email.subject}</span>
+                        <span className="text-gray-400 mr-2">-</span>
+                        <span className="truncate">{email.snippet}</span>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : isRunning ? (
+                <div className="p-6 text-center text-gray-500 italic flex justify-center items-center gap-2"><Loader2 className="animate-spin" size={16}/> Loading emails...</div>
+              ) : (
+                <div className="p-6 text-center text-gray-500">{typeof output === 'string' && output.includes('Error') ? output : 'No emails found.'}</div>
+              )}
+            </div>
+          ) : isRead ? (
+            <div className="p-4 bg-gray-50 flex justify-center">
+              {output ? <GmailEmailPreview content={typeof output === 'string' ? output : ''} /> : (isRunning ? <span className="flex items-center gap-1"><Loader2 className="animate-spin" size={12}/> Loading email...</span> : 'No content')}
+            </div>
+          ) : (
+            <div className="p-4">
+              <div className="mb-4 space-y-0 max-w-2xl border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                <div className="flex px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                  <span className="w-16 text-gray-500 text-sm">To</span>
+                  <span className="text-gray-800 text-sm">{args.to}</span>
+                </div>
+                <div className="flex px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+                  <span className="w-16 text-gray-500 text-sm">Subject</span>
+                  <span className="text-gray-800 text-sm font-medium">{args.subject}</span>
+                </div>
+                <div className="p-4 text-gray-700 whitespace-pre-wrap min-h-[120px] text-sm bg-white">
+                  {args.body}
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 px-1">
+                {output ? output : (isRunning ? <span className="flex items-center gap-1"><Loader2 className="animate-spin" size={12}/> Sending...</span> : '')}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__playwright__')) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+    const args = step.toolCall.arguments || {};
+    
+    // Determine action type
+    const actionStr = step.toolCall.name.replace('mcp__playwright__browser_', '').replace('mcp__playwright__', '').replace(/_/g, ' ');
+    
+    // Extract URL if possible
+    let currentUrl = args.url || 'browser://new-tab';
+    if (!args.url && typeof output === 'string') {
+      const urlMatch = output.match(/Page URL:\s*([^\n]+)/);
+      if (urlMatch) {
+        currentUrl = urlMatch[1].trim();
+      }
+    }
+
+    return (
+      <div className={cn(
+          "w-full my-3 rounded-lg overflow-hidden shadow-sm border border-gray-200 bg-white flex flex-col font-sans",
+          isRunning || step.status === 'pending' ? "opacity-70 animate-pulse" : ""
+      )}>
+        {/* Chrome Tab Bar */}
+        <div className="flex items-end px-2 pt-2 bg-[#fbeff0] border-b border-gray-200">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-t-lg border border-gray-200 border-b-0 min-w-[150px] max-w-[200px]">
+            {/* Google G Icon SVG */}
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            <span className="text-[11px] text-gray-700 truncate font-medium">{actionStr === 'navigate' ? currentUrl.replace('https://', '').replace('http://', '').split('/')[0] : 'New Tab'}</span>
+          </div>
+        </div>
+        
+        {/* Chrome Toolbar */}
+        <div className="flex items-center gap-3 px-3 py-1.5 bg-white border-b border-gray-200">
+          <div className="flex items-center gap-3 ml-1">
+             <ArrowLeft size={16} className="text-gray-500 hover:text-gray-700 cursor-pointer" />
+             <ArrowRight size={16} className="text-gray-300" />
+             <RotateCcw size={14} className="text-gray-500 hover:text-gray-700 cursor-pointer" />
+          </div>
+          
+          <div className="flex-1 flex items-center gap-2 bg-[#f1f3f4] hover:bg-[#e8eaed] transition-colors px-3 py-1.5 rounded-full text-[13px] text-gray-800 border border-transparent focus-within:border-blue-300 focus-within:bg-white ml-2">
+            <Lock size={12} className="text-gray-500 shrink-0" />
+            <span className="truncate">{currentUrl}</span>
+          </div>
+        </div>
+
+        {/* Browser Body/Action Description */}
+        <div className="flex flex-col bg-[#f8f9fa] p-0 text-sm">
+           <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-200 bg-white text-gray-700 font-sans">
+             {actionStr === 'navigate' ? <Globe size={16} className="text-blue-500" /> : actionStr === 'find' ? <Search size={16} className="text-emerald-500" /> : <Code size={16} className="text-amber-500" />}
+             <span className="font-semibold capitalize text-[13px]">{actionStr}</span>
+             {args.text && <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs ml-2 truncate max-w-[200px] border border-gray-200">"{args.text}"</span>}
+             {args.selector && <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs ml-2 truncate max-w-[200px] border border-gray-200">`{args.selector}`</span>}
+           </div>
+           
+           {args.function && (
+             <div className="p-3 bg-white border-b border-gray-200">
+               <div className="bg-gray-50 rounded-md border border-gray-200 overflow-hidden prose prose-sm max-w-none prose-pre:m-0 prose-pre:p-2.5 prose-pre:bg-transparent prose-pre:border-0 prose-pre:text-gray-700 text-[12px] custom-scrollbar">
+                 <MarkdownRenderer content={`\`\`\`javascript\n${args.function}\n\`\`\``} />
+               </div>
+             </div>
+           )}
+
+           <div className="text-gray-800 max-h-[350px] overflow-y-auto custom-scrollbar text-[13px] p-4 bg-white">
+              {output ? (
+                typeof output === 'string' ? (
+                  <div className="prose prose-sm max-w-none prose-pre:bg-[#f8f9fa] prose-pre:border prose-pre:border-gray-200 prose-pre:text-gray-700 prose-headings:text-gray-800 prose-headings:font-medium prose-headings:mb-2 prose-headings:mt-4 first:prose-headings:mt-0 prose-a:text-blue-600 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
+                    <MarkdownRenderer content={output} />
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap font-mono text-xs">{JSON.stringify(output, null, 2)}</pre>
+                )
+              ) : isRunning ? (
+                <span className="text-gray-400 flex items-center gap-2 font-mono text-xs"><Loader2 size={14} className="animate-spin" /> Running browser action...</span>
+              ) : null}
+           </div>
+        </div>
       </div>
     );
   }

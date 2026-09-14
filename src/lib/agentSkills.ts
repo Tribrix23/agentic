@@ -63,7 +63,8 @@ export function buildSkillsBlock(skills: AgentSkill[]): string {
   block += '1. **Proactive Skill Usage:** Before starting ANY task, review the list of available skills below. If a skill seems even remotely relevant to the user\'s request, you MUST use the `readSkill` tool to read its instructions BEFORE taking any other action or writing any code.\n';
   block += '2. **NEVER answer questions about a skill from memory or training knowledge.** Skills contain custom user-defined instructions that you do NOT know in advance.\n';
   block += '3. If a user asks "what does skill X do?" or "do you have skill X?" — you MUST call `readSkill` immediately.\n';
-  block += '4. The descriptions below are ONLY for discovery — they tell you a skill exists, NOT what it contains. You MUST read the skill to know how to use it.\n\n';
+  block += '4. The descriptions below are ONLY for discovery — they tell you a skill exists, NOT what it contains. You MUST read the skill to know how to use it.\n';
+  block += '5. **DO NOT GUESS OR HALLUCINATE SKILL PATHS**. You do not know where skills are stored on the disk. NEVER use `cat` to try to read a skill file. You MUST use the `readSkill` tool.\n\n';
   block += 'Available skills:\n';
   for (const skill of skills) {
     block += `- ${skill.name}: ${skill.description}\n`;

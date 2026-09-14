@@ -10,9 +10,17 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../App';
 import { CodeBlock } from './CodeBlock';
+import { GmailEmailPreview } from './GmailEmailPreview';
 
 import { Tooltip } from "../ui/Tooltip";
 import { Citation } from "../ui/Citation";
+
+function extractText(children: any): string {
+  if (typeof children === 'string') return children;
+  if (Array.isArray(children)) return children.map(extractText).join('');
+  if (children?.props?.children) return extractText(children.props.children);
+  return '';
+}
 
 interface MarkdownRendererProps {
   content: string;
@@ -38,10 +46,23 @@ function preprocessMath(text: string): string {
   return text;
 }
 
+function preprocessEmailBlocks(text: string): string {
+  // Finds: From: or To: ... Subject: ... followed by body
+  const regex = /(?:^|\n)(?:---\n)?(?:\*\*?)?(From|To):(?:\*\*?)?\s+(.+?)\s+(?:\*\*?)?Subject:(?:\*\*?)?\s+(.+?)\n+([\s\S]*?)(?=\n+---|(?:\n\n)?(?:\*\*|⚠️\s*)?Note:|$)/gi;
+  return text.replace(regex, (match, typePart, emailPart, subjectPart, bodyPart) => {
+    const cleanType = typePart.trim();
+    const cleanEmail = emailPart.replace(/\*/g, '').trim();
+    const cleanSubject = subjectPart.replace(/\*/g, '').trim();
+    const cleanBody = bodyPart.replace(/^>\s?/gm, '');
+    return `\n\n\`\`\`email\n${cleanType}: ${cleanEmail}\nSubject: ${cleanSubject}\n\n${cleanBody}\n\`\`\`\n\n`;
+  });
+}
+
 export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: MarkdownRendererProps) {
   // If streaming, append a blinking cursor
   const rawContent = isStreaming ? `${content} ▍` : content;
-  const displayContent = preprocessMath(rawContent);
+  const processedEmailContent = preprocessEmailBlocks(rawContent);
+  const displayContent = preprocessMath(processedEmailContent);
 
   return (
     <div className="prose prose-invert max-w-none w-full min-w-0 prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-white/10 prose-p:leading-relaxed prose-a:text-blue-400 text-[15px]">
@@ -59,7 +80,13 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
           thead: ({ children }) => <thead className="bg-white/5 text-white">{children}</thead>,
           th: ({ children }) => <th className="px-3 py-2 font-medium border-b border-white/10">{children}</th>,
           td: ({ children }) => <td className="px-3 py-2 align-top border-b border-white/5 text-inherit">{children}</td>,
-          blockquote: ({ children }) => <blockquote className="my-4 last:mb-0 border-l-2 border-violet-500 pl-3 text-inherit opacity-80">{children}</blockquote>,
+          blockquote: ({ children }) => {
+            const text = extractText(children);
+            if (text.includes('From:') && text.includes('Subject:')) {
+              return <GmailEmailPreview content={text} />;
+            }
+            return <blockquote className="my-4 last:mb-0 border-l-2 border-violet-500 pl-3 text-inherit opacity-80">{children}</blockquote>;
+          },
           a: ({ href, title, children, ...props }) => {
             const text = String(children);
             // Simple heuristic: if text is short (like a domain, a number, or short acronym)
@@ -113,6 +140,9 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
             const language = match ? match[1] : '';
             
             if (!inline && language) {
+              if (language === 'email') {
+                return <GmailEmailPreview content={String(children).replace(/\n$/, '')} />;
+              }
               return (
                 <CodeBlock 
                   code={String(children).replace(/\n$/, '')} 

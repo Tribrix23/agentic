@@ -363,11 +363,6 @@ const ParticleText = ({
         };
       });
 
-      pointer.x = width / 2;
-      pointer.y = height / 2;
-      pointer.smoothX = pointer.x;
-      pointer.smoothY = pointer.y;
-
       if (reducedMotion) {
         particles.forEach(particle => {
           particle.x = particle.targetX;
