@@ -16,7 +16,7 @@ const getAppDataPath = () => {
   } else if (process.platform === 'darwin') {
     baseDir = path.join(os.homedir(), 'Library', 'Application Support');
   } else {
-    baseDir = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+    baseDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
   }
   const appDir = path.join(baseDir, appName);
   if (!fs.existsSync(appDir)) {
