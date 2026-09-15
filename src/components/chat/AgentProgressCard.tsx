@@ -646,7 +646,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     );
 
     return (
-      <div className="my-3 rounded-md overflow-hidden bg-[#1c1c1c] border border-white/10 font-sans text-white flex shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+      <div className="w-full my-3 rounded-md overflow-hidden bg-[#1c1c1c] border border-white/10 font-sans text-white flex shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
         <div className="w-48 flex-shrink-0 border-r border-white/10 bg-[#161616] flex flex-col">
           <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
             <img src="./supabase.png" alt="Supabase" className="w-4 h-4" />
@@ -807,6 +807,75 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
                 <span className="text-gray-400 flex items-center gap-2 font-mono text-xs"><Loader2 size={14} className="animate-spin" /> Running browser action...</span>
               ) : null}
            </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && step.toolCall.name === 'readSkill') {
+    const args = step.toolCall.arguments || {};
+    const skillName = args.skillName || 'unknown';
+    
+    return (
+      <div 
+        className={cn(
+          "w-full my-3 flex items-center gap-3 p-3 rounded-xl border border-white/5 shadow-md",
+          isRunning || step.status === 'pending' ? "opacity-70 animate-pulse" : ""
+        )}
+        style={{ background: '#212124' }}
+      >
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/15 text-indigo-400">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+          </svg>
+        </div>
+        <div className="flex flex-col flex-1">
+          <div className="text-[13px] font-medium text-indigo-200">
+            {isRunning || step.status === 'pending' ? 'Activating Skill...' : 'Skill Activated'}
+          </div>
+          <div className="text-[12px] text-indigo-400/70 font-mono mt-0.5">
+            {skillName}
+          </div>
+        </div>
+        {step.status === 'completed' && (
+          <div className="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-[11px] font-medium border border-indigo-500/20">
+            Ready
+          </div>
+        )}
+        {(step.status === 'error' || step.status === 'rejected') && (
+          <div className="px-2.5 py-1 rounded-full bg-red-500/10 text-red-400 text-[11px] font-medium border border-red-500/20">
+            Failed
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && step.toolCall.name.includes('sequentialthinking')) {
+    const args = step.toolCall.arguments || {};
+    const thoughtText = args.thought || 'Thinking...';
+    const thoughtNum = args.thoughtNumber ? `#${args.thoughtNumber}` : '';
+    
+    return (
+      <div 
+        className={cn(
+          "w-full my-3 p-3.5 rounded-xl border border-white/5 shadow-md flex flex-col gap-2.5",
+          isRunning || step.status === 'pending' ? "opacity-70 animate-pulse" : ""
+        )}
+        style={{ background: '#212124' }}
+      >
+        <div className="flex items-center gap-2 text-zinc-400">
+          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 16v-4"></path>
+            <path d="M12 8h.01"></path>
+          </svg>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+            {isRunning || step.status === 'pending' ? 'Internal Thought Process...' : `Sequential Thought ${thoughtNum}`}
+          </span>
+        </div>
+        <div className="text-[13px] text-zinc-300 leading-relaxed pl-3 border-l-2 border-zinc-700/50">
+          {thoughtText}
         </div>
       </div>
     );

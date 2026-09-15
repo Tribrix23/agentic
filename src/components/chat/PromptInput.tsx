@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2, Folder, FileText, Upload } from 'lucide-react';
+import { Minus, Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2, Folder, FileText, Upload } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub, SiSupabase } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -66,7 +66,7 @@ const TokenCircleIndicator = ({ budget }: { budget: TokenBudget }) => {
   const radius = 6;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (budget.utilizationPercent / 100) * circumference;
-  
+
   // Calculate raw number for tooltip (e.g. 144K)
   const formatK = (num: number) => (num > 1000 ? (num / 1000).toFixed(0) + 'K' : num.toString());
   const usedTokens = budget.total - budget.available;
@@ -102,7 +102,7 @@ const TokenCircleIndicator = ({ budget }: { budget: TokenBudget }) => {
           strokeLinecap="round"
         />
       </svg>
-      
+
       {/* Tooltip */}
       <div className="absolute bottom-full mb-2 right-[-8px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
         <div className="bg-[#2d2d30] text-gray-300 text-[11px] px-2.5 py-1.5 rounded shadow-lg border border-[#3e3e42] flex flex-col items-center gap-0.5">
@@ -143,11 +143,138 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [gdriveConnected, setGdriveConnected] = useState(false);
   const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+
+  const connectors = [
+    {
+      id: 'gmail',
+      name: 'Gmail',
+      desc: 'Draft replies, search your inbox, and summarize email threads instantly',
+      icon: './gmail.png',
+      connected: gmailConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3001/auth/url');
+          const data = await res.json();
+          if ((window as any).electron?.openExternal) {
+            (window as any).electron.openExternal(data.url);
+          } else {
+            window.open(data.url, '_blank');
+          }
+        } catch (e) {
+          alert('GMail MCP Server is not running yet. Please restart Quantix.');
+        }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3001/auth/disconnect', { method: 'POST' });
+          setGmailConnected(false);
+        } catch (e) {
+          alert('Failed to disconnect GMail.');
+        }
+      }
+    },
+    {
+      id: 'gdrive',
+      name: 'Google Drive',
+      desc: 'Access your files, search instantly, and manage your documents',
+      icon: './drive.png',
+      connected: gdriveConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3002/auth/url');
+          const data = await res.json();
+          if ((window as any).electron?.openExternal) {
+            (window as any).electron.openExternal(data.url);
+          } else {
+            window.open(data.url, '_blank');
+          }
+        } catch (e) {
+          alert('Google Drive MCP Server is not running yet. Please restart Quantix.');
+        }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3002/auth/disconnect', { method: 'POST' });
+          setGdriveConnected(false);
+        } catch (e) {
+          alert('Failed to disconnect Google Drive.');
+        }
+      }
+    },
+    {
+      id: 'github',
+      name: 'GitHub',
+      desc: 'Manage repositories, track code changes, and collaborate on team projects',
+      icon: './github.png',
+      opacity: 'opacity-90',
+      connected: false
+    },
+    {
+      id: 'supabase',
+      name: 'Supabase',
+      desc: 'Query your database, view tables, and manage your schema',
+      icon: './supabase.png',
+      connected: supabaseConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3003/auth/url');
+          const data = await res.json();
+          if ((window as any).electron?.openExternal) {
+            (window as any).electron.openExternal(data.url);
+          } else {
+            window.open(data.url, '_blank');
+          }
+        } catch (e) {
+          alert('Supabase MCP Server is not running yet. Please restart Quantix.');
+        }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3003/auth/disconnect', { method: 'POST' });
+          setSupabaseConnected(false);
+        } catch (e) {
+          alert('Failed to disconnect Supabase.');
+        }
+      }
+    },
+    {
+      id: 'canva',
+      name: 'Canva',
+      desc: 'Design, edit and manage graphic templates and assets',
+      icon: './canva.png',
+      connected: false
+    },
+    {
+      id: 'vercel',
+      name: 'Vercel',
+      desc: 'Deploy your projects, manage domains and check build logs',
+      icon: './vercel.png',
+      connected: false
+    },
+    {
+      id: 'mongodb',
+      name: 'MongoDB',
+      desc: 'Query documents, aggregate data, and manage collections',
+      icon: './mongodb.png',
+      connected: false
+    },
+    {
+      id: 'figma',
+      name: 'Figma',
+      desc: 'Extract CSS, read design tokens and get asset details',
+      icon: './figma.png',
+      connected: false
+    }
+  ];
+
+  const filteredConnectors = connectors.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.desc.toLowerCase().includes(searchQuery.toLowerCase()));
+
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const [showPlusDropdown, setShowPlusDropdown] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -175,66 +302,99 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
   }, [selectedSlashCommands]);
 
-    // Check GDrive connection status on load and poll while modal is open
+  // Check GDrive connection status on load and poll while modal is open
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any;
+    let attempts = 0;
+
     const check = async () => {
       try {
         const res = await fetch('http://localhost:3002/auth/status');
+        if (!isMounted) return;
         const data = await res.json();
         setGdriveConnected(data.connected === true);
         setGdriveEmail(data.email || null);
-      } catch { /* server not running yet */ }
+
+        // If modal is open, poll fast. Otherwise, poll slow.
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+      } catch {
+        if (!isMounted) return;
+        // Server not running yet. 
+        // If we are in the first 10 seconds (attempts < 10), retry quickly.
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
     };
-    
-    // Always check status immediately
+
     void check();
-    
-    // Only set up polling if the modal is open
-    if (!showConnectModal) return;
-    
-    const interval = setInterval(check, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [showConnectModal]);
 
   // Check Supabase connection status on load and poll while modal is open
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any;
+    let attempts = 0;
+
     const check = async () => {
       try {
         const res = await fetch('http://localhost:3003/auth/status');
+        if (!isMounted) return;
         const data = await res.json();
         setSupabaseConnected(data.connected === true);
-      } catch { /* server not running yet */ }
+
+        // If modal is open, poll fast. Otherwise, poll slow.
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+      } catch {
+        if (!isMounted) return;
+        // Server not running yet. 
+        // If we are in the first 10 seconds (attempts < 10), retry quickly.
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
     };
-    
-    // Always check status immediately
+
     void check();
-    
-    // Only set up polling if the modal is open
-    if (!showConnectModal) return;
-    
-    const interval = setInterval(check, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [showConnectModal]);
 
   // Check GMail connection status on load and poll while modal is open
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any;
+    let attempts = 0;
+
     const check = async () => {
       try {
         const res = await fetch('http://localhost:3001/auth/status');
+        if (!isMounted) return;
         const data = await res.json();
         setGmailConnected(data.connected === true);
         setGmailEmail(data.email || null);
-      } catch { /* server not running yet */ }
+
+        // If modal is open, poll fast. Otherwise, poll slow.
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+      } catch {
+        if (!isMounted) return;
+        // Server not running yet. 
+        // If we are in the first 10 seconds (attempts < 10), retry quickly.
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
     };
-    
-    // Always check status immediately
+
     void check();
-    
-    // Only set up polling if the modal is open
-    if (!showConnectModal) return;
-    
-    const interval = setInterval(check, 2000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
   }, [showConnectModal]);
 
   useEffect(() => {
@@ -258,7 +418,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       if (prefixMatch) {
         const fullPrefix = prefixMatch[1];
         const pieces = fullPrefix.split(', ').map(p => p.trim());
-        
+
         const newSelected: any[] = [];
         pieces.forEach(p => {
           if (p.endsWith(' skill')) {
@@ -270,7 +430,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             newSelected.push({ id: name, type: 'tool', name: name, displayName: displayName, icon: name === 'playwright' || name === 'mcp__playwright' ? <Globe size={14} className="text-blue-400" /> : <Puzzle size={14} className="text-purple-400" /> });
           }
         });
-        
+
         setSelectedSlashCommands(newSelected);
         if (onChange) {
           onChange(value.slice(prefixMatch[0].length));
@@ -288,22 +448,22 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       : []),
     ...availableTools
       .filter(t => t.definition.category === 'mcp' && !t.definition.name.startsWith('mcp__playwright'))
-      .map(t => ({ 
-        id: t.definition.name, 
-        type: 'tool', 
-        name: t.definition.name.replace('mcp__', '').replace(/__/g, ' '), 
+      .map(t => ({
+        id: t.definition.name,
+        type: 'tool',
+        name: t.definition.name.replace('mcp__', '').replace(/__/g, ' '),
         displayName: t.definition.name.replace('mcp__', '').replace(/__/g, ' '),
-        description: t.definition.description || '', 
-        icon: <Puzzle size={14} className="text-purple-400" /> 
+        description: t.definition.description || '',
+        icon: <Puzzle size={14} className="text-purple-400" />
       })),
     ...availableSkills
-      .map(s => ({ 
-        id: `skill-${s.name}`, 
-        type: 'skill', 
-        name: s.name, 
+      .map(s => ({
+        id: `skill-${s.name}`,
+        type: 'skill',
+        name: s.name,
         displayName: s.name,
-        description: s.description, 
-        icon: <Puzzle size={14} className="text-orange-400" /> 
+        description: s.description,
+        icon: <Puzzle size={14} className="text-orange-400" />
       }))
   ].filter(item => item.displayName.toLowerCase().includes(slashSearchQuery.toLowerCase()) || item.name.toLowerCase().includes(slashSearchQuery.toLowerCase()));
 
@@ -388,7 +548,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       setSlashSearchQuery('');
       setSlashSelectedIndex(0);
     };
-    
+
     window.addEventListener('open-model-picker', openModelPicker);
     window.addEventListener('open-context-menu', openContextMenu);
     window.addEventListener('toggle-voice-input', toggleVoiceInput);
@@ -396,7 +556,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     window.addEventListener('focus-chat-input', focusChatInput);
     window.addEventListener('stop-agent', stopAgent);
     window.addEventListener('open-command-palette', openCommandPalette);
-    
+
     return () => {
       window.removeEventListener('open-model-picker', openModelPicker);
       window.removeEventListener('open-context-menu', openContextMenu);
@@ -458,7 +618,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const prefix = selectedSlashCommands.map(item => item.type === 'skill' ? `use ${item.name} skill` : `use ${item.name}`).join(', ');
         finalContent = finalContent ? `${prefix}\n\n${finalContent}` : prefix;
       }
-      
+
       onSend(
         finalContent,
         selectedImages.length > 0 ? selectedImages.map(img => ({
@@ -482,18 +642,18 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     const cursor = textareaRef.current.selectionStart || 0;
     const textBeforeCursor = content.slice(0, cursor);
     const textAfterCursor = content.slice(cursor);
-    
+
     const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
     if (slashMatch) {
       const matchLength = slashMatch[1].length + 1; // +1 for the slash
       const newText = textBeforeCursor.slice(0, -matchLength) + textAfterCursor;
       setContent(newText);
       setShowSlashMenu(false);
-      
+
       if (!selectedSlashCommands.some(c => c.id === item.id)) {
         setSelectedSlashCommands(prev => [...prev, item]);
       }
-      
+
       // Update cursor position
       setTimeout(() => {
         if (textareaRef.current) {
@@ -530,12 +690,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         return;
       }
     }
-    
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-    
+
     if (e.key === 'Backspace' && selectedSlashCommands.length > 0) {
       if (textareaRef.current && textareaRef.current.selectionStart === 0 && textareaRef.current.selectionEnd === 0) {
         setSelectedSlashCommands(prev => prev.slice(0, -1));
@@ -546,11 +706,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
-    
+
     const cursor = e.target.selectionStart || 0;
     const textBeforeCursor = val.slice(0, cursor);
     const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
-    
+
     if (slashMatch) {
       setShowSlashMenu(true);
       setSlashSearchQuery(slashMatch[1]);
@@ -575,11 +735,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     : null;
   const quotaWarning = quotaPercentage !== null && quotaPercentage <= 20
     ? {
-        color: quotaPercentage <= 10 ? 'text-red-400' : 'text-amber-400',
-        label: quotaPercentage <= 10
-          ? `Your quota for this model is critically low (${Math.round(quotaPercentage)}% remaining).`
-          : `Your quota for this model is running low (${Math.round(quotaPercentage)}% remaining).`,
-      }
+      color: quotaPercentage <= 10 ? 'text-red-400' : 'text-amber-400',
+      label: quotaPercentage <= 10
+        ? `Your quota for this model is critically low (${Math.round(quotaPercentage)}% remaining).`
+        : `Your quota for this model is running low (${Math.round(quotaPercentage)}% remaining).`,
+    }
     : null;
 
   const suggestedActions = React.useMemo(() => {
@@ -608,15 +768,15 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         { icon: <FileText size={14} />, label: "Schema summary", prompt: "Summarize the database schema from my Supabase project" }
       );
     }
-    
+
     if (pool.length === 0) return [];
-    
+
     const shuffled = [...pool];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    
+
     return shuffled.slice(0, 4);
   }, [gmailConnected, gdriveConnected, supabaseConnected]);
 
@@ -631,34 +791,30 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             (() => {
               const connectedServices = [];
               if (gmailConnected) connectedServices.push(
-                <div key="gmail" className="flex items-center gap-1.5">
-                  <img src="./gmail.png" alt="Gmail" className="w-3.5 h-3.5" />
-                  <span className="font-semibold text-white/80 group-hover:text-white">Gmail</span>
-                </div>
+                <Tooltip key="gmail" content="Gmail">
+                  <div className="w-6 h-6 flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./gmail.png" alt="Gmail" className="w-5 h-5 object-contain filter drop-shadow-md" />
+                  </div>
+                </Tooltip>
               );
               if (gdriveConnected) connectedServices.push(
-                <div key="gdrive" className="flex items-center gap-1.5">
-                  <img src="./drive.png" alt="Google Drive" className="w-3.5 h-3.5" />
-                  <span className="font-semibold text-white/80 group-hover:text-white">Drive</span>
-                </div>
+                <Tooltip key="gdrive" content="Google Drive">
+                  <div className="w-6 h-6 flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./drive.png" alt="Google Drive" className="w-5 h-5 object-contain filter drop-shadow-md" />
+                  </div>
+                </Tooltip>
               );
               if (supabaseConnected) connectedServices.push(
-                <div key="supabase" className="flex items-center gap-1.5">
-                  <img src="./supabase.png" alt="Supabase" className="w-3.5 h-3.5" />
-                  <span className="font-semibold text-white/80 group-hover:text-white">Supabase</span>
-                </div>
+                <Tooltip key="supabase" content="Supabase">
+                  <div className="w-6 h-6 flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./supabase.png" alt="Supabase" className="w-5 h-5 object-contain filter drop-shadow-md" />
+                  </div>
+                </Tooltip>
               );
-              
+
               return (
-                <div className="flex items-center transition-colors group">
-                  {connectedServices.map((service, index) => (
-                    <React.Fragment key={service.key}>
-                      {service}
-                      {index < connectedServices.length - 1 && (
-                        <Link2 size={12} className="text-white/30 group-hover:text-white/60 mx-2.5" />
-                      )}
-                    </React.Fragment>
-                  ))}
+                <div className="flex items-center transition-colors group -space-x-1.5 py-0.5 px-1">
+                  {connectedServices}
                 </div>
               );
             })()
@@ -681,16 +837,16 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
       <div className={cn(
         "bg-[#1c1c21] border shadow-2xl transition-all duration-300 pointer-events-auto relative mx-auto",
-        isListening 
-          ? "w-[120px] h-[120px] rounded-full p-0 flex items-center justify-center overflow-hidden cursor-pointer hover:border-white/20 border-white/10" 
+        isListening
+          ? "w-[120px] h-[120px] rounded-full p-0 flex items-center justify-center overflow-hidden cursor-pointer hover:border-white/20 border-white/10"
           : "w-full rounded-2xl p-3 flex flex-col focus-within:border-white/20 border-white/5"
       )}
-      onClick={isListening ? () => setIsListening(false) : undefined}
+        onClick={isListening ? () => setIsListening(false) : undefined}
       >
         {isListening ? (
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <Strands
-              colors={["#d28753","#7C3AED","#06B6D4"]}
+              colors={["#d28753", "#7C3AED", "#06B6D4"]}
               count={3}
               speed={0.5}
               amplitude={1}
@@ -713,731 +869,559 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         ) : (
           <>
             <AnimatePresence>
-          {showSlashMenu && (
-            <motion.div
-              ref={slashMenuRef}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 5 }}
-              className="absolute bottom-full left-0 mb-2 w-[400px] bg-[#1c1c21] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[300px]"
-            >
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
-                {slashItems.length === 0 ? (
-                  <div className="text-xs text-white/40 text-center py-4">No results found</div>
-                ) : (
-                  slashItems.map((item, index) => (
-                    <button
-                      key={item.id}
-                      onClick={() => insertSlashItem(item)}
-                      onMouseEnter={() => setSlashSelectedIndex(index)}
-                      className={cn(
-                        "w-full px-3 py-2 text-left flex items-center gap-3 rounded-lg transition-colors",
-                        slashSelectedIndex === index ? "bg-white/10" : "hover:bg-white/5"
-                      )}
-                    >
-                      <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded bg-black/40">
-                        {item.icon}
-                      </div>
-                      <div className="flex flex-col overflow-hidden">
-                        <span className="text-xs font-medium text-white truncate flex items-center gap-2">
-                          <span className="opacity-40 text-[10px] font-mono px-1 rounded bg-black/40">&lt;/&gt;</span>
-                          {item.displayName}
-                        </span>
-                        <span className="text-[10px] text-white/40 truncate">{item.description}</span>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {selectedImages.length > 0 && (
-          <div className="flex gap-2 mb-2 flex-wrap">
-            {selectedImages.map((img, i) => (
-              <div key={i} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 cursor-pointer" onClick={() => setPreviewImage(img.url)}>
-                <img src={img.url} alt="" className="w-full h-full object-cover" />
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedImages(prev => prev.filter((_, idx) => idx !== i));
-                  }}
-                  className="absolute top-1 right-1 w-4 h-4 bg-black/60 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+              {showSlashMenu && (
+                <motion.div
+                  ref={slashMenuRef}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="absolute bottom-full left-0 mb-2 w-[400px] bg-[#1c1c21] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[300px]"
                 >
-                  <X size={10} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-        {/* Selected Slash Commands / Skills Chips */}
-        {selectedSlashCommands.length > 0 && (
-          <div ref={chipsContainerRef} className="flex items-center flex-wrap gap-1.5 w-full pt-1 pb-2">
-            {selectedSlashCommands.map(cmd => (
-              <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-[#2b2b30] text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px]">
-                <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
-                <span className="leading-none">{cmd.displayName}</span>
-              </div>
-            ))}
-          </div>
-        )}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                    {slashItems.length === 0 ? (
+                      <div className="text-xs text-white/40 text-center py-4">No results found</div>
+                    ) : (
+                      slashItems.map((item, index) => (
+                        <button
+                          key={item.id}
+                          onClick={() => insertSlashItem(item)}
+                          onMouseEnter={() => setSlashSelectedIndex(index)}
+                          className={cn(
+                            "w-full px-3 py-2 text-left flex items-center gap-3 rounded-lg transition-colors",
+                            slashSelectedIndex === index ? "bg-white/10" : "hover:bg-white/5"
+                          )}
+                        >
+                          <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded bg-black/40">
+                            {item.icon}
+                          </div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="text-xs font-medium text-white truncate flex items-center gap-2">
+                              <span className="opacity-40 text-[10px] font-mono px-1 rounded bg-black/40">&lt;/&gt;</span>
+                              {item.displayName}
+                            </span>
+                            <span className="text-[10px] text-white/40 truncate">{item.description}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-        <div className="relative w-full">
-          <textarea
-            ref={textareaRef}
-            value={content}
-              onChange={handleTextChange}
-              onKeyDown={handleKeyDown}
-              onPaste={(e) => {
-                const items = e.clipboardData.items;
-                for (let i = 0; i < items.length; i++) {
-                  if (items[i].type.indexOf('image') !== -1) {
-                    const file = items[i].getAsFile();
-                    if (file) {
-                      e.preventDefault();
-                      handleImageUpload(file);
+            {selectedImages.length > 0 && (
+              <div className="flex gap-2 mb-2 flex-wrap">
+                {selectedImages.map((img, i) => (
+                  <div key={i} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-white/10 flex-shrink-0 cursor-pointer" onClick={() => setPreviewImage(img.url)}>
+                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedImages(prev => prev.filter((_, idx) => idx !== i));
+                      }}
+                      className="absolute top-1 right-1 w-4 h-4 bg-black/60 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Selected Slash Commands / Skills Chips */}
+            {selectedSlashCommands.length > 0 && (
+              <div ref={chipsContainerRef} className="flex items-center flex-wrap gap-1.5 w-full pt-1 pb-2">
+                {selectedSlashCommands.map(cmd => (
+                  <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-[#2b2b30] text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px]">
+                    <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
+                    <span className="leading-none">{cmd.displayName}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="relative w-full">
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onChange={handleTextChange}
+                onKeyDown={handleKeyDown}
+                onPaste={(e) => {
+                  const items = e.clipboardData.items;
+                  for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                      const file = items[i].getAsFile();
+                      if (file) {
+                        e.preventDefault();
+                        handleImageUpload(file);
+                      }
                     }
                   }
-                }
-              }}
-            placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
-            className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
-            rows={1}
-          />
-        </div>
-
-        <div className="flex items-center justify-between mt-[1.2rem]">
-          <div className="flex items-center gap-3">
-            <div className="relative" ref={plusDropdownRef}>
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImageUpload(file);
-                  e.target.value = '';
                 }}
+                placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
+                className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
+                rows={1}
               />
-              <button
-                onClick={() => setShowPlusDropdown(!showPlusDropdown)}
-                className="w-6 h-6 rounded-full flex items-center justify-center text-[#8b8b93] hover:text-white hover:bg-white/5 transition-colors"
-              >
-                <Plus size={16} />
-              </button>
-              <AnimatePresence>
-                {showPlusDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute bottom-full left-0 mb-2 w-48 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
-                  >
-                    <button
-                      className="w-full px-3 py-2 text-left text-xs text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
-                      onClick={() => {
-                        setShowPlusDropdown(false);
-                        fileInputRef.current?.click();
-                      }}
-                    >
-                      <ImageIcon size={14} />
-                      <span className="font-medium">Media</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
-            <div className="relative" ref={agentDropdownRef}>
-              <button
-                onClick={() => setShowAgentDropdown(!showAgentDropdown)}
-                className={cn(
-                  "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
-                  config.interactionMode === 'plan' ? "text-amber-300 bg-amber-500/15 border border-amber-500/30" : config.agentMode
-                    ? "text-purple-300 bg-purple-500/15 border border-purple-500/30"
-                    : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
-                )}
-              >
-                {config.interactionMode === 'plan' ? <ClipboardList size={14} className="text-white" /> : config.agentMode ? <Bot size={14} className="text-white" /> : <Mic size={14} />}
-                <span className={cn(config.agentMode || config.interactionMode === 'plan' ? "text-white font-bold tracking-wide" : "")}>
-                  {config.interactionMode === 'plan' ? 'Plan' : config.agentMode ? 'Agent' : 'Ask'}
-                </span>
-                <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showAgentDropdown ? "rotate-180" : "")} />
-              </button>
-              <AnimatePresence>
-                {showAgentDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => {
-                        updateConfig({ agentMode: true, interactionMode: 'agent' });
-                        setShowAgentDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full px-3 py-2 text-left text-xs transition-colors",
-                        config.interactionMode === 'agent' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Bot size={14} />
-                        <span className="font-medium">Agent</span>
-                      </div>
-                      <div className="text-[10px] text-white/50 pl-6">Full agentic coding with tools</div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        updateConfig({ agentMode: true, interactionMode: 'plan' });
-                        setShowAgentDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full px-3 py-2 text-left text-xs transition-colors",
-                        config.interactionMode === 'plan' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1"><ClipboardList size={14} /><span className="font-medium">Plan</span></div>
-                      <div className="text-[10px] text-white/50 pl-6">Inspect the project and maintain one reviewed plan</div>
-                    </button>
-                    <button
-                      onClick={() => {
-                        updateConfig({ agentMode: false, interactionMode: 'ask' });
-                        setShowAgentDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full px-3 py-2 text-left text-xs transition-colors",
-                        config.interactionMode === 'ask' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Mic size={14} />
-                        <span className="font-medium">Ask</span>
-                      </div>
-                      <div className="text-[10px] text-white/50 pl-6">Simple Q&A and assistance</div>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div
-              className="relative"
-            >
-              <button
-                onClick={() => setShowModelDropdown(!showModelDropdown)}
-                className="flex items-center gap-1.5 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-[#202025] hover:bg-[#2a2a30] px-3 py-1.5 rounded-md border border-white/5"
-              >
-                {getModelIcon(config.model || 'Dispatcher v1')}
-                <span className="font-medium text-white">{config.model || 'Dispatcher v1'}</span>
-                {quotaWarning && (
-                  <span className="group/quota relative flex shrink-0 items-center" aria-label={quotaWarning.label}>
-                    <Gauge size={13} className={quotaWarning.color} />
-                    <span
-                      role="tooltip"
-                      className="pointer-events-none absolute bottom-full left-1/2 z-[100] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#252529] px-2.5 py-1.5 text-[10px] font-normal text-white opacity-0 shadow-xl transition-opacity group-hover/quota:opacity-100"
-                    >
-                      {quotaWarning.label}
-                    </span>
-                  </span>
-                )}
-              </button>
-              {typeof document !== 'undefined' && createPortal(
-                <AnimatePresence>
-                  {showModelDropdown && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                        onClick={() => setShowModelDropdown(false)}
-                      />
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.96, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.96, y: 10 }}
-                        transition={{ type: "spring", duration: 0.4, bounce: 0.1 }}
-                        className="relative w-full max-w-[650px] bg-[#16161a] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[70vh] overflow-hidden"
-                      >
-                        {/* Header: Search and Close */}
-                        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.05]">
-                          <div className="relative flex-1">
-                            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
-                            <input
-                              type="text"
-                              placeholder="Search models..."
-                              value={modelSearchQuery}
-                              onChange={(e) => setModelSearchQuery(e.target.value)}
-                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.08] border border-white/5 transition-all rounded-lg pl-10 pr-4 py-2 text-[13px] text-white placeholder-white/40 outline-none focus:border-purple-500/50"
-                            />
-                          </div>
-                          <button onClick={() => setShowModelDropdown(false)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
-                            <X size={20} />
-                          </button>
-                        </div>
-
-                        {/* Content: Single Grid */}
-                        <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {filteredModels.map(model => {
-                              const isSelected = config.model === model.name || (config.model && config.model.includes(model.name));
-                              return (
-                                <div
-                                  key={model.id}
-                                  ref={(el) => { if (el) modelItemRefs.current[model.id] = el; }}
-                                  onMouseEnter={() => setHoveredCategory(model.id)}
-                                >
-                                  <button
-                                    disabled={model.isPro}
-                                    onClick={() => {
-                                      if(!model.isPro && model.submodels.length === 0) {
-                                        updateConfig({ model: model.name });
-                                        setShowModelDropdown(false);
-                                      }
-                                    }}
-                                    className={cn(
-                                      "w-full p-3.5 rounded-xl border text-left transition-all flex flex-col relative h-[80px] group",
-                                      isSelected ? "bg-white/[0.08] border-purple-500/50" : "bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]",
-                                      model.isPro && !isSelected && "opacity-50"
-                                    )}
-                                  >
-                                    <div className="flex items-start justify-between w-full">
-                                      <div className="flex items-center gap-3">
-                                        <div className="text-white/80 p-1.5 rounded-lg bg-white/5">{model.icon}</div>
-                                        <div>
-                                          <div className="font-semibold text-white text-[13px] tracking-tight flex items-center gap-1.5">
-                                            {model.name}
-                                            {model.id === 'glm53' ? (
-                                              <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
-                                            ) : model.isPro && (
-                                              ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? (
-                                                <img src="./PRO.png" alt="PRO" className="h-[28px] object-contain ml-1.5 -my-2" />
-                                              ) : ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? (
-                                                <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
-                                              ) : (
-                                                <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1 py-0.5 rounded font-bold ml-1.5">PRO+</span>
-                                              )
-                                            )}
-                                          </div>
-                                          <div className="text-[11px] text-white/40 mt-1">
-                                            {model.id === 'glm53' ? 'Free Limited Time Tier' :
-                                             ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? 'Pro Tier' :
-                                             ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? 'Premium Tier' :
-                                             model.isPro ? 'Pro+ Tier' : 'Standard Tier'}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      <div className={cn("w-[16px] h-[16px] rounded-full border flex items-center justify-center shrink-0", isSelected ? "border-purple-400" : "border-white/20 group-hover:border-white/40")}>
-                                        {isSelected && <div className="w-[8px] h-[8px] rounded-full bg-purple-400" />}
-                                      </div>
-                                    </div>
-                                    
-                                    {model.submodels.length > 0 && (
-                                      <div className={cn("absolute bottom-2.5 right-2.5", isSelected ? "text-purple-400" : "text-white/30 group-hover:text-white/60")}>
-                                        <ChevronDown size={14} />
-                                      </div>
-                                    )}
-                                  </button>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      </motion.div>
-                    </div>
-                  )}
-                </AnimatePresence>,
-                document.body
-              )}
-
-              {/* Portal for submodel dropdown and tooltips */}
-              {showModelDropdown && hoveredCategory && hoveredCategoryPosition && (() => {
-                const model = allModels.find(m => m.id === hoveredCategory);
-                if (!model) return null;
-                
-                if (model.isPro) {
-                  const getTooltipText = (modelId: string) => {
-                    if (['glm', 'kimi', 'qwen', 'deepseek'].includes(modelId)) return 'Upgrade your plan to Pro tier or Higher';
-                    if (['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(modelId)) return 'Upgrade your plan to Premium';
-                    return 'Upgrade your plan to Pro+';
-                  };
-
-                  return createPortal(
-                    <AnimatePresence>
-                      <motion.div
-                        initial={{ opacity: 0, x: -5 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -5 }}
-                        transition={{ duration: 0.15 }}
-                        style={{
-                          position: 'fixed',
-                          top: hoveredCategoryPosition.bottom - 32,
-                          left: hoveredCategoryPosition.left + 16,
-                          zIndex: 9999,
-                        }}
-                        className="px-3 py-1.5 bg-[#1f2937] text-white text-[12px] rounded-lg whitespace-nowrap shadow-xl border border-white/5"
-                      >
-                        {getTooltipText(model.id)}
-                      </motion.div>
-                    </AnimatePresence>,
-                    document.body
-                  );
-                }
-
-                if (model.submodels.length === 0) return null;
-                return createPortal(
-                  <AnimatePresence>
-                    <motion.div
-                      initial={{ opacity: 0, x: -5 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -5 }}
-                      transition={{ duration: 0.15 }}
-                      style={{
-                        position: 'fixed',
-                        top: hoveredCategoryPosition.top + 45,
-                        left: hoveredCategoryPosition.left + 16,
-                        zIndex: 9999,
-                      }}
-                      className="w-36 bg-[#16161a] border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col ml-1"
-                    >
-                      {model.submodels.map(m => (
-                        <button
-                          key={m}
-                          onClick={() => { updateConfig({ model: model.id === 'glm53' ? `GLM 5.3 ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
-                          className="px-3 py-2 text-[13px] font-medium text-left text-white/70 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all mb-0.5"
-                        >
-                          {m}
-                        </button>
-                      ))}
-                    </motion.div>
-                  </AnimatePresence>,
-                  document.body
-                );
-              })()}
-            </div>
-            
-          </div>
-
-          <div className="flex items-center gap-2">
-            <TokenCircleIndicator budget={tokenBudget || { 
-              total: 128000, utilizationPercent: 0, available: 128000, 
-              systemPrompt: 0, tools: 0, projectContext: 0, conversationHistory: 0, responseReserved: 0 
-            }} />
-            {isAgentRunning ? (
-              <button
-                onClick={onStop}
-                className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors shadow-lg"
-              >
-                <Square size={14} fill="currentColor" />
-              </button>
-            ) : (
-              <div className="relative group">
-                <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) ? "Send message" : "Voice input"}>
-                  <button
-                    onClick={() => {
-                      if (!hasProject) return;
-                      if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject) {
-                        handleSend();
-                      } else {
-                        setIsListening(true);
-                      }
+            <div className="flex items-center justify-between mt-[1.2rem]">
+              <div className="flex items-center gap-3">
+                <div className="relative" ref={plusDropdownRef}>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageUpload(file);
+                      e.target.value = '';
                     }}
-                    aria-disabled={!hasProject}
+                  />
+                  <button
+                    onClick={() => setShowPlusDropdown(!showPlusDropdown)}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[#8b8b93] hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <AnimatePresence>
+                    {showPlusDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full left-0 mb-2 w-48 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                      >
+                        <button
+                          className="w-full px-3 py-2 text-left text-xs text-[#a8a8b1] hover:text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+                          onClick={() => {
+                            setShowPlusDropdown(false);
+                            fileInputRef.current?.click();
+                          }}
+                        >
+                          <ImageIcon size={14} />
+                          <span className="font-medium">Media</span>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="relative" ref={agentDropdownRef}>
+                  <button
+                    onClick={() => setShowAgentDropdown(!showAgentDropdown)}
                     className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                      !hasProject
-                        ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-                        : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0)
-                        ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
-                        : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+                      "flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-md transition-all",
+                      config.interactionMode === 'plan' ? "text-amber-300 bg-amber-500/15 border border-amber-500/30" : config.agentMode
+                        ? "text-purple-300 bg-purple-500/15 border border-purple-500/30"
+                        : "text-[#8b8b93] hover:text-white bg-white/5 border border-transparent"
                     )}
                   >
-                    {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                    {config.interactionMode === 'plan' ? <ClipboardList size={14} className="text-white" /> : config.agentMode ? <Bot size={14} className="text-white" /> : <Mic size={14} />}
+                    <span className={cn(config.agentMode || config.interactionMode === 'plan' ? "text-white font-bold tracking-wide" : "")}>
+                      {config.interactionMode === 'plan' ? 'Plan' : config.agentMode ? 'Agent' : 'Ask'}
+                    </span>
+                    <ChevronDown size={12} className={cn("transition-transform duration-200 opacity-60", showAgentDropdown ? "rotate-180" : "")} />
                   </button>
-                </Tooltip>
+                  <AnimatePresence>
+                    {showAgentDropdown && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -5 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f0f13] border border-white/10 rounded-lg shadow-xl py-1 z-50 overflow-hidden"
+                      >
+                        <button
+                          onClick={() => {
+                            updateConfig({ agentMode: true, interactionMode: 'agent' });
+                            setShowAgentDropdown(false);
+                          }}
+                          className={cn(
+                            "w-full px-3 py-2 text-left text-xs transition-colors",
+                            config.interactionMode === 'agent' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Bot size={14} />
+                            <span className="font-medium">Agent</span>
+                          </div>
+                          <div className="text-[10px] text-white/50 pl-6">Full agentic coding with tools</div>
+                        </button>
+                        <button
+                          onClick={() => {
+                            updateConfig({ agentMode: true, interactionMode: 'plan' });
+                            setShowAgentDropdown(false);
+                          }}
+                          className={cn(
+                            "w-full px-3 py-2 text-left text-xs transition-colors",
+                            config.interactionMode === 'plan' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1"><ClipboardList size={14} /><span className="font-medium">Plan</span></div>
+                          <div className="text-[10px] text-white/50 pl-6">Inspect the project and maintain one reviewed plan</div>
+                        </button>
+                        <button
+                          onClick={() => {
+                            updateConfig({ agentMode: false, interactionMode: 'ask' });
+                            setShowAgentDropdown(false);
+                          }}
+                          className={cn(
+                            "w-full px-3 py-2 text-left text-xs transition-colors",
+                            config.interactionMode === 'ask' ? "text-white bg-white/5" : "text-[#a8a8b1] hover:text-white hover:bg-white/5"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Mic size={14} />
+                            <span className="font-medium">Ask</span>
+                          </div>
+                          <div className="text-[10px] text-white/50 pl-6">Simple Q&A and assistance</div>
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-            )}
-          </div>
-        </div>
+
+                <div
+                  className="relative"
+                >
+                  <button
+                    onClick={() => setShowModelDropdown(!showModelDropdown)}
+                    className="flex items-center gap-1.5 text-[12px] text-[#a8a8b1] hover:text-white transition-colors bg-[#202025] hover:bg-[#2a2a30] px-3 py-1.5 rounded-md border border-white/5"
+                  >
+                    {getModelIcon(config.model || 'Dispatcher v1')}
+                    <span className="font-medium text-white">{config.model || 'Dispatcher v1'}</span>
+                    {quotaWarning && (
+                      <span className="group/quota relative flex shrink-0 items-center" aria-label={quotaWarning.label}>
+                        <Gauge size={13} className={quotaWarning.color} />
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute bottom-full left-1/2 z-[100] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#252529] px-2.5 py-1.5 text-[10px] font-normal text-white opacity-0 shadow-xl transition-opacity group-hover/quota:opacity-100"
+                        >
+                          {quotaWarning.label}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                  {typeof document !== 'undefined' && createPortal(
+                    <AnimatePresence>
+                      {showModelDropdown && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setShowModelDropdown(false)}
+                          />
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                            transition={{ type: "spring", duration: 0.4, bounce: 0.1 }}
+                            className="relative w-full max-w-[650px] bg-[#16161a] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[70vh] overflow-hidden"
+                          >
+                            {/* Header: Search and Close */}
+                            <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.05]">
+                              <div className="relative flex-1">
+                                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                                <input
+                                  type="text"
+                                  placeholder="Search models..."
+                                  value={modelSearchQuery}
+                                  onChange={(e) => setModelSearchQuery(e.target.value)}
+                                  className="w-full bg-white/[0.03] hover:bg-white/[0.05] focus:bg-white/[0.08] border border-white/5 transition-all rounded-lg pl-10 pr-4 py-2 text-[13px] text-white placeholder-white/40 outline-none focus:border-purple-500/50"
+                                />
+                              </div>
+                              <button onClick={() => setShowModelDropdown(false)} className="text-white/40 hover:text-white transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
+                                <X size={20} />
+                              </button>
+                            </div>
+
+                            {/* Content: Single Grid */}
+                            <div className="p-5 overflow-y-auto custom-scrollbar flex-1">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {filteredModels.map(model => {
+                                  const isSelected = config.model === model.name || (config.model && config.model.includes(model.name));
+                                  return (
+                                    <div
+                                      key={model.id}
+                                      ref={(el) => { if (el) modelItemRefs.current[model.id] = el; }}
+                                      onMouseEnter={() => setHoveredCategory(model.id)}
+                                    >
+                                      <button
+                                        disabled={model.isPro}
+                                        onClick={() => {
+                                          if (!model.isPro && model.submodels.length === 0) {
+                                            updateConfig({ model: model.name });
+                                            setShowModelDropdown(false);
+                                          }
+                                        }}
+                                        className={cn(
+                                          "w-full p-3.5 rounded-xl border text-left transition-all flex flex-col relative h-[80px] group",
+                                          isSelected ? "bg-white/[0.08] border-purple-500/50" : "bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]",
+                                          model.isPro && !isSelected && "opacity-50"
+                                        )}
+                                      >
+                                        <div className="flex items-start justify-between w-full">
+                                          <div className="flex items-center gap-3">
+                                            <div className="text-white/80 p-1.5 rounded-lg bg-white/5">{model.icon}</div>
+                                            <div>
+                                              <div className="font-semibold text-white text-[13px] tracking-tight flex items-center gap-1.5">
+                                                {model.name}
+                                                {model.id === 'glm53' ? (
+                                                  <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
+                                                ) : model.isPro && (
+                                                  ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? (
+                                                    <img src="./PRO.png" alt="PRO" className="h-[28px] object-contain ml-1.5 -my-2" />
+                                                  ) : ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? (
+                                                    <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
+                                                  ) : (
+                                                    <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1 py-0.5 rounded font-bold ml-1.5">PRO+</span>
+                                                  )
+                                                )}
+                                              </div>
+                                              <div className="text-[11px] text-white/40 mt-1">
+                                                {model.id === 'glm53' ? 'Free Limited Time Tier' :
+                                                  ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? 'Pro Tier' :
+                                                    ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? 'Premium Tier' :
+                                                      model.isPro ? 'Pro+ Tier' : 'Standard Tier'}
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          <div className={cn("w-[16px] h-[16px] rounded-full border flex items-center justify-center shrink-0", isSelected ? "border-purple-400" : "border-white/20 group-hover:border-white/40")}>
+                                            {isSelected && <div className="w-[8px] h-[8px] rounded-full bg-purple-400" />}
+                                          </div>
+                                        </div>
+
+                                        {model.submodels.length > 0 && (
+                                          <div className={cn("absolute bottom-2.5 right-2.5", isSelected ? "text-purple-400" : "text-white/30 group-hover:text-white/60")}>
+                                            <ChevronDown size={14} />
+                                          </div>
+                                        )}
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </motion.div>
+                        </div>
+                      )}
+                    </AnimatePresence>,
+                    document.body
+                  )}
+
+                  {/* Portal for submodel dropdown and tooltips */}
+                  {showModelDropdown && hoveredCategory && hoveredCategoryPosition && (() => {
+                    const model = allModels.find(m => m.id === hoveredCategory);
+                    if (!model) return null;
+
+                    if (model.isPro) {
+                      const getTooltipText = (modelId: string) => {
+                        if (['glm', 'kimi', 'qwen', 'deepseek'].includes(modelId)) return 'Upgrade your plan to Pro tier or Higher';
+                        if (['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(modelId)) return 'Upgrade your plan to Premium';
+                        return 'Upgrade your plan to Pro+';
+                      };
+
+                      return createPortal(
+                        <AnimatePresence>
+                          <motion.div
+                            initial={{ opacity: 0, x: -5 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -5 }}
+                            transition={{ duration: 0.15 }}
+                            style={{
+                              position: 'fixed',
+                              top: hoveredCategoryPosition.bottom - 32,
+                              left: hoveredCategoryPosition.left + 16,
+                              zIndex: 9999,
+                            }}
+                            className="px-3 py-1.5 bg-[#1f2937] text-white text-[12px] rounded-lg whitespace-nowrap shadow-xl border border-white/5"
+                          >
+                            {getTooltipText(model.id)}
+                          </motion.div>
+                        </AnimatePresence>,
+                        document.body
+                      );
+                    }
+
+                    if (model.submodels.length === 0) return null;
+                    return createPortal(
+                      <AnimatePresence>
+                        <motion.div
+                          initial={{ opacity: 0, x: -5 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -5 }}
+                          transition={{ duration: 0.15 }}
+                          style={{
+                            position: 'fixed',
+                            top: hoveredCategoryPosition.top + 45,
+                            left: hoveredCategoryPosition.left + 16,
+                            zIndex: 9999,
+                          }}
+                          className="w-36 bg-[#16161a] border border-white/10 rounded-xl shadow-2xl p-1.5 flex flex-col ml-1"
+                        >
+                          {model.submodels.map(m => (
+                            <button
+                              key={m}
+                              onClick={() => { updateConfig({ model: model.id === 'glm53' ? `GLM 5.3 ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
+                              className="px-3 py-2 text-[13px] font-medium text-left text-white/70 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all mb-0.5"
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </motion.div>
+                      </AnimatePresence>,
+                      document.body
+                    );
+                  })()}
+                </div>
+
+              </div>
+
+              <div className="flex items-center gap-2">
+                <TokenCircleIndicator budget={tokenBudget || {
+                  total: 128000, utilizationPercent: 0, available: 128000,
+                  systemPrompt: 0, tools: 0, projectContext: 0, conversationHistory: 0, responseReserved: 0
+                }} />
+                {isAgentRunning ? (
+                  <button
+                    onClick={onStop}
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors shadow-lg"
+                  >
+                    <Square size={14} fill="currentColor" />
+                  </button>
+                ) : (
+                  <div className="relative group">
+                    <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) ? "Send message" : "Voice input"}>
+                      <button
+                        onClick={() => {
+                          if (!hasProject) return;
+                          if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject) {
+                            handleSend();
+                          } else {
+                            setIsListening(true);
+                          }
+                        }}
+                        aria-disabled={!hasProject}
+                        className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                          !hasProject
+                            ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
+                            : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0)
+                              ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
+                              : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+                        )}
+                      >
+                        {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>
 
       {suggestedActions.length > 0 && !hasMessages && (
-        <motion.div 
-          initial={{ opacity: 0, y: -5 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex gap-3 items-center justify-between w-full mt-3 z-10"
-        >
+        <div className="flex gap-3 items-center justify-between w-full mt-3 z-10">
           {suggestedActions.map((suggestion, i) => (
-            <button
+            <motion.div
               key={i}
-              onClick={() => setContent(suggestion.prompt)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-[#1c1c21] hover:bg-[#25252b] border border-white/5 hover:border-white/10 rounded-xl text-[12px] text-zinc-300 hover:text-white transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.7)] hover:-translate-y-1 truncate"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                delay: (i === 1 || i === 2) ? 0 : 0.15,
+                duration: 0.4,
+                ease: "easeOut"
+              }}
+              className="flex-1 flex"
             >
-              {suggestion.icon}
-              <span className="font-medium truncate">{suggestion.label}</span>
-            </button>
+              <button
+                onClick={() => setContent(suggestion.prompt)}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-[#1c1c21] hover:bg-[#25252b] border border-white/5 hover:border-white/10 rounded-xl text-[12px] text-zinc-300 hover:text-white transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.7)] hover:-translate-y-1 truncate"
+              >
+                {suggestion.icon}
+                <span className="font-medium truncate">{suggestion.label}</span>
+              </button>
+            </motion.div>
           ))}
-        </motion.div>
+        </div>
       )}
 
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {showConnectModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans bg-black/60 backdrop-blur-sm">
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={() => setShowConnectModal(false)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98, y: 8 }}
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98, y: 8 }}
-                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
-                className="relative w-full max-w-[640px] bg-[#18181b] border border-white/[0.08] rounded-2xl shadow-2xl flex flex-col max-h-[75vh] overflow-hidden"
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="relative w-full max-w-[800px] bg-[#0c0c0e] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
-                  <div className="text-[15px] font-semibold text-zinc-100 tracking-wide">Connect External Services</div>
+                  <div className="text-[18px] font-semibold text-zinc-100 tracking-wide">Connectors</div>
                   <button onClick={() => setShowConnectModal(false)} className="text-zinc-500 hover:text-zinc-200 transition-colors p-1.5 rounded-md hover:bg-white/5 shrink-0">
                     <X size={18} />
                   </button>
                 </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./gmail.png" alt="GMail" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">GMail</div>
-                          <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
-                            <div className={`w-1.5 h-1.5 rounded-full ${gmailConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
-                            <span className={`text-[12px] font-medium truncate ${gmailConnected ? 'text-green-400' : 'text-zinc-500'}`}>
-                              {gmailConnected ? 'Connected' : 'Not connected'}
-                            </span>
-                          </div>
-                        </div>
-                        {!gmailConnected ? (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                const res = await fetch('http://localhost:3001/auth/url');
-                                const data = await res.json();
-                                if ((window as any).electron?.openExternal) {
-                                  (window as any).electron.openExternal(data.url);
-                                } else {
-                                  window.open(data.url, '_blank');
-                                }
-                              } catch (e) {
-                                alert('GMail MCP Server is not running yet. Please restart Quantix.');
-                              }
-                            }}
-                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                            Connect
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                await fetch('http://localhost:3001/auth/disconnect', { method: 'POST' });
-                                setGmailConnected(false);
-                              } catch (e) {
-                                alert('Failed to disconnect GMail.');
-                              }
-                            }}
-                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                            Disconnect
-                          </button>
-                        )}
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./drive.png" alt="Google Drive" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Google Drive</div>
-                          <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
-                            <div className={`w-1.5 h-1.5 rounded-full ${gdriveConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
-                            <span className={`text-[12px] font-medium truncate ${gdriveConnected ? 'text-green-400' : 'text-zinc-500'}`}>
-                              {gdriveConnected ? 'Connected' : 'Not connected'}
-                            </span>
-                          </div>
-                        </div>
-                        {!gdriveConnected ? (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                const res = await fetch('http://localhost:3002/auth/url');
-                                const data = await res.json();
-                                if ((window as any).electron?.openExternal) {
-                                  (window as any).electron.openExternal(data.url);
-                                } else {
-                                  window.open(data.url, '_blank');
-                                }
-                              } catch (e) {
-                                alert('Google Drive MCP Server is not running yet. Please restart Quantix.');
-                              }
-                            }}
-                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                            Connect
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                await fetch('http://localhost:3002/auth/disconnect', { method: 'POST' });
-                                setGdriveConnected(false);
-                              } catch (e) {
-                                alert('Failed to disconnect Google Drive.');
-                              }
-                            }}
-                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                            Disconnect
-                          </button>
-                        )}
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./github.png" alt="GitHub" className="w-7 h-7 object-contain opacity-90" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">GitHub</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
-                          </div>
-                        </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./canva.png" alt="Canva" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Canva</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
-                          </div>
-                        </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./supabase.png" alt="Supabase" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Supabase</div>
-                          <div className="flex items-center gap-1.5 max-w-full overflow-hidden">
-                            <div className={`w-1.5 h-1.5 rounded-full ${supabaseConnected ? 'bg-green-500' : 'bg-zinc-600'} shrink-0`}></div>
-                            <span className={`text-[12px] font-medium truncate ${supabaseConnected ? 'text-green-400' : 'text-zinc-500'}`}>
-                              {supabaseConnected ? 'Connected' : 'Not connected'}
-                            </span>
-                          </div>
-                        </div>
-                        {!supabaseConnected ? (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                const res = await fetch('http://localhost:3003/auth/url');
-                                const data = await res.json();
-                                if ((window as any).electron?.openExternal) {
-                                  (window as any).electron.openExternal(data.url);
-                                } else {
-                                  window.open(data.url, '_blank');
-                                }
-                              } catch (e) {
-                                alert('Supabase MCP Server is not running yet. Please restart Quantix.');
-                              }
-                            }}
-                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                            Connect
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                await fetch('http://localhost:3003/auth/disconnect', { method: 'POST' });
-                                setSupabaseConnected(false);
-                              } catch (e) {
-                                alert('Failed to disconnect Supabase.');
-                              }
-                            }}
-                            className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                            Disconnect
-                          </button>
-                        )}
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./vercel.png" alt="Vercel" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Vercel</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
-                          </div>
-                        </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./mongodb.png" alt="MongoDB" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">MongoDB</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
-                          </div>
-                        </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
-                      </div>
-                      <div className="w-full p-2.5 rounded-xl border border-transparent hover:border-white/[0.04] bg-transparent hover:bg-white/[0.02] transition-colors duration-200 flex items-center gap-3.5 group text-left">
-                        <div className="w-11 h-11 rounded-[10px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
-                          <img src="./figma.png" alt="Figma" className="w-7 h-7 object-contain" />
-                        </div>
-                        <div className="flex-1 flex flex-col gap-0.5">
-                          <div className="text-[14px] font-medium text-zinc-200 group-hover:text-white transition-colors">Figma</div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-zinc-600"></div>
-                            <span className="text-[12px] font-medium text-zinc-500">Not connected</span>
-                          </div>
-                        </div>
-                        <button className="ml-auto px-3 py-1.5 text-[12px] font-medium bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 hover:border-white/10 text-zinc-300 hover:text-white rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                          Connect
-                        </button>
-                      </div>
-                    </div>
+                <div className="px-6 pt-5 pb-3">
+                  <div className="flex bg-zinc-800/50 rounded-lg p-2.5 items-center border border-white/5 focus-within:border-white/20 transition-colors">
+                    <Search size={16} className="text-zinc-500 ml-2" />
+                    <input type="text" placeholder="Search connectors" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-zinc-300 ml-3 text-[14px] w-full placeholder:text-zinc-500" />
                   </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>,
-          document.body
-        )}
+                </div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <AnimatePresence>
+                      {filteredConnectors.map((c, i) => (
+                        <motion.div
+                          key={c.id}
+                          layout
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
+                          className="w-full p-4 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors duration-200 flex items-center gap-4 group text-left"
+                        >
+                          <div className="w-12 h-12 rounded-[14px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+                            <img src={c.icon} alt={c.name} className={`w-8 h-8 object-contain ${c.opacity || ''}`} />
+                          </div>
+                          <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+                            <div className="text-[15px] font-medium text-zinc-100 group-hover:text-white transition-colors">{c.name}</div>
+                            <div className="text-[12px] text-zinc-500 leading-tight pr-2">{c.desc}</div>
+                          </div>
+                          <div className="shrink-0 flex items-center ml-2">
+                            {!c.connected ? (
+                              <button
+                                onClick={c.onConnect}
+                                className="w-8 h-8 rounded-lg bg-transparent border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition-all">
+                                <Plus size={16} />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={c.onDisconnect}
+                                className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all">
+                                <Minus size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
       <AnimatePresence>
         {previewImage && (
           <motion.div
@@ -1473,7 +1457,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             img.src = previewImage;
                           });
                         });
-                      
+
                       await navigator.clipboard.write([
                         new ClipboardItem({ 'image/png': blobPromise })
                       ]);

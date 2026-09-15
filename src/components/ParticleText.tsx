@@ -260,10 +260,19 @@ const ParticleText = ({
     const sampleText = async (): Promise<void> => {
       const currentBuild = ++buildId;
       const rect = container.getBoundingClientRect();
-      width = Math.floor(rect.width);
-      height = Math.floor(rect.height);
+      const newWidth = Math.floor(rect.width);
+      const newHeight = Math.floor(rect.height);
 
-      if (width <= 0 || height <= 0) return;
+      if (newWidth <= 0 || newHeight <= 0) return;
+      
+      // CACHE: If dimensions haven't changed and we already have particles, skip recalculation
+      // This prevents massive CPU spikes when ResizeObserver fires during chat streaming/layout reflows
+      if (width === newWidth && height === newHeight && particles.length > 0) {
+        return;
+      }
+      
+      width = newWidth;
+      height = newHeight;
 
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.floor(width * dpr));

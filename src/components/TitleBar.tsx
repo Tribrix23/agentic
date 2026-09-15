@@ -64,6 +64,7 @@ export const TitleBar = ({ userName, userAvatar }: TitleBarProps) => {
                 <img
                   src={userAvatar}
                   alt={`${userName || 'User'} profile`}
+                  referrerPolicy="no-referrer"
                   className="h-6 w-6 shrink-0 rounded-full border border-white/15 object-cover"
                 />
               )}
