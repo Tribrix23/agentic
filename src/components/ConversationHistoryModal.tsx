@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Clock, Folder, ArrowRight } from 'lucide-react';
 import { cn } from '../App';
@@ -63,7 +64,9 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
     }
   }, [isOpen, onClose]);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center region-no-drag">
@@ -146,6 +149,7 @@ export const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> =
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };

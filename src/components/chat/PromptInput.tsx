@@ -1356,13 +1356,21 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {showConnectModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans bg-black/80"
+              onClick={() => setShowConnectModal(false)}
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.96, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                 className="relative w-full max-w-[800px] bg-[#0c0c0e] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
+                onClick={e => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
                   <div className="text-[18px] font-semibold text-zinc-100 tracking-wide">Connectors</div>
@@ -1382,11 +1390,10 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                       {filteredConnectors.map((c, i) => (
                         <motion.div
                           key={c.id}
-                          layout
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          transition={{ duration: 0.2, delay: i * 0.03, ease: "easeOut" }}
+                          transition={{ duration: 0.15, delay: i * 0.02, ease: "easeOut" }}
                           className="w-full p-4 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors duration-200 flex items-center gap-4 group text-left"
                         >
                           <div className="w-12 h-12 rounded-[14px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
@@ -1417,7 +1424,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   </div>
                 </div>
               </motion.div>
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>,
         document.body
