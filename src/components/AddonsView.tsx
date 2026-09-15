@@ -208,7 +208,7 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
             </button>
           </Tooltip>
           <span className="text-lg font-semibold tracking-wide text-white/90">
-            {currentTab === 'downloads' ? 'Downloads' : 'Add-ons'}
+            {currentTab === 'downloads' ? 'Downloads' : 'Skills'}
           </span>
         </div>
         

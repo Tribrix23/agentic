@@ -184,7 +184,7 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
         {/* Primary Navigation */}
         <div className="px-2 mb-8 flex flex-col gap-1">
           <NavItem icon={<Clock size={16} />} label="Conversation History" onClick={() => setShowHistoryModal(true)} />
-          <NavItem icon={<Puzzle size={16} />} label="Add-ons" onClick={() => window.dispatchEvent(new CustomEvent('open-addons'))} />
+          <NavItem icon={<Puzzle size={16} />} label="Skills" onClick={() => window.dispatchEvent(new CustomEvent('open-addons'))} />
         </div>
 
         {/* Projects Header */}

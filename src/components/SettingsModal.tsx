@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw, Puzzle, FolderPlus, Mic, Check, Mail } from 'lucide-react';
+import { X, MessageSquare, Search, Edit3, SquarePlus, ArrowLeft, ArrowRight, Clock, Settings, Command, Layout, Trash2, Folder, GitBranch, Plus, ChevronDown, Info, ShieldCheck, ExternalLink, Pencil, Cpu, Bot, RefreshCw, Puzzle, FolderPlus, Mic, Check, Mail, Network, Minus, ChevronsUpDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../App';
 import { getAIConfig, setAIConfig, resetAIConfig, AI_PARAM_RANGES, AIConfig } from '../lib/aiConfig';
@@ -196,6 +196,197 @@ const TokenQuota = ({
   );
 };
 
+
+function ConnectorsTab() {
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [gmailConnected, setGmailConnected] = React.useState(false);
+  const [gdriveConnected, setGdriveConnected] = React.useState(false);
+  const [supabaseConnected, setSupabaseConnected] = React.useState(false);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    let timeoutId = null;
+    let attempts = 0;
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3002/auth/status');
+        if (!isMounted) return;
+        const data = await res.json();
+        setGdriveConnected(data.connected === true);
+        timeoutId = setTimeout(check, 2000);
+      } catch {
+        if (!isMounted) return;
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
+    };
+    check();
+    return () => { isMounted = false; clearTimeout(timeoutId); };
+  }, []);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    let timeoutId = null;
+    let attempts = 0;
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3003/auth/status');
+        if (!isMounted) return;
+        const data = await res.json();
+        setSupabaseConnected(data.connected === true);
+        timeoutId = setTimeout(check, 2000);
+      } catch {
+        if (!isMounted) return;
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
+    };
+    check();
+    return () => { isMounted = false; clearTimeout(timeoutId); };
+  }, []);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    let timeoutId = null;
+    let attempts = 0;
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3001/auth/status');
+        if (!isMounted) return;
+        const data = await res.json();
+        setGmailConnected(data.connected === true);
+        timeoutId = setTimeout(check, 2000);
+      } catch {
+        if (!isMounted) return;
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
+    };
+    check();
+    return () => { isMounted = false; clearTimeout(timeoutId); };
+  }, []);
+
+  const connectors = [
+    {
+      id: 'gmail', name: 'Gmail', icon: './gmail.png',
+      desc: 'Draft replies, search your inbox, and summarize email threads instantly',
+      connected: gmailConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3001/auth/url');
+          const data = await res.json();
+          if (window.electron?.openExternal) { window.electron.openExternal(data.url); } else { window.open(data.url, '_blank'); }
+        } catch (e) { alert('GMail MCP Server is not running yet.'); }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3001/auth/disconnect', { method: 'POST' });
+          setGmailConnected(false);
+        } catch (e) {}
+      }
+    },
+    {
+      id: 'gdrive', name: 'Google Drive', icon: './drive.png',
+      desc: 'Access your files, search instantly, and manage your documents',
+      connected: gdriveConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3002/auth/url');
+          const data = await res.json();
+          if (window.electron?.openExternal) { window.electron.openExternal(data.url); } else { window.open(data.url, '_blank'); }
+        } catch (e) { alert('Google Drive MCP Server is not running yet.'); }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3002/auth/disconnect', { method: 'POST' });
+          setGdriveConnected(false);
+        } catch (e) {}
+      }
+    },
+    {
+      id: 'github', name: 'GitHub', icon: './github.png',
+      desc: 'Manage repositories, track code changes, and collaborate on team projects',
+      connected: false
+    },
+    {
+      id: 'supabase', name: 'Supabase', icon: './supabase.png',
+      desc: 'Query your database, view tables, and manage your schema',
+      connected: supabaseConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3003/auth/url');
+          const data = await res.json();
+          if (window.electron?.openExternal) { window.electron.openExternal(data.url); } else { window.open(data.url, '_blank'); }
+        } catch (e) { alert('Supabase MCP Server is not running yet.'); }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3003/auth/disconnect', { method: 'POST' });
+          setSupabaseConnected(false);
+        } catch (e) {}
+      }
+    },
+    {
+      id: 'canva', name: 'Canva', icon: './canva.png',
+      desc: 'Design, edit and manage graphic templates and assets', connected: false
+    },
+    {
+      id: 'vercel', name: 'Vercel', icon: './vercel.png',
+      desc: 'Deploy your projects, manage domains and check build logs', connected: false
+    },
+    {
+      id: 'mongodb', name: 'MongoDB', icon: './mongodb.png',
+      desc: 'Query documents, aggregate data, and manage collections', connected: false
+    },
+    {
+      id: 'figma', name: 'Figma', icon: './figma.png',
+      desc: 'Extract CSS, read design tokens and get asset details', connected: false
+    }
+  ];
+
+  const filteredConnectors = connectors.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.desc.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  return (
+    <div className="flex flex-col h-full px-8 pt-4 pb-8 overflow-y-auto">
+      <div className="flex bg-zinc-800/50 rounded-lg p-2.5 items-center border border-white/5 focus-within:border-white/20 transition-colors mb-6">
+        <Search size={16} className="text-zinc-500 ml-2" />
+        <input type="text" placeholder="Search connectors" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-zinc-300 ml-3 text-[14px] w-full placeholder:text-zinc-500" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-8">
+        {filteredConnectors.map((c) => (
+          <div
+            key={c.id}
+            className="w-full p-4 rounded-2xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors duration-200 flex items-center gap-4 group text-left"
+          >
+            <div className="w-12 h-12 rounded-[14px] bg-white flex items-center justify-center shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.2)]">
+              <img src={c.icon} alt={c.name} className={`w-8 h-8 object-contain ${c.opacity || ''}`} />
+            </div>
+            <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+              <div className="text-[15px] font-medium text-zinc-100 group-hover:text-white transition-colors">{c.name}</div>
+              <div className="text-[12px] text-zinc-500 leading-tight pr-2">{c.desc}</div>
+            </div>
+            <div className="shrink-0 flex items-center ml-2">
+              {!c.connected ? (
+                <button
+                  onClick={c.onConnect}
+                  className="w-8 h-8 rounded-lg bg-transparent border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition-all">
+                  <Plus size={16} />
+                </button>
+              ) : (
+                <button
+                  onClick={c.onDisconnect}
+                  className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all">
+                  <Minus size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const SettingsModal = ({
   user,
   onClose,
@@ -209,7 +400,8 @@ export const SettingsModal = ({
   const [tokenQuotas, setTokenQuotas] = useState<TokenQuotaResponse | null>(null);
   const [tokenQuotasLoading, setTokenQuotasLoading] = useState(false);
   const [tokenQuotasError, setTokenQuotasError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState(() => {
+  const [sidebarSearch, setSidebarSearch] = useState('');
+    const [activeTab, setActiveTab] = useState(() => {
     const tab = localStorage.getItem('quantix_settings_initial_tab');
     if (tab) {
       localStorage.removeItem('quantix_settings_initial_tab');
@@ -418,6 +610,9 @@ export const SettingsModal = ({
     if (activeTab === 'model') {
       return { title: 'Model', subtitle: 'View token usage and quotas for AI models.' };
     }
+    if (activeTab === 'connectors') {
+      return { title: 'Connectors', subtitle: 'Manage external service connections.' };
+    }
     if (activeTab === 'shortcuts') {
       return { title: 'Shortcuts', subtitle: 'Keyboard shortcuts for quick navigation and control.' };
     }
@@ -436,7 +631,14 @@ export const SettingsModal = ({
     return { title: 'Settings', subtitle: '' };
   };
 
-  const headerInfo = getHeaderInfo();
+  
+    const matchSearch = (text: string) => sidebarSearch.trim() === '' || text.toLowerCase().includes(sidebarSearch.toLowerCase());
+    const filteredProjects = projects.filter(p => matchSearch(p.name));
+    const showGeneral = matchSearch('Account') || matchSearch('Model');
+    const showCapabilities = matchSearch('Connectors');
+    const showProjects = filteredProjects.length > 0;
+
+    const headerInfo = getHeaderInfo();
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-8 bg-black/60 backdrop-blur-sm">
@@ -449,6 +651,31 @@ export const SettingsModal = ({
 
         {/* Sidebar */}
         <div className="w-64 border-r border-white/5 p-4 flex flex-col gap-1 overflow-y-auto bg-[#141419]">
+          
+          {/* Profile Block */}
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors cursor-pointer mb-3">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <img src={user.avatar || './default-avatar.png'} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+              <div className="flex flex-col truncate">
+                <span className="text-[13px] font-semibold text-white truncate">{user.name}</span>
+                <span className="text-[11px] text-zinc-500 truncate">{user.email || 'Personal'}</span>
+              </div>
+            </div>
+            
+          </div>
+
+          {/* Search Bar */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/20 border border-white/5 mb-4 focus-within:border-white/20 transition-colors">
+            <Search size={14} className="text-zinc-500 shrink-0" />
+            <input 
+              type="text" 
+              placeholder="Search" 
+              value={sidebarSearch}
+              onChange={(e) => setSidebarSearch(e.target.value)}
+              className="bg-transparent border-none outline-none text-[13px] text-white w-full placeholder:text-zinc-600"
+            />
+          </div>
+
           <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mb-1 uppercase tracking-wider">General</div>
           <button
             onClick={() => setActiveTab('account')}
@@ -462,6 +689,15 @@ export const SettingsModal = ({
           >
             <Cpu size={14} className="shrink-0" />
             Model
+          </button>
+
+          <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mt-6 mb-1 uppercase tracking-wider">Capabilities</div>
+          <button
+            onClick={() => setActiveTab('connectors')}
+            className={cn("w-full text-left px-3 py-2 flex items-center gap-2 rounded-lg text-[13px] font-medium transition-colors", activeTab === 'connectors' ? "bg-white/10 text-white" : "text-[#a8a8b1] hover:text-white hover:bg-white/5")}
+          >
+            <Network size={14} className="shrink-0" />
+            Connectors
           </button>
 
           <div className="text-[11px] font-semibold text-[#8b8b93] px-3 mt-6 mb-1 uppercase tracking-wider">Projects</div>
@@ -606,6 +842,10 @@ export const SettingsModal = ({
                   />
                 </div>
               </>
+            )}
+
+            {activeTab === 'connectors' && (
+              <ConnectorsTab />
             )}
 
             {activeTab === 'account' && (

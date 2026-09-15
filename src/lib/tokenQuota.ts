@@ -189,26 +189,35 @@ export class TokenBillingSession {
     await this.enqueue(async () => {
       if (this.stopped) return;
       const steps = chargeStepsForUsage(this.weightedTokens);
-      while (this.appliedStepCount < steps.length) {
-        const amount = steps[this.appliedStepCount];
-        if (this.remaining !== undefined && this.remaining < amount) {
-          this.stopped = true;
-          const error = new QuotaExhaustedError(this.target, amount, this.remaining);
-          this.publishExhausted(error);
-          throw error;
-        }
-        try {
-          await deductTokens(this.userId, amount, this.target);
-        } catch (error) {
-          this.stopped = true;
-          if (error instanceof QuotaExhaustedError) this.publishExhausted(error);
-          throw error;
-        }
-        this.appliedStepCount++;
-        this.charged += amount;
-        if (this.remaining !== undefined) this.remaining -= amount;
-        this.publishUpdate();
+      
+      if (this.appliedStepCount >= steps.length) return;
+
+      let totalAmountToDeduct = 0;
+      let targetStepCount = this.appliedStepCount;
+      while (targetStepCount < steps.length) {
+        totalAmountToDeduct += steps[targetStepCount];
+        targetStepCount++;
       }
+
+      if (this.remaining !== undefined && this.remaining < totalAmountToDeduct) {
+        this.stopped = true;
+        const error = new QuotaExhaustedError(this.target, totalAmountToDeduct, this.remaining);
+        this.publishExhausted(error);
+        throw error;
+      }
+      
+      try {
+        await deductTokens(this.userId, totalAmountToDeduct, this.target);
+      } catch (error) {
+        this.stopped = true;
+        if (error instanceof QuotaExhaustedError) this.publishExhausted(error);
+        throw error;
+      }
+      
+      this.appliedStepCount = targetStepCount;
+      this.charged += totalAmountToDeduct;
+      if (this.remaining !== undefined) this.remaining -= totalAmountToDeduct;
+      this.publishUpdate();
     });
   }
 

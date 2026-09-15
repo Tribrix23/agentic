@@ -607,7 +607,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(Math.max(textareaRef.current.scrollHeight, 26), 200) + 'px';
+      textareaRef.current.style.height = Math.min(Math.max(textareaRef.current.scrollHeight, 26), 120) + 'px';
     }
   }, [content]);
 
@@ -958,7 +958,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   }
                 }}
                 placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
-                className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[200px] leading-relaxed self-end mb-1"
+                className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[120px] leading-relaxed self-end mb-1"
                 rows={1}
               />
             </div>
