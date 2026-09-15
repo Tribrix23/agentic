@@ -792,28 +792,28 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               const connectedServices = [];
               if (gmailConnected) connectedServices.push(
                 <Tooltip key="gmail" content="Gmail">
-                  <div className="w-6 h-6 flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
-                    <img src="./gmail.png" alt="Gmail" className="w-5 h-5 object-contain filter drop-shadow-md" />
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./gmail.png" alt="Gmail" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
               if (gdriveConnected) connectedServices.push(
                 <Tooltip key="gdrive" content="Google Drive">
-                  <div className="w-6 h-6 flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
-                    <img src="./drive.png" alt="Google Drive" className="w-5 h-5 object-contain filter drop-shadow-md" />
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./drive.png" alt="Google Drive" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
               if (supabaseConnected) connectedServices.push(
                 <Tooltip key="supabase" content="Supabase">
-                  <div className="w-6 h-6 flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
-                    <img src="./supabase.png" alt="Supabase" className="w-5 h-5 object-contain filter drop-shadow-md" />
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./supabase.png" alt="Supabase" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
 
               return (
-                <div className="flex items-center transition-colors group -space-x-1.5 py-0.5 px-1">
+                <div className="flex items-center transition-colors group -space-x-2.5 py-0.5 px-1">
                   {connectedServices}
                 </div>
               );
