@@ -58,7 +58,98 @@ function preprocessEmailBlocks(text: string): string {
   });
 }
 
+
+const MCP_ALIASES = [
+  { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
+  { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
+  { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
+  { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png' },
+  { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
+  { trigger: '@mail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
+  { trigger: '@web', id: 'playwright', name: 'Web', icon: './browser.png' },
+  { trigger: '@browser', id: 'playwright', name: 'Web', icon: './browser.png' }
+];
+
+function processText(text: string, connectedIds: string[]): React.ReactNode[] {
+    const parts: React.ReactNode[] = [];
+    
+    const aliases = [...MCP_ALIASES].filter(a => {
+        if (a.id === 'playwright') return true;
+        return connectedIds.includes(`${a.id}-mcp`) || connectedIds.includes(a.id);
+    }).sort((a, b) => b.trigger.length - a.trigger.length);
+    
+    if (aliases.length === 0) return [text];
+
+    
+    // We use a simple regex split since lookbehinds are supported in modern browsers
+    // but just in case, we'll do a simpler regex and check boundaries manually.
+    const triggerRegex = new RegExp(`(?<=^|\\s)(${aliases.map(a => a.trigger).join('|').replace(/ /g, '\\s')})(?=\\s|$)`, 'gi');
+    
+    let match;
+    let lastIndex = 0;
+    
+    while ((match = triggerRegex.exec(text)) !== null) {
+        if (match.index > lastIndex) {
+            parts.push(text.substring(lastIndex, match.index));
+        }
+        
+        const trigger = match[1];
+        const alias = aliases.find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
+        
+        if (alias) {
+            parts.push(
+                <span key={match.index} className="inline-flex items-center gap-1.5 px-0.5 mx-0.5 text-[14px] align-middle select-none bg-transparent whitespace-nowrap">
+                    <img src={alias.icon} alt={alias.name} className="w-4 h-4 object-contain inline-block" />
+                    <span className="text-[#4b93ff] font-medium">{alias.name}</span>
+                </span>
+            );
+        } else {
+            parts.push(trigger);
+        }
+        
+        lastIndex = match.index + trigger.length;
+    }
+    
+    if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : [text];
+}
+
+function processChildren(children: React.ReactNode, connectedIds: string[]): React.ReactNode {
+    if (typeof children === 'string') {
+        return processText(children, connectedIds);
+    }
+    if (Array.isArray(children)) {
+        return children.map((child, i) => <React.Fragment key={i}>{processChildren(child, connectedIds)}</React.Fragment>);
+    }
+    return children;
+}
+
 export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: MarkdownRendererProps) {
+  const [connectedIds, setConnectedIds] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    let timeoutId: any;
+    let mounted = true;
+    const check = async () => {
+      try {
+        const servers = (await (window as any).electron?.mcp?.getServers?.()) || [];
+        if (mounted) {
+          setConnectedIds(servers.filter((s: any) => s.connected).map((s: any) => s.id));
+          timeoutId = setTimeout(check, 5000);
+        }
+      } catch (e) {
+        if (mounted) timeoutId = setTimeout(check, 5000);
+      }
+    };
+    check();
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
   // If streaming, append a blinking cursor
   const rawContent = isStreaming ? `${content} ▍` : content;
   const processedEmailContent = preprocessEmailBlocks(rawContent);
@@ -73,13 +164,13 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
           h1: ({ children }) => <h1 className="text-xl leading-7 font-semibold text-white mb-4 last:mb-0">{children}</h1>,
           h2: ({ children }) => <h2 className="text-base font-semibold text-white mt-7 mb-3 pb-2 border-b border-white/10 last:mb-0">{children}</h2>,
           h3: ({ children }) => <h3 className="text-sm font-semibold text-violet-200 mt-5 mb-2 last:mb-0">{children}</h3>,
-          p: ({ children }) => <p className="mb-3 last:mb-0 text-inherit leading-relaxed">{children}</p>,
-          ul: ({ children }) => <ul className="mb-4 pl-5 list-disc space-y-1 marker:text-violet-400 last:mb-0">{children}</ul>,
-          ol: ({ children }) => <ol className="mb-4 pl-5 list-decimal space-y-1 marker:text-violet-400 last:mb-0">{children}</ol>,
+          p: ({ children }) => <p className="mb-3 last:mb-0 text-inherit leading-relaxed">{processChildren(children, connectedIds)}</p>,
+          ul: ({ children }) => <ul className="mb-4 pl-5 list-disc space-y-1 marker:text-violet-400 last:mb-0">{processChildren(children, connectedIds)}</ul>,
+          ol: ({ children }) => <ol className="mb-4 pl-5 list-decimal space-y-1 marker:text-violet-400 last:mb-0">{processChildren(children, connectedIds)}</ol>,
           table: ({ children }) => <div className="my-4 last:mb-0 overflow-x-auto rounded-lg border border-white/10"><table className="w-full min-w-[420px] border-collapse text-left text-xs">{children}</table></div>,
           thead: ({ children }) => <thead className="bg-white/5 text-white">{children}</thead>,
-          th: ({ children }) => <th className="px-3 py-2 font-medium border-b border-white/10">{children}</th>,
-          td: ({ children }) => <td className="px-3 py-2 align-top border-b border-white/5 text-inherit">{children}</td>,
+          th: ({ children }) => <th className="px-3 py-2 font-medium border-b border-white/10">{processChildren(children, connectedIds)}</th>,
+          td: ({ children }) => <td className="px-3 py-2 align-top border-b border-white/5 text-inherit">{processChildren(children, connectedIds)}</td>,
           blockquote: ({ children }) => {
             const text = extractText(children);
             if (text.includes('From:') && text.includes('Subject:')) {

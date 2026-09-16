@@ -134,12 +134,82 @@ interface PromptInputProps {
   hasMessages?: boolean;
 }
 
+const MCP_ALIASES = [
+  { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
+  { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
+  { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
+  { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png' },
+  { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
+  { trigger: '@mail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
+  { trigger: '@web', id: 'playwright', name: 'Web', icon: './browser.png' },
+  { trigger: '@browser', id: 'playwright', name: 'Web', icon: './browser.png' }
+];
+
 export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget, hasMessages = false }: PromptInputProps) {
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
+
+  useEffect(() => {
+    if (textareaRef.current && content !== undefined) {
+      let currentDomText = '';
+      for (const child of Array.from(textareaRef.current.childNodes)) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          currentDomText += child.textContent;
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const el = child as HTMLElement;
+          if (el.dataset && el.dataset.trigger) {
+            currentDomText += el.dataset.trigger;
+          } else {
+            currentDomText += el.innerText || el.textContent;
+          }
+        }
+      }
+      
+      if (currentDomText !== content) {
+          textareaRef.current.innerHTML = '';
+          const aliases = [...getActiveAliases()].sort((a, b) => b.trigger.length - a.trigger.length);
+          // Simplified regex for manual replace
+          const triggerRegex = new RegExp(`(^|\\s)(${aliases.map(a => a.trigger).join('|').replace(/ /g, '\\s')})(?=\\s|$)`, 'gi');
+          
+          let lastIndex = 0;
+          let match;
+          
+          while ((match = triggerRegex.exec(content)) !== null) {
+              if (match.index > lastIndex) {
+                  const pre = content.substring(lastIndex, match.index);
+                  // add the space from the match group if it exists
+                  textareaRef.current.appendChild(document.createTextNode(pre + match[1])); 
+              } else if (match[1]) {
+                  textareaRef.current.appendChild(document.createTextNode(match[1])); 
+              }
+              
+              const trigger = match[2];
+              const alias = aliases.find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
+              
+              if (alias) {
+                  const chip = document.createElement('span');
+                  chip.contentEditable = 'false';
+                  chip.className = 'inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent';
+                  chip.dataset.mcp = alias.id;
+                  chip.dataset.mcpName = alias.name;
+                  chip.dataset.trigger = alias.trigger;
+                  chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+                  textareaRef.current.appendChild(chip);
+                  textareaRef.current.appendChild(document.createTextNode('\u00A0'));
+              } else {
+                  textareaRef.current.appendChild(document.createTextNode(trigger));
+              }
+              lastIndex = match.index + match[0].length;
+          }
+          if (lastIndex < content.length) {
+              textareaRef.current.appendChild(document.createTextNode(content.substring(lastIndex)));
+          }
+      }
+    }
+  }, [content]);
   const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const textareaRef = useRef<HTMLDivElement>(null);
 
   const [selectedImages, setSelectedImages] = useState<{ url: string; file: File }[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -496,6 +566,17 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
   }, [value, onChange]);
 
+  
+  const getActiveAliases = () => {
+    return MCP_ALIASES.filter(a => {
+      if (a.id === 'figma') return figmaConnected;
+      if (a.id === 'gdrive') return gdriveConnected;
+      if (a.id === 'gmail') return gmailConnected;
+      if (a.id === 'supabase') return supabaseConnected;
+      return true;
+    });
+  };
+
   const slashItems = [
     // Map Playwright as Browser
     ...(availableTools.some(t => t.definition.category === 'mcp' && t.definition.name.startsWith('mcp__playwright'))
@@ -598,7 +679,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     };
     const openCommandPalette = () => {
       textareaRef.current?.focus();
-      const currentVal = textareaRef.current?.value || '';
+      const currentVal = textareaRef.current?.innerText || '';
       setContent(currentVal.startsWith('/') ? currentVal : '/' + currentVal);
       setShowSlashMenu(true);
       setSlashSearchQuery('');
@@ -668,13 +749,15 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   }, [content]);
 
   const handleSend = () => {
-    if (content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) {
+    if (content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0 || textareaRef.current?.querySelector('span[data-mcp]')) {
       let finalContent = content.trim();
       if (selectedSlashCommands.length > 0) {
         const prefix = selectedSlashCommands.map(item => item.type === 'skill' ? `use ${item.name} skill` : `use ${item.name}`).join(', ');
-        finalContent = finalContent ? `${prefix}\n\n${finalContent}` : prefix;
-      }
+        finalContent = finalContent ? `${prefix}
 
+${finalContent}` : prefix;
+      }
+      
       onSend(
         finalContent,
         selectedImages.length > 0 ? selectedImages.map(img => ({
@@ -685,6 +768,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         })) : undefined,
         mentionedFiles
       );
+      if (textareaRef.current) textareaRef.current.innerHTML = '';
       setContent('');
       setMentionedFiles([]);
       setSelectedImages([]);
@@ -695,7 +779,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const insertSlashItem = (item: any) => {
     if (!textareaRef.current) return;
-    const cursor = textareaRef.current.selectionStart || 0;
+    const cursor = content.length; // Slash insertion simplified for contentEditable
     const textBeforeCursor = content.slice(0, cursor);
     const textAfterCursor = content.slice(cursor);
 
@@ -711,13 +795,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       }
 
       // Update cursor position
-      setTimeout(() => {
-        if (textareaRef.current) {
-          const newCursorPos = textBeforeCursor.length - matchLength;
-          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-          textareaRef.current.focus();
-        }
-      }, 0);
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.focus();
+          }
+        }, 0);
     }
   };
 
@@ -752,28 +834,122 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       handleSend();
     }
 
-    if (e.key === 'Backspace' && selectedSlashCommands.length > 0) {
-      if (textareaRef.current && textareaRef.current.selectionStart === 0 && textareaRef.current.selectionEnd === 0) {
-        setSelectedSlashCommands(prev => prev.slice(0, -1));
+    if (e.key === 'Backspace') {
+      const selection = window.getSelection();
+      
+      if (selectedSlashCommands.length > 0) {
+        if (textareaRef.current && (!textareaRef.current.textContent || textareaRef.current.textContent.length === 0) && selection && selection.isCollapsed) {
+          setSelectedSlashCommands(prev => prev.slice(0, -1));
+          return;
+        }
       }
-    }
+
+      if (selection && selection.isCollapsed && textareaRef.current) {
+        const range = selection.getRangeAt(0);
+        let node = range.startContainer;
+        let prevNode = node.previousSibling;
+        
+        if (node.nodeType === Node.ELEMENT_NODE && node === textareaRef.current) {
+          prevNode = node.childNodes[range.startOffset - 1];
+        } else if (range.startOffset === 0) {
+          prevNode = node.previousSibling;
+        } else {
+          prevNode = null;
+        }
+        
+        if (prevNode && prevNode.nodeType === Node.ELEMENT_NODE && (prevNode as HTMLElement).dataset.mcp) {
+          e.preventDefault();
+          prevNode.parentNode?.removeChild(prevNode);
+          
+          // Dispatch input event to update state
+          const event = new Event('input', { bubbles: true });
+          textareaRef.current.dispatchEvent(event);
+        }
+      }
+        }
   };
 
-  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setContent(val);
+  const handleTextChange = (e: React.FormEvent<HTMLDivElement>) => {
+    if (!textareaRef.current) return;
+    
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      
+      // Get text before cursor for slash menu
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(textareaRef.current);
+      preCaretRange.setEnd(range.endContainer, range.endOffset);
+      const textBeforeCursor = preCaretRange.toString();
+      
+      const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
+      if (slashMatch) {
+        setShowSlashMenu(true);
+        setSlashSearchQuery(slashMatch[1]);
+        setSlashSelectedIndex(0);
+      } else {
+        setShowSlashMenu(false);
+      }
 
-    const cursor = e.target.selectionStart || 0;
-    const textBeforeCursor = val.slice(0, cursor);
-    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
-
-    if (slashMatch) {
-      setShowSlashMenu(true);
-      setSlashSearchQuery(slashMatch[1]);
-      setSlashSelectedIndex(0);
-    } else {
-      setShowSlashMenu(false);
+      const node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || '';
+        for (const alias of getActiveAliases()) {
+          const triggerRegex = new RegExp(`(^|\\s)(${alias.trigger})\\s$`, 'i');
+          const match = text.match(triggerRegex);
+          if (match) {
+            const prefixMatch = match[1];
+            const triggerMatch = match[2];
+            
+            const startIdx = match.index + prefixMatch.length;
+            const endIdx = startIdx + triggerMatch.length;
+            
+            const beforeText = text.slice(0, startIdx);
+            const parent = node.parentNode;
+            if (!parent) continue;
+            
+            const chip = document.createElement('span');
+            chip.contentEditable = 'false';
+            chip.className = 'inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent';
+            chip.dataset.mcp = alias.id;
+            chip.dataset.mcpName = alias.name;
+            chip.dataset.trigger = alias.trigger;
+            chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+            
+            const beforeNode = document.createTextNode(beforeText);
+            const spaceNode = document.createTextNode('\u00A0');
+            
+            parent.insertBefore(beforeNode, node);
+            parent.insertBefore(chip, node);
+            parent.insertBefore(spaceNode, node);
+            parent.removeChild(node);
+            
+            const newRange = document.createRange();
+            newRange.setStart(spaceNode, 1);
+            newRange.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+            break;
+          }
+        }
+      }
     }
+    
+    let textContent = '';
+    for (const child of Array.from(textareaRef.current.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        textContent += child.textContent;
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const el = child as HTMLElement;
+        if (el.dataset && el.dataset.trigger) {
+          textContent += el.dataset.trigger;
+        } else {
+          textContent += el.innerText || el.textContent;
+        }
+      }
+    }
+    
+    setContent(textContent);
   };
 
   const updateConfig = (partial: Partial<AIConfig>) => {
@@ -798,8 +974,33 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
     : null;
 
+  const handleSuggestionClick = (prompt: string) => {
+    if (!textareaRef.current) return;
+    const match = prompt.match(/^(@[a-zA-Z0-9_]+)\s(.*)$/i);
+    if (match) {
+        const trigger = match[1];
+        const rest = match[2];
+        const alias = getActiveAliases().find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
+        if (alias) {
+            textareaRef.current.innerHTML = `<span contentEditable="false" class="inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent" data-mcp="${alias.id}" data-mcp-name="${alias.name}" data-trigger="${alias.trigger}"><img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain" /><span class="text-[#4b93ff] font-medium">${alias.name}</span></span>&nbsp;${rest}`;
+            setContent(prompt);
+            return;
+        }
+    }
+    textareaRef.current.innerText = prompt;
+    setContent(prompt);
+  };
+
   const suggestedActions = React.useMemo(() => {
     let pool = [];
+      if (figmaConnected) {
+        pool.push(
+          { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Review design", prompt: "@Figma Review the layout of the homepage design" },
+          { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Extract tokens", prompt: "@Figma Extract color and typography tokens from the design system" },
+          { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Export assets", prompt: "@Figma Find and export the logo and icon assets" },
+          { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Check contrast", prompt: "@Figma Check the color contrast of buttons for accessibility" }
+        );
+      }
     if (gmailConnected) {
       pool.push(
         { icon: <Mail size={14} />, label: "Read unread emails", prompt: "@Gmail Read my latest unread emails" },
@@ -1011,26 +1212,29 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             )}
 
             <div className="relative w-full">
-              <textarea
+              <div
                 ref={textareaRef}
-                value={content}
-                onChange={handleTextChange}
+                contentEditable={true}
+                onInput={handleTextChange}
                 onKeyDown={handleKeyDown}
                 onPaste={(e) => {
+                  e.preventDefault();
+                  const text = e.clipboardData.getData('text/plain');
+                  if (text) {
+                    document.execCommand('insertText', false, text);
+                  }
                   const items = e.clipboardData.items;
                   for (let i = 0; i < items.length; i++) {
                     if (items[i].type.indexOf('image') !== -1) {
                       const file = items[i].getAsFile();
                       if (file) {
-                        e.preventDefault();
                         handleImageUpload(file);
                       }
                     }
                   }
                 }}
-                placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 ? "" : "Ask anything, / for actions"}
-                className="w-full bg-transparent resize-none outline-none text-[#e2e2e3] text-[14px] placeholder-[#6b6b73] custom-scrollbar min-h-[26px] max-h-[120px] leading-relaxed self-end mb-1"
-                rows={1}
+                data-placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 || (textareaRef.current && textareaRef.current.querySelector('span[data-mcp]')) ? "" : "Ask anything, / for actions"}
+                className="flex-1 min-w-[50px] bg-transparent outline-none text-[#e2e2e3] text-[14px] custom-scrollbar min-h-[26px] max-h-[120px] leading-relaxed self-end mb-1 break-words overflow-y-auto whitespace-pre-wrap empty:before:content-[attr(data-placeholder)] empty:before:text-[#6b6b73] empty:before:pointer-events-none empty:before:block"
               />
             </div>
 
@@ -1367,11 +1571,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   </button>
                 ) : (
                   <div className="relative group">
-                    <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) ? "Send message" : "Voice input"}>
+                    <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) ? "Send message" : "Voice input"}>
                       <button
                         onClick={() => {
                           if (!hasProject) return;
-                          if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject) {
+                          if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) && hasProject) {
                             handleSend();
                           } else {
                             setIsListening(true);
@@ -1382,12 +1586,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                           "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
                           !hasProject
                             ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-                            : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0)
+                            : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null))
                               ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
                               : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
                         )}
                       >
-                        {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0) && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                        {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) && hasProject ? <Send size={14} /> : <Mic size={14} />}
                       </button>
                     </Tooltip>
                   </div>
@@ -1413,7 +1617,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               className="flex-1 flex"
             >
               <button
-                onClick={() => setContent(suggestion.prompt)}
+                onClick={() => handleSuggestionClick(suggestion.prompt)}
                 className="flex-1 flex items-center justify-center gap-2 py-2.5 px-2 bg-[#1c1c21] hover:bg-[#25252b] border border-white/5 hover:border-white/10 rounded-xl text-[12px] text-zinc-300 hover:text-white transition-all duration-300 shadow-[0_4px_12px_rgba(0,0,0,0.5)] hover:shadow-[0_8px_20px_rgba(0,0,0,0.7)] hover:-translate-y-1 truncate"
               >
                 {suggestion.icon}
