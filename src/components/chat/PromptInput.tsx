@@ -1,3 +1,4 @@
+import { renderToString } from 'react-dom/server';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
@@ -135,14 +136,14 @@ interface PromptInputProps {
 }
 
 const MCP_ALIASES = [
-  { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
-  { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
-  { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
-  { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png' },
-  { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
-  { trigger: '@mail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
-  { trigger: '@web', id: 'playwright', name: 'Web', icon: './browser.png' },
-  { trigger: '@browser', id: 'playwright', name: 'Web', icon: './browser.png' }
+  { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png', desc: 'Extract CSS and read design tokens' },
+  { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png', desc: 'Search and read Google Drive files' },
+  { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png', desc: 'Query and manage your database' },
+  { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png', desc: 'Search inbox and draft emails' },
+  { trigger: '@web', id: 'playwright', name: 'Web', icon: './browser.png', desc: 'Web browsing and automation' },
+  { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png', desc: '', hidden: true },
+  { trigger: '@mail', id: 'gmail', name: 'Gmail', icon: './gmail.png', desc: '', hidden: true },
+  { trigger: '@browser', id: 'playwright', name: 'Web', icon: './browser.png', desc: '', hidden: true }
 ];
 
 export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget, hasMessages = false }: PromptInputProps) {
@@ -384,6 +385,14 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [slashSearchQuery, setSlashSearchQuery] = useState('');
   const [availableSkills, setAvailableSkills] = useState<AgentSkill[]>([]);
   const [availableTools, setAvailableTools] = useState<any[]>([]);
+  const [slashMenuPos, setSlashMenuPos] = useState(0);
+  const [showAtMenu, setShowAtMenu] = useState(false);
+  const [atSearchQuery, setAtSearchQuery] = useState('');
+  const [atSelectedIndex, setAtSelectedIndex] = useState(0);
+  const [atMenuPos, setAtMenuPos] = useState(0);
+
+
+
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [selectedSlashCommands, setSelectedSlashCommands] = useState<any[]>([]);
   const slashMenuRef = useRef<HTMLDivElement>(null);
@@ -577,6 +586,42 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     });
   };
 
+  const atItems = getActiveAliases()
+    .filter((a: any) => !a.hidden)
+    .filter((a: any) => a.trigger.toLowerCase().includes(atSearchQuery.toLowerCase()) || a.name.toLowerCase().includes(atSearchQuery.toLowerCase()));
+
+  const insertAtItem = (item: any) => {
+    if (!textareaRef.current) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    
+    const cursor = selection.getRangeAt(0).startOffset;
+    const textBefore = textareaRef.current.textContent || '';
+    
+    const match = textBefore.match(/@([\w-]*)$/);
+    if (match) {
+      const matchLength = match[0].length;
+      
+      const range = selection.getRangeAt(0);
+      let node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        range.setStart(node, Math.max(0, cursor - matchLength));
+        range.deleteContents();
+        
+        const textNode = document.createTextNode(item.trigger + ' ');
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        setShowAtMenu(false);
+        const event = new Event('input', { bubbles: true });
+        textareaRef.current.dispatchEvent(event);
+      }
+    }
+  };
+
   const slashItems = [
     // Map Playwright as Browser
     ...(availableTools.some(t => t.definition.category === 'mcp' && t.definition.name.startsWith('mcp__playwright'))
@@ -749,14 +794,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   }, [content]);
 
   const handleSend = () => {
-    if (content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0 || textareaRef.current?.querySelector('span[data-mcp]')) {
+    if (content.trim() || selectedImages.length > 0 || textareaRef.current?.querySelector('span[data-mcp]') || textareaRef.current?.querySelector('span[data-slash]')) {
       let finalContent = content.trim();
-      if (selectedSlashCommands.length > 0) {
-        const prefix = selectedSlashCommands.map(item => item.type === 'skill' ? `use ${item.name} skill` : `use ${item.name}`).join(', ');
-        finalContent = finalContent ? `${prefix}
-
-${finalContent}` : prefix;
-      }
       
       onSend(
         finalContent,
@@ -779,31 +818,82 @@ ${finalContent}` : prefix;
 
   const insertSlashItem = (item: any) => {
     if (!textareaRef.current) return;
-    const cursor = content.length; // Slash insertion simplified for contentEditable
-    const textBeforeCursor = content.slice(0, cursor);
-    const textAfterCursor = content.slice(cursor);
-
-    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
-    if (slashMatch) {
-      const matchLength = slashMatch[1].length + 1; // +1 for the slash
-      const newText = textBeforeCursor.slice(0, -matchLength) + textAfterCursor;
-      setContent(newText);
-      setShowSlashMenu(false);
-
-      if (!selectedSlashCommands.some(c => c.id === item.id)) {
-        setSelectedSlashCommands(prev => [...prev, item]);
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    
+    const cursor = selection.getRangeAt(0).startOffset;
+    const textBefore = textareaRef.current.textContent || '';
+    
+    const match = textBefore.match(/(?:^|\s)\/([\w-]*)$/);
+    if (match) {
+      const matchLength = match[0].length;
+      const isWhitespace = match[0].startsWith(' ');
+      const actualMatchLength = isWhitespace ? matchLength - 1 : matchLength;
+      
+      const range = selection.getRangeAt(0);
+      let node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        range.setStart(node, Math.max(0, cursor - actualMatchLength));
+        range.deleteContents();
+        
+        const triggerStr = item.type === 'skill' ? `use ${item.name} skill` : `use ${item.name}`;
+        
+        // Render icon to string
+        let iconHtml = '';
+        if (item.icon) {
+          iconHtml = renderToString(item.icon);
+        }
+        
+        const span = document.createElement('span');
+        span.contentEditable = 'false';
+        span.className = 'inline-flex items-center gap-1.5 px-1.5 py-0.5 mx-1 text-[13px] align-middle select-none bg-[#2b2b30] border border-white/10 rounded font-medium text-white shadow-sm';
+        span.setAttribute('data-slash', item.id);
+        span.setAttribute('data-trigger', triggerStr);
+        span.innerHTML = `<span class="opacity-70 flex items-center justify-center w-3.5 h-3.5">${iconHtml}</span><span class="leading-none text-white">${item.displayName}</span>`;
+        
+        range.insertNode(span);
+        
+        const spaceNode = document.createTextNode(' ');
+        range.setStartAfter(span);
+        range.insertNode(spaceNode);
+        range.setStartAfter(spaceNode);
+        range.setEndAfter(spaceNode);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        setShowSlashMenu(false);
+        const event = new Event('input', { bubbles: true });
+        textareaRef.current.dispatchEvent(event);
       }
-
-      // Update cursor position
-        setTimeout(() => {
-          if (textareaRef.current) {
-            textareaRef.current.focus();
-          }
-        }, 0);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showAtMenu) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setAtSelectedIndex(prev => Math.min(prev + 1, atItems.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setAtSelectedIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (atItems[atSelectedIndex]) {
+          insertAtItem(atItems[atSelectedIndex]);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowAtMenu(false);
+        return;
+      }
+    }
+
     if (showSlashMenu) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -837,12 +927,7 @@ ${finalContent}` : prefix;
     if (e.key === 'Backspace') {
       const selection = window.getSelection();
       
-      if (selectedSlashCommands.length > 0) {
-        if (textareaRef.current && (!textareaRef.current.textContent || textareaRef.current.textContent.length === 0) && selection && selection.isCollapsed) {
-          setSelectedSlashCommands(prev => prev.slice(0, -1));
-          return;
-        }
-      }
+
 
       if (selection && selection.isCollapsed && textareaRef.current) {
         const range = selection.getRangeAt(0);
@@ -857,7 +942,7 @@ ${finalContent}` : prefix;
           prevNode = null;
         }
         
-        if (prevNode && prevNode.nodeType === Node.ELEMENT_NODE && (prevNode as HTMLElement).dataset.mcp) {
+        if (prevNode && prevNode.nodeType === Node.ELEMENT_NODE && ((prevNode as HTMLElement).dataset.mcp || (prevNode as HTMLElement).dataset.slash)) {
           e.preventDefault();
           prevNode.parentNode?.removeChild(prevNode);
           
@@ -883,15 +968,39 @@ ${finalContent}` : prefix;
       const textBeforeCursor = preCaretRange.toString();
       
       const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([a-zA-Z0-9_-]*)$/);
-      if (slashMatch) {
-        setShowSlashMenu(true);
-        setSlashSearchQuery(slashMatch[1]);
-        setSlashSelectedIndex(0);
-      } else {
-        setShowSlashMenu(false);
-      }
+        if (slashMatch) {
+          setShowSlashMenu(true);
+          setSlashSearchQuery(slashMatch[1]);
+          setSlashSelectedIndex(0);
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0).cloneRange();
+            const rect = range.getBoundingClientRect();
+            const containerRect = textareaRef.current?.getBoundingClientRect();
+            if (rect && containerRect) {
+               setSlashMenuPos(Math.max(0, rect.left - containerRect.left - 20));
+            }
+          }
+        } else {
+          setShowSlashMenu(false);
+        }
 
-      const node = range.startContainer;
+        const atMatch = textBeforeCursor.match(/(?:^|\s)@([\w-]*)$/);
+        if (atMatch) {
+          setShowAtMenu(true);
+          setAtSearchQuery(atMatch[1]);
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0).cloneRange();
+            const rect = range.getBoundingClientRect();
+            const containerRect = textareaRef.current?.getBoundingClientRect();
+            if (rect && containerRect) {
+               setAtMenuPos(Math.max(0, rect.left - containerRect.left - 20));
+            }
+          }
+        } else {
+          setShowAtMenu(false);
+        }
+
+        const node = range.startContainer;
       if (node.nodeType === Node.TEXT_NODE) {
         const text = node.textContent || '';
         for (const alias of getActiveAliases()) {
@@ -1141,13 +1250,49 @@ ${finalContent}` : prefix;
         ) : (
           <>
             <AnimatePresence>
-              {showSlashMenu && (
+              {showAtMenu && atItems.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={{ left: `${atMenuPos}px` }}
+                    className="absolute bottom-full mb-2 w-[350px] bg-[#1c1c21] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[300px]"
+                  >
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                      {atItems.map((item: any, index: number) => (
+                        <button
+                          key={item.id}
+                          onClick={() => insertAtItem(item)}
+                          onMouseEnter={() => setAtSelectedIndex(index)}
+                          className={cn(
+                            "w-full px-3 py-2 text-left flex items-center gap-3 rounded-lg transition-colors",
+                            atSelectedIndex === index ? "bg-white/10" : "hover:bg-white/5"
+                          )}
+                        >
+                          <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded bg-black/40">
+                            <img src={item.icon} alt={item.name} className="w-4 h-4 object-contain" />
+                          </div>
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="text-[13px] font-medium text-white truncate flex items-center gap-2">
+                              {item.trigger}
+                            </span>
+                            <span className="text-[10px] text-white/40 truncate">{item.desc}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {showSlashMenu && (
                 <motion.div
                   ref={slashMenuRef}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 5 }}
-                  className="absolute bottom-full left-0 mb-2 w-[400px] bg-[#1c1c21] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[300px]"
+                  style={{ left: `${slashMenuPos}px` }}
+                  className="absolute bottom-full mb-2 w-[400px] bg-[#1c1c21] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[300px]"
                 >
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
                     {slashItems.length === 0 ? (
@@ -1199,17 +1344,7 @@ ${finalContent}` : prefix;
                 ))}
               </div>
             )}
-            {/* Selected Slash Commands / Skills Chips */}
-            {selectedSlashCommands.length > 0 && (
-              <div ref={chipsContainerRef} className="flex items-center flex-wrap gap-1.5 w-full pt-1 pb-2">
-                {selectedSlashCommands.map(cmd => (
-                  <div key={cmd.id} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/10 bg-[#2b2b30] text-[12px] font-medium text-white shadow-sm shrink-0 h-[26px]">
-                    <span className="opacity-70 flex items-center justify-center">{cmd.icon}</span>
-                    <span className="leading-none">{cmd.displayName}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+
 
             <div className="relative w-full">
               <div
