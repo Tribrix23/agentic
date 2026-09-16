@@ -11,6 +11,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../App';
 import { CodeBlock } from './CodeBlock';
 import { GmailEmailPreview } from './GmailEmailPreview';
+import { GithubPreview } from './GithubPreview';
 
 import { Tooltip } from "../ui/Tooltip";
 import { Citation } from "../ui/Citation";
@@ -46,6 +47,15 @@ function preprocessMath(text: string): string {
   return text;
 }
 
+
+function preprocessGithubBlocks(text: string): string {
+  const userRegex = /@([a-zA-Z0-9_-]+)\n- GitHub: \[?(https:\/\/github\.com\/[^\s\]\)]+)\]?.*\n- User ID: ([0-9]+)\n- Avatar: \[?(https:\/\/avatars\.githubusercontent\.com\/[^\s\]\)]+)\]?.*(\n- .*)*\n?/g;
+  let result = text.replace(userRegex, (match, username, url, id, avatar) => {
+    return `\n\n\`\`\`github-user\n{"login":"${username}","html_url":"${url}","id":${id},"avatar_url":"${avatar}"}\n\`\`\`\n\n`;
+  });
+  return result;
+}
+
 function preprocessEmailBlocks(text: string): string {
   // Finds: From: or To: ... Subject: ... followed by body
   const regex = /(?:^|\n)(?:---\n)?(?:\*\*?)?(From|To):(?:\*\*?)?\s+(.+?)\s+(?:\*\*?)?Subject:(?:\*\*?)?\s+(.+?)\n+([\s\S]*?)(?=\n+---|(?:\n\n)?(?:\*\*|⚠️\s*)?Note:|$)/gi;
@@ -60,6 +70,7 @@ function preprocessEmailBlocks(text: string): string {
 
 
 const MCP_ALIASES = [
+  { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png' },
   { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
   { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
   { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
@@ -73,10 +84,7 @@ const MCP_ALIASES = [
 function processText(text: string, connectedIds: string[]): React.ReactNode[] {
     const parts: React.ReactNode[] = [];
     
-    const aliases = [...MCP_ALIASES].filter(a => {
-        if (a.id === 'playwright') return true;
-        return connectedIds.includes(`${a.id}-mcp`) || connectedIds.includes(a.id);
-    }).sort((a, b) => b.trigger.length - a.trigger.length);
+    const aliases = [...MCP_ALIASES].sort((a, b) => b.trigger.length - a.trigger.length);
     
     if (aliases.length === 0) return [text];
 
@@ -99,7 +107,7 @@ function processText(text: string, connectedIds: string[]): React.ReactNode[] {
         if (alias) {
             parts.push(
                 <span key={match.index} className="inline-flex items-center gap-1.5 px-0.5 mx-0.5 text-[14px] align-middle select-none bg-transparent whitespace-nowrap">
-                    <img src={alias.icon} alt={alias.name} className="w-4 h-4 object-contain inline-block" />
+                    <img src={alias.icon} alt={alias.name} className={`w-4 h-4 object-contain inline-block ${alias.id === "github" ? "filter invert opacity-90" : ""}`} />
                     <span className="text-[#4b93ff] font-medium">{alias.name}</span>
                 </span>
             );
@@ -152,7 +160,8 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
 
   // If streaming, append a blinking cursor
   const rawContent = isStreaming ? `${content} ▍` : content;
-  const processedEmailContent = preprocessEmailBlocks(rawContent);
+  let processedEmailContent = preprocessEmailBlocks(rawContent);
+    processedEmailContent = preprocessGithubBlocks(processedEmailContent);
   const displayContent = preprocessMath(processedEmailContent);
 
   return (
@@ -231,7 +240,16 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
             const language = match ? match[1] : '';
             
             if (!inline && language) {
-              if (language === 'email') {
+              
+                if (language === 'github-user') {
+                  let parsed: any = { items: [] };
+                  try {
+                    parsed.items = [JSON.parse(String(children).replace(/\n$/, ''))];
+                  } catch (e) {}
+                  return <GithubPreview toolName="mcp_github_search_users" args={{q: parsed.items[0]?.login}} output={JSON.stringify(parsed)} isRunning={false} isError={false} />;
+                }
+
+                if (language === 'email') {
                 return <GmailEmailPreview content={String(children).replace(/\n$/, '')} />;
               }
               return (

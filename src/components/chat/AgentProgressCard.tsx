@@ -8,6 +8,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { FileIcon } from './FileIcon';
 import { getFileActivityPrefix } from '../../lib/fileActivity';
 import { GmailEmailPreview } from './GmailEmailPreview';
+import { GithubPreview } from './GithubPreview';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
 
@@ -723,6 +724,23 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+      if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__github__') || step.toolCall.name.startsWith('mcp_github_'))) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+    const args = step.toolCall.arguments || {};
+    return (
+      <div className="w-full my-3">
+        <GithubPreview 
+          toolName={step.toolCall.name}
+          args={args}
+          output={output as string}
+          isRunning={step.status === 'running' || step.status === 'pending'}
+          isError={isError}
+        />
       </div>
     );
   }

@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
+    "@modelcontextprotocol/server-github": "^2025.4.8",
     "@supabase/supabase-js": "^2.45.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

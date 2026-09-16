@@ -418,6 +418,27 @@ function createWindow() {
     void mcpClientManager.connectServer('figma').catch(error => console.error('[MCP] Figma failed to connect:', error));
   }
 
+
+  if (!mcpClientManager.getServer('github')) {
+    const isPackaged = app.isPackaged;
+    const githubServerPath = isPackaged
+      ? path.join(process.resourcesPath, 'servers', 'github-mcp', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'github-mcp', 'index.js');
+
+    mcpClientManager.addServer({
+      id: 'github',
+      name: 'GitHub',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [githubServerPath],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('github').catch(error => console.error('[MCP] GitHub failed to connect:', error));
+  }
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,

@@ -56,7 +56,7 @@ export interface AIConfig {
 
 // ── Default configuration ──────────────────────────────────────────────────
 export const DEFAULT_AI_CONFIG: AIConfig = {
-  model: 'Minimax M3',
+  model: 'Dispatcher v1',
   mode: 'local',
 
   dynamicParameters: true,
@@ -507,7 +507,7 @@ export function getAIConfig(projectId?: string): AIConfig {
   }
   // If saved model is unknown (removed / renamed without mapping), fall back to Dispatcher
   if (config.model && !MODEL_PRESETS[config.model]) {
-    config.model = 'Minimax M3';
+    config.model = 'Dispatcher v1';
   }
 
   // FORCE override the saved context window with the actual preset

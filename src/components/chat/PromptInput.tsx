@@ -136,6 +136,7 @@ interface PromptInputProps {
 }
 
 const MCP_ALIASES = [
+  { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png', desc: 'Manage repositories and pull requests' },
   { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png', desc: 'Extract CSS and read design tokens' },
   { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png', desc: 'Search and read Google Drive files' },
   { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png', desc: 'Query and manage your database' },
@@ -195,7 +196,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   chip.dataset.mcp = alias.id;
                   chip.dataset.mcpName = alias.name;
                   chip.dataset.trigger = alias.trigger;
-                  chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+                  chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block ${alias.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
                   textareaRef.current.appendChild(chip);
                   textareaRef.current.appendChild(document.createTextNode('\u00A0'));
               } else {
@@ -225,6 +226,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [gdriveConnected, setGdriveConnected] = useState(false);
   const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const [githubConnected, setGithubConnected] = useState(false);
   const [figmaConnected, setFigmaConnected] = useState(false);
 
   const connectors = [
@@ -284,14 +286,36 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         }
       }
     },
-    {
-      id: 'github',
-      name: 'GitHub',
-      desc: 'Manage repositories, track code changes, and collaborate on team projects',
-      icon: './github.png',
-      opacity: 'opacity-90',
-      connected: false
-    },
+          {
+        id: 'github',
+        name: 'GitHub',
+        desc: 'Manage repositories, track code changes, and collaborate on team projects',
+        icon: './github.png',
+        opacity: 'opacity-90',
+        connected: githubConnected,
+        onConnect: async () => {
+          try {
+            const res = await fetch('http://localhost:3005/auth/url');
+            const data = await res.json();
+            if (window.electron?.openExternal) {
+              window.electron.openExternal(data.url);
+            } else {
+              window.open(data.url, '_blank');
+            }
+          } catch (e) {
+            alert('GitHub MCP Server is not running yet. Please restart Quantix.');
+          }
+        },
+        onDisconnect: async () => {
+          try {
+            await fetch('http://localhost:3005/auth/disconnect', { method: 'POST' });
+            setGithubConnected(false);
+          } catch (e) {
+            alert('Failed to disconnect GitHub.');
+          }
+        }
+      },
+
     {
       id: 'supabase',
       name: 'Supabase',
@@ -499,6 +523,39 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     };
   }, [showConnectModal]);
 
+  // Check GitHub connection status on load and poll while modal is open
+  useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any;
+    let attempts = 0;
+
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3005/auth/status');
+        if (!isMounted) return;
+        const data = await res.json();
+        setGithubConnected(prev => {
+          if (!prev && data.connected === true) {
+            window.electron?.ipcRenderer?.invoke('mcp-reconnect-server', 'github').catch(() => {});
+          }
+          return data.connected === true;
+        });
+
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+      } catch {
+        if (!isMounted) return;
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
+    };
+
+    void check();
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [showConnectModal]);
+
   // Check GMail connection status on load and poll while modal is open
   useEffect(() => {
     let isMounted = true;
@@ -582,6 +639,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       if (a.id === 'gdrive') return gdriveConnected;
       if (a.id === 'gmail') return gmailConnected;
       if (a.id === 'supabase') return supabaseConnected;
+      if (a.id === 'github') return githubConnected;
       return true;
     });
   };
@@ -608,10 +666,20 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         range.setStart(node, Math.max(0, cursor - matchLength));
         range.deleteContents();
         
-        const textNode = document.createTextNode(item.trigger + ' ');
-        range.insertNode(textNode);
-        range.setStartAfter(textNode);
-        range.setEndAfter(textNode);
+        const chip = document.createElement('span');
+        chip.contentEditable = 'false';
+        chip.className = 'inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent';
+        chip.dataset.mcp = item.id;
+        chip.dataset.mcpName = item.name;
+        chip.dataset.trigger = item.trigger;
+        chip.innerHTML = `<img src="${item.icon}" alt="${item.name}" class="w-4 h-4 object-contain ${item.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${item.name}</span>`;
+        
+        const spaceNode = document.createTextNode('\u00A0');
+        range.insertNode(spaceNode);
+        range.insertNode(chip);
+        
+        range.setStartAfter(spaceNode);
+        range.setEndAfter(spaceNode);
         selection.removeAllRanges();
         selection.addRange(range);
         
@@ -1023,7 +1091,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             chip.dataset.mcp = alias.id;
             chip.dataset.mcpName = alias.name;
             chip.dataset.trigger = alias.trigger;
-            chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+            chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain ${alias.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
             
             const beforeNode = document.createTextNode(beforeText);
             const spaceNode = document.createTextNode('\u00A0');
@@ -1042,6 +1110,14 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           }
         }
       }
+    }
+    
+    if (textareaRef.current.innerHTML === '<br>' || textareaRef.current.innerHTML === '<br/>') {
+
+    
+      textareaRef.current.innerHTML = '';
+
+    
     }
     
     let textContent = '';
@@ -1091,7 +1167,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const rest = match[2];
         const alias = getActiveAliases().find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
         if (alias) {
-            textareaRef.current.innerHTML = `<span contentEditable="false" class="inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent" data-mcp="${alias.id}" data-mcp-name="${alias.name}" data-trigger="${alias.trigger}"><img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain" /><span class="text-[#4b93ff] font-medium">${alias.name}</span></span>&nbsp;${rest}`;
+            textareaRef.current.innerHTML = `<span contentEditable="false" class="inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent" data-mcp="${alias.id}" data-mcp-name="${alias.name}" data-trigger="${alias.trigger}"><img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain ${alias.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span></span>&nbsp;${rest}`;
             setContent(prompt);
             return;
         }
@@ -1108,6 +1184,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Extract tokens", prompt: "@Figma Extract color and typography tokens from the design system" },
           { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Export assets", prompt: "@Figma Find and export the logo and icon assets" },
           { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Check contrast", prompt: "@Figma Check the color contrast of buttons for accessibility" }
+        );
+      }
+      if (githubConnected) {
+        pool.push(
+          { icon: <img src="./github.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "Review PR", prompt: "@GitHub Review open pull requests" },
+          { icon: <img src="./github.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "Check issues", prompt: "@GitHub List my assigned issues" },
+          { icon: <img src="./github.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "Check actions", prompt: "@GitHub Check the status of recent actions" }
         );
       }
     if (gmailConnected) {
@@ -1141,6 +1224,12 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         { icon: <Folder size={14} />, label: "Design tokens", prompt: "@Figma Read design tokens from the active Figma document" }
       );
     }
+      if (githubConnected) {
+        pool.push(
+          { icon: <Folder size={14} />, label: "Review PR", prompt: "@GitHub Review open pull requests" },
+          { icon: <FileText size={14} />, label: "Check issues", prompt: "@GitHub List my assigned issues" }
+        );
+      }
     if (pool.length === 0) return [];
 
     const shuffled = [...pool];
@@ -1164,21 +1253,21 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               const connectedServices = [];
               if (gmailConnected) connectedServices.push(
                 <Tooltip key="gmail" content="Gmail">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[4] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./gmail.png" alt="Gmail" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
               if (gdriveConnected) connectedServices.push(
                 <Tooltip key="gdrive" content="Google Drive">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./drive.png" alt="Google Drive" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
               if (supabaseConnected) connectedServices.push(
                 <Tooltip key="supabase" content="Supabase">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./supabase.png" alt="Supabase" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
@@ -1187,11 +1276,20 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
               if (figmaConnected) connectedServices.push(
                 <Tooltip key="figma" content="Figma">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[0] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./figma.png" alt="Figma" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
+
+              if (githubConnected) connectedServices.push(
+                <Tooltip key="github" content="GitHub">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[0] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./github.png" alt="GitHub" className="w-4 h-4 object-contain filter invert opacity-90 drop-shadow-sm" />
+                  </div>
+                </Tooltip>
+              );
+
 
               return (
                 <div className="flex items-center transition-colors group -space-x-2.5 py-0.5 px-1">
@@ -1271,7 +1369,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                           )}
                         >
                           <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded bg-black/40">
-                            <img src={item.icon} alt={item.name} className="w-4 h-4 object-contain" />
+                            <img src={item.icon} alt={item.name} className={`w-4 h-4 object-contain ${item.id === "github" ? "filter invert opacity-90" : ""}`} />
                           </div>
                           <div className="flex flex-col overflow-hidden">
                             <span className="text-[13px] font-medium text-white truncate flex items-center gap-2">
@@ -1368,7 +1466,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                     }
                   }
                 }}
-                data-placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 || (textareaRef.current && textareaRef.current.querySelector('span[data-mcp]')) ? "" : "Ask anything, / for actions"}
+                data-placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 || (textareaRef.current && textareaRef.current.querySelector('span[data-mcp]')) ? "" : "Ask anything, / for skills and @ for actions"}
                 className="flex-1 min-w-[50px] bg-transparent outline-none text-[#e2e2e3] text-[14px] custom-scrollbar min-h-[26px] max-h-[120px] leading-relaxed self-end mb-1 break-words overflow-y-auto whitespace-pre-wrap empty:before:content-[attr(data-placeholder)] empty:before:text-[#6b6b73] empty:before:pointer-events-none empty:before:block"
               />
             </div>
