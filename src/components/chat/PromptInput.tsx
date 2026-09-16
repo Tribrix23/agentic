@@ -137,7 +137,8 @@ interface PromptInputProps {
 
 const MCP_ALIASES = [
   { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png', desc: 'Manage repositories and pull requests' },
-  { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png', desc: 'Extract CSS and read design tokens' },
+  { trigger: '@vercel', id: 'vercel', name: 'Vercel', icon: './vercel.png', desc: 'Manage deployments and view build logs' },
+    { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png', desc: 'Extract CSS and read design tokens' },
   { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png', desc: 'Search and read Google Drive files' },
   { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png', desc: 'Query and manage your database' },
   { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png', desc: 'Search inbox and draft emails' },
@@ -196,7 +197,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   chip.dataset.mcp = alias.id;
                   chip.dataset.mcpName = alias.name;
                   chip.dataset.trigger = alias.trigger;
-                  chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block ${alias.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+                  chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block ${(alias.id === 'github' || alias.id === 'vercel') ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
                   textareaRef.current.appendChild(chip);
                   textareaRef.current.appendChild(document.createTextNode('\u00A0'));
               } else {
@@ -228,6 +229,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [githubConnected, setGithubConnected] = useState(false);
   const [figmaConnected, setFigmaConnected] = useState(false);
+  const [vercelConnected, setVercelConnected] = useState(false);
 
   const connectors = [
     {
@@ -356,7 +358,28 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       name: 'Vercel',
       desc: 'Deploy your projects, manage domains and check build logs',
       icon: './vercel.png',
-      connected: false
+      connected: vercelConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3006/auth/url');
+          const data = await res.json();
+          if ((window as any).electron?.openExternal) {
+            (window as any).electron.openExternal(data.url);
+          } else {
+            window.open(data.url, '_blank');
+          }
+        } catch (e) {
+          alert('Vercel MCP Server is not running yet. Please restart Quantix.');
+        }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3006/auth/disconnect', { method: 'POST' });
+          setVercelConnected(false);
+        } catch (e) {
+          alert('Failed to disconnect Vercel.');
+        }
+      }
     },
     {
       id: 'mongodb',
@@ -523,6 +546,34 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     };
   }, [showConnectModal]);
 
+  // Check Vercel connection status on load and poll while modal is open
+  useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any;
+    let attempts = 0;
+
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3006/auth/status');
+        if (!isMounted) return;
+        const data = await res.json();
+        setVercelConnected(data.connected === true);
+
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+      } catch {
+        if (!isMounted) return;
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
+    };
+
+    void check();
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [showConnectModal]);
+
   // Check GitHub connection status on load and poll while modal is open
   useEffect(() => {
     let isMounted = true;
@@ -640,6 +691,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       if (a.id === 'gmail') return gmailConnected;
       if (a.id === 'supabase') return supabaseConnected;
       if (a.id === 'github') return githubConnected;
+        if (a.id === 'vercel') return vercelConnected;
       return true;
     });
   };
@@ -672,7 +724,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         chip.dataset.mcp = item.id;
         chip.dataset.mcpName = item.name;
         chip.dataset.trigger = item.trigger;
-        chip.innerHTML = `<img src="${item.icon}" alt="${item.name}" class="w-4 h-4 object-contain ${item.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${item.name}</span>`;
+        chip.innerHTML = `<img src="${item.icon}" alt="${item.name}" class="w-4 h-4 object-contain ${(item.id === 'github' || item.id === 'vercel') ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${item.name}</span>`;
         
         const spaceNode = document.createTextNode('\u00A0');
         range.insertNode(spaceNode);
@@ -1091,7 +1143,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             chip.dataset.mcp = alias.id;
             chip.dataset.mcpName = alias.name;
             chip.dataset.trigger = alias.trigger;
-            chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain ${alias.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+            chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain ${(alias.id === 'github' || alias.id === 'vercel') ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
             
             const beforeNode = document.createTextNode(beforeText);
             const spaceNode = document.createTextNode('\u00A0');
@@ -1167,7 +1219,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const rest = match[2];
         const alias = getActiveAliases().find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
         if (alias) {
-            textareaRef.current.innerHTML = `<span contentEditable="false" class="inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent" data-mcp="${alias.id}" data-mcp-name="${alias.name}" data-trigger="${alias.trigger}"><img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain ${alias.id === 'github' ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span></span>&nbsp;${rest}`;
+            textareaRef.current.innerHTML = `<span contentEditable="false" class="inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent" data-mcp="${alias.id}" data-mcp-name="${alias.name}" data-trigger="${alias.trigger}"><img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain ${(alias.id === 'github' || alias.id === 'vercel') ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span></span>&nbsp;${rest}`;
             setContent(prompt);
             return;
         }
@@ -1178,7 +1230,14 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const suggestedActions = React.useMemo(() => {
     let pool = [];
-      if (figmaConnected) {
+      if (vercelConnected) {
+      pool.push(
+        { icon: <img src="./vercel.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "List deployments", prompt: "@Vercel List my recent deployments" },
+        { icon: <img src="./vercel.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "Check build logs", prompt: "@Vercel Check build logs for my latest deployment" },
+        { icon: <img src="./vercel.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "List projects", prompt: "@Vercel List all my Vercel projects" }
+      );
+    }
+    if (figmaConnected) {
         pool.push(
           { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Review design", prompt: "@Figma Review the layout of the homepage design" },
           { icon: <img src="./figma.png" className="w-3.5 h-3.5" />, label: "Extract tokens", prompt: "@Figma Extract color and typography tokens from the design system" },
@@ -1218,6 +1277,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       );
     }
 
+    if (vercelConnected) {
+      pool.push(
+        { icon: <img src="./vercel.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "List deployments", prompt: "@Vercel List my recent deployments" },
+        { icon: <img src="./vercel.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "Check build logs", prompt: "@Vercel Check build logs for my latest deployment" },
+        { icon: <img src="./vercel.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "List projects", prompt: "@Vercel List all my Vercel projects" }
+      );
+    }
     if (figmaConnected) {
       pool.push(
         { icon: <PenLine size={14} />, label: "Extract design", prompt: "@Figma Extract CSS from my recent Figma file" },
@@ -1239,7 +1305,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
 
     return shuffled.slice(0, 4);
-  }, [gmailConnected, gdriveConnected, supabaseConnected, figmaConnected]);
+  }, [gmailConnected, gdriveConnected, supabaseConnected, figmaConnected, vercelConnected]);
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
@@ -1248,26 +1314,25 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           onClick={() => setShowConnectModal(!showConnectModal)}
           className="text-[12px] text-[#a8a8b1] hover:text-white transition-colors flex items-center"
         >
-          {gmailConnected || gdriveConnected || supabaseConnected || figmaConnected ? (
+          {gmailConnected || gdriveConnected || supabaseConnected || figmaConnected || vercelConnected || githubConnected ? (
             (() => {
               const connectedServices = [];
               if (gmailConnected) connectedServices.push(
                 <Tooltip key="gmail" content="Gmail">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[4] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[5] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./gmail.png" alt="Gmail" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
-              );
-              if (gdriveConnected) connectedServices.push(
+              );if (gdriveConnected) connectedServices.push(
                 <Tooltip key="gdrive" content="Google Drive">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[4] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./drive.png" alt="Google Drive" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
               if (supabaseConnected) connectedServices.push(
                 <Tooltip key="supabase" content="Supabase">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[3] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./supabase.png" alt="Supabase" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
@@ -1276,7 +1341,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
               if (figmaConnected) connectedServices.push(
                 <Tooltip key="figma" content="Figma">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[2] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./figma.png" alt="Figma" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
@@ -1284,13 +1349,21 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
               if (githubConnected) connectedServices.push(
                 <Tooltip key="github" content="GitHub">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[0] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./github.png" alt="GitHub" className="w-4 h-4 object-contain filter invert opacity-90 drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
 
 
+
+              if (vercelConnected) connectedServices.push(
+                <Tooltip key="vercel" content="Vercel">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[0] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./vercel.png" alt="Vercel" className="w-4 h-4 object-contain filter invert opacity-90 drop-shadow-sm" />
+                  </div>
+                </Tooltip>
+              );
               return (
                 <div className="flex items-center transition-colors group -space-x-2.5 py-0.5 px-1">
                   {connectedServices}
@@ -1369,7 +1442,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                           )}
                         >
                           <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded bg-black/40">
-                            <img src={item.icon} alt={item.name} className={`w-4 h-4 object-contain ${item.id === "github" ? "filter invert opacity-90" : ""}`} />
+                            <img src={item.icon} alt={item.name} className={`w-4 h-4 object-contain ${(item.id === "github" || item.id === "vercel") ? "filter invert opacity-90" : ""}`} />
                           </div>
                           <div className="flex flex-col overflow-hidden">
                             <span className="text-[13px] font-medium text-white truncate flex items-center gap-2">

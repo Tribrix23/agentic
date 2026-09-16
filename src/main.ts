@@ -439,6 +439,27 @@ function createWindow() {
     });
     void mcpClientManager.connectServer('github').catch(error => console.error('[MCP] GitHub failed to connect:', error));
   }
+  if (!mcpClientManager.getServer('vercel')) {
+    const isPackaged = app.isPackaged;
+    const vercelServerPath = isPackaged
+      ? path.join(process.resourcesPath, 'servers', 'vercel-mcp', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'vercel-mcp', 'index.js');
+
+    mcpClientManager.addServer({
+      id: 'vercel',
+      name: 'Vercel',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [vercelServerPath],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('vercel').catch(error => console.error('[MCP] Vercel failed to connect:', error));
+  }
+
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,

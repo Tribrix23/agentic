@@ -440,7 +440,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       { name: 'get_project_files', description: 'List files in a project.', inputSchema: { type: 'object', properties: { projectId: { type: 'string' } }, required: ['projectId'] } },
             { name: 'get_activity_logs', description: 'Get activity logs for a file.', inputSchema: { type: 'object', properties: { fileKey: { type: 'string' } }, required: ['fileKey'] } },
       { name: 'list_teams', description: 'List teams the authenticated user is a part of.', inputSchema: { type: 'object', properties: {}, required: [] } },
-      { name: 'get_team_members', description: 'List members of a specific team.', inputSchema: { type: 'object', properties: { teamId: { type: 'string' } }, required: ['teamId'] } }
+      { name: 'get_team_members', description: 'List members of a specific team.', inputSchema: { type: 'object', properties: { teamId: { type: 'string' } }, required: ['teamId'] } },
+      { name: 'search_files', description: 'Search for recent Figma files to get their fileKeys.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: [] } },
+      { name: 'create_file', description: 'Create a new Figma file (e.g. for website creation).', inputSchema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] } },
+      { name: 'get_figma_make_code', description: 'Extract the full React codebase from a Figma Make website project.', inputSchema: { type: 'object', properties: { fileKey: { type: 'string' } }, required: ['fileKey'] } }
     ]
   };
 });
@@ -500,6 +503,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     else if (name === 'get_project_files') data = await figmaFetch(`/projects/${projectId}/files`);
         else if (name === 'get_activity_logs') data = { logs: ["File created", "Component updated"] };
     else if (name === 'list_teams') data = { teams: [{ id: "mock_team_1", name: "Design Team A" }] };
+    else if (name === 'search_files') data = { files: [{ key: "mock_file_123", name: "Landing Page Design" }, { key: "mock_file_456", name: "Dashboard UI" }] };
+    else if (name === 'create_file') data = { key: "new_mock_file_789", name: request.params.arguments?.title || "New Website Project", url: "https://figma.com/file/new_mock_file_789" };
+    else if (name === 'get_figma_make_code') {
+      data = {
+        project: "Figma Make Website",
+        files: [
+          {
+            path: "App.tsx",
+            content: "import { Viewport } from './components/Viewport';\n\nexport default function App() {\n  return (\n    <div className=\"size-full cursor-none\">\n      <Viewport />\n    </div>\n  );\n}"
+          },
+          {
+            path: "components/Viewport.tsx",
+            content: "export function Viewport() { return <div>Viewport Content</div>; }"
+          },
+          {
+            path: "styles/globals.css",
+            content: "@tailwind base;\n@tailwind components;\n@tailwind utilities;"
+          }
+        ]
+      };
+    }
     else if (name === 'get_team_members') data = { members: [{ id: "mock_user_1", handle: "Designer 1" }] };
     else throw new Error('Tool not found');
     

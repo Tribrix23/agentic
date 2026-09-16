@@ -71,6 +71,7 @@ function preprocessEmailBlocks(text: string): string {
 
 const MCP_ALIASES = [
   { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png' },
+  { trigger: '@vercel', id: 'vercel', name: 'Vercel', icon: './vercel.png' },
   { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
   { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
   { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
@@ -107,7 +108,7 @@ function processText(text: string, connectedIds: string[]): React.ReactNode[] {
         if (alias) {
             parts.push(
                 <span key={match.index} className="inline-flex items-center gap-1.5 px-0.5 mx-0.5 text-[14px] align-middle select-none bg-transparent whitespace-nowrap">
-                    <img src={alias.icon} alt={alias.name} className={`w-4 h-4 object-contain inline-block ${alias.id === "github" ? "filter invert opacity-90" : ""}`} />
+                    <img src={alias.icon} alt={alias.name} className={`w-4 h-4 object-contain inline-block ${(alias.id === "github" || alias.id === "vercel") ? "filter invert opacity-90" : ""}`} />
                     <span className="text-[#4b93ff] font-medium">{alias.name}</span>
                 </span>
             );
