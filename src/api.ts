@@ -160,12 +160,12 @@ function getModelInfo(model: string): {
 } {
   const lowerModel = model.toLowerCase();
 
-  // Check for GLM 5.3 models (new name) or legacy GPT-OSS names
-  if (lowerModel.includes('gpt-oss') || lowerModel.includes('glm 5.3')) {
+  // Check for Minimax M3 models
+  if (lowerModel.includes('minimax m3')) {
     return {
       endpoint: 'https://api.devctr.com/api/models',
-      modelName: 'glm-5.3',
-      level: null // GLM doesn't support level parameter
+      modelName: 'minimax/minimax-m3:free',
+      level: null
     };
   }
 

@@ -397,6 +397,27 @@ function createWindow() {
     void mcpClientManager.connectServer('supabase').catch(error => console.error('[MCP] Supabase failed to connect:', error));
   }
 
+  if (!mcpClientManager.getServer('figma')) {
+    const isPackaged = app.isPackaged;
+    const figmaServerPath = isPackaged
+      ? path.join(process.resourcesPath, 'servers', 'figma-mcp', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'figma-mcp', 'index.js');
+
+    mcpClientManager.addServer({
+      id: 'figma',
+      name: 'Figma',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [figmaServerPath],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('figma').catch(error => console.error('[MCP] Figma failed to connect:', error));
+  }
+
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,

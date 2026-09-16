@@ -15,6 +15,11 @@ import { getAllTools } from '../../lib/tools';
 import { Puzzle, Globe, Database } from 'lucide-react';
 import Strands from '../Strands';
 
+const MinimaxIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M4 14v-4c0-1.1.9-2 2-2s2 .9 2 2v6c0 1.1.9 2 2 2s2-.9 2-2V8c0-1.1.9-2 2-2s2 .9 2 2v8c0 1.1.9 2 2 2s2-.9 2-2v-6" />
+  </svg>
+);
 const QwenIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg viewBox="0 0 24 24" fill="none" {...props}>
     <defs>
@@ -149,6 +154,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [gdriveConnected, setGdriveConnected] = useState(false);
   const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const [figmaConnected, setFigmaConnected] = useState(false);
 
   const connectors = [
     {
@@ -269,7 +275,28 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       name: 'Figma',
       desc: 'Extract CSS, read design tokens and get asset details',
       icon: './figma.png',
-      connected: false
+      connected: figmaConnected,
+      onConnect: async () => {
+        try {
+          const res = await fetch('http://localhost:3004/auth/url');
+          const data = await res.json();
+          if ((window as any).electron?.openExternal) {
+            (window as any).electron.openExternal(data.url);
+          } else {
+            window.open(data.url, '_blank');
+          }
+        } catch (e) {
+          alert('Figma MCP Server is not running yet. Please restart Quantix.');
+        }
+      },
+      onDisconnect: async () => {
+        try {
+          await fetch('http://localhost:3004/auth/disconnect', { method: 'POST' });
+          setFigmaConnected(false);
+        } catch (e) {
+          alert('Failed to disconnect Figma.');
+        }
+      }
     }
   ];
 
@@ -353,6 +380,34 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
+        attempts++;
+        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+      }
+    };
+
+    void check();
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [showConnectModal]);
+
+  // Check Figma connection status on load and poll while modal is open
+  useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any;
+    let attempts = 0;
+
+    const check = async () => {
+      try {
+        const res = await fetch('http://localhost:3004/auth/status');
+        if (!isMounted) return;
+        const data = await res.json();
+        setFigmaConnected(data.connected === true);
+
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+      } catch {
+        if (!isMounted) return;
         attempts++;
         timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
       }
@@ -469,7 +524,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const allModels = [
     { id: 'dispatcher', name: 'Dispatcher v1', icon: <img src="./DispatcherIcon.png" alt="" className="w-3.5 h-3.5 object-contain" />, submodels: [], isPro: false },
-    { id: 'glm53', name: 'GLM 5.3', icon: <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />, submodels: ['Low', 'High'], isPro: false },
+    { id: 'minimax', name: 'Minimax M3', icon: <MinimaxIcon className="w-3.5 h-3.5 text-[#F24E1E]" />, submodels: [], isPro: false },
     { id: 'qwen', name: 'Qwen 3.7', icon: <QwenIcon className="w-3.5 h-3.5 text-[#FF6A00]" />, submodels: ['Flash', 'Plus', 'Max'], isPro: true },
     { id: 'qwen38', name: 'Qwen 3.8', icon: <QwenIcon className="w-3.5 h-3.5 text-[#623AE7]" />, submodels: [], isPro: true },
     { id: 'gpt56', name: 'GPT-5.6', icon: <OpenAIIcon className="w-3.5 h-3.5 text-white" />, submodels: ['Luna', 'Terra', 'Sol'], isPro: true },
@@ -508,6 +563,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     if (model.includes('Kimi')) return <KimiIcon className="w-3.5 h-3.5 text-[#6366F1]" />;
     if (model.includes('GLM')) return <GLMIcon className="w-3.5 h-3.5 text-[#10B981]" />;
     if (model.includes('Claude')) return <SiAnthropic className="w-3.5 h-3.5 text-[#D3A982]" />;
+    if (model.includes('Minimax')) return <MinimaxIcon className="w-3.5 h-3.5 text-[#F24E1E]" />;
     return <img src="./DispatcherIcon.png" alt="" className="w-4 h-4 object-contain" />;
   };
 
@@ -746,29 +802,35 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     let pool = [];
     if (gmailConnected) {
       pool.push(
-        { icon: <Mail size={14} />, label: "Read unread emails", prompt: "Read my latest unread emails" },
-        { icon: <PenLine size={14} />, label: "Draft an email", prompt: "Help me draft a new email" },
-        { icon: <Search size={14} />, label: "Search inbox", prompt: "Search my inbox for recent newsletters" },
-        { icon: <Trash2 size={14} />, label: "Clean up spam", prompt: "Find and delete spam emails" }
+        { icon: <Mail size={14} />, label: "Read unread emails", prompt: "@Gmail Read my latest unread emails" },
+        { icon: <PenLine size={14} />, label: "Draft an email", prompt: "@Gmail Help me draft a new email" },
+        { icon: <Search size={14} />, label: "Search inbox", prompt: "@Gmail Search my inbox for recent newsletters" },
+        { icon: <Trash2 size={14} />, label: "Clean up spam", prompt: "@Gmail Find and delete spam emails" }
       );
     }
     if (gdriveConnected) {
       pool.push(
-        { icon: <Folder size={14} />, label: "List recent files", prompt: "List my recent files from Google Drive" },
-        { icon: <Search size={14} />, label: "Search drive", prompt: "Search my Google Drive for reports" },
-        { icon: <FileText size={14} />, label: "Summarize a doc", prompt: "Find the latest project spec and summarize it" },
-        { icon: <Upload size={14} />, label: "Upload workspace", prompt: "Upload my current workspace files to a new Drive folder" }
+        { icon: <Folder size={14} />, label: "List recent files", prompt: "@Drive List my recent files from Google Drive" },
+        { icon: <Search size={14} />, label: "Search drive", prompt: "@Drive Search my Google Drive for reports" },
+        { icon: <FileText size={14} />, label: "Summarize a doc", prompt: "@Drive Find the latest project spec and summarize it" },
+        { icon: <Upload size={14} />, label: "Upload workspace", prompt: "@Drive Upload my current workspace files to a new Drive folder" }
       );
     }
     if (supabaseConnected) {
       pool.push(
-        { icon: <Database size={14} />, label: "List tables", prompt: "List all tables in my Supabase database" },
-        { icon: <Search size={14} />, label: "Query users", prompt: "Show me the first 10 rows of the users table in Supabase" },
-        { icon: <PenLine size={14} />, label: "Create a table", prompt: "Create a new table in Supabase for tracking blog posts" },
-        { icon: <FileText size={14} />, label: "Schema summary", prompt: "Summarize the database schema from my Supabase project" }
+        { icon: <Database size={14} />, label: "List tables", prompt: "@Supabase List all tables in my Supabase database" },
+        { icon: <Search size={14} />, label: "Query users", prompt: "@Supabase Show me the first 10 rows of the users table in Supabase" },
+        { icon: <PenLine size={14} />, label: "Create a table", prompt: "@Supabase Create a new table in Supabase for tracking blog posts" },
+        { icon: <FileText size={14} />, label: "Schema summary", prompt: "@Supabase Summarize the database schema from my Supabase project" }
       );
     }
 
+    if (figmaConnected) {
+      pool.push(
+        { icon: <PenLine size={14} />, label: "Extract design", prompt: "@Figma Extract CSS from my recent Figma file" },
+        { icon: <Folder size={14} />, label: "Design tokens", prompt: "@Figma Read design tokens from the active Figma document" }
+      );
+    }
     if (pool.length === 0) return [];
 
     const shuffled = [...pool];
@@ -778,7 +840,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     }
 
     return shuffled.slice(0, 4);
-  }, [gmailConnected, gdriveConnected, supabaseConnected]);
+  }, [gmailConnected, gdriveConnected, supabaseConnected, figmaConnected]);
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
@@ -787,7 +849,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           onClick={() => setShowConnectModal(!showConnectModal)}
           className="text-[12px] text-[#a8a8b1] hover:text-white transition-colors flex items-center"
         >
-          {gmailConnected || gdriveConnected || supabaseConnected ? (
+          {gmailConnected || gdriveConnected || supabaseConnected || figmaConnected ? (
             (() => {
               const connectedServices = [];
               if (gmailConnected) connectedServices.push(
@@ -808,6 +870,15 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 <Tooltip key="supabase" content="Supabase">
                   <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[1] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./supabase.png" alt="Supabase" className="w-4 h-4 object-contain filter drop-shadow-sm" />
+                  </div>
+                </Tooltip>
+              );
+
+
+              if (figmaConnected) connectedServices.push(
+                <Tooltip key="figma" content="Figma">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[0] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./figma.png" alt="Figma" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>
               );
@@ -1170,7 +1241,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                                             <div>
                                               <div className="font-semibold text-white text-[13px] tracking-tight flex items-center gap-1.5">
                                                 {model.name}
-                                                {model.id === 'glm53' ? (
+                                                {model.id === 'minimax' ? (
                                                   <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
                                                 ) : model.isPro && (
                                                   ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? (
@@ -1183,7 +1254,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                                                 )}
                                               </div>
                                               <div className="text-[11px] text-white/40 mt-1">
-                                                {model.id === 'glm53' ? 'Free Limited Time Tier' :
+                                                {model.id === 'minimax' ? 'Free Limited Time Tier' :
                                                   ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? 'Pro Tier' :
                                                     ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? 'Premium Tier' :
                                                       model.isPro ? 'Pro+ Tier' : 'Standard Tier'}
@@ -1267,7 +1338,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                           {model.submodels.map(m => (
                             <button
                               key={m}
-                              onClick={() => { updateConfig({ model: model.id === 'glm53' ? `GLM 5.3 ${m}` : model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
+                              onClick={() => { updateConfig({ model: model.id === 'qwen' ? `Qwen 3.7 ${m}` : model.id === 'gpt56' ? `GPT-5.6 ${m}` : model.id === 'deepseek' ? `DeepSeek v4 ${m}` : model.id === 'glm' ? `GLM ${m}` : m }); setShowModelDropdown(false); }}
                               className="px-3 py-2 text-[13px] font-medium text-left text-white/70 hover:text-white hover:bg-white/[0.06] rounded-lg transition-all mb-0.5"
                             >
                               {m}

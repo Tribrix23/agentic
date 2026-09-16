@@ -1241,7 +1241,20 @@ IMPORTANT RULES:
       }
 
       // Instantiate AgentLoop directly for the main chat
-      const mcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
+      const allMcpServers: McpServerSnapshot[] = (await (window as any).electron?.mcp?.getServers?.()) || [];
+      // Lazy-loading MCP servers: only inject if mentioned via @Name (e.g. @Figma)
+      const allUserText = [...messages, userMsg].filter((m: any) => m.role === 'user').map((m: any) => typeof m.content === 'string' ? m.content : '').join(' ').toLowerCase();
+      const mcpServers = allMcpServers.filter(server => {
+         const mentionId = `@${server.id.toLowerCase().replace('-mcp', '')}`;
+         const mentionName = `@${server.name.toLowerCase()}`;
+         const aliases: string[] = [];
+         if (server.id.includes('gdrive') || server.name.toLowerCase().includes('drive')) aliases.push('@drive');
+         if (server.id.includes('playwright') || server.name.toLowerCase().includes('playwright')) aliases.push('@browser');
+         
+         return allUserText.includes(mentionId) || 
+                allUserText.includes(mentionName) || 
+                aliases.some(a => allUserText.includes(a));
+      });
       const interactionMode = getInteractionMode(runConfig);
       const readOnly = interactionMode === 'ask';
       const localToolDefinitions = interactionMode === 'plan'

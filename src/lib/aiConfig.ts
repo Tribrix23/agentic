@@ -56,7 +56,7 @@ export interface AIConfig {
 
 // ── Default configuration ──────────────────────────────────────────────────
 export const DEFAULT_AI_CONFIG: AIConfig = {
-  model: 'Dispatcher v1',
+  model: 'Minimax M3',
   mode: 'local',
 
   dynamicParameters: true,
@@ -377,8 +377,8 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     defaultReasoningBudget: 256,
     description: 'GPT-5.6 Sol with native and text-fallback tool calling',
   },
-  'GLM 5.3 Low': {
-    name: 'GLM 5.3 Low',
+  'Minimax M3': {
+    name: 'Minimax M3',
     contextWindow: 128000,
     maxTokensDefault: 131072,
     supportsTools: true,
@@ -386,18 +386,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
     supportsVision: false,
     supportsThinking: true,
     defaultReasoningBudget: 384,
-    description: 'GLM 5.3 with low reasoning effort',
-  },
-  'GLM 5.3 High': {
-    name: 'GLM 5.3 High',
-    contextWindow: 128000,
-    maxTokensDefault: 131072,
-    supportsTools: true,
-    supportsStreaming: true,
-    supportsVision: false,
-    supportsThinking: true,
-    defaultReasoningBudget: 1024,
-    description: 'GLM 5.3 with high reasoning effort',
+    description: 'Minimax M3 model',
   },
   'Qwen 3.8': {
     name: 'Qwen 3.8',
@@ -509,15 +498,16 @@ export function getAIConfig(projectId?: string): AIConfig {
   // ── Model name migrations ─────────────────────────────────────────────────
   // Remap renamed models so existing localStorage configs still work
   const MODEL_RENAMES: Record<string, string> = {
-    'GPT-OSS Medium': 'GLM 5.3 Low',
-    'GPT-OSS High':   'GLM 5.3 High',
+    'GLM 5.3 Low': 'Minimax M3',
+    'GLM 5.3 High': 'Minimax M3',
+
   };
   if (config.model && MODEL_RENAMES[config.model]) {
     config.model = MODEL_RENAMES[config.model];
   }
   // If saved model is unknown (removed / renamed without mapping), fall back to Dispatcher
   if (config.model && !MODEL_PRESETS[config.model]) {
-    config.model = 'Dispatcher v1';
+    config.model = 'Minimax M3';
   }
 
   // FORCE override the saved context window with the actual preset
