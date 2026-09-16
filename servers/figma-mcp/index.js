@@ -502,9 +502,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     else if (name === 'run_figma_action') data = { action: actionName, status: "executed" };
     else if (name === 'get_project_files') data = await figmaFetch(`/projects/${projectId}/files`);
         else if (name === 'get_activity_logs') data = { logs: ["File created", "Component updated"] };
-    else if (name === 'list_teams') data = { teams: [{ id: "mock_team_1", name: "Design Team A" }] };
-    else if (name === 'search_files') data = { files: [{ key: "mock_file_123", name: "Landing Page Design" }, { key: "mock_file_456", name: "Dashboard UI" }] };
-    else if (name === 'create_file') data = { key: "new_mock_file_789", name: request.params.arguments?.title || "New Website Project", url: "https://figma.com/file/new_mock_file_789" };
+    else if (name === 'list_teams') throw new Error('Figma API does not support listing teams without an enterprise token. Ask the user for their Team ID or File Key directly.');
+    else if (name === 'search_files') throw new Error('Figma API does not support global file search. You MUST ask the user to provide the exact Figma File URL or File Key for the document they want to access.');
+    else if (name === 'create_file') throw new Error('Figma API does not support creating files programmatically via REST API. Ask the user to create a file manually and provide the link.');
     else if (name === 'get_figma_make_code') {
       data = {
         project: "Figma Make Website",

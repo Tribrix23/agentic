@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
-import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2, Mail, Star, Square, ArrowLeft, ArrowRight, RotateCcw, Lock, Code, Folder, FileText, File, Image as ImageIcon, MoreVertical } from 'lucide-react';
+import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2, Mail, Star, Square, ArrowLeft, ArrowRight, RotateCcw, Lock, Code, Folder, FileText, File, Image as ImageIcon, MoreVertical, Activity } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ToolApprovalCard } from './ToolApprovalCard';
@@ -823,6 +823,153 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
                   )}
                 </div>
              )}
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__vercel__') || step.toolCall.name.startsWith('mcp_vercel_'))) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output || '';
+    const args = step.toolCall.arguments || {};
+
+    let projects = [];
+    if (typeof output === 'string') {
+      try {
+        const parsed = JSON.parse(output);
+        if (parsed.projects && Array.isArray(parsed.projects)) {
+          projects = parsed.projects;
+        } else if (parsed.deployments && Array.isArray(parsed.deployments)) {
+          // It's a get_deployments response, mock a project wrap
+          projects = [{ name: 'Deployment logs', framework: 'Unknown', id: parsed.deployments[0]?.id }];
+        }
+      } catch(e) {}
+    }
+
+    return (
+      <div className={cn(
+        "w-full my-3 rounded-lg overflow-hidden shadow-sm border border-[#333] bg-[#000] flex flex-col font-sans",
+        isRunning || step.status === 'pending' ? "opacity-70 animate-pulse" : ""
+      )}>
+        {/* Vercel Top Nav */}
+        <div className="flex items-center justify-between px-1.5 py-1 border-b border-[#333] bg-[#000]">
+           <div className="flex items-center gap-1.5">
+             <div className="flex items-center justify-center w-4 h-4 bg-white rounded-full">
+               <svg viewBox="0 0 76 65" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-2 h-2"><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" fill="#000"/></svg>
+             </div>
+             <span className="font-semibold text-white text-[7px]">Vercel Dashboard</span>
+             <span className="text-[#888] text-[7px] mx-1">/</span>
+             <span className="text-white text-[7px]">All Projects</span>
+           </div>
+           <div className="flex items-center gap-1">
+             <span className="text-[7px] text-white">Overview</span>
+             <div className="px-1.5 py-1 bg-white text-black text-[9px] font-medium rounded-md cursor-pointer">Add New</div>
+           </div>
+        </div>
+        
+        <div className="flex" >
+           {/* Sidebar */}
+           <div className="w-24 border-r border-[#333] p-1 flex flex-col gap-1 text-[9px] text-[#888] shrink-0 overflow-y-auto custom-scrollbar">
+              <div className="px-1.5 py-1 bg-[#111] border border-[#333] rounded mb-0.5 flex items-center gap-1">
+                <Search size={8} /> Find
+              </div>
+              <div className="px-1.5 py-1 bg-[#111] text-white rounded font-medium flex items-center gap-1">
+                <Folder size={10} /> Projects
+              </div>
+              <div className="px-1.5 py-1 hover:bg-[#111] rounded flex items-center gap-1 cursor-pointer transition-colors">
+                <Globe size={10} /> Deployments
+              </div>
+              <div className="px-1.5 py-1 hover:bg-[#111] rounded flex items-center gap-1 cursor-pointer transition-colors">
+                <FileText size={10} /> Logs
+              </div>
+              <div className="px-1.5 py-1 hover:bg-[#111] rounded flex items-center gap-1 cursor-pointer transition-colors">
+                <Activity size={10} /> Analytics
+              </div>
+              <div className="px-1.5 py-1 hover:bg-[#111] rounded flex items-center gap-1 cursor-pointer transition-colors">
+                <Activity size={10} /> Speed Insights
+              </div>
+           </div>
+           
+           {/* Main Content */}
+           <div className="flex-1 bg-[#000] p-1 overflow-y-auto custom-scrollbar">
+             
+             {/* Search Bar */}
+             <div className="flex items-center gap-1 px-1.5 py-1 bg-[#0A0A0A] border border-[#333] rounded-md mb-0.5.5">
+                <Search size={10} className="text-[#888]" />
+                <span className="text-[7px] text-[#888]">Search Projects...</span>
+             </div>
+
+             <div className="flex flex-col sm:flex-row gap-1">
+               {/* Left Column (Usage & Alerts) */}
+               <div className="w-48 hidden sm:flex flex-col gap-1 shrink-0">
+                 <div>
+                   <h3 className="text-white text-[8px] font-medium mb-0.5.5">Usage</h3>
+                   <div className="border border-[#333] rounded-lg p-1 bg-[#0A0A0A]">
+                      <div className="flex justify-between items-center mb-0.5 text-[8px] text-[#888]">
+                         <span>Last 30 days</span>
+                         <span className="px-1.5 py-1 bg-white text-black rounded text-[7px] font-medium">Upgrade</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] text-[#888] mb-0.5">
+                         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Deployment Storage</span>
+                         <span>520 MB / 10 GB</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] text-[#888]">
+                         <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Functions Storage</span>
+                         <span>368 MB / 10 GB</span>
+                      </div>
+                   </div>
+                 </div>
+
+                 <div>
+                   <h3 className="text-white text-[8px] font-medium mb-0.5.5">Alerts</h3>
+                   <div className="border border-[#333] rounded-lg p-2.5 bg-[#0A0A0A] flex flex-col items-center text-center">
+                      <div className="text-white text-[7px] font-medium mb-0.5">Get alerted for anomalies</div>
+                      <div className="text-[#888] text-[9px] mb-0.5">Automatically monitor your projects for anomalies and get notified.</div>
+                      <div className="px-1.5 py-1 border border-[#444] rounded text-white text-[9px] font-medium hover:bg-[#111] cursor-pointer transition-colors">Upgrade to Pro</div>
+                   </div>
+                 </div>
+               </div>
+
+               {/* Right Column (Projects) */}
+               <div className="flex-1">
+                 <h3 className="text-white text-[8px] font-medium mb-0.5.5">Projects</h3>
+                 {isError ? (
+                    <div className="text-red-400 text-[10px]">Failed to fetch Vercel data.</div>
+                 ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {projects.map((proj: any, i: number) => (
+                        <div key={i} className="border border-[#333] rounded-lg p-1 bg-[#0A0A0A] hover:border-[#666] transition-colors cursor-pointer flex flex-col justify-between h-20">
+                          <div className="flex items-start justify-between">
+                            <div className="flex gap-1.5 items-center">
+                              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-[8px]">
+                                {(proj.name || 'P').charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-white text-[8px] font-medium truncate max-w-[100px]">{proj.name}</span>
+                                <span className="text-[#888] text-[9px] truncate max-w-[100px]">{proj.name}.vercel.app</span>
+                              </div>
+                            </div>
+                            <div className="w-4 h-4 rounded-full border border-[#333] flex items-center justify-center bg-[#111] shrink-0">
+                              <CheckCircle2 size={8} className="text-blue-500" />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 text-[9px] text-[#888] mt-2 truncate">
+                            <Globe size={8} className="shrink-0" />
+                            <span className="truncate">Production ({proj.framework || 'nextjs'})</span>
+                            <span className="mx-1 shrink-0">&#8226;</span>
+                            <span className="shrink-0">Just now</span>
+                          </div>
+                        </div>
+                      ))}
+                      {projects.length === 0 && (
+                        <div className="text-[#888] text-[10px] text-center py-8 border border-dashed border-[#333] rounded-lg">No projects found.</div>
+                      )}
+                    </div>
+                 )}
+               </div>
+             </div>
+
            </div>
         </div>
       </div>
