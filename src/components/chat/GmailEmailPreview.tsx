@@ -137,39 +137,76 @@ export function GmailEmailPreview({ content }: GmailEmailPreviewProps) {
 
       {/* Email Body */}
       <div className="px-4 sm:px-6 pb-6 ml-0 sm:ml-14">
-        <div className="w-full relative min-h-[400px] border border-gray-100 rounded bg-white overflow-hidden">
-          <iframe
-            srcDoc={(() => {
-              // 1. Unescape HTML entities in case the LLM or markdown parser escaped them
-              let unescaped = body
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&#39;/g, "'")
-                .replace(/&amp;/g, '&');
-              
-              // 2. Check if it looks like actual HTML
-              const hasHtmlTags = /<html|<body|<div|<table|<p|<br|<span|<a/i.test(unescaped);
-              
-              // 3. If it has HTML, return it. If it's plain text, wrap it to preserve line breaks!
-              if (hasHtmlTags) {
-                return unescaped;
-              } else {
-                return `
-                  <!DOCTYPE html>
-                  <html>
-                    <body style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; padding: 16px; color: #222; margin: 0; line-height: 1.5;">
-                      ${unescaped}
-                    </body>
-                  </html>
-                `;
-              }
-            })()}
-            title="Email Body"
-            className="w-full h-full min-h-[400px] border-none"
-            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
-          />
-        </div>
+        {(() => {
+          let unescaped = body
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&')
+            // Upgrade insecure HTTP image requests to HTTPS so the Electron CSP doesn't block them
+            .replace(/http:\/\//g, 'https://');
+          
+          // Require clear structural HTML tags to treat it as an HTML email.
+          // Otherwise, stray tags in plain text will break the formatting.
+          const hasHtmlTags = /<html|<body|<\/body|<!DOCTYPE|<table/i.test(unescaped);
+          
+          if (hasHtmlTags) {
+            return (
+              <div className="w-full relative min-h-[400px] border border-gray-100 rounded bg-white overflow-hidden">
+                <iframe
+                  srcDoc={unescaped}
+                  title="Email Body"
+                  className="w-full h-full min-h-[400px] border-none"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                />
+              </div>
+            );
+          } else {
+            // For plain text emails, restore the link and markdown parsing
+            
+            // 1. Clean up leaked CSS rules that often pollute plain text emails
+            // Many bad email clients strip <style> tags but leave the CSS content.
+            let cleanBody = body.replace(/(?:body|table|td|th|h1|h2|h3|div|span|strong|b|i|p|ul|ol|li|a)[\s,a-z0-9\-\.\#\:\*]*\{[^}]+\}/gi, '');
+            // Also clean up any lingering multiple blank lines
+            cleanBody = cleanBody.replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+
+            const formattedTextHtml = cleanBody
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/&lt;(https?:\/\/[\s\S]*?)&gt;/gi, (match, url) => {
+                const cleanUrl = url.replace(/\s+/g, '');
+                return `<a href="${cleanUrl}" target="_blank" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${url}</a>`;
+              })
+              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+              .replace(/(?<!\w)\*(.*?)\*(?!\w)/g, '<em>$1</em>')
+              .replace(/\[(link to [^\]]+)\]/gi, '<span style="color: #3b82f6; font-style: italic;">[$1]</span>')
+              // Handle URLs that end with a parenthesis by excluding the parenthesis from the URL
+              .replace(/(?<!=["'])(https?:\/\/[^\s<()]+)(?:\)?)/gi, (match, url) => {
+                return `<a href="${url}" target="_blank" style="color: #2563eb; text-decoration: underline; word-break: break-all;">${url}</a>`;
+              })
+              .replace(/\[image:\s*(.*?)\]/gi, '<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: #f3f4f6; color: #6b7280; font-size: 12px; border: 1px solid #e5e7eb; margin: 4px; vertical-align: middle;" title="Image"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> $1</span>');
+
+            return (
+              <div 
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  const anchor = target.closest('a');
+                  if (anchor && anchor.tagName === 'A') {
+                    e.preventDefault();
+                    const url = anchor.getAttribute('href');
+                    if (url && (window as any).electron?.openExternal) {
+                      (window as any).electron.openExternal(url);
+                    }
+                  }
+                }}
+                className="text-[14px] text-[#222222] whitespace-pre-wrap leading-relaxed font-sans"
+                dangerouslySetInnerHTML={{ __html: formattedTextHtml }}
+              />
+            );
+          }
+        })()}
         
         {/* Quick Action Buttons */}
         <div className="flex gap-3 mt-8">
