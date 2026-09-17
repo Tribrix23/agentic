@@ -51,6 +51,7 @@
     "eslint-plugin-import": "^2.32.0",
     "node-addon-api": "^8.9.2",
     "postcss": "^8.5.20",
+    "shadcn": "^4.21.0",
     "svgo": "^4.1.0",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
@@ -146,7 +147,9 @@
       {
         "from": "servers",
         "to": "servers",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {

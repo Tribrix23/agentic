@@ -136,6 +136,7 @@ interface PromptInputProps {
 }
 
 const MCP_ALIASES = [
+  { trigger: '@shadcn', id: 'shadcn', name: 'Shadcn UI', icon: './shadcn.png', desc: 'Browse and install React components' },
   { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png', desc: 'Manage repositories and pull requests' },
   { trigger: '@vercel', id: 'vercel', name: 'Vercel', icon: './vercel.png', desc: 'Manage deployments and view build logs' },
     { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png', desc: 'Extract CSS and read design tokens' },
@@ -365,13 +366,6 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       }
     },
     {
-      id: 'canva',
-      name: 'Canva',
-      desc: 'Design, edit and manage graphic templates and assets',
-      icon: './canva.png',
-      connected: false
-    },
-    {
       id: 'vercel',
       name: 'Vercel',
       desc: 'Deploy your projects, manage domains and check build logs',
@@ -393,19 +387,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       onDisconnect: async () => {
         try {
           await fetch('http://localhost:3006/auth/disconnect', { method: 'POST' });
-          setVercelConnected(false);
-        } catch (e) {
-          alert('Failed to disconnect Vercel.');
-        }
-      }
-    },
-    {
-      id: 'mongodb',
-      name: 'MongoDB',
-      desc: 'Query documents, aggregate data, and manage collections',
-      icon: './mongodb.png',
-      connected: false
-    },
+          setVercelConnected(false); } catch (e) { alert('Failed to disconnect Vercel.'); } } }, { id: 'shadcn', name: 'Shadcn UI', desc: 'Browse, search, and install React components using natural language', icon: './shadcn.png', connected: true },
     {
       id: 'figma',
       name: 'Figma',
@@ -1968,7 +1950,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 12 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="relative w-full max-w-[800px] bg-[#0c0c0e] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden"
+                className="relative w-full max-w-[800px] bg-[#0c0c0e] border border-white/10 rounded-2xl shadow-2xl flex flex-col h-[600px] overflow-hidden"
                 onClick={e => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.04]">
@@ -2111,5 +2093,6 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     </div>
   );
 }
+
 
 

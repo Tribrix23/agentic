@@ -464,6 +464,22 @@ function createWindow() {
     void mcpClientManager.connectServer('vercel').catch(error => console.error('[MCP] Vercel failed to connect:', error));
   }
 
+  if (!mcpClientManager.getServer('shadcn')) {
+    mcpClientManager.addServer({
+      id: 'shadcn',
+      name: 'Shadcn UI',
+      transport: {
+        type: 'stdio',
+        command: process.platform === 'win32' ? 'cmd.exe' : 'npx',
+        args: process.platform === 'win32' ? ['/c', 'npx', '-y', 'shadcn@latest', 'mcp'] : ['-y', 'shadcn@latest', 'mcp'],
+        env: mcpNodeEnv as Record<string, string>,
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+    void mcpClientManager.connectServer('shadcn').catch(error => console.error('[MCP] Shadcn failed to connect:', error));
+  }
+
   const splashWindow = new BrowserWindow({
     width: 400,
     height: 450,

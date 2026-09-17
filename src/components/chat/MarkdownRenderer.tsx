@@ -70,6 +70,7 @@ function preprocessEmailBlocks(text: string): string {
 
 
 const MCP_ALIASES = [
+  { trigger: '@shadcn', id: 'shadcn', name: 'Shadcn UI', icon: './shadcn.png' },
   { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png' },
   { trigger: '@vercel', id: 'vercel', name: 'Vercel', icon: './vercel.png' },
   { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
