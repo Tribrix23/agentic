@@ -30,8 +30,10 @@ const config: ForgeConfig = {
     },
     icon: iconPath,
     extraResource: [
+      path.resolve(__dirname, '.env'),
       path.resolve(__dirname, 'public'),
       path.resolve(__dirname, 'agentic-mcp-server'),
+      path.resolve(__dirname, 'servers'),
       playwrightBrowsersPath,
       playwrightRuntimePath,
       path.resolve(__dirname, 'assets', 'busybox.exe'),

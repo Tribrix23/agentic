@@ -253,6 +253,10 @@ function createWindow() {
     if (mainWindow === window) mainWindow = null;
   });
 
+  const mcpNodeEnv = app.isPackaged 
+    ? { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: path.join(process.resourcesPath, 'app.asar', 'node_modules') }
+    : { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+
   if (!mcpClientManager.getServer('sequential-thinking')) {
     const isPackaged = app.isPackaged;
     const serverEntry = isPackaged
@@ -265,7 +269,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [serverEntry],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read'],
       autoConnect: true,
@@ -286,7 +290,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [agenticPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute'],
       autoConnect: true,
@@ -347,7 +351,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [gdriveServerPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,
@@ -368,7 +372,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [gmailServerPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,
@@ -389,7 +393,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [supabaseServerPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,
@@ -410,7 +414,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [figmaServerPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,
@@ -432,7 +436,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [githubServerPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,
@@ -452,7 +456,7 @@ function createWindow() {
         type: 'stdio',
         command: process.execPath,
         args: [vercelServerPath],
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } as Record<string, string>,
+        env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
       autoConnect: true,

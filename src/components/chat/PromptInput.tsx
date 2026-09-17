@@ -268,7 +268,25 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       connected: gdriveConnected,
       onConnect: async () => {
         try {
-          const res = await fetch('http://localhost:3002/auth/url');
+          
+            if (userId) {
+              try {
+                const credsRes = await fetch('https://api.devctr.com/api/credentials', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: userId })
+                });
+                if (credsRes.ok) {
+                  const credentials = await credsRes.json();
+                  await fetch('http://localhost:3002/set-credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientId: credentials.Public, clientSecret: credentials.Public_key })
+                  });
+                }
+              } catch(err) { console.error("Failed to dynamically set GDrive credentials:", err); }
+            }
+            const res = await fetch('http://localhost:3002/auth/url');
           const data = await res.json();
           if ((window as any).electron?.openExternal) {
             (window as any).electron.openExternal(data.url);

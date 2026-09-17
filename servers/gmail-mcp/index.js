@@ -13,8 +13,8 @@ require("dotenv").config({ path: path.join(__dirname, '.env') });
 require("dotenv").config({ path: path.join(__dirname, '..', '..', '.env') });
 
 // OAuth2 Setup
-const CLIENT_ID = process.env.GMAIL_CLIENT_ID || "YOUR_CLIENT_ID";
-const CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
+let CLIENT_ID = process.env.GMAIL_CLIENT_ID || "YOUR_CLIENT_ID";
+let CLIENT_SECRET = process.env.GMAIL_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
 const REDIRECT_URI = "http://localhost:3001/oauth2callback";
 const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'];
 
@@ -37,7 +37,7 @@ const getAppDataPath = () => {
 
 const TOKEN_PATH = path.join(getAppDataPath(), 'gmail-token.json');
 
-const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+let oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
 // Load existing token if available
 if (fs.existsSync(TOKEN_PATH)) {
@@ -54,6 +54,24 @@ if (fs.existsSync(TOKEN_PATH)) {
 // ---------------------------------------------------------
 const app = express();
 app.use(cors());
+
+
+app.post('/set-credentials', express.json(), (req, res) => {
+  if (req.body.clientId && req.body.clientSecret) {
+    CLIENT_ID = req.body.clientId;
+    CLIENT_SECRET = req.body.clientSecret;
+    oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+    
+    // Reload token if it exists so we don't lose it on secret change
+    if (fs.existsSync(TOKEN_PATH)) {
+      try {
+        const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+        oauth2Client.setCredentials(token);
+      } catch (err) {}
+    }
+  }
+  res.json({ success: true });
+});
 
 app.get('/auth/url', (req, res) => {
   const authUrl = oauth2Client.generateAuthUrl({
