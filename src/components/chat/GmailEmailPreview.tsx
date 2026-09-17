@@ -137,43 +137,39 @@ export function GmailEmailPreview({ content }: GmailEmailPreviewProps) {
 
       {/* Email Body */}
       <div className="px-4 sm:px-6 pb-6 ml-0 sm:ml-14">
-        <div 
-          onClick={(e) => {
-            const target = e.target as HTMLElement;
-            // Traverse up to find an anchor tag in case they clicked inside it
-            const anchor = target.closest('a');
-            if (anchor && anchor.tagName === 'A') {
-              e.preventDefault();
-              const url = anchor.getAttribute('href');
-              if (url && (window as any).electron?.openExternal) {
-                (window as any).electron.openExternal(url);
+        <div className="w-full relative min-h-[400px] border border-gray-100 rounded bg-white overflow-hidden">
+          <iframe
+            srcDoc={(() => {
+              // 1. Unescape HTML entities in case the LLM or markdown parser escaped them
+              let unescaped = body
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&amp;/g, '&');
+              
+              // 2. Check if it looks like actual HTML
+              const hasHtmlTags = /<html|<body|<div|<table|<p|<br|<span|<a/i.test(unescaped);
+              
+              // 3. If it has HTML, return it. If it's plain text, wrap it to preserve line breaks!
+              if (hasHtmlTags) {
+                return unescaped;
+              } else {
+                return `
+                  <!DOCTYPE html>
+                  <html>
+                    <body style="white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; padding: 16px; color: #222; margin: 0; line-height: 1.5;">
+                      ${unescaped}
+                    </body>
+                  </html>
+                `;
               }
-            }
-          }}
-          className="text-[14px] text-[#222222] whitespace-pre-wrap leading-relaxed font-sans"
-          dangerouslySetInnerHTML={{
-            __html: body
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
-              // 1. Angle-bracket wrapped URLs
-              .replace(/&lt;(https?:\/\/[\s\S]*?)&gt;/gi, (match, url) => {
-                const cleanUrl = url.replace(/\s+/g, '');
-                return `<a href="${cleanUrl}" target="_blank" class="text-blue-600 hover:underline break-all">${url}</a>`;
-              })
-              // 2. Markdown Bold & Italic (since AI likes to add them)
-              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-              .replace(/(?<!\w)\*(.*?)\*(?!\w)/g, '<em>$1</em>')
-              // 3. Fake link placeholders [link to ...]
-              .replace(/\[(link to [^\]]+)\]/gi, '<span class="text-blue-500 italic">[$1]</span>')
-              // 4. Naked URLs (that aren't already part of an href="")
-              .replace(/(?<!=["'])(https?:\/\/[^\s<]+)/gi, (match, url) => {
-                return `<a href="${url}" target="_blank" class="text-blue-600 hover:underline break-all">${url}</a>`;
-              })
-              // 5. Image placeholders
-              .replace(/\[image:\s*(.*?)\]/gi, '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-500 text-xs border border-gray-200 my-1 mx-1 align-middle" title="Image"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> $1</span>')
-          }}
-        />
+            })()}
+            title="Email Body"
+            className="w-full h-full min-h-[400px] border-none"
+            sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+          />
+        </div>
         
         {/* Quick Action Buttons */}
         <div className="flex gap-3 mt-8">
