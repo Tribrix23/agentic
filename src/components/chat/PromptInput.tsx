@@ -15,6 +15,7 @@ import { getInstalledSkills, AgentSkill } from '../../lib/agentSkills';
 import { getAllTools } from '../../lib/tools';
 import { Puzzle, Globe, Database } from 'lucide-react';
 import Strands from '../Strands';
+import Orb from '../ui/Orb';
 
 const MinimaxIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -219,9 +220,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isImageCopied, setIsImageCopied] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
 
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [showMicModal, setShowMicModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
@@ -1407,36 +1410,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
       <div className={cn(
         "bg-[#1c1c21] border shadow-2xl transition-all duration-300 pointer-events-auto relative mx-auto",
-        isListening
-          ? "w-[120px] h-[120px] rounded-full p-0 flex items-center justify-center overflow-hidden cursor-pointer hover:border-white/20 border-white/10"
-          : "w-full rounded-2xl p-3 flex flex-col focus-within:border-white/20 border-white/5"
-      )}
-        onClick={isListening ? () => setIsListening(false) : undefined}
-      >
-        {isListening ? (
-          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-            <Strands
-              colors={["#d28753", "#7C3AED", "#06B6D4"]}
-              count={3}
-              speed={0.5}
-              amplitude={1}
-              waviness={1}
-              thickness={0.7}
-              glow={2.6}
-              taper={3}
-              spread={1}
-              intensity={0.6}
-              saturation={2}
-              opacity={1}
-              scale={1.5}
-              glass={true}
-              refraction={1}
-              dispersion={1}
-              glassSize={1}
-              hueShift={0}
-            />
-          </div>
-        ) : (
+        "w-full rounded-2xl p-3 flex flex-col focus-within:border-white/20 border-white/5"
+      )}>
           <>
             <AnimatePresence>
               {showAtMenu && atItems.length > 0 && (
@@ -1895,35 +1870,72 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   </button>
                 ) : (
                   <div className="relative group">
-                    <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) ? "Send message" : "Voice input"}>
-                      <button
+                    {isListening ? (
+                      <div
+                        className="w-8 h-8 rounded-full cursor-pointer flex items-center justify-center bg-[#1c1c21] relative"
                         onClick={() => {
-                          if (!hasProject) return;
-                          if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) && hasProject) {
-                            handleSend();
-                          } else {
-                            setIsListening(true);
+                          setIsListening(false);
+                          if (micStream) {
+                            micStream.getTracks().forEach(t => t.stop());
+                            setMicStream(null);
                           }
                         }}
-                        aria-disabled={!hasProject}
-                        className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
-                          !hasProject
-                            ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
-                            : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null))
-                              ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
-                              : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
-                        )}
                       >
-                        {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) && hasProject ? <Send size={14} /> : <Mic size={14} />}
-                      </button>
-                    </Tooltip>
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ width: '48px', height: '48px' }}>
+                          <Orb
+                            hoverIntensity={0.50}
+                            rotateOnHover
+                            hue={318}
+                            forceHoverState
+                            backgroundColor="#1c1c21"
+                            micStream={micStream}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <Tooltip content={!hasProject ? "Choose a project first" : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) ? "Send message" : "Voice input"}>
+                        <button
+                          onClick={() => {
+                            if (!hasProject) return;
+                            if ((content.trim() || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) && hasProject) {
+                              handleSend();
+                            } else {
+                              navigator.permissions.query({ name: 'microphone' as PermissionName }).then((result) => {
+                                if (result.state === 'granted') {
+                                  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                                    setMicStream(stream);
+                                    new Audio('/VoiceInput.wav').play().catch(() => {});
+                                    setIsListening(true);
+                                  }).catch(() => {
+                                    setShowMicModal(true);
+                                  });
+                                } else {
+                                  setShowMicModal(true);
+                                }
+                              }).catch(() => {
+                                setShowMicModal(true);
+                              });
+                            }
+                          }}
+                          aria-disabled={!hasProject}
+                          className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                            !hasProject
+                              ? "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50"
+                              : (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null))
+                                ? "bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg"
+                                : "bg-white/5 hover:bg-white/10 text-[#8b8b93] hover:text-white"
+                          )}
+                        >
+                          {(content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) && hasProject ? <Send size={14} /> : <Mic size={14} />}
+                        </button>
+                      </Tooltip>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </>
-        )}
       </div>
 
       {suggestedActions.length > 0 && !hasMessages && (
@@ -2020,6 +2032,60 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                         </motion.div>
                       ))}
                     </AnimatePresence>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+          {showMicModal && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-sans bg-black/80 backdrop-blur-sm"
+              onClick={() => setShowMicModal(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                className="relative w-full max-w-[400px] bg-[#1c1c21] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden p-8"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-16 h-16 bg-[#25252b] rounded-full flex items-center justify-center mb-2">
+                    <Mic size={32} className="text-[#007acc]" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-white">Allow Microphone</h3>
+                  <p className="text-sm text-zinc-400 pb-2">
+                    Quantix needs access to your microphone to enable voice input.
+                  </p>
+                  <div className="flex gap-3 w-full mt-6">
+                    <button 
+                      onClick={() => setShowMicModal(false)} 
+                      className="flex-1 py-2.5 rounded-lg font-medium text-sm text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors border border-white/5 hover:border-white/10"
+                    >
+                      Deny
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        setShowMicModal(false);
+                        try {
+                          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                          setMicStream(stream);
+                          new Audio('/VoiceInput.wav').play().catch(() => {});
+                          setIsListening(true);
+                        } catch (err) {
+                          console.error("Microphone access denied:", err);
+                          alert("Microphone permission was denied by the browser or system. Please enable it in your settings.");
+                        }
+                      }} 
+                      className="flex-1 py-2.5 rounded-lg font-medium text-sm text-white bg-[#007acc] hover:bg-[#0088dd] transition-colors shadow-lg"
+                    >
+                      Allow
+                    </button>
                   </div>
                 </div>
               </motion.div>
