@@ -23,6 +23,13 @@ function scalar(value: string): unknown {
   if (trimmed === 'true') return true;
   if (trimmed === 'false') return false;
   if (trimmed !== '' && !Number.isNaN(Number(trimmed))) return Number(trimmed);
+  if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // Fallback to string if it's not valid JSON
+    }
+  }
   return trimmed;
 }
 
@@ -64,7 +71,7 @@ function parseParametersFromBody(body: string): Record<string, unknown> {
   const cleanBody = body.replace(PHANTOM_TAGS_REGEX, '');
 
   // 1. <parameter=argName>value</parameter> or <parameter name="argName">value</parameter>
-  const paramRegex = /<parameter(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/function>|<\/tool_call>|$))/gi;
+  const paramRegex = /<parameter(?:=|\s+name=)\s*["']?([a-zA-Z0-9_-]+)["']?\s*>([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/?(?:function|invoke|tool_call)\b|$))/gi;
   let paramMatch: RegExpExecArray | null;
   while ((paramMatch = paramRegex.exec(cleanBody)) !== null) {
     const key = paramMatch[1].trim();
@@ -75,7 +82,7 @@ function parseParametersFromBody(body: string): Record<string, unknown> {
   }
 
   // 2. <parameter>key>value</parameter>
-  const hallucinatedNamed = /<parameter>\s*([a-zA-Z0-9_-]+)\s*>([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/function>|<\/tool_call>|$))/gi;
+  const hallucinatedNamed = /<parameter>\s*([a-zA-Z0-9_-]+)\s*>([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/?(?:function|invoke|tool_call)\b|$))/gi;
   let hallucinatedMatch: RegExpExecArray | null;
   while ((hallucinatedMatch = hallucinatedNamed.exec(cleanBody)) !== null) {
     if (!consumed.some(([start, end]) => hallucinatedMatch!.index >= start && hallucinatedMatch!.index < end)) {
@@ -88,7 +95,7 @@ function parseParametersFromBody(body: string): Record<string, unknown> {
   }
 
   // 3. Naked parameter: <parameter>content</parameter>
-  const nakedParameter = /<parameter>(?!\s*[a-zA-Z0-9_-]+>)([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/function>|<\/tool_call>|$))/gi;
+  const nakedParameter = /<parameter>(?!\s*[a-zA-Z0-9_-]+>)([\s\S]*?)(?:<\/parameter>|(?=<parameter|<\/?(?:function|invoke|tool_call)\b|$))/gi;
   let nakedMatch: RegExpExecArray | null;
   while ((nakedMatch = nakedParameter.exec(cleanBody)) !== null) {
     if (!consumed.some(([start, end]) => nakedMatch!.index >= start && nakedMatch!.index < end)) {
@@ -99,10 +106,10 @@ function parseParametersFromBody(body: string): Record<string, unknown> {
   }
 
   // 4. Fallback: <argName>value</argName> (e.g. <skillName>v2-stop-slop</skillName>, <path>globe.html</path>)
-  if (Object.keys(args).length === 0) {
-    const standardXml = /<([a-zA-Z0-9_-]+)>([\s\S]*?)(?:<\/\1>|(?=<[a-zA-Z0-9_-]+>|<\/function>|<\/tool_call>|$))/gi;
-    let standardMatch: RegExpExecArray | null;
-    while ((standardMatch = standardXml.exec(cleanBody)) !== null) {
+  const standardXml = /<([a-zA-Z0-9_-]+)>([\s\S]*?)(?:<\/\1>|<\/parameter>|(?=<\/?(?:function|invoke|tool_call)\b)|$)/gi;
+  let standardMatch: RegExpExecArray | null;
+  while ((standardMatch = standardXml.exec(cleanBody)) !== null) {
+    if (!consumed.some(([start, end]) => standardMatch!.index >= start && standardMatch!.index < end)) {
       const key = standardMatch[1].trim();
       const lower = key.toLowerCase();
       if (!['function', 'invoke', 'tool_call', 'parameter', 'arg_value', 'arg_key', 'parameters', 'arguments', 'args', 'null'].includes(lower)) {
@@ -143,7 +150,7 @@ function extractToolInvocationsFromSegment(
   const results: ExtractedCall[] = [];
 
   // 1. Primary format: <function=name>...</function> or <invoke name="...">...</invoke>
-  const functionRegex = /<(?:function|invoke)(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>([\s\S]*?)(?:<\/(?:function|invoke)>|$)/gi;
+  const functionRegex = /<(?:function|invoke)(?:=|\s+name=)\s*["']?([a-zA-Z0-9_-]+)["']?\s*>([\s\S]*?)(?:<\/(?:function|invoke)>|$)/gi;
   let functionMatch: RegExpExecArray | null;
   while ((functionMatch = functionRegex.exec(toolCallBody)) !== null) {
     const name = normalizeToolName(functionMatch[1]);
@@ -297,7 +304,7 @@ export function parseTextToolProtocol(
   // ── Pass 3: Loose <function=...> or <invoke=...> blocks OUTSIDE <tool_call> ──
   // Many models emit <function=name> directly without wrapping in <tool_call>,
   // or close the first tool call early and omit the opening <tool_call> for the second.
-  const looseFunctionRegex = /<(?:function|invoke)(?:=|\s+name=["']?)([a-zA-Z0-9_-]+)["']?>([\s\S]*?)(?:<\/(?:function|invoke)>|(?=<\/tool_call>|$))/gi;
+  const looseFunctionRegex = /<(?:function|invoke)(?:=|\s+name=)\s*["']?([a-zA-Z0-9_-]+)["']?\s*>([\s\S]*?)(?:<\/(?:function|invoke)>|(?=<\/tool_call>|$))/gi;
   while ((match = looseFunctionRegex.exec(source)) !== null) {
     const matchStart = match.index;
     let matchEnd = match.index + match[0].length;

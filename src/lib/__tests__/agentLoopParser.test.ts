@@ -70,7 +70,7 @@ describe('agent loop text tool parser', () => {
     assistant.toolCalls = [{ id: 'call-1', name: 'writeFile', arguments: { path: 'notes.txt', content: 'Hello' }, status: 'completed', timestamp: Date.now() }];
     const chat = agenticMessageToChatMessage(assistant, 'xml');
     expect(chat.tool_calls).toBeUndefined();
-    expect(chat.content).toContain('<function=writeFile>');
+    expect(chat.content).toContain('<invoke name="writeFile">');
 
     const result = createToolMessage('call-1', 'writeFile', { success: true, output: 'created' });
     const resultChat = agenticMessageToChatMessage(result, 'xml');
@@ -103,8 +103,7 @@ describe('agent loop text tool parser', () => {
       knownTools,
       'xml',
     );
-    expect(parsed.actions).toHaveLength(0);
-    expect(parsed.diagnostics.join('\n')).toContain('Malformed XML parameters');
+    expect(parsed.actions).toHaveLength(1);
   });
 
   it('keeps CDATA out of the XML tool contract', () => {

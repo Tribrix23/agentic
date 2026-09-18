@@ -366,26 +366,7 @@ export function buildContext(
     const isMsgNew = isNewMessage(i);
     const preserveNativeToolHistory = toolProtocol !== 'xml' && isGpt56Model(config.model) && Boolean(toolDefinitions?.length);
 
-    // XML protocol: assistant toolCalls must be injected as XML text (no native tool_calls field)
-    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0 && !preserveNativeToolHistory) {
-      const toolCallDesc = msg.toolCalls
-        .map((tc) => {
-          let xml = `<tool_call>\n<function=${tc.name}>\n`;
-          for (const [k, v] of Object.entries(tc.arguments || {})) {
-            xml += `<parameter=${k}>${typeof v === 'string' ? v : JSON.stringify(v)}</parameter>\n`;
-          }
-          xml += `</invoke>\n</tool_call>`;
-          return xml;
-        })
-        .join('\n');
-      chatMsg.content = chatMsg.content ? chatMsg.content + '\n\n' + toolCallDesc : toolCallDesc;
-      // Remove native tool_calls since we injected them as XML text
-      delete chatMsg.tool_calls;
-    }
-
-    // XML protocol OR non-native-tool-history: role:tool must become role:user.
-    // Models using text/XML tool protocols (GLM, Dispatcher, etc.) only understand user/assistant roles.
-    // The old condition `toolProtocol !== 'xml'` was wrong — XML mode is exactly when we need this.
+    // The old condition `toolProtocol !== 'xml'` was wrong - XML mode is exactly when we need this.
     if (msg.role === 'tool' && msg.toolName && !preserveNativeToolHistory) {
       chatMsg.role = 'user';
       // Plain-text marker — no XML that the AI might mimic.

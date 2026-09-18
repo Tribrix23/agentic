@@ -1,0 +1,1161 @@
+# QUANTIX SOURCE-AVAILABLE PROPRIETARY LICENSE
+
+## Version 2.0.1
+
+**Effective Date:** September 2026
+
+**Copyright © 2026 John David L. Perez. All Rights Reserved.**
+
+---
+
+## IMPORTANT NOTICE
+
+**QUANTIX IS SOURCE-AVAILABLE PROPRIETARY SOFTWARE AND IS NOT OPEN-SOURCE SOFTWARE.**
+
+The source code of Quantix may be publicly accessible for viewing, inspection, evaluation, educational study, research, security review, and other activities expressly permitted by this license.
+
+Public access to the source code does **not** grant a general right to modify, distribute, commercially exploit, sublicense, relicense, or create derivative works from Quantix.
+
+**Modification of Quantix requires prior written permission from John David L. Perez.**
+
+Where modification permission is granted, the recipient must comply with the complete terms of this license and any additional conditions contained in the written authorization.
+
+---
+
+# 1. DEFINITIONS
+
+For purposes of this license, the following terms have the meanings described below.
+
+### 1.1 "Software"
+
+"Software" means **Quantix**, including, where applicable:
+
+* source code;
+* object code;
+* executable files;
+* compiled binaries;
+* scripts;
+* configuration files;
+* build files;
+* package files;
+* modules;
+* libraries created specifically for Quantix;
+* application logic;
+* backend components;
+* frontend components;
+* desktop application components;
+* agent systems;
+* AI-related components;
+* integrations;
+* APIs;
+* plugins;
+* tools;
+* documentation;
+* examples;
+* templates;
+* assets;
+* user-interface components;
+* icons;
+* logos;
+* and other materials distributed as part of the Quantix project.
+
+Third-party components remain subject to their own applicable licenses.
+
+### 1.2 "Copyright Holder"
+
+"Copyright Holder" means:
+
+**John David L. Perez**
+
+or a person or organization expressly authorized in writing by John David L. Perez to exercise specific rights under this license.
+
+### 1.3 "You" or "User"
+
+"You" means any individual, organization, company, institution, developer, contributor, distributor, or other legal or natural person accessing or using the Software.
+
+### 1.4 "Modification"
+
+"Modification" means any alteration, adaptation, transformation, extension, or other change to the Software or its source code.
+
+Modification includes, without limitation:
+
+* editing source files;
+* changing source code;
+* deleting source code;
+* adding source code;
+* refactoring;
+* rewriting;
+* translating;
+* porting;
+* patching;
+* changing algorithms;
+* changing application behavior;
+* changing architecture;
+* changing interfaces;
+* changing dependencies;
+* changing configuration;
+* changing build systems;
+* changing UI components;
+* changing functionality;
+* adding functionality;
+* removing functionality;
+* creating modified builds;
+* or creating derivative implementations.
+
+### 1.5 "Derivative Work"
+
+"Derivative Work" means a work based upon, derived from, adapted from, translated from, modified from, or incorporating a substantial portion of the Software.
+
+### 1.6 "Distribution"
+
+"Distribution" means making the Software or a derivative version available to another person or entity, whether publicly or privately.
+
+Distribution includes:
+
+* publishing;
+* uploading;
+* selling;
+* transferring;
+* sharing;
+* hosting;
+* packaging;
+* providing downloads;
+* providing binaries;
+* distributing source code;
+* distributing modified versions;
+* and making the Software available through an online service.
+
+### 1.7 "Commercial Use"
+
+"Commercial Use" means use intended to obtain direct or indirect commercial, monetary, business, financial, or economic benefit.
+
+Commercial Use includes:
+
+* selling the Software;
+* selling modified versions;
+* incorporating Quantix into a commercial product;
+* incorporating Quantix into a paid service;
+* providing Quantix as SaaS;
+* charging users for access;
+* using Quantix in a commercial service;
+* reselling Quantix;
+* sublicensing Quantix;
+* offering hosted Quantix services;
+* or otherwise deriving commercial benefit from Quantix.
+
+### 1.8 "Written Permission"
+
+"Written Permission" means an explicit authorization communicated in a durable written form by the Copyright Holder or an expressly authorized representative.
+
+Written Permission may include:
+
+* a signed agreement;
+* a written license agreement;
+* an email authorization;
+* a written authorization through an official project communication channel;
+* or another written instrument that clearly identifies the rights being granted.
+
+Silence, acknowledgment, discussion, or access does not constitute Written Permission.
+
+---
+
+# 2. OWNERSHIP
+
+The Software and the original intellectual property embodied within the Software are owned by the Copyright Holder to the extent provided by applicable law.
+
+**Copyright © 2026 John David L. Perez. All Rights Reserved.**
+
+Nothing in this license transfers ownership of the Software.
+
+Access to the Software does not transfer ownership.
+
+Downloading the Software does not transfer ownership.
+
+Cloning the repository does not transfer ownership.
+
+Forking the repository does not transfer ownership.
+
+Receiving modification permission does not transfer ownership.
+
+Contributing code does not automatically transfer ownership.
+
+Any transfer of ownership must be established by a separate written agreement.
+
+---
+
+# 3. SOURCE-AVAILABLE STATUS
+
+Quantix is **source-available proprietary software**.
+
+The Copyright Holder may make source code available publicly for purposes including:
+
+* transparency;
+* inspection;
+* education;
+* research;
+* evaluation;
+* security review;
+* technical analysis;
+* code review;
+* documentation;
+* and community feedback.
+
+Source availability does not constitute an unrestricted license.
+
+The ability to technically access, clone, download, or fork the repository does not by itself grant the right to modify, distribute, commercially exploit, or create derivative works.
+
+---
+
+# 4. LIMITED PERMISSION TO VIEW AND INSPECT
+
+Subject to applicable law and this license, users may:
+
+* view the source code;
+* inspect the source code;
+* read the source code;
+* study the architecture;
+* evaluate the implementation;
+* conduct code review;
+* learn from the implementation;
+* identify bugs;
+* report bugs;
+* report security vulnerabilities;
+* and request additional permission.
+
+These activities do not grant any additional rights.
+
+In particular, inspection does not automatically grant modification rights.
+
+---
+
+# 5. NO GENERAL LICENSE
+
+Except for the limited rights expressly granted in this license, **all rights are reserved**.
+
+No implied license is granted.
+
+No permission should be inferred from:
+
+* repository visibility;
+* source-code availability;
+* repository access;
+* GitHub access;
+* downloads;
+* forks;
+* discussions;
+* issue comments;
+* pull requests;
+* communications;
+* technical documentation;
+* examples;
+* demonstrations;
+* or the Copyright Holder's failure to respond.
+
+Any right not expressly granted is reserved.
+
+---
+
+# 6. MODIFICATION REQUIRES PRIOR WRITTEN PERMISSION
+
+**You must obtain Written Permission before modifying Quantix.**
+
+No person or organization may modify the Software without prior Written Permission from the Copyright Holder.
+
+This requirement applies whether the modification is:
+
+* public;
+* private;
+* temporary;
+* permanent;
+* experimental;
+* educational;
+* commercial;
+* non-commercial;
+* published;
+* unpublished;
+* distributed;
+* or kept on a personal computer.
+
+The following are examples of activities that require prior Written Permission:
+
+* editing Quantix source code;
+* fixing code directly in the source;
+* adding features;
+* removing features;
+* changing the UI;
+* changing application behavior;
+* modifying the agent;
+* changing the model router;
+* modifying MCP integrations;
+* changing database functionality;
+* changing authentication systems;
+* modifying build systems;
+* creating patches;
+* creating forks for development;
+* porting Quantix;
+* translating Quantix;
+* creating modified builds;
+* or creating derivative versions.
+
+---
+
+# 7. PRIVATE MODIFICATIONS ARE NOT EXEMPT
+
+The fact that a modification is private does not eliminate the requirement for permission.
+
+For example, permission is still required if a person intends to:
+
+* modify Quantix on their own computer;
+* modify Quantix for personal experimentation;
+* modify Quantix for school;
+* modify Quantix for research;
+* modify Quantix for internal company use;
+* modify Quantix without publishing the result;
+* or modify Quantix and never distribute the resulting code.
+
+Unless otherwise permitted by this license or applicable law, **prior Written Permission remains required.**
+
+---
+
+# 8. REQUESTING MODIFICATION PERMISSION
+
+A person wishing to modify Quantix may submit a written request to the Copyright Holder.
+
+The request should identify, where applicable:
+
+1. the requester's name;
+2. organization or company;
+3. the Quantix version involved;
+4. the files or components intended to be modified;
+5. the intended modifications;
+6. the purpose of the modification;
+7. whether the modification will remain private;
+8. whether the modification will be distributed;
+9. whether the modification will be commercially used;
+10. whether the modification will be incorporated into another product;
+11. the expected duration of the permission;
+12. and any other information reasonably requested by the Copyright Holder.
+
+The Copyright Holder may request additional information before making a decision.
+
+---
+
+# 9. APPROVAL MUST BE EXPRESS
+
+A request is not approved merely because it has been submitted.
+
+A request becomes authorized only when the Copyright Holder expressly grants Written Permission.
+
+The following do **not** constitute permission:
+
+* no response;
+* delayed response;
+* acknowledgment of the request;
+* reading the request;
+* discussing the request;
+* commenting on the requested modification;
+* viewing a pull request;
+* viewing a fork;
+* providing technical advice;
+* allowing repository access;
+* or allowing the requester to download the Software.
+
+**Silence does not constitute consent.**
+
+---
+
+# 10. AUTHORIZATION IS LIMITED
+
+Written Permission grants only the rights expressly identified in that permission.
+
+For example, permission to modify does not automatically grant permission to:
+
+* distribute;
+* publish;
+* sell;
+* commercially use;
+* sublicense;
+* relicense;
+* create additional derivatives;
+* transfer the permission;
+* or authorize another person.
+
+If the Copyright Holder grants permission to modify a specific component, that permission does not automatically extend to the entire Software.
+
+If permission is granted for one version, it does not automatically extend to future versions.
+
+---
+
+# 11. AUTHORIZATION MAY CONTAIN CONDITIONS
+
+The Copyright Holder may attach conditions to any authorization.
+
+Conditions may include:
+
+* retaining this license;
+* retaining copyright notices;
+* adding modification notices;
+* limiting distribution;
+* prohibiting commercial use;
+* requiring attribution;
+* limiting the number of authorized users;
+* limiting the authorization to specific files;
+* limiting the authorization to a particular version;
+* limiting the authorization to a specific organization;
+* requiring a separate commercial agreement;
+* or requiring additional written terms.
+
+The recipient must comply with all conditions of the authorization.
+
+---
+
+# 12. REQUIRED LICENSE COPY FOR AUTHORIZED MODIFICATIONS
+
+**Any person who receives Written Permission to modify Quantix must retain a complete copy of this license with the authorized Software unless the Written Permission expressly states otherwise.**
+
+This requirement applies to:
+
+* modified source code;
+* authorized forks;
+* derivative works;
+* modified builds;
+* source archives;
+* distributions;
+* binaries where technically appropriate;
+* packages;
+* and other authorized copies.
+
+The license must not be intentionally removed, concealed, replaced, or materially altered without explicit Written Permission.
+
+---
+
+# 13. ORIGINAL COPYRIGHT NOTICE MUST REMAIN
+
+Authorized modifications must retain the original copyright notice where reasonably applicable:
+
+> Copyright © 2026 John David L. Perez. All Rights Reserved.
+
+A modifier may add an additional notice identifying their modifications.
+
+For example:
+
+> Modifications by [Authorized Contributor].
+> Original Software: Quantix.
+> Copyright © 2026 John David L. Perez. All Rights Reserved.
+
+Adding a contributor notice does not replace or transfer ownership of the original Software.
+
+---
+
+# 14. MODIFICATION NOTICE
+
+Where technically and reasonably applicable, an authorized modified version should identify that it has been modified.
+
+For example:
+
+> This version of Quantix has been modified with permission from John David L. Perez.
+
+The Copyright Holder may specify different wording in the Written Permission.
+
+---
+
+# 15. NO AUTOMATIC RELICENSING
+
+Permission to modify Quantix does not grant permission to relicense Quantix.
+
+An authorized recipient may not:
+
+* replace this license;
+* remove this license;
+* apply MIT;
+* apply Apache-2.0;
+* apply GPL;
+* apply LGPL;
+* apply AGPL;
+* apply another open-source license;
+* apply a source-available license with broader rights;
+* or otherwise grant rights broader than those received.
+
+A different license may only be used if the Copyright Holder expressly authorizes it in writing.
+
+---
+
+# 16. NO SUBLICENSING
+
+An authorized recipient may not sublicense the Software or their authorization unless expressly permitted in Writing.
+
+Receiving permission to modify does not grant permission to authorize someone else to modify.
+
+Each recipient must obtain whatever authorization is required under this license.
+
+---
+
+# 17. FORKS
+
+Users may encounter platform functionality that technically permits a repository to be forked.
+
+Such technical functionality does not constitute authorization from the Copyright Holder to modify or distribute Quantix.
+
+A fork created for the purpose of:
+
+* modifying;
+* maintaining;
+* developing;
+* distributing;
+* publishing;
+* or creating a derivative version
+
+requires prior Written Permission.
+
+An authorized fork must comply with:
+
+* this license;
+* the applicable Written Permission;
+* copyright notices;
+* branding restrictions;
+* and any other applicable conditions.
+
+---
+
+# 18. REDISTRIBUTION
+
+Redistribution requires prior Written Permission unless expressly permitted by this license or applicable law.
+
+Redistribution includes making Quantix available through:
+
+* GitHub;
+* GitLab;
+* Bitbucket;
+* package registries;
+* websites;
+* application stores;
+* download servers;
+* file-sharing platforms;
+* torrents;
+* physical media;
+* container registries;
+* software repositories;
+* cloud storage;
+* or other distribution channels.
+
+Redistribution of an authorized modified version remains subject to the scope of the authorization.
+
+---
+
+# 19. COMMERCIAL USE
+
+Commercial use requires separate Written Permission unless expressly authorized.
+
+The Copyright Holder may require a separate commercial license agreement.
+
+Commercial use includes:
+
+* selling Quantix;
+* selling modified Quantix;
+* charging for Quantix access;
+* providing Quantix as a paid service;
+* hosting Quantix for paying customers;
+* integrating Quantix into a commercial product;
+* using Quantix as part of a paid SaaS platform;
+* reselling Quantix;
+* sublicensing Quantix;
+* or obtaining commercial benefit from Quantix.
+
+A non-commercial modification authorization does not automatically permit commercial use.
+
+---
+
+# 20. DERIVATIVE WORKS
+
+Creation of derivative works requires prior Written Permission unless otherwise permitted by applicable law.
+
+Derivative works include, among other things:
+
+* modified versions;
+* adaptations;
+* ports;
+* translations;
+* extensions;
+* rewrites;
+* substantial integrations;
+* modified builds;
+* and software derived from Quantix.
+
+Changing the programming language, file names, variable names, project structure, or visual appearance does not automatically eliminate derivative-work considerations.
+
+---
+
+# 21. DISTRIBUTION OF AUTHORIZED MODIFICATIONS
+
+Where distribution has been expressly authorized, every authorized distribution must comply with the conditions specified by the Copyright Holder.
+
+Unless the Written Permission expressly provides otherwise, the distributor must:
+
+1. retain this license;
+2. retain the original copyright notice;
+3. retain applicable third-party notices;
+4. identify authorized modifications where required;
+5. avoid falsely representing the modification as an official Quantix release;
+6. and avoid granting downstream recipients broader rights than those granted by the authorization.
+
+---
+
+# 22. DOWNSTREAM RIGHTS
+
+Authorization does not automatically grant downstream recipients unrestricted rights.
+
+If a person is authorized to distribute Quantix, that person may not grant recipients rights broader than the rights expressly authorized by the Copyright Holder.
+
+Unless expressly authorized, downstream recipients may not:
+
+* modify;
+* redistribute;
+* commercially exploit;
+* sublicense;
+* or relicense
+
+the Software beyond the rights provided by the applicable authorization.
+
+---
+
+# 23. CONTRIBUTIONS AND PULL REQUESTS
+
+Submitting a contribution does not automatically grant the contributor permission to independently modify or distribute Quantix.
+
+Submitting a pull request does not constitute:
+
+* a modification license;
+* a distribution license;
+* a commercial license;
+* a sublicense;
+* or a transfer of ownership.
+
+The Copyright Holder may accept, reject, modify, or decline contributions.
+
+Additional contributor agreements may be required.
+
+---
+
+# 24. OWNERSHIP OF CONTRIBUTIONS
+
+Unless a separate written agreement provides otherwise, submission of a contribution does not automatically transfer ownership of the contributor's independent intellectual property.
+
+The Copyright Holder may require a separate contributor agreement before accepting contributions into the official Quantix project.
+
+No contributor may represent themselves as the owner of the original Quantix project merely because they contributed code.
+
+---
+
+# 25. QUANTIX BRANDING
+
+This license does not grant permission to use:
+
+* the Quantix name;
+* Quantix logos;
+* Quantix trademarks;
+* Quantix icons;
+* official product identity;
+* official branding;
+* or other protected brand assets.
+
+Modification permission does not automatically grant branding permission.
+
+An authorized modified version must not falsely represent itself as an official Quantix release.
+
+---
+
+# 26. OFFICIAL STATUS
+
+A modified version may not claim to be:
+
+* the official Quantix release;
+* an official Quantix fork;
+* officially supported by John David L. Perez;
+* officially endorsed by John David L. Perez;
+* or produced by the Quantix project,
+
+unless the Copyright Holder expressly authorizes that representation.
+
+---
+
+# 27. SECURITY RESEARCH
+
+Users may inspect Quantix for security vulnerabilities and report vulnerabilities to the Copyright Holder.
+
+Security research does not automatically grant permission to modify, distribute, or publish modified versions of Quantix.
+
+Nothing in this license authorizes:
+
+* unauthorized access;
+* credential theft;
+* exploitation of third-party systems;
+* unauthorized network access;
+* data theft;
+* privacy violations;
+* or unlawful activity.
+
+All security research must comply with applicable law.
+
+---
+
+# 28. THIRD-PARTY COMPONENTS
+
+Quantix may contain third-party software.
+
+Third-party software may be governed by licenses separate from this license.
+
+Nothing in this license is intended to override a valid third-party license governing a component.
+
+Users are responsible for complying with applicable third-party licenses.
+
+Where required, third-party copyright and license notices must remain intact.
+
+---
+
+# 29. NO IMPLIED RIGHTS
+
+No rights arise by implication.
+
+No right is created merely because the Copyright Holder:
+
+* publishes source code;
+* responds to questions;
+* discusses modifications;
+* reviews contributions;
+* provides technical support;
+* provides documentation;
+* permits repository access;
+* or allows a technical platform to display or fork the repository.
+
+Only express permission grants additional rights.
+
+---
+
+# 30. GITHUB AND HOSTING PLATFORM FUNCTIONALITY
+
+Quantix may be hosted on GitHub or another source-code platform.
+
+Platform functionality may permit users to:
+
+* view repositories;
+* clone repositories;
+* download repositories;
+* or fork repositories.
+
+Such technical functionality does not expand the rights granted under this license.
+
+For example, a GitHub fork does not constitute Written Permission to modify or distribute Quantix.
+
+GitHub's own Terms of Service govern the rights and functionality associated with GitHub's platform.
+
+---
+
+# 31. LICENSE COPY REQUIREMENT AFTER AUTHORIZATION
+
+If permission is granted, the authorized recipient must ensure that a copy of this license remains available with the authorized Software.
+
+This requirement applies to:
+
+* source repositories;
+* authorized forks;
+* source archives;
+* downloadable packages;
+* authorized binaries where reasonably applicable;
+* documentation packages;
+* and authorized distributions.
+
+Removing this license without permission constitutes a violation of the authorization.
+
+---
+
+# 32. LICENSE INTEGRITY
+
+The license may not be:
+
+* intentionally deleted;
+* materially altered;
+* replaced;
+* hidden;
+* falsified;
+* or presented as a different license
+
+without explicit Written Permission.
+
+A recipient may add supplemental notices, provided those notices do not contradict or obscure the original license.
+
+---
+
+# 33. FUTURE VERSIONS
+
+Permission granted for one version of Quantix does not automatically apply to future versions.
+
+For example:
+
+Permission to modify **Quantix v2.0.1** does not automatically grant permission to modify:
+
+* Quantix v2.1;
+* Quantix v2.2;
+* Quantix v3.0;
+* future releases;
+* unrelated Quantix products;
+* or separate repositories.
+
+The Written Permission may expressly provide broader coverage if the Copyright Holder chooses to do so.
+
+---
+
+# 34. OTHER PRODUCTS AND REPOSITORIES
+
+Permission relating to Quantix does not automatically apply to other software projects owned by John David L. Perez.
+
+A license for one repository does not automatically grant rights to:
+
+* another repository;
+* another application;
+* another product;
+* another branch;
+* another project;
+* or another intellectual-property asset.
+
+Separate permission may be required.
+
+---
+
+# 35. NON-TRANSFERABILITY
+
+Permission granted to a specific individual or organization is personal to that recipient unless the Written Permission states otherwise.
+
+The recipient may not:
+
+* sell the authorization;
+* transfer the authorization;
+* sublicense the authorization;
+* assign the authorization;
+* or give another party equivalent rights
+
+without explicit Written Permission.
+
+---
+
+# 36. TERMINATION OF AUTHORIZATION
+
+A separate Written Permission may specify conditions under which authorization terminates.
+
+Upon termination, the recipient must cease activities that are no longer authorized.
+
+The recipient must comply with any applicable post-termination obligations stated in the Written Permission.
+
+Termination does not transfer ownership of the Software.
+
+---
+
+# 37. SURVIVAL OF TERMS
+
+Provisions concerning:
+
+* ownership;
+* copyright;
+* attribution;
+* license retention;
+* confidentiality where separately agreed;
+* restrictions;
+* branding;
+* liability;
+* and other provisions that by their nature should survive
+
+shall remain applicable to the extent permitted by law.
+
+---
+
+# 38. VIOLATIONS
+
+Unauthorized activity may constitute infringement or another violation of applicable law.
+
+Examples include unauthorized:
+
+* modification;
+* reproduction;
+* distribution;
+* commercial use;
+* derivative creation;
+* sublicensing;
+* relicensing;
+* removal of copyright notices;
+* removal of this license;
+* or misuse of Quantix branding.
+
+The Copyright Holder reserves all rights and remedies available under applicable law.
+
+---
+
+# 39. NO WAIVER
+
+Failure by the Copyright Holder to enforce a particular provision on one occasion does not constitute a permanent waiver of that provision.
+
+A waiver must be express and written.
+
+A waiver relating to one person, version, or activity does not automatically apply to another person, version, or activity.
+
+---
+
+# 40. SEVERABILITY
+
+If a provision of this license is determined to be invalid or unenforceable, the provision shall be interpreted or limited to the minimum extent necessary to make it enforceable where legally possible.
+
+The remaining provisions shall remain in effect to the maximum extent permitted by applicable law.
+
+---
+
+# 41. NO WARRANTY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED **"AS IS"** AND **"AS AVAILABLE"**, WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED.
+
+THE COPYRIGHT HOLDER DISCLAIMS WARRANTIES INCLUDING, BUT NOT LIMITED TO:
+
+* MERCHANTABILITY;
+* FITNESS FOR A PARTICULAR PURPOSE;
+* TITLE;
+* NON-INFRINGEMENT;
+* SECURITY;
+* RELIABILITY;
+* AVAILABILITY;
+* ACCURACY;
+* AND SUITABILITY FOR A PARTICULAR USE.
+
+---
+
+# 42. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, JOHN DAVID L. PEREZ SHALL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATING TO THE SOFTWARE OR ITS USE.
+
+NOTHING IN THIS LICENSE EXCLUDES OR LIMITS LIABILITY THAT CANNOT LAWFULLY BE EXCLUDED OR LIMITED.
+
+---
+
+# 43. NO ENDORSEMENT
+
+Use of Quantix does not constitute endorsement by John David L. Perez.
+
+An authorized modification does not automatically constitute endorsement of the modified version.
+
+The Copyright Holder may expressly provide endorsement through a separate written statement.
+
+---
+
+# 44. ENTIRE LICENSE
+
+This document constitutes the general license governing Quantix unless a separate written agreement expressly supersedes or modifies its terms.
+
+A separate Written Permission may provide additional rights or conditions.
+
+Where there is a direct conflict between this license and a later written authorization issued by the Copyright Holder, the later authorization controls **only to the extent that it expressly identifies and modifies the relevant provision**.
+
+All other provisions remain in effect.
+
+---
+
+# 45. CHANGES TO THE LICENSE
+
+The Copyright Holder may publish updated versions of this license.
+
+Unless expressly stated otherwise, an updated license applies to future releases or distributions identified as being governed by that version.
+
+Previously granted permissions remain governed by their applicable Written Permission unless that agreement provides otherwise.
+
+---
+
+# 46. GOVERNING LAW AND JURISDICTION
+
+This license shall be interpreted in accordance with applicable law.
+
+Where legally permissible, disputes concerning this license shall be subject to the courts and jurisdiction specified by the Copyright Holder in a separate agreement or applicable legal rules.
+
+Nothing in this section is intended to deprive a party of mandatory rights or protections that cannot legally be waived.
+
+---
+
+# 47. CONTACT AND PERMISSION REQUESTS
+
+Requests for additional rights should identify:
+
+**Software:** Quantix
+**License:** Quantix Source-Available Proprietary License v2.0.1
+**Copyright Holder:** John David L. Perez
+
+Requests should clearly state:
+
+* the requested permission;
+* the intended modification or use;
+* the applicable Quantix version;
+* whether the use is commercial;
+* whether distribution is intended;
+* and any other relevant details.
+
+The Copyright Holder may approve, reject, or condition the request.
+
+---
+
+# 48. PERMISSION RECORD
+
+When Written Permission is granted, the recipient should preserve the authorization together with the relevant copy of the Software.
+
+Where practical, an authorized distribution should contain:
+
+```text
+LICENSE
+```
+
+and, where applicable:
+
+```text
+NOTICE
+```
+
+or another file containing the required copyright and authorization information.
+
+---
+
+# 49. AUTHORIZED MODIFICATION EXAMPLE
+
+An authorized modified distribution may contain a notice such as:
+
+```text
+Quantix
+Copyright © 2026 John David L. Perez.
+All Rights Reserved.
+
+This version contains modifications authorized in writing
+by John David L. Perez.
+
+The original Quantix Source-Available Proprietary License
+must remain with this Software unless expressly waived
+in writing by the Copyright Holder.
+```
+
+This example does not itself constitute permission to modify Quantix.
+
+---
+
+# 50. PROHIBITED ASSUMPTIONS
+
+The following assumptions are expressly rejected:
+
+### "The repository is public, so I can modify it."
+
+No.
+
+Public visibility does not grant general modification permission.
+
+### "GitHub lets me fork it, so I have permission."
+
+No.
+
+Technical fork functionality does not replace the license's authorization requirement.
+
+### "I'm not selling it, so I can modify it."
+
+Not necessarily.
+
+The license requires permission for modification regardless of whether the modification is commercial.
+
+### "It's only for school."
+
+Educational purpose does not automatically create modification permission under this license, subject to whatever rights cannot lawfully be restricted under applicable law.
+
+### "I won't publish my modification."
+
+Private modification is still subject to the modification requirement, subject to applicable statutory exceptions.
+
+### "I received permission to modify, so I can remove the license."
+
+No.
+
+Unless the Written Permission expressly says otherwise, this license must remain with the authorized Software.
+
+### "I received permission once, so I can modify every future Quantix version."
+
+No.
+
+Authorization is limited to the scope specified in the Written Permission.
+
+---
+
+# 51. RIGHTS SUMMARY
+
+| Activity                         | Permission Status                            |
+| -------------------------------- | -------------------------------------------- |
+| View source                      | Permitted                                    |
+| Read source                      | Permitted                                    |
+| Inspect architecture             | Permitted                                    |
+| Study implementation             | Permitted                                    |
+| Evaluate Software                | Permitted                                    |
+| Review code                      | Permitted                                    |
+| Report bugs                      | Permitted                                    |
+| Report vulnerabilities           | Permitted subject to law                     |
+| Request modification permission  | Permitted                                    |
+| Modify source                    | **Prior Written Permission Required**        |
+| Modify privately                 | **Prior Written Permission Required**        |
+| Create development fork          | **Prior Written Permission Required**        |
+| Create derivative work           | **Prior Written Permission Required**        |
+| Publish modified version         | **Prior Written Permission Required**        |
+| Redistribute original            | **Prior Written Permission Required**        |
+| Redistribute modified version    | **Prior Written Permission Required**        |
+| Commercial use                   | **Separate Written Authorization Required**  |
+| Sell Quantix                     | **Separate Written Authorization Required**  |
+| Sell modified Quantix            | **Separate Written Authorization Required**  |
+| Host commercially                | **Separate Written Authorization Required**  |
+| Sublicense                       | **Written Permission Required**              |
+| Relicense                        | **Written Permission Required**              |
+| Remove this license              | **Not permitted without Written Permission** |
+| Remove original copyright        | **Not permitted**                            |
+| Remove required notices          | **Not permitted without Written Permission** |
+| Transfer authorization           | **Not permitted without Written Permission** |
+| Use Quantix branding as official | **Not permitted without Written Permission** |
+
+---
+
+# 52. CORE AUTHORIZATION RULE
+
+The fundamental rule of this license is:
+
+> **You may inspect and study the publicly available Quantix source code, but you may not modify, distribute, commercially exploit, sublicense, relicense, or create derivative works from Quantix unless you have first obtained the required Written Permission from John David L. Perez.**
+
+Where permission is granted:
+
+> **The recipient must retain a complete copy of this license and the applicable copyright notices with the authorized Software unless the Written Permission expressly states otherwise.**
+
+Permission for one activity does not automatically grant permission for another.
+
+Permission for one version does not automatically grant permission for another.
+
+Permission for one person does not automatically grant permission to another person.
+
+Permission to modify does not automatically grant permission to distribute.
+
+Permission to distribute does not automatically grant permission to commercially exploit.
+
+Permission to contribute does not automatically transfer ownership.
+
+---
+
+# 53. FINAL COPYRIGHT NOTICE
+
+**QUANTIX**
+
+**Copyright © 2026 John David L. Perez. All Rights Reserved.**
+
+Quantix is **source-available proprietary software**.
+
+The source code may be made publicly available for inspection, evaluation, education, research, review, and other permitted purposes.
+
+**Modification requires prior written permission.**
+
+**Authorized modifications must retain this license and the original copyright notice unless expressly waived in writing.**
+
+**Commercial use requires separate written authorization unless expressly permitted otherwise.**
+
+**All rights not expressly granted are reserved.**
+
+---
+
+# END OF QUANTIX SOURCE-AVAILABLE PROPRIETARY LICENSE v2.0.1

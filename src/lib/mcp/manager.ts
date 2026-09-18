@@ -93,6 +93,11 @@ export class McpClientManager {
       const client = new Client({ name: 'quantix-mcp-client', version: '1.0.0' });
       record.client = client;
       record.transport = transport;
+      if (transport instanceof StdioClientTransport && transport.stderr) {
+        transport.stderr.on('data', (chunk) => {
+          console.error(`[MCP:${id} stderr]: ${chunk.toString().trim()}`);
+        });
+      }
       transport.onerror = (error: Error): void => {
         if (this.isCurrentConnection(record, generation, transport)) this.degrade(record, error);
       };
@@ -223,9 +228,21 @@ export class McpClientManager {
       await this.discoverTools(record);
     });
     await this.discoverTools(record);
-    record.resources = capabilities.resources ? ((await client.listResources()).resources || []) : [];
-    record.resourceTemplates = capabilities.resources ? ((await client.listResourceTemplates()).resourceTemplates || []) : [];
-    record.prompts = capabilities.prompts ? ((await client.listPrompts()).prompts || []) : [];
+    try {
+      record.resources = capabilities.resources ? ((await client.listResources()).resources || []) : [];
+    } catch (e) {
+      record.resources = [];
+    }
+    try {
+      record.resourceTemplates = capabilities.resources ? ((await client.listResourceTemplates()).resourceTemplates || []) : [];
+    } catch (e) {
+      record.resourceTemplates = [];
+    }
+    try {
+      record.prompts = capabilities.prompts ? ((await client.listPrompts()).prompts || []) : [];
+    } catch (e) {
+      record.prompts = [];
+    }
   }
 
   private async discoverTools(record: ServerRecord): Promise<void> {

@@ -257,6 +257,7 @@ function createWindow() {
     ? { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: path.join(process.resourcesPath, 'app.asar', 'node_modules') }
     : { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
 
+
   if (!mcpClientManager.getServer('sequential-thinking')) {
     const isPackaged = app.isPackaged;
     const serverEntry = isPackaged
@@ -338,6 +339,7 @@ function createWindow() {
     }
   }
 
+  setTimeout(() => {
   if (!mcpClientManager.getServer('gdrive')) {
     const isPackaged = app.isPackaged;
     const gdriveServerPath = isPackaged
@@ -479,6 +481,8 @@ function createWindow() {
     });
     void mcpClientManager.connectServer('shadcn').catch(error => console.error('[MCP] Shadcn failed to connect:', error));
   }
+
+  }, 3000);
 
   const splashWindow = new BrowserWindow({
     width: 400,

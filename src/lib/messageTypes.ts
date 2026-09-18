@@ -126,11 +126,26 @@ export function agenticMessageToChatMessage(msg: AgenticMessage, toolProtocol: '
         arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments),
       }
     }));
+  } else if (toolProtocol === 'xml' && msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
+    let xml = '';
+    for (const tc of msg.toolCalls) {
+      xml += `\n<tool_call>\n<invoke name="${tc.name}">\n`;
+      for (const [k, v] of Object.entries(tc.arguments || {})) {
+        xml += `<${k}>${escapeXmlText(String(v))}</${k}>\n`;
+      }
+      xml += `</invoke>\n</tool_call>`;
+    }
+    chatMsg.content += xml;
   }
 
   if (msg.role === 'tool') {
-    chatMsg.tool_call_id = msg.toolCallId;
-    chatMsg.name = msg.toolName;
+    if (toolProtocol !== 'xml') {
+      chatMsg.tool_call_id = msg.toolCallId;
+      chatMsg.name = msg.toolName;
+    } else {
+      chatMsg.role = 'user';
+      chatMsg.content = `<tool_result name="${escapeXmlText(msg.toolName || 'unknown')}">\n${escapeXmlText(msg.content)}\n</tool_result>`;
+    }
   }
 
   if (msg.attachments && msg.attachments.length > 0) {
