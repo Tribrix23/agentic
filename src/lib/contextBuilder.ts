@@ -309,7 +309,7 @@ export function buildContext(
 
       if (projectContext.fileTree) {
         const treeSummary = truncateToTokens(projectContext.fileTree, 200);
-        projectLines.push(`\nProject Structure (overview only — use listDirectory for actual contents):\n${treeSummary}`);
+        projectLines.push(`\nProject Structure (overview only — use runCommand with ls for actual contents):\n${treeSummary}`);
       }
 
       if (projectContext.activeFilePath) {

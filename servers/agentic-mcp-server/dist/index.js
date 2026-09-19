@@ -1,10 +1,13 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
-import { setupFileSystemTools } from "./tools/filesystem.js";
-import { setupShellTools } from "./tools/shell.js";
-import { setupGitTools } from "./tools/git.js";
-const server = new Server({
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.registerTool = registerTool;
+const index_js_1 = require("@modelcontextprotocol/sdk/server/index.js");
+const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
+const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
+const filesystem_js_1 = require("./tools/filesystem.js");
+const shell_js_1 = require("./tools/shell.js");
+const git_js_1 = require("./tools/git.js");
+const server = new index_js_1.Server({
     name: "agentic-mcp-server",
     version: "1.0.0",
 }, {
@@ -15,18 +18,18 @@ const server = new Server({
 // We will collect tools from different modules
 const toolsList = [];
 const toolHandlers = {};
-export function registerTool(def, handler) {
+function registerTool(def, handler) {
     toolsList.push(def);
     toolHandlers[def.name] = handler;
 }
 // Setup specific tool modules
-setupFileSystemTools(registerTool);
-setupShellTools(registerTool);
-setupGitTools(registerTool);
-server.setRequestHandler(ListToolsRequestSchema, async () => {
+(0, filesystem_js_1.setupFileSystemTools)(registerTool);
+(0, shell_js_1.setupShellTools)(registerTool);
+(0, git_js_1.setupGitTools)(registerTool);
+server.setRequestHandler(types_js_1.ListToolsRequestSchema, async () => {
     return { tools: toolsList };
 });
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(types_js_1.CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const handler = toolHandlers[name];
     if (!handler) {
@@ -46,7 +49,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 });
 async function run() {
-    const transport = new StdioServerTransport();
+    const transport = new stdio_js_1.StdioServerTransport();
     await server.connect(transport);
     console.error("Agentic MCP Server running on stdio");
 }

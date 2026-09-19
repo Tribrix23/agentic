@@ -1,4 +1,7 @@
-export class PermissionManager {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.PermissionManager = void 0;
+class PermissionManager {
     granted;
     constructor(granted = new Set()) {
         this.granted = granted;
@@ -8,3 +11,4 @@ export class PermissionManager {
         throw new Error(`Permission denied: ${capability}`); }
     list() { return [...this.granted]; }
 }
+exports.PermissionManager = PermissionManager;

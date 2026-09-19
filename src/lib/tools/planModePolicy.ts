@@ -2,20 +2,7 @@ import type { ToolCall, ToolDefinition, ToolContext, ToolResult } from './types'
 
 export type InteractionMode = 'ask' | 'plan' | 'agent';
 
-export const PLAN_READ_TOOL_NAMES = new Set([
-  'readFile', 'listDirectory', 'searchFiles', 'findText', 'findDuplicates',
-  'codeAnalysis', 'analyzeDependencies', 'checkSyntax', 'validateSchema',
-  'gitStatus', 'gitDiff', 'getGitBranch', 'getFileInfo', 'askUser',
-]);
-
-export const PLAN_MUTATION_TOOL_NAMES = new Set([
-  'writeFile', 'editFile',
-]);
-
-export const PLAN_TOOL_NAMES = new Set([
-  ...PLAN_READ_TOOL_NAMES,
-  ...PLAN_MUTATION_TOOL_NAMES,
-]);
+export const PLAN_TOOL_NAMES = new Set(['runCommand', 'writeFile']);
 
 export function buildPlanModeContract(): string {
   return [
@@ -23,8 +10,8 @@ export function buildPlanModeContract(): string {
     'You are running in Plan mode. Use the available tools to inspect the real project before proposing a plan.',
     'IMPORTANT: You MUST separate repository inspection from plan creation into different responses.',
     '',
-    'STEP 1 (First response): Call listDirectory with path "." first, then call readFile for the relevant source files. DO NOT call writeFile or editFile in this first response.',
-    'STEP 2 (Second response): After receiving the file contents, call writeFile with path "implementation_plan.md" and the complete Markdown plan. Use editFile with an exact anchor for later revisions.',
+    'STEP 1 (First response): Use runCommand with safe shell commands (e.g. ls, cat, grep) to inspect relevant source files. DO NOT call writeFile in this first response.',
+    'STEP 2 (Second response): After receiving the file contents, call writeFile with path "implementation_plan.md" and the complete Markdown plan as the content.',
     '',
     'Do not claim to have inspected files unless a tool result confirms it.',
     'CRITICAL: All tool calls MUST use the complete XML format with proper closing tags: <tool_call><invoke name="TOOL_NAME"><ARGUMENT_NAME>VALUE</ARGUMENT_NAME></invoke></tool_call>',

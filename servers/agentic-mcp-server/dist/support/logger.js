@@ -1,11 +1,14 @@
-import { redact } from "./redaction.js";
-export class Logger {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Logger = void 0;
+const redaction_js_1 = require("./redaction.js");
+class Logger {
     output;
     constructor(output = process.stderr) {
         this.output = output;
     }
     log(level, message, fields = {}) {
-        const safeFields = redact(fields);
+        const safeFields = (0, redaction_js_1.redact)(fields);
         this.output.write(`${JSON.stringify({ timestamp: new Date().toISOString(), level, message, ...(safeFields && typeof safeFields === "object" ? safeFields : {}) })}\n`);
     }
     debug(message, fields) { this.log("debug", message, fields); }
@@ -13,3 +16,4 @@ export class Logger {
     warn(message, fields) { this.log("warn", message, fields); }
     error(message, fields) { this.log("error", message, fields); }
 }
+exports.Logger = Logger;

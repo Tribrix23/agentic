@@ -62,15 +62,15 @@ export async function executeTool(toolCall: ToolCall, context: ToolContext, perm
     };
   }
 
-  if (context.readOnly && toolName === 'runCommand' && typeof toolCall.arguments?.command === 'string') {
+  if ((context.readOnly || context.interactionMode === 'plan') && toolName === 'runCommand' && typeof toolCall.arguments?.command === 'string') {
     const cmd = toolCall.arguments.command.trim();
     const safePrefixes = ['ls', 'cat', 'pwd', 'echo', 'grep', 'find', 'head', 'tail', 'wc', 'dir', 'type', 'tree', 'less', 'more'];
     const isSafe = safePrefixes.some(prefix => cmd === prefix || cmd.startsWith(prefix + ' '));
     if (!isSafe) {
       return {
         success: false,
-        output: `Ask mode is read-only. runCommand can only execute safe analyzing commands like: ${safePrefixes.join(', ')}.`,
-        diagnostics: [{ category: 'permission', message: 'Command is not permitted in Ask mode.' }],
+        output: `${context.interactionMode === 'plan' ? 'Plan' : 'Ask'} mode is read-only. runCommand can only execute safe analyzing commands like: ${safePrefixes.join(', ')}.`,
+        diagnostics: [{ category: 'permission', message: 'Command is not permitted.' }],
       };
     }
   }

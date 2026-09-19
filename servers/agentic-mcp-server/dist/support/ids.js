@@ -1,8 +1,12 @@
-import { randomBytes } from "node:crypto";
-export function createId(prefix) {
-    return `${prefix}_${randomBytes(12).toString("base64url")}`;
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createId = createId;
+exports.isOpaqueId = isOpaqueId;
+const node_crypto_1 = require("node:crypto");
+function createId(prefix) {
+    return `${prefix}_${(0, node_crypto_1.randomBytes)(12).toString("base64url")}`;
 }
-export function isOpaqueId(value, prefix) {
+function isOpaqueId(value, prefix) {
     if (typeof value !== "string")
         return false;
     const expected = prefix ? `${prefix}_` : "(?:rt|bs|pg|el|rs|ev|art)_";

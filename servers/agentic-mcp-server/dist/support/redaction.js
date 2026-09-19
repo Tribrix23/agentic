@@ -1,6 +1,9 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.redact = redact;
 const SECRET_KEY = /(password|passwd|secret|token|authorization|cookie|api[-_]?key|private[-_]?key|credential|value)/i;
 const SECRET_VALUE = /\b(?:bearer\s+)?[A-Za-z0-9_-]{24,}\b/i;
-export function redact(value, seen = new WeakSet()) {
+function redact(value, seen = new WeakSet()) {
     if (typeof value === "string")
         return SECRET_VALUE.test(value) ? "[REDACTED]" : redactUrl(value);
     if (Array.isArray(value))

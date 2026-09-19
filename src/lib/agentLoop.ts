@@ -1678,7 +1678,7 @@ export class AgentLoop {
               // Intelligent error recovery based on error type
               let recoverySuggestion = '';
               if (errorMessage.includes('ENOENT') || errorMessage.includes('not found')) {
-                recoverySuggestion = ' The file or directory may not exist. Try using listDirectory to verify the path.';
+                recoverySuggestion = ' The file or directory may not exist. Try using runCommand with ls to verify the path.';
               } else if (errorMessage.includes('permission') || errorMessage.includes('denied')) {
                 recoverySuggestion = ' Permission denied. Check if you have the necessary access rights.';
               } else if (errorMessage.includes('syntax') || errorMessage.includes('parse')) {
@@ -1708,7 +1708,7 @@ export class AgentLoop {
               // Add recovery hint to help LLM recover
               if (recoverySuggestion) {
                 const hintMsg = createUserMessage(
-                  `[SYSTEM]: Error recovery hint: ${recoverySuggestion} Consider using listDirectory to explore the structure before retrying.`
+                  `[SYSTEM]: Error recovery hint: ${recoverySuggestion} Consider using runCommand with ls to explore the structure before retrying.`
                 );
                 updatedMessages.push(hintMsg);
               }
