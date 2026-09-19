@@ -48,7 +48,7 @@ const startMcpServer = () => {
   
   // Directly import and start the server in the current process
   // This avoids Node.js interactive stdin buffering issues caused by child_process.spawn()
-  import('@modelcontextprotocol/server-github/dist/index.js').then(() => {
+  import('./custom-github/dist/index.js').then(() => {
     console.error('GitHub MCP Server running on stdio');
   }).catch((err) => {
     console.error('Failed to start GitHub MCP Server:', err);
