@@ -167,6 +167,7 @@ interface PromptInputProps {
   userId?: string;
   tokenBudget?: TokenBudget;
   hasMessages?: boolean;
+  conversationId?: string | null;
 }
 
 const MCP_ALIASES = [
@@ -183,7 +184,7 @@ const MCP_ALIASES = [
   { trigger: '@browser', id: 'playwright', name: 'Web', icon: './browser.png', desc: '', hidden: true }
 ];
 
-export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget, hasMessages = false }: PromptInputProps) {
+export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFiles, onConfigChange, value, onChange, hasProject = true, userId, tokenBudget, hasMessages = false, conversationId }: PromptInputProps) {
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
@@ -1095,12 +1096,13 @@ useEffect(() => {
     }
   }, [content]);
 
-  const [queue, setQueue] = useState<{content: string, images: any[], mentionedFiles: string[], html: string}[]>([]);
+  const [queueMap, setQueueMap] = useState<Record<string, {content: string, images: any[], mentionedFiles: string[], html: string}[]>>({});
+  const queue = queueMap[conversationId || ''] || [];
 
   useEffect(() => {
     if (!isAgentRunning && queue.length > 0) {
       const nextMsg = queue[0];
-      setQueue(q => q.slice(1));
+      setQueueMap(prev => ({ ...prev, [conversationId || '']: (prev[conversationId || ''] || []).slice(1) }));
       onSend(
         nextMsg.content,
         nextMsg.images.length > 0 ? nextMsg.images.map(img => ({
@@ -1112,17 +1114,20 @@ useEffect(() => {
         nextMsg.mentionedFiles
       );
     }
-  }, [isAgentRunning, queue, onSend]);
+  }, [isAgentRunning, queue.length, onSend, conversationId]);
 
   const handleQueueMessage = () => {
     if (content.trim() || selectedImages.length > 0 || textareaRef.current?.querySelector('span[data-mcp]') || textareaRef.current?.querySelector('span[data-slash]')) {
       let finalContent = content.trim();
-      setQueue(prev => [...prev, {
-        content: finalContent,
-        images: [...selectedImages],
-        mentionedFiles: [...mentionedFiles],
-        html: textareaRef.current?.innerHTML || finalContent
-      }]);
+      setQueueMap(prev => ({
+        ...prev,
+        [conversationId || '']: [...(prev[conversationId || ''] || []), {
+          content: finalContent,
+          images: [...selectedImages],
+          mentionedFiles: [...mentionedFiles],
+          html: textareaRef.current?.innerHTML || finalContent
+        }]
+      }));
       if (textareaRef.current) textareaRef.current.innerHTML = '';
       setContent('');
       setMentionedFiles([]);
@@ -1575,22 +1580,23 @@ useEffect(() => {
               </div>
 
               {/* Right Side: Actions */}
-              <div className="flex items-center gap-2 shrink-0 border-l border-white/10 pl-3">
-                <Tooltip content="Send Immediately">
+              <div className="flex items-center gap-1.5 shrink-0 pl-3 border-l border-white/10">
+                <Tooltip content="Send Now">
                   <motion.button 
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
-                      const msg = queue[0];
-                      setQueue(q => q.slice(1));
-                      onStop();
-                      setTimeout(() => {
+                      if (isAgentRunning && onStop) {
+                        onStop();
+                      } else if (!isAgentRunning) {
+                        const msg = queue[0];
+                        setQueueMap(prev => ({ ...prev, [conversationId || '']: (prev[conversationId || ''] || []).slice(1) }));
                         onSend(
                           msg.content,
                           msg.images.length > 0 ? msg.images.map(img => ({ name: img.file.name, path: img.file.name, content: img.url, sizeBytes: img.file.size })) : undefined,
                           msg.mentionedFiles
                         );
-                      }, 100);
+                      }
                     }}
                     className="w-8 h-8 flex items-center justify-center bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-lg transition-colors shadow-lg"
                   >
@@ -1602,7 +1608,7 @@ useEffect(() => {
                   <motion.button 
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setQueue(q => q.slice(1))}
+                    onClick={() => setQueueMap(prev => ({ ...prev, [conversationId || '']: (prev[conversationId || ''] || []).slice(1) }))}
                     className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
                   >
                     <X size={16} />

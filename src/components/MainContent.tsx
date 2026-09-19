@@ -224,6 +224,7 @@ export const MainContent = ({
     const handleLoadChat = (e: any) => {
       const { id, title } = e.detail;
       setActiveConversationId(id);
+      activeConversationIdRef.current = id;
       setChatTitle(title);
       const loaded = loadMessages(id);
       if (loaded.length > 0) {
