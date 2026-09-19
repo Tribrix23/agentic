@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from 'electron';
 import path from 'node:path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
@@ -233,6 +233,8 @@ function handleAuthDeepLink(url: string) {
 }
 
 function createWindow() {
+  Menu.setApplicationMenu(null);
+
   const window = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -1733,6 +1735,15 @@ function createWindow() {
   const isDevtools = true; // Set to false to disable DevTools shortcut
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isExitShortcut = 
+      ((input.control || input.meta) && input.key.toLowerCase() === 'w') ||
+      ((input.control || input.meta) && input.key.toLowerCase() === 'q');
+
+    if (isExitShortcut) {
+      event.preventDefault();
+      return;
+    }
+
     const isDevToolsShortcut =
       (input.control && input.shift && input.key.toLowerCase() === 'i') ||
       (input.meta && input.alt && input.key.toLowerCase() === 'i') ||
