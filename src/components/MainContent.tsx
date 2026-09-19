@@ -845,7 +845,12 @@ IMPORTANT RULES:
         }));
         break;
       case 'agent:message-added':
-        setMessages(prev => [...prev, event.data]);
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.id !== 'placeholder_assistant_msg');
+          const exists = filtered.find(m => m.id === event.data.id);
+          if (!exists) return [...filtered, event.data];
+          return filtered;
+        });
         break;
       case 'agent:message-updated':
         // Replace the message in state with the updated version (now has toolCalls)
@@ -913,9 +918,10 @@ IMPORTANT RULES:
           setAgentStatus(`Error: ${event.data?.message || 'Unknown error'}`);
           setAgentState('error');
         }
-        setMessages(prev => prev.map(m =>
-          m.isStreaming ? { ...m, isStreaming: false } : m
-        ));
+        setMessages(prev => {
+          const filtered = prev.filter(m => !(m.id === 'placeholder_assistant_msg' && !m.content));
+          return filtered.map(m => m.isStreaming ? { ...m, isStreaming: false } : m);
+        });
         break;
     }
   }, []);
@@ -1073,7 +1079,11 @@ IMPORTANT RULES:
       ? `Execute the Implementation Plan. Canonical plan location:\n${executionPlan.executionPlanPath}\nRead the complete plan first from that exact location, then follow every step in order, modify the project, validate the changes, and report completion.\n\n<environment_details>\nWorking directory: ${selectedProject?.path || ''}\nWorkspace root folder: ${selectedProject?.path || ''}\n</environment_details>`
       : undefined;
     const allMessages = [...messages, userMsg];
-    setMessages(allMessages);
+    const placeholderMsg = createAssistantMessage(runConfig.model || 'model');
+    placeholderMsg.id = 'placeholder_assistant_msg';
+    placeholderMsg.isStreaming = true;
+    placeholderMsg.content = '';
+    setMessages([...allMessages, placeholderMsg]);
     setIsAgentRunning(true);
     isStreamingRef.current = true;
     submitPrompt(content, runConfig.agentMode);

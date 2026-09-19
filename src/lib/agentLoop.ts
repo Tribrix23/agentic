@@ -1411,14 +1411,10 @@ export class AgentLoop {
 
         // ── Detect duplicate tool call loops ───────────────────────────────────
         if (hasToolCalls) {
-          // Only consider write operations and dangerous tools for duplicate detection
-          // Legitimate repeated reads (listDirectory, readFile) and subagent spawning are allowed
-          const writeTools = assistantMsg.toolCalls!.filter(tc =>
-            !['runCommand', 'grepSearch', 'findByName', 'searchFiles', 'gitStatus', 'gitDiff', 'invokeSubagent'].includes(tc.name)
-          );
+          const tools = assistantMsg.toolCalls!;
 
-          if (writeTools.length > 0) {
-            const currentSignature = JSON.stringify(writeTools.map(tc => ({ name: tc.name, args: tc.arguments })));
+          if (tools.length > 0) {
+            const currentSignature = JSON.stringify(tools.map(tc => ({ name: tc.name, args: tc.arguments })));
 
             if (currentSignature === this.state.lastToolSignature) {
               this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
@@ -1724,10 +1720,8 @@ export class AgentLoop {
             (tc) => tc.result?.output?.toString().startsWith('[Already called]')
           );
 
-          if (allDuplicates) {
+          if (allDuplicates && assistantMsg.toolCalls.length > 0) {
             this.state.consecutiveDuplicates = (this.state.consecutiveDuplicates || 0) + 1;
-          } else {
-            this.state.consecutiveDuplicates = 0;
           }
 
           if (this.state.consecutiveDuplicates >= 2) {
