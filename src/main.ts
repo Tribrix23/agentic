@@ -467,13 +467,18 @@ function createWindow() {
   }
 
   if (!mcpClientManager.getServer('shadcn')) {
-    mcpClientManager.addServer({
+      mcpClientManager.addServer({
       id: 'shadcn',
       name: 'Shadcn UI',
       transport: {
         type: 'stdio',
-        command: process.platform === 'win32' ? 'cmd.exe' : 'npx',
-        args: process.platform === 'win32' ? ['/c', 'npx', '-y', 'shadcn@latest', 'mcp'] : ['-y', 'shadcn@latest', 'mcp'],
+        command: process.platform === 'win32' ? 'node.exe' : 'node',
+        args: [
+          app.isPackaged
+            ? path.join(process.resourcesPath, 'app.asar', 'agentic-mcp-server', 'node_modules', 'shadcn', 'dist', 'index.js')
+            : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'node_modules', 'shadcn', 'dist', 'index.js'),
+          'mcp'
+        ],
         env: mcpNodeEnv as Record<string, string>,
       },
       permissions: ['read', 'write', 'execute', 'network'],
