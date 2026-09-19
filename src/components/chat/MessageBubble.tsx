@@ -100,7 +100,7 @@ export function MessageBubble({
             <AgentStepsGroup
               steps={[]}
               isWorking={isWorking}
-              agentState={agentState}
+              agentState={isLatest ? agentState : undefined}
             />
           </div>
         </div>
@@ -489,7 +489,7 @@ export function MessageBubble({
               steps={stepsToRender}
               isStreaming={lastMessage.isStreaming}
               isWorking={isWorking}
-              agentState={agentState}
+              agentState={isLatest ? agentState : undefined}
               onApproveToolCall={onApproveToolCall}
               onRejectToolCall={onRejectToolCall}
               onArtifactClick={onArtifactClick}

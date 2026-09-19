@@ -1095,6 +1095,43 @@ useEffect(() => {
     }
   }, [content]);
 
+  const [queue, setQueue] = useState<{content: string, images: any[], mentionedFiles: string[], html: string}[]>([]);
+
+  useEffect(() => {
+    if (!isAgentRunning && queue.length > 0) {
+      const nextMsg = queue[0];
+      setQueue(q => q.slice(1));
+      onSend(
+        nextMsg.content,
+        nextMsg.images.length > 0 ? nextMsg.images.map(img => ({
+          name: img.file.name,
+          path: img.file.name,
+          content: img.url,
+          sizeBytes: img.file.size
+        })) : undefined,
+        nextMsg.mentionedFiles
+      );
+    }
+  }, [isAgentRunning, queue, onSend]);
+
+  const handleQueueMessage = () => {
+    if (content.trim() || selectedImages.length > 0 || textareaRef.current?.querySelector('span[data-mcp]') || textareaRef.current?.querySelector('span[data-slash]')) {
+      let finalContent = content.trim();
+      setQueue(prev => [...prev, {
+        content: finalContent,
+        images: [...selectedImages],
+        mentionedFiles: [...mentionedFiles],
+        html: textareaRef.current?.innerHTML || finalContent
+      }]);
+      if (textareaRef.current) textareaRef.current.innerHTML = '';
+      setContent('');
+      setMentionedFiles([]);
+      setSelectedImages([]);
+      setSelectedSlashCommands([]);
+      setShowSlashMenu(false);
+    }
+  };
+
   const handleSend = () => {
     if (content.trim() || selectedImages.length > 0 || textareaRef.current?.querySelector('span[data-mcp]') || textareaRef.current?.querySelector('span[data-slash]')) {
       let finalContent = content.trim();
@@ -1223,7 +1260,11 @@ useEffect(() => {
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (isAgentRunning) {
+        handleQueueMessage();
+      } else {
+        handleSend();
+      }
     }
 
     if (e.key === 'Backspace') {
@@ -1491,6 +1532,88 @@ useEffect(() => {
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
+      <AnimatePresence>
+        {queue.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 15, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="absolute bottom-[calc(100%+12px)] left-0 right-0 flex justify-center z-20 pointer-events-none"
+          >
+            <div className="pointer-events-auto w-[85%] max-w-[650px] bg-[#16161a]/95 border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.6)] rounded-xl flex items-center justify-between p-2.5 backdrop-blur-xl">
+              
+              {/* Left Side: Status & Content */}
+              <div className="flex items-center gap-3 overflow-hidden min-w-0 pr-4">
+                
+                {/* Status Badge */}
+                <div className="flex items-center gap-2 shrink-0 pl-1">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                  <span className="text-[11px] font-bold text-green-500 tracking-widest uppercase">
+                    {queue.length > 1 ? `1/${queue.length} Queued` : 'Queued'}
+                  </span>
+                </div>
+
+                {/* Preview Content */}
+                <div className="flex items-center gap-2.5 overflow-hidden shrink min-w-0">
+                  {queue[0].images.map((img, i) => (
+                    <motion.img initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={`img-${i}`} src={img.url} className="w-7 h-7 rounded-lg object-cover shrink-0 shadow-sm border border-white/10" alt="queued attachment" />
+                  ))}
+                  
+                  {queue[0].mentionedFiles.map((file, i) => (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={`file-${i}`} className="text-[11px] font-medium bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg text-white/80 shrink-0 flex items-center gap-1.5">
+                      <FileText size={12} className="text-white/40" />
+                      {file.split(/[/\\]/).pop()}
+                    </motion.span>
+                  ))}
+                  
+                  <div 
+                    className="text-[13px] text-white/80 truncate flex items-center gap-1.5 [&>span]:!text-[12px] [&>span]:!px-2 [&>span]:!py-0.5 [&>span]:!rounded-lg [&>span]:!bg-white/5 [&>span]:!border [&>span]:!border-white/10 [&>span>img]:!w-3.5 [&>span>img]:!h-3.5 whitespace-nowrap"
+                    dangerouslySetInnerHTML={{ __html: queue[0].html }}
+                  />
+                </div>
+              </div>
+
+              {/* Right Side: Actions */}
+              <div className="flex items-center gap-2 shrink-0 border-l border-white/10 pl-3">
+                <Tooltip content="Send Immediately">
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      const msg = queue[0];
+                      setQueue(q => q.slice(1));
+                      onStop();
+                      setTimeout(() => {
+                        onSend(
+                          msg.content,
+                          msg.images.length > 0 ? msg.images.map(img => ({ name: img.file.name, path: img.file.name, content: img.url, sizeBytes: img.file.size })) : undefined,
+                          msg.mentionedFiles
+                        );
+                      }, 100);
+                    }}
+                    className="w-8 h-8 flex items-center justify-center bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-lg transition-colors shadow-lg"
+                  >
+                    <Send size={14} />
+                  </motion.button>
+                </Tooltip>
+                
+                <Tooltip content="Remove from queue">
+                  <motion.button 
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setQueue(q => q.slice(1))}
+                    className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
+                  >
+                    <X size={16} />
+                  </motion.button>
+                </Tooltip>
+              </div>
+
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="absolute -top-6 right-2 z-10 flex justify-end">
         <button
           onClick={() => setShowConnectModal(!showConnectModal)}
@@ -2028,12 +2151,25 @@ useEffect(() => {
                   systemPrompt: 0, tools: 0, projectContext: 0, conversationHistory: 0, responseReserved: 0
                 }} />
                 {isAgentRunning ? (
-                  <button
-                    onClick={onStop}
-                    className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors shadow-lg"
-                  >
-                    <Square size={14} fill="currentColor" />
-                  </button>
+                  (content.trim().length > 0 || selectedImages.length > 0 || selectedSlashCommands.length > 0 || (textareaRef.current?.querySelector('span[data-mcp]') !== null)) ? (
+                    <Tooltip content="Queue Prompt">
+                      <button
+                        onClick={handleQueueMessage}
+                        className="w-8 h-8 rounded-full flex items-center justify-center bg-[#007acc] hover:bg-[#0088dd] text-white shadow-lg transition-all duration-200 hover:scale-105"
+                      >
+                        <Send size={14} />
+                      </button>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip content="Stop Generation">
+                      <button
+                        onClick={onStop}
+                        className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors shadow-lg"
+                      >
+                        <Square size={14} fill="currentColor" />
+                      </button>
+                    </Tooltip>
+                  )
                 ) : (
                   <div className="relative group">
                     {isListening ? (

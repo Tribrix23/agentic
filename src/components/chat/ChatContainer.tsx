@@ -107,19 +107,28 @@ export function ChatContainer({
           )}
 
           <div className="w-full flex flex-col items-center gap-2">
-            {agentState === 'awaiting_tool_approval' && pendingToolCall && onToolDecision ? (
+            {agentState === 'awaiting_tool_approval' && pendingToolCall && onToolDecision && (
               <ToolApprovalCard
                 toolCall={pendingToolCall}
                 onDecision={onToolDecision}
                 onSkip={() => onToolDecision(false)}
               />
-            ) : agentState === 'awaiting_user_response' && pendingAskUser && onUserResponse ? (
+            )}
+            
+            {agentState === 'awaiting_user_response' && pendingAskUser && onUserResponse && (
               <AskUserCard
                 question={pendingAskUser.question}
                 options={pendingAskUser.options}
                 onSubmit={onUserResponse}
               />
-            ) : (
+            )}
+            
+            <div className={cn(
+              "w-full",
+              ((agentState === 'awaiting_tool_approval' && pendingToolCall && onToolDecision) ||
+               (agentState === 'awaiting_user_response' && pendingAskUser && onUserResponse)) 
+                ? "hidden" : "block"
+            )}>
               <PromptInput
                 onSend={onSendMessage}
                 onStop={onStopAgent}
@@ -133,7 +142,7 @@ export function ChatContainer({
                 tokenBudget={tokenBudget}
                 hasMessages={messages.length > 0}
               />
-            )}
+            </div>
           </div>
         </div>
       </div>
