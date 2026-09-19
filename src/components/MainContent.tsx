@@ -1013,8 +1013,12 @@ IMPORTANT RULES:
       systemPrompt: `You are a ${role} sub-agent. Complete only this task: ${request.task}\n\n${request.readOnly ? 'This is read-only work. Do not mutate files.' : `You own only ${request.targetFile}. Create or edit that target and do not mutate other files.`}\nUse only canonical XML tool calls. Do not emit native function calls, JSON, or call:name syntax. XML-escape parameter text exactly once (& -> &amp;, < -> &lt;, > -> &gt;, " -> &quot;, ' -> &apos;); the parser decodes it once before execution. Write complete source code as the parameter value and encode a source literal &lt; as &amp;lt;. Do not wrap parameter values in CDATA. Do not delegate, create task lists, or merely describe changes. Report a concise summary when finished.`,
     });
     const initialMessage = createUserMessage(`Please begin the task: ${request.task}`);
-    messages.push(initialMessage);
-    const finalMessages = await loop.run(messages.map(message => ({ ...message, role: message.role as any })));
+      messages.push(initialMessage);
+      const abortHandler = () => loop.stop();
+      if (run.signal?.aborted) abortHandler();
+      run.signal?.addEventListener('abort', abortHandler);
+      const finalMessages = await loop.run(messages.map(message => ({ ...message, role: message.role as any })));
+      run.signal?.removeEventListener('abort', abortHandler);
     return resultFromChildMessages(finalMessages);
   }, [aiConfig, selectedProject?.path]);
 
@@ -1382,10 +1386,9 @@ IMPORTANT RULES:
     if (getAgentLoop()) {
       getAgentLoop().stop();
     }
-    subagentManagerRef.current?.cancelAll();
-    // Forcefully stop all running sub-agents
-    subagentLoopsRef.current.forEach(loop => loop.stop());
-    subagentLoopsRef.current.clear();
+    if (activeConversationIdRef.current) {
+        subagentManagerRef.current?.cancelForConversation(activeConversationIdRef.current);
+      }
 
     isStreamingRef.current = false;
     setIsAgentRunning(false);

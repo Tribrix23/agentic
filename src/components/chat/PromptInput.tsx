@@ -724,7 +724,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
             const base = textBeforeListening.current;
             const space = (base && !base.endsWith(' ') && !text.startsWith(' ') ? ' ' : '');
             const newText = base + space + text;
-            if (textareaRef.current) {
+              textBeforeListening.current = newText;
+              if (textareaRef.current) {
               textareaRef.current.innerText = newText;
               setContent(newText);
             }
@@ -2213,7 +2214,8 @@ useEffect(() => {
                                   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                                     setMicStream(stream);
                                     new Audio('/VoiceInput.wav').play().catch(() => {});
-                                    setIsListening(true);
+                                      textBeforeListening.current = content;
+                                      setIsListening(true);
                                   }).catch(() => {
                                     setShowMicModal(true);
                                   });
@@ -2386,7 +2388,8 @@ useEffect(() => {
                           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                           setMicStream(stream);
                           new Audio('/VoiceInput.wav').play().catch(() => {});
-                          setIsListening(true);
+                                      textBeforeListening.current = content;
+                                      setIsListening(true);
                         } catch (err) {
                           console.error("Microphone access denied:", err);
                           alert("Microphone permission was denied by the browser or system. Please enable it in your settings.");

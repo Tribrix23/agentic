@@ -474,9 +474,13 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
       };
 
       // Chain signals: user abort + timeout
-      if (signal) {
-        signal.addEventListener('abort', onUserAbort, { once: true });
-      }
+        if (signal) {
+          if (signal.aborted) {
+            onUserAbort();
+          } else {
+            signal.addEventListener('abort', onUserAbort, { once: true });
+          }
+        }
 
       let response: Response;
       try {

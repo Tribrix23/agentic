@@ -1302,11 +1302,19 @@ export class AgentLoop {
             });
           });
         } catch (e: any) {
-          apiError = e;
-        }
+            apiError = e;
+          }
 
-        if (apiError) {
-          if (apiError.name === 'AbortError') throw apiError;
+          if (!apiError && !this.state.isRunning) {
+            apiError = new Error('Request aborted by user');
+            apiError.name = 'AbortError';
+          }
+
+          if (apiError) {
+          if (apiError.name === 'AbortError' || apiError.message.includes('aborted') || !this.state.isRunning) {
+              apiError.name = 'AbortError';
+              throw apiError;
+            }
           console.warn('[AgentLoop] API error, retrying iteration:', apiError);
           assistantMsg.isHidden = true;
           const errorMsg = createUserMessage(`[SYSTEM ERROR] The API request failed with error: ${apiError.message}. Retrying...`);

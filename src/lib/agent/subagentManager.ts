@@ -72,6 +72,11 @@ export class SubagentManager {
   wait(childId: string): Promise<SubagentOutcome> | undefined { return this.children.get(childId)?.outcome; }
   cancel(childId: string): boolean { const child = this.children.get(childId); if (!child) return false; child.controller.abort(); return true; }
   cancelAll(): void { for (const child of this.children.values()) child.controller.abort(); }
+  cancelForConversation(parentConversationId: string): void {
+    for (const child of this.children.values()) {
+      if (child.handle.parentConversationId === parentConversationId) child.controller.abort();
+    }
+  }
 
   snapshot(conversationId?: string): SubagentHandle[] {
     return Array.from(this.children.values())

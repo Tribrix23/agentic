@@ -237,7 +237,7 @@ const BigBtn = ({ icon: Icon, label, onClick, active }: any) => (
   <button onMouseDown={e => { e.preventDefault(); onClick?.(); }}
     className={cn("flex flex-col items-center justify-center p-1 w-12 h-14 rounded transition-colors border border-transparent hover:bg-[#e8e8e8] hover:border-[#d2d2d2]", active && "bg-[#d0e1f9] border-[#a0c0e8]")}>
     <Icon size={20} className={active ? "text-[#2b579a]" : "text-[#444]"} strokeWidth={1.5} />
-    <span className="text-[10px] text-[#444] mt-1 leading-none text-center leading-tight">{label}</span>
+    <span className="text-[10px] text-[#444] mt-1 leading-none text-center">{label}</span>
   </button>
 );
 
