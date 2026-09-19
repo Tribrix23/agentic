@@ -63,7 +63,6 @@
     "@fontsource/montserrat": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@monaco-editor/react": "^4.7.0",
-    "@playwright/mcp": "0.0.79",
     "@supabase/supabase-js": "^2.110.7",
     "@tiptap/extension-color": "^3.31.3",
     "@tiptap/extension-font-family": "^3.31.3",
@@ -127,19 +126,13 @@
     "asarUnpack": [
       "**/*.exe",
       "**/*.dll",
-      "**/node_modules/node-pty/**/*"
+      "**/node_modules/node-pty/**/*",
+      "servers/**/*"
     ],
     "extraResources": [
       {
         "from": "playwright-browsers",
         "to": "playwright-browsers",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "playwright-runtime",
-        "to": "playwright-runtime",
         "filter": [
           "**/*"
         ]

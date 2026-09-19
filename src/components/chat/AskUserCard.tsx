@@ -14,29 +14,28 @@ export const AskUserCard: React.FC<AskUserCardProps> = ({
   options,
   onSubmit
 }) => {
+  const validOptions = Array.isArray(options) ? options.map(opt => opt.replace(/<\/?item>/gi, '').trim()) : [];
+  const hasOptions = validOptions.length > 0;
+
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [customResponse, setCustomResponse] = useState('');
 
   // If there are valid options, default select the first one
   useEffect(() => {
-    if (Array.isArray(options) && options.length > 0) {
-      setSelectedOption(options[0]);
+    if (validOptions.length > 0) {
+      setSelectedOption(validOptions[0]);
     } else {
       setSelectedOption(null);
     }
   }, [options]);
 
   const handleSubmit = () => {
-    const validOptions = Array.isArray(options) ? options : [];
     if (validOptions.length > 0 && selectedOption !== 'custom') {
       if (selectedOption) onSubmit(selectedOption);
     } else if (customResponse.trim()) {
       onSubmit(customResponse.trim());
     }
   };
-
-  const validOptions = Array.isArray(options) ? options : [];
-  const hasOptions = validOptions.length > 0;
 
   return (
     <div className="w-full max-w-[750px] mx-auto bg-[#1c1c21] border border-[#007acc]/40 rounded-2xl shadow-[0_0_20px_rgba(0,122,204,0.1)] overflow-hidden animate-fade-in pointer-events-auto relative">
@@ -129,3 +128,4 @@ export const AskUserCard: React.FC<AskUserCardProps> = ({
     </div>
   );
 };
+

@@ -5,12 +5,15 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
     "@modelcontextprotocol/server-github": "^2025.4.8",
+    "@modelcontextprotocol/server-sequential-thinking": "^2026.8.31",
+    "@playwright/mcp": "^0.0.79",
     "@supabase/supabase-js": "^2.45.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "googleapis": "^140.0.0",
     "pg": "^8.23.0",
-    "shadcn": "^4.21.0"
+    "shadcn": "^4.21.0",
+    "zod": "^4.6.5"
   }
 }

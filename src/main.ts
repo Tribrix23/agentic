@@ -261,8 +261,8 @@ function createWindow() {
   if (!mcpClientManager.getServer('sequential-thinking')) {
     const isPackaged = app.isPackaged;
     const serverEntry = isPackaged
-      ? path.join(process.resourcesPath, 'agentic-mcp-server', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js')
-      : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js');
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js');
     mcpClientManager.addServer({
       id: 'sequential-thinking',
       name: 'Sequential Thinking',
@@ -281,8 +281,8 @@ function createWindow() {
   if (!mcpClientManager.getServer('agentic-mcp-server')) {
     const isPackaged = app.isPackaged;
     const agenticPath = isPackaged
-      ? path.join(process.resourcesPath, 'agentic-mcp-server', 'dist', 'index.js')
-      : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'dist', 'index.js');
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'agentic-mcp-server', 'dist', 'index.js')
+      : path.join(__dirname, '..', '..', 'servers', 'agentic-mcp-server', 'dist', 'index.js');
 
     mcpClientManager.addServer({
       id: 'agentic-mcp-server',
@@ -299,45 +299,50 @@ function createWindow() {
     void mcpClientManager.connectServer('agentic-mcp-server').catch(error => console.error('[MCP] Agentic MCP Server failed to connect:', error));
   }
 
-  if (!mcpClientManager.getServer('playwright')) {
-    const isPackaged = app.isPackaged;
-    const playwrightCli = isPackaged
-      ? path.join(process.resourcesPath, 'playwright-runtime', 'node_modules', '@playwright', 'mcp', 'cli.js')
-      : path.join(__dirname, '..', '..', 'node_modules', '@playwright', 'mcp', 'cli.js');
-    const browserPath = isPackaged
-      ? path.join(process.resourcesPath, 'playwright-browsers')
-      : path.join(__dirname, '..', '..', 'playwright-browsers');
-    const browserExecutable = fs.existsSync(browserPath) ? getPlaywrightBrowserExecutable(browserPath) : undefined;
-    const outputDir = path.join(app.getPath('temp'), 'quantix-playwright-mcp');
-    const envKeys = ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)'];
-    const env = Object.fromEntries(envKeys.flatMap(key => process.env[key] ? [[key, process.env[key] as string]] : []));
-    Object.assign(env, {
-      ELECTRON_RUN_AS_NODE: '1',
-      NODE_ENV: 'production',
-      PLAYWRIGHT_BROWSERS_PATH: browserPath,
-      PLAYWRIGHT_MCP_OUTPUT_DIR: outputDir,
-    });
-    const playwrightReady = fs.existsSync(playwrightCli) && Boolean(browserExecutable && fs.existsSync(browserExecutable));
-    if (!fs.existsSync(playwrightCli)) {
-      console.error(`[MCP] Playwright CLI missing: ${playwrightCli}`);
-    } else if (!browserExecutable || !fs.existsSync(browserExecutable)) {
-      console.error(`[MCP] Playwright Chromium missing from: ${browserPath}`);
+    if (!mcpClientManager.getServer('playwright')) {
+      const isPackaged = app.isPackaged;
+      const playwrightCli = isPackaged
+        ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'node_modules', '@playwright', 'mcp', 'cli.js')
+        : path.join(__dirname, '..', '..', 'servers', 'node_modules', '@playwright', 'mcp', 'cli.js');
+      const browserPath = isPackaged
+        ? path.join(process.resourcesPath, 'playwright-browsers')
+        : path.join(__dirname, '..', '..', 'playwright-browsers');
+      const browserExecutable = fs.existsSync(browserPath) ? getPlaywrightBrowserExecutable(browserPath) : undefined;
+      const outputDir = path.join(app.getPath('temp'), 'quantix-playwright-mcp');
+      
+      const playwrightReady = fs.existsSync(playwrightCli) && Boolean(browserExecutable && fs.existsSync(browserExecutable));
+      
+      if (!fs.existsSync(playwrightCli)) {
+        console.error(`[MCP] Playwright CLI missing: ${playwrightCli}`);
+      } else if (!browserExecutable || !fs.existsSync(browserExecutable)) {
+        console.error(`[MCP] Playwright Chromium missing from: ${browserPath}`);
+      }
+
+      mcpClientManager.addServer({
+        id: 'playwright',
+        name: 'Playwright Browser',
+        transport: { 
+          type: 'stdio', 
+          command: process.execPath, 
+          args: [playwrightCli, '--browser', 'chromium', '--isolated', '--save-session', '--timeout-action', '5000', '--timeout-navigation', '120000', '--timeout-settle', '2000', '--output-dir', outputDir], 
+          env: {
+            ...(mcpNodeEnv as Record<string, string>),
+            PLAYWRIGHT_BROWSERS_PATH: browserPath,
+            PLAYWRIGHT_MCP_OUTPUT_DIR: outputDir
+          }
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+
+      if (playwrightReady) {
+        void mcpClientManager.connectServer('playwright').catch(error => console.error('[MCP] Playwright failed to connect:', error));
+      } else if (!fs.existsSync(playwrightCli)) {
+        mcpClientManager.reportServerError('playwright', `Playwright CLI is missing: ${playwrightCli}`);
+      } else {
+        mcpClientManager.reportServerError('playwright', `Playwright Chromium is missing from: ${browserPath}`);
+      }
     }
-    mcpClientManager.addServer({
-      id: 'playwright',
-      name: 'Playwright Browser',
-      transport: { type: 'stdio', command: process.execPath, args: [playwrightCli, '--browser', 'chromium', '--isolated', '--save-session', '--timeout-action', '5000', '--timeout-navigation', '120000', '--timeout-settle', '2000', '--output-dir', outputDir], env },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    if (playwrightReady) {
-      void mcpClientManager.connectServer('playwright').catch(error => console.error('[MCP] Playwright failed to connect:', error));
-    } else if (!fs.existsSync(playwrightCli)) {
-      mcpClientManager.reportServerError('playwright', `Playwright CLI is missing: ${playwrightCli}`);
-    } else {
-      mcpClientManager.reportServerError('playwright', `Playwright Chromium is missing from: ${browserPath}`);
-    }
-  }
 
   setTimeout(() => {
   if (!mcpClientManager.getServer('gdrive')) {
@@ -466,26 +471,26 @@ function createWindow() {
     void mcpClientManager.connectServer('vercel').catch(error => console.error('[MCP] Vercel failed to connect:', error));
   }
 
-  if (!mcpClientManager.getServer('shadcn')) {
-      mcpClientManager.addServer({
-      id: 'shadcn',
-      name: 'Shadcn UI',
-      transport: {
-        type: 'stdio',
-        command: process.platform === 'win32' ? 'node.exe' : 'node',
-        args: [
-          app.isPackaged
-            ? path.join(process.resourcesPath, 'app.asar', 'agentic-mcp-server', 'node_modules', 'shadcn', 'dist', 'index.js')
-            : path.join(__dirname, '..', '..', 'agentic-mcp-server', 'node_modules', 'shadcn', 'dist', 'index.js'),
-          'mcp'
-        ],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('shadcn').catch(error => console.error('[MCP] Shadcn failed to connect:', error));
-  }
+    if (!mcpClientManager.getServer('shadcn')) {
+        mcpClientManager.addServer({
+        id: 'shadcn',
+        name: 'Shadcn UI',
+        transport: {
+          type: 'stdio',
+          command: process.platform === 'win32' ? 'node.exe' : 'node',
+            args: [
+              app.isPackaged
+                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'node_modules', 'shadcn', 'dist', 'index.js')
+                : path.join(__dirname, '..', '..', 'servers', 'node_modules', 'shadcn', 'dist', 'index.js'),
+              'mcp'
+            ],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('shadcn').catch(error => console.error('[MCP] Shadcn failed to connect:', error));
+    }
 
   }, 3000);
 

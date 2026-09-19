@@ -1260,7 +1260,7 @@ IMPORTANT RULES:
          const mentionName = `@${server.name.toLowerCase()}`;
          const aliases: string[] = [];
          if (server.id.includes('gdrive') || server.name.toLowerCase().includes('drive')) aliases.push('@drive');
-         if (server.id.includes('playwright') || server.name.toLowerCase().includes('playwright')) aliases.push('@browser');
+         if (server.id.includes('playwright') || server.name.toLowerCase().includes('playwright')) aliases.push('@browser', '@web');
          
          return allUserText.includes(mentionId) || 
                 allUserText.includes(mentionName) || 
