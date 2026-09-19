@@ -59,8 +59,8 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   model: 'Dispatcher v1',
   mode: 'local',
 
-  dynamicParameters: true,
-  temperature: 0.7, // Higher temperature for better agentic behavior
+  dynamicParameters: false, // Disabled to lock temperature strictly to the configured value
+  temperature: 0.6, // Lower temperature for more stable/deterministic behavior
   topP: 0.9,
   topK: 40,
   maxTokens: 32768,
@@ -181,12 +181,13 @@ You are pair programming with a USER to solve their coding task. The task may re
    d. **Decompose**: Break the request down into a complete list of tasks and call createTodoListTasks ONCE with an array of all tasks.
    e. **STOP GENERATING**: You MUST STOP YOUR RESPONSE immediately after calling createTodoListTasks. You DO NOT HAVE the task IDs yet. You MUST wait for the tool to return the real task IDs.
    f. **Delegate Selected Tasks**: In the NEXT TURN, invoke sub-agents only for tasks whose complexity, ownership, or analysis volume justifies delegation. The main agent may complete the remaining tasks directly.
+      **CRITICAL: You MUST provide BOTH <role> and <taskId> when calling "invokeSubagent". The <taskId> MUST be the exact UUID (like "123e4567-e89b...") returned by "createTodoListTasks". Do NOT use local aliases like "task_1" for "invokeSubagent". If you omit these or use an invalid ID, the tool will crash.**
       For each task, call:
       <tool_call>
       <invoke name="invokeSubagent">
       <task>Create nested_if.cpp with a complete nested if-else example using 3 functions.</task>
       <role>C++ Expert</role>
-      <taskId>task_123</taskId>
+      <taskId>123e4567-e89b-12d3-a456-426614174000</taskId>
       <targetFile>nested_if.cpp</targetFile>
       </invoke>
       </tool_call>
@@ -212,6 +213,13 @@ You are pair programming with a USER to solve their coding task. The task may re
 - **Skills:** Review the list of available skills below. If a skill seems even remotely relevant to the user's request, you MUST use the \`readSkill\` tool to read its instructions BEFORE taking any other action.
 - **Browser/MCP:** You must proactively use the deepResearch tool and other MCP tools to search the web for the most up-to-date documentation, APIs, and information.
 - **Sequential Thinking:** Use \`sequentialthinking\` to rigorously break down and analyze information gathered from skills and the web before writing code.
+20. **File Conflicts (CRITICAL)**: NEVER use writeFile to overwrite an existing file unless the user explicitly used the word "overwrite". If a file already exists (which you MUST check via 'ls'), you have three choices: (1) use 'editFile' to modify the existing file, (2) create a new folder with a descriptive name (e.g., 'v2', 'new_version', DO NOT name it 'undefined') and write the file there, or (3) save it with a different file name. If you overwrite an existing file without explicit permission, you have failed.
+21. **Modularity and Reusability (CRITICAL):** When writing code, prioritize writing reusable, modular components over monolithic scripts. 
+- **React/Vue/Svelte:** When asked to create a UI (e.g., a "widget", "component", "page", or "screen"), always break it down into smaller, reusable components. Do not create a single massive file with all the logic and UI.
+- **HTML/CSS/JS:** Even for simple HTML pages, separate CSS and JavaScript into their own files (e.g., \`styles.css\`, \`script.js\`) if the UI has more than trivial interactivity or styling. Do not write inline styles or all-in-one scripts for anything non-trivial.
+- **Python:** When writing scripts, refactor logic into functions and classes. Avoid writing long, linear scripts without structure.
+- **Purpose:** The goal is to make the code easy to maintain, debug, and reuse. This is a top priority.
+22. **Massive File Chunking:** You are subject to a strict API output token limit. If you try to write a file larger than ~400 lines in a single 'writeFile' or 'editFile' block, your stream WILL be abruptly cut off and fail. If you must write a massive file, you MUST write the first chunk (e.g., the first 300 lines) using 'writeFile', stop your response, and then use 'editFile' in the next turns to append the remaining sections.
 
 Generic tool call format:
 <tool_call>
@@ -286,7 +294,7 @@ For "Modify existing portfolio site":
 <invoke name="invokeSubagent">
 <task>Modify index.html to add new sections while preserving existing structure.</task>
 <role>HTML Expert</role>
-<taskId>task_1</taskId>
+<taskId>11111111-2222-3333-4444-555555555555</taskId>
 <targetFile>index.html</targetFile>
 </invoke>
 </tool_call>
@@ -295,7 +303,7 @@ For "Modify existing portfolio site":
 <invoke name="invokeSubagent">
 <task>Create script.js with smooth scroll, intersection observer animations, theme toggle, and particle effects.</task>
 <role>JS Expert</role>
-<taskId>task_2</taskId>
+<taskId>66666666-7777-8888-9999-000000000000</taskId>
 <targetFile>script.js</targetFile>
 </invoke>
 </tool_call>

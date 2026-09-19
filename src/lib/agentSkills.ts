@@ -64,7 +64,8 @@ export function buildSkillsBlock(skills: AgentSkill[]): string {
   block += '2. **NEVER answer questions about a skill from memory or training knowledge.** Skills contain custom user-defined instructions that you do NOT know in advance.\n';
   block += '3. If a user asks "what does skill X do?" or "do you have skill X?" — you MUST call `readSkill` immediately.\n';
   block += '4. The descriptions below are ONLY for discovery — they tell you a skill exists, NOT what it contains. You MUST read the skill to know how to use it.\n';
-  block += '5. **DO NOT GUESS OR HALLUCINATE SKILL PATHS**. You do not know where skills are stored on the disk. NEVER use `cat` to try to read a skill file. You MUST use the `readSkill` tool.\n\n';
+  block += '5. **DO NOT GUESS OR HALLUCINATE SKILL PATHS**. You do not know where skills are stored on the disk. NEVER use `cat` to try to read a skill file. You MUST use the `readSkill` tool.\n';
+  block += '6. **DO NOT RE-READ SKILLS:** If you have already called `readSkill` for a specific skill earlier in this exact same conversation/loop, DO NOT call it again! The contents are already in your chat history context.\n\n';
   block += 'Available skills:\n';
   for (const skill of skills) {
     block += `- ${skill.name}: ${skill.description}\n`;
