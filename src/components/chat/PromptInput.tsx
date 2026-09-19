@@ -1,5 +1,6 @@
 import { renderToString } from 'react-dom/server';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createModel, Model, KaldiRecognizer } from 'vosk-browser';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
@@ -16,6 +17,38 @@ import { getAllTools } from '../../lib/tools';
 import { Puzzle, Globe, Database } from 'lucide-react';
 import Strands from '../Strands';
 import Orb from '../ui/Orb';
+import BorderGlow from '../ui/BorderGlow';
+
+const autoCorrectCodeJargon = (text: string): string => {
+  if (!text) return text;
+  
+  let fixed = text
+    .replace(/\buse effect\b/gi, 'useEffect')
+    .replace(/\buse state\b/gi, 'useState')
+    .replace(/\buse ref\b/gi, 'useRef')
+    .replace(/\buse memo\b/gi, 'useMemo')
+    .replace(/\buse callback\b/gi, 'useCallback')
+    .replace(/\buse context\b/gi, 'useContext')
+    .replace(/\breact\b/gi, 'React')
+    .replace(/\btype script\b/gi, 'TypeScript')
+    .replace(/\bjava script\b/gi, 'JavaScript')
+    .replace(/\bnode js\b/gi, 'Node.js')
+    .replace(/\bnext js\b/gi, 'Next.js')
+    .replace(/\bconsole log\b/gi, 'console.log')
+    .replace(/\bconsole dot log\b/gi, 'console.log')
+    .replace(/\btail wind\b/gi, 'Tailwind')
+    .replace(/\bget hub\b/gi, 'GitHub')
+    .replace(/\bcss\b/g, 'CSS')
+    .replace(/\bhtml\b/g, 'HTML')
+    .replace(/\bapi\b/g, 'API')
+    .replace(/\bjson\b/g, 'JSON')
+    .replace(/\burl\b/g, 'URL')
+    .replace(/\bhttp\b/g, 'HTTP')
+    .replace(/\bui\b/g, 'UI')
+    .replace(/\bux\b/g, 'UX');
+  
+  return fixed;
+};
 
 const MinimaxIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -215,6 +248,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   }, [content]);
   const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
   const textareaRef = useRef<HTMLDivElement>(null);
+  const textBeforeListening = useRef<string>('');
+  const analyserRef = useRef<AnalyserNode | null>(null);
 
   const [selectedImages, setSelectedImages] = useState<{ url: string; file: File }[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -660,6 +695,132 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     };
   }, [showConnectModal]);
 
+
+
+
+
+  const voskModel = useRef<Model | null>(null);
+  const voskRecognizer = useRef<KaldiRecognizer | null>(null);
+  const voskReady = useRef(false);
+  const isTranscribing = useRef(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const initVosk = async () => {
+      try {
+        console.log("Loading Vosk model...");
+        const model = await createModel('/models/vosk-model-v2.tar.gz');
+        if (!isMounted) return;
+        voskModel.current = model;
+        
+        const recognizer = new model.KaldiRecognizer(16000);
+        recognizer.setWords(true);
+        
+        recognizer.on("result", (message: any) => {
+          console.log("Got result:", message);
+          const text = autoCorrectCodeJargon(message.result.text);
+          if (text) {
+            const base = textBeforeListening.current;
+            const space = (base && !base.endsWith(' ') && !text.startsWith(' ') ? ' ' : '');
+            const newText = base + space + text;
+            if (textareaRef.current) {
+              textareaRef.current.innerText = newText;
+              setContent(newText);
+            }
+          }
+        });
+        
+        recognizer.on("partialresult", (message: any) => {
+          console.log("Got partial:", message);
+          const partial = autoCorrectCodeJargon(message.result.partial);
+          if (partial) {
+            const base = textBeforeListening.current;
+            const space = (base && !base.endsWith(' ') && !partial.startsWith(' ') ? ' ' : '');
+            const newText = base + space + partial + "...";
+            if (textareaRef.current) {
+              textareaRef.current.innerText = newText;
+              setContent(newText);
+            }
+          }
+        });
+        
+        voskRecognizer.current = recognizer;
+        voskReady.current = true;
+        console.log("Vosk is READY!");
+      } catch (e) {
+        console.error("Vosk init failed", e);
+      }
+    };
+    initVosk();
+    
+    return () => {
+      isMounted = false;
+      if (voskRecognizer.current) {
+        voskRecognizer.current.remove();
+      }
+      if (voskModel.current) {
+        voskModel.current.terminate();
+      }
+    };
+  }, []);
+
+useEffect(() => {
+    if (!isListening || !micStream) return;
+
+    let audioCtx: AudioContext | null = null;
+    let processor: ScriptProcessorNode | null = null;
+    let source: MediaStreamAudioSourceNode | null = null;
+    let gainNode: GainNode | null = null;
+    
+    let audioData = new Float32Array(0);
+
+    try {
+      // Use native WebAudio resampler by specifying sampleRate: 16000
+      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      source = audioCtx.createMediaStreamSource(micStream);
+      
+      // Create AnalyserNode for Orb
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      processor = audioCtx.createScriptProcessor(4096, 1, 1); 
+      
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0; // mute output so user doesn't hear themselves
+
+      // Stream to Vosk immediately
+      processor.onaudioprocess = (e) => {
+        if (!voskReady.current || !voskRecognizer.current) return;
+        
+        const inputData = e.inputBuffer.getChannelData(0);
+        voskRecognizer.current.acceptWaveformFloat(inputData, 16000);
+      };
+
+      source.connect(processor);
+      processor.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+    } catch (err) {
+      console.error("PCM recording setup failed", err);
+    }
+
+    return () => {
+      if (processor && source && gainNode) {
+        source.disconnect();
+        processor.disconnect();
+        gainNode.disconnect();
+      }
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close().catch((e: any) => console.error(e));
+      }
+    };
+  }, [isListening, micStream]);
+
+
   useEffect(() => {
     let mounted = true;
     const loadItems = async () => {
@@ -677,10 +838,10 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   useEffect(() => {
     if (value) {
-      const prefixMatch = value.match(/^((?:use [\w-]+(?: skill)?)(?:, use [\w-]+(?: skill)?)*)(?:\n\n|$)/);
+      const prefixMatch = value.match(/^((?:use [\w-]+(?: skill)?)(?:(?:, |\s+)use [\w-]+(?: skill)?)*)(?:\n\n|\n|$)/);
       if (prefixMatch) {
         const fullPrefix = prefixMatch[1];
-        const pieces = fullPrefix.split(', ').map(p => p.trim());
+        const pieces: string[] = fullPrefix.match(/use [\w-]+(?: skill)?/g) || [];
 
         const newSelected: any[] = [];
         pieces.forEach(p => {
@@ -1408,10 +1569,15 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         </div>
       )}
 
-      <div className={cn(
-        "bg-[#1c1c21] border shadow-2xl transition-all duration-300 pointer-events-auto relative mx-auto",
-        "w-full rounded-2xl p-3 flex flex-col focus-within:border-white/20 border-white/5"
-      )}>
+      <BorderGlow
+        animated={isAgentRunning}
+        backgroundColor="#1c1c21"
+        borderRadius={16}
+        className={cn(
+          "shadow-2xl transition-all duration-300 pointer-events-auto relative mx-auto",
+          "w-full p-3 flex flex-col focus-within:border-white/20 border-white/5"
+        )}
+      >
           <>
             <AnimatePresence>
               {showAtMenu && atItems.length > 0 && (
@@ -1888,7 +2054,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             hue={318}
                             forceHoverState
                             backgroundColor="#1c1c21"
-                            micStream={micStream}
+                            analyser={analyserRef.current}
                           />
                         </div>
                       </div>
@@ -1936,7 +2102,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
               </div>
             </div>
           </>
-      </div>
+      </BorderGlow>
 
       {suggestedActions.length > 0 && !hasMessages && (
         <div className="flex gap-3 items-center justify-between w-full mt-3 z-10">
@@ -2014,21 +2180,23 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                             <div className="text-[15px] font-medium text-zinc-100 group-hover:text-white transition-colors">{c.name}</div>
                             <div className="text-[12px] text-zinc-500 leading-tight pr-2">{c.desc}</div>
                           </div>
-                          <div className="shrink-0 flex items-center ml-2">
-                            {!c.connected ? (
-                              <button
-                                onClick={c.onConnect}
-                                className="w-8 h-8 rounded-lg bg-transparent border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition-all">
-                                <Plus size={16} />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={c.onDisconnect}
-                                className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all">
-                                <Minus size={16} />
-                              </button>
-                            )}
-                          </div>
+                            <div className="shrink-0 flex items-center ml-2">
+                              {(c.onConnect || c.onDisconnect) && (
+                                !c.connected ? (
+                                  <button
+                                    onClick={c.onConnect}
+                                    className="w-8 h-8 rounded-lg bg-transparent border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition-all">
+                                    <Plus size={16} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={c.onDisconnect}
+                                    className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/20 transition-all">
+                                    <Minus size={16} />
+                                  </button>
+                                )
+                              )}
+                            </div>
                         </motion.div>
                       ))}
                     </AnimatePresence>

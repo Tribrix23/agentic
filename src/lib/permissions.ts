@@ -129,16 +129,19 @@ export function checkPermission(
   const filePath = args.path || args.filePath || '';
   const command = args.command || '';
 
-  // ── 1. Check denied paths ────────────────────────────────────────────
-  if (filePath && isPathDenied(filePath, config.deniedPaths)) {
-    logAudit(toolName, 'deny', 'Path matches denied pattern', args);
-    return 'deny';
-  }
+  // Only enforce hardcoded blocklists if NOT in "Full Permission" mode
+  if (config.securityPreset !== 'full') {
+    // ── 1. Check denied paths ────────────────────────────────────────────
+    if (filePath && isPathDenied(filePath, config.deniedPaths)) {
+      logAudit(toolName, 'deny', 'Path matches denied pattern', args);
+      return 'deny';
+    }
 
-  // ── 2. Check blocked commands ────────────────────────────────────────
-  if (command && isCommandBlocked(command, config.blockedCommands)) {
-    logAudit(toolName, 'deny', 'Command matches blocked pattern', args);
-    return 'deny';
+    // ── 2. Check blocked commands ────────────────────────────────────────
+    if (command && isCommandBlocked(command, config.blockedCommands)) {
+      logAudit(toolName, 'deny', 'Command matches blocked pattern', args);
+      return 'deny';
+    }
   }
 
   // ── 3. Check explicit rules ──────────────────────────────────────────

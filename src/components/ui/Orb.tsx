@@ -7,7 +7,7 @@ interface OrbProps {
   rotateOnHover?: boolean;
   forceHoverState?: boolean;
   backgroundColor?: string;
-  micStream?: MediaStream | null;
+  analyser?: AnalyserNode | null;
 }
 
 export default function Orb({
@@ -16,7 +16,7 @@ export default function Orb({
   rotateOnHover = true,
   forceHoverState = false,
   backgroundColor = '#000000',
-  micStream = null
+  analyser = null
 }: OrbProps) {
   const ctnDom = useRef<HTMLDivElement>(null);
 
@@ -197,21 +197,9 @@ export default function Orb({
     const container = ctnDom.current;
     if (!container) return;
 
-    let audioCtx: AudioContext | null = null;
-    let analyser: AnalyserNode | null = null;
     let dataArray: Uint8Array | null = null;
-
-    if (micStream) {
-      try {
-        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        const source = audioCtx.createMediaStreamSource(micStream);
-        source.connect(analyser);
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-      } catch (e) {
-        console.error("Audio analyser setup failed", e);
-      }
+    if (analyser) {
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
     }
 
     const renderer = new Renderer({ alpha: true, premultipliedAlpha: false });
@@ -331,11 +319,9 @@ export default function Orb({
       container.removeEventListener('mouseleave', handleMouseLeave);
       container.removeChild(gl.canvas);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
-      if (audioCtx && audioCtx.state !== 'closed') {
-        audioCtx.close().catch(e => console.error(e));
-      }
+      
     };
-  }, [hue, hoverIntensity, rotateOnHover, forceHoverState, backgroundColor, micStream]);
+  }, [hue, hoverIntensity, rotateOnHover, forceHoverState, backgroundColor, analyser]);
 
   return <div ref={ctnDom} className="w-full h-full" />;
 }

@@ -151,6 +151,9 @@ export const AddonsView: React.FC<AddonsViewProps> = ({ onClose }) => {
           if (!cmd.includes('-y')) {
             cmd += ' -y';
           }
+          if (cmd.startsWith('npx skills')) {
+            cmd = cmd.replace('npx skills', 'npx --yes skills');
+          }
           console.log(`[AddonsView] Executing: ${cmd} in folder: ${skillsPath}`);
           const result = await electron.runCommandCapture(cmd, skillsPath);
           if (!result.success || result.exitCode !== 0) {

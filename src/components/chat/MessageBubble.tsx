@@ -347,10 +347,10 @@ export function MessageBubble({
   }
 
   if (isUser) {
-    const prefixMatch = displayContent.match(/^((?:use [\w-]+(?: skill)?)(?:, use [\w-]+(?: skill)?)*)(?:\n\n|$)/);
+    const prefixMatch = displayContent.match(/^((?:use [\w-]+(?: skill)?)(?:(?:, |\s+)use [\w-]+(?: skill)?)*)(?:\n\n|\n|$)/);
     if (prefixMatch) {
       const fullPrefix = prefixMatch[1];
-      const pieces = fullPrefix.split(', ').map(p => p.trim());
+      const pieces: string[] = fullPrefix.match(/use [\w-]+(?: skill)?/g) || [];
       
       let htmlChips = '';
       pieces.forEach(p => {
