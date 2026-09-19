@@ -463,15 +463,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name === "send_email") {
     const { to, subject, body } = request.params.arguments;
     try {
+      const encodedSubject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+      const hasHtmlTags = /<[a-z][\s\S]*>/i.test(body);
+      const finalBody = hasHtmlTags ? body : body.replace(/\n/g, '<br>\n');
+      
       const messageParts = [
         `To: ${to}`,
         'Content-Type: text/html; charset=utf-8',
         'MIME-Version: 1.0',
-        `Subject: ${subject}`,
+        `Subject: ${encodedSubject}`,
         '',
-        body
+        finalBody
       ];
-      const message = messageParts.join('\n');
+      const message = messageParts.join('\r\n');
       const encodedMessage = Buffer.from(message)
         .toString('base64')
         .replace(/\+/g, '-')
