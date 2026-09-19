@@ -98,6 +98,8 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
 // ── Plan mode base prompt (used instead of DEFAULT_SYSTEM_PROMPT when in plan mode) ───
 export const PLAN_MODE_BASE_PROMPT = `You are a planning assistant for a coding project. Your role is to inspect the repository and create a detailed implementation plan.
 
+ALWAYS CREATE A PLAN
+
 Do not forget to close all XML tags. For example, if you open a parameter with <path>, you MUST close it with </path>. If you forget closing tags, the tool call will fail and the user will be notified about the error.
 
 Important always finish the tool call that if theres open tag then there must be a closing tag. Example if there is <tool_call> then there should be </tool_call>

@@ -1273,8 +1273,8 @@ IMPORTANT RULES:
       const interactionMode = getInteractionMode(runConfig);
       const readOnly = interactionMode === 'ask';
       const localToolDefinitions = interactionMode === 'plan'
-        ? getPlanToolDefinitions(getAllTools())
-        : readOnly ? getReadOnlyToolDefinitions(getAllTools()) : getToolsForLLM();
+          ? getPlanToolDefinitions(getAllTools())
+          : readOnly ? getReadOnlyToolDefinitions(getAllTools()).filter((t: any) => t.function.name === 'runCommand') : getToolsForLLM();
       const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
       activeRunIdRef.current = runId;
       const newLoop = createAgentLoop(handleAgentEvent, {
@@ -1282,7 +1282,9 @@ IMPORTANT RULES:
         projectContext,
         // Ask deliberately excludes MCP tools until the server advertises a
         // read-only capability; local tools are filtered by an allow-list.
-        toolDefinitions: [...localToolDefinitions, ...(interactionMode === 'agent' ? getMcpToolDefinitions(mcpServers) : [])],
+        toolDefinitions: interactionMode === 'ask'
+            ? localToolDefinitions
+            : [...localToolDefinitions, ...(interactionMode === 'agent' ? getMcpToolDefinitions(mcpServers) : [])],
         toolExecutor: (toolCall, signal, runContext) => toolExecutor(toolCall, signal, { ...runContext, readOnly, interactionMode }),
         conversationId: convId,
         agentRole: 'orchestrator',

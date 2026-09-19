@@ -3,8 +3,8 @@ import type { ToolDefinition } from './types';
 // An allow-list is intentional here. Several legacy tools are labelled "safe"
 // while still changing the workspace, starting processes, or changing state.
 export const READ_ONLY_TOOL_NAMES = new Set([
+  'runCommand',
   'readFile',
-  'readArtifact',
   'listDirectory',
   'searchFiles',
   'findText',

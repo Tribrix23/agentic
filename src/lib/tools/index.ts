@@ -50,7 +50,7 @@ import { definition as getClipboardDef, handler as getClipboardHandler } from '.
 import { definition as setClipboardDef, handler as setClipboardHandler } from './definitions/setClipboard';
 import { definition as listProcessesDef, handler as listProcessesHandler } from './definitions/listProcesses';
 import { definition as killProcessDef, handler as killProcessHandler } from './definitions/killProcess';
-import { definition as readArtifactDef, handler as readArtifactHandler } from './definitions/readArtifact';
+
 import { definition as deepResearchDef, handler as deepResearchHandler } from './definitions/deepResearch';
 
 export * from './types';
@@ -112,7 +112,7 @@ export function initializeTools() {
   // registerTool(setClipboardDef, setClipboardHandler);
   // registerTool(listProcessesDef, listProcessesHandler);
   // registerTool(killProcessDef, killProcessHandler);
-  registerTool(readArtifactDef, readArtifactHandler);
+  
   registerTool(readSkillDef, readSkillHandler);
 }
 
