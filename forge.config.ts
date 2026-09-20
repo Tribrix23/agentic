@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const iconPath = path.resolve(__dirname, 'assets', 'icon');
 const playwrightBrowsersPath = path.resolve(__dirname, 'playwright-browsers');
-const playwrightRuntimePath = path.resolve(__dirname, 'playwright-runtime');
+
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -32,17 +32,15 @@ const config: ForgeConfig = {
     extraResource: [
       path.resolve(__dirname, '.env'),
       path.resolve(__dirname, 'public'),
-      path.resolve(__dirname, 'agentic-mcp-server'),
+      
       path.resolve(__dirname, 'servers'),
       playwrightBrowsersPath,
-      playwrightRuntimePath,
+      
       path.resolve(__dirname, 'assets', 'busybox.exe'),
     ],
   },
 
-  rebuildConfig: {
-    force: true,
-  },
+  rebuildConfig: { onlyModules: [] },
 
   makers: [
     new MakerZIP({}, ['darwin']),

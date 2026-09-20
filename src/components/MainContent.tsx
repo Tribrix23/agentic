@@ -42,6 +42,7 @@ import { ToolApprovalCard } from './chat/ToolApprovalCard';
 import { FileContextBadge } from './chat/FileContextBadge';
 import { PromptInput } from './chat/PromptInput';
 import { QuotaExhaustedNotice } from './chat/QuotaExhaustedNotice';
+import { ServerErrorNotice } from './chat/ServerErrorNotice';
 
 import { sendNotification } from '../lib/notification';
 
@@ -103,6 +104,7 @@ export const MainContent = ({
   useEffect(() => { chatTitleRef.current = chatTitle; }, [chatTitle]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [quotaExhaustedMessage, setQuotaExhaustedMessage] = useState<string | null>(null);
+  const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
 
   // Track active conversation for synchronous access in toolExecutor
   const activeConversationIdRef = useRef<string | null>(activeConversationId);
@@ -1041,6 +1043,7 @@ IMPORTANT RULES:
     isSubmittingRef.current = true;
     quotaExhaustedRef.current = false;
     setQuotaExhaustedMessage(null);
+    setServerErrorMessage(null);
 
     if (!user.token) {
       setAgentStatus('Error: No user ID is available for token billing.');
@@ -1417,6 +1420,28 @@ IMPORTANT RULES:
   }, [setAgentState]);
 
   useEffect(() => {
+    const handleServerError = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message || 'Service error occurred.';
+      quotaExhaustedRef.current = true;
+      if (getAgentLoop()) getAgentLoop().stop();
+      subagentManagerRef.current?.cancelAll();
+      for (const loop of subagentLoopsRef.current.values()) loop.stop();
+      subagentLoopsRef.current.clear();
+      isStreamingRef.current = false;
+      setIsAgentRunning(false);
+      setServerErrorMessage(message);
+      setAgentStatus(`Service Error: ${message}`);
+      setAgentState('error');
+      if (typeof closePlaywrightIfIdle === 'function') closePlaywrightIfIdle();
+      setMessages(prev => prev.map(m => m.isStreaming ? {
+        ...m,
+        isStreaming: false,
+        isCancelled: true,
+      } : m));
+    };
+    window.addEventListener('server-error', handleServerError);
+    
+    // Original quota handler
     const handleQuotaExhausted = (event: Event) => {
       const message = (event as CustomEvent<{ message?: string }>).detail?.message || 'Weekly token quota is exhausted.';
       quotaExhaustedRef.current = true;
@@ -1440,7 +1465,7 @@ IMPORTANT RULES:
       } : m));
     };
     window.addEventListener('token-quota-exhausted', handleQuotaExhausted);
-    return () => window.removeEventListener('token-quota-exhausted', handleQuotaExhausted);
+    return () => { window.removeEventListener('token-quota-exhausted', handleQuotaExhausted); window.removeEventListener('server-error', handleServerError); };
   }, []);
 
   useEffect(() => {
@@ -1908,6 +1933,8 @@ IMPORTANT RULES:
                 onInputChange={setInputValue}
                 userId={user.token}
                 quotaExhaustedMessage={quotaExhaustedMessage}
+                  serverErrorMessage={serverErrorMessage}
+                  onDismissServerError={() => setServerErrorMessage(null)}
                 onDismissQuota={() => setQuotaExhaustedMessage(null)}
                 onSelectAnotherModel={() => window.dispatchEvent(new Event('open-model-picker'))}
                 onUpgradePlan={() => (window as any).electron?.openExternal?.('https://quantix.devctr.com/?source=desktop_app')}
@@ -1939,6 +1966,15 @@ IMPORTANT RULES:
           </AnimatePresence>
 
           {messages.length === 0 && projectSelectorNode}
+          {messages.length === 0 && serverErrorMessage && (
+            <div className="mb-2 flex w-full justify-center">
+              <ServerErrorNotice
+                message={serverErrorMessage}
+                onDismiss={() => setServerErrorMessage(null)}
+                onSelectModel={() => window.dispatchEvent(new Event('open-model-picker'))}
+              />
+            </div>
+          )}
           {messages.length === 0 && quotaExhaustedMessage && (
             <div className="mb-2 flex w-full justify-center">
               <QuotaExhaustedNotice

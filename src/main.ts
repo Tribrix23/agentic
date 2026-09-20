@@ -255,7 +255,7 @@ function createWindow() {
     if (mainWindow === window) mainWindow = null;
   });
 
-  const mcpNodeEnv = app.isPackaged 
+  const mcpNodeEnv = app.isPackaged
     ? { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_PATH: path.join(process.resourcesPath, 'app.asar', 'node_modules') }
     : { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
 
@@ -263,7 +263,7 @@ function createWindow() {
   if (!mcpClientManager.getServer('sequential-thinking')) {
     const isPackaged = app.isPackaged;
     const serverEntry = isPackaged
-      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js')
+      ? path.join(process.resourcesPath, 'servers', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js')
       : path.join(__dirname, '..', '..', 'servers', 'node_modules', '@modelcontextprotocol', 'server-sequential-thinking', 'dist', 'index.js');
     mcpClientManager.addServer({
       id: 'sequential-thinking',
@@ -283,7 +283,7 @@ function createWindow() {
   if (!mcpClientManager.getServer('agentic-mcp-server')) {
     const isPackaged = app.isPackaged;
     const agenticPath = isPackaged
-      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'agentic-mcp-server', 'dist', 'index.js')
+      ? path.join(process.resourcesPath, 'servers', 'agentic-mcp-server', 'dist', 'index.js')
       : path.join(__dirname, '..', '..', 'servers', 'agentic-mcp-server', 'dist', 'index.js');
 
     mcpClientManager.addServer({
@@ -301,191 +301,191 @@ function createWindow() {
     void mcpClientManager.connectServer('agentic-mcp-server').catch(error => console.error('[MCP] Agentic MCP Server failed to connect:', error));
   }
 
-    if (!mcpClientManager.getServer('playwright')) {
+  if (!mcpClientManager.getServer('playwright')) {
+    const isPackaged = app.isPackaged;
+    const playwrightCli = isPackaged
+      ? path.join(process.resourcesPath, 'servers', 'node_modules', '@playwright', 'mcp', 'cli.js')
+      : path.join(__dirname, '..', '..', 'servers', 'node_modules', '@playwright', 'mcp', 'cli.js');
+    const browserPath = isPackaged
+      ? path.join(process.resourcesPath, 'playwright-browsers')
+      : path.join(__dirname, '..', '..', 'playwright-browsers');
+    const browserExecutable = fs.existsSync(browserPath) ? getPlaywrightBrowserExecutable(browserPath) : undefined;
+    const outputDir = path.join(app.getPath('temp'), 'quantix-playwright-mcp');
+
+    const playwrightReady = fs.existsSync(playwrightCli) && Boolean(browserExecutable && fs.existsSync(browserExecutable));
+
+    if (!fs.existsSync(playwrightCli)) {
+      console.error(`[MCP] Playwright CLI missing: ${playwrightCli}`);
+    } else if (!browserExecutable || !fs.existsSync(browserExecutable)) {
+      console.error(`[MCP] Playwright Chromium missing from: ${browserPath}`);
+    }
+
+    mcpClientManager.addServer({
+      id: 'playwright',
+      name: 'Playwright Browser',
+      transport: {
+        type: 'stdio',
+        command: process.execPath,
+        args: [playwrightCli, '--browser', 'chromium', '--isolated', '--save-session', '--timeout-action', '5000', '--timeout-navigation', '120000', '--timeout-settle', '2000', '--output-dir', outputDir],
+        env: {
+          ...(mcpNodeEnv as Record<string, string>),
+          PLAYWRIGHT_BROWSERS_PATH: browserPath,
+          PLAYWRIGHT_MCP_OUTPUT_DIR: outputDir
+        }
+      },
+      permissions: ['read', 'write', 'execute', 'network'],
+      autoConnect: true,
+    });
+
+    if (playwrightReady) {
+      void mcpClientManager.connectServer('playwright').catch(error => console.error('[MCP] Playwright failed to connect:', error));
+    } else if (!fs.existsSync(playwrightCli)) {
+      mcpClientManager.reportServerError('playwright', `Playwright CLI is missing: ${playwrightCli}`);
+    } else {
+      mcpClientManager.reportServerError('playwright', `Playwright Chromium is missing from: ${browserPath}`);
+    }
+  }
+
+  setTimeout(() => {
+    if (!mcpClientManager.getServer('gdrive')) {
       const isPackaged = app.isPackaged;
-      const playwrightCli = isPackaged
-        ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'node_modules', '@playwright', 'mcp', 'cli.js')
-        : path.join(__dirname, '..', '..', 'servers', 'node_modules', '@playwright', 'mcp', 'cli.js');
-      const browserPath = isPackaged
-        ? path.join(process.resourcesPath, 'playwright-browsers')
-        : path.join(__dirname, '..', '..', 'playwright-browsers');
-      const browserExecutable = fs.existsSync(browserPath) ? getPlaywrightBrowserExecutable(browserPath) : undefined;
-      const outputDir = path.join(app.getPath('temp'), 'quantix-playwright-mcp');
-      
-      const playwrightReady = fs.existsSync(playwrightCli) && Boolean(browserExecutable && fs.existsSync(browserExecutable));
-      
-      if (!fs.existsSync(playwrightCli)) {
-        console.error(`[MCP] Playwright CLI missing: ${playwrightCli}`);
-      } else if (!browserExecutable || !fs.existsSync(browserExecutable)) {
-        console.error(`[MCP] Playwright Chromium missing from: ${browserPath}`);
-      }
+      const gdriveServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'gdrive-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'gdrive-mcp', 'index.js');
 
       mcpClientManager.addServer({
-        id: 'playwright',
-        name: 'Playwright Browser',
-        transport: { 
-          type: 'stdio', 
-          command: process.execPath, 
-          args: [playwrightCli, '--browser', 'chromium', '--isolated', '--save-session', '--timeout-action', '5000', '--timeout-navigation', '120000', '--timeout-settle', '2000', '--output-dir', outputDir], 
-          env: {
-            ...(mcpNodeEnv as Record<string, string>),
-            PLAYWRIGHT_BROWSERS_PATH: browserPath,
-            PLAYWRIGHT_MCP_OUTPUT_DIR: outputDir
-          }
+        id: 'gdrive',
+        name: 'Google Drive',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [gdriveServerPath],
+          env: mcpNodeEnv as Record<string, string>,
         },
         permissions: ['read', 'write', 'execute', 'network'],
         autoConnect: true,
       });
-
-      if (playwrightReady) {
-        void mcpClientManager.connectServer('playwright').catch(error => console.error('[MCP] Playwright failed to connect:', error));
-      } else if (!fs.existsSync(playwrightCli)) {
-        mcpClientManager.reportServerError('playwright', `Playwright CLI is missing: ${playwrightCli}`);
-      } else {
-        mcpClientManager.reportServerError('playwright', `Playwright Chromium is missing from: ${browserPath}`);
-      }
+      void mcpClientManager.connectServer('gdrive').catch(error => console.error('[MCP] GDrive failed to connect:', error));
     }
 
-  setTimeout(() => {
-  if (!mcpClientManager.getServer('gdrive')) {
-    const isPackaged = app.isPackaged;
-    const gdriveServerPath = isPackaged
-      ? path.join(process.resourcesPath, 'servers', 'gdrive-mcp', 'index.js')
-      : path.join(__dirname, '..', '..', 'servers', 'gdrive-mcp', 'index.js');
+    if (!mcpClientManager.getServer('gmail')) {
+      const isPackaged = app.isPackaged;
+      const gmailServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'gmail-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'gmail-mcp', 'index.js');
 
-    mcpClientManager.addServer({
-      id: 'gdrive',
-      name: 'Google Drive',
-      transport: {
-        type: 'stdio',
-        command: process.execPath,
-        args: [gdriveServerPath],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('gdrive').catch(error => console.error('[MCP] GDrive failed to connect:', error));
-  }
+      mcpClientManager.addServer({
+        id: 'gmail',
+        name: 'GMail',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [gmailServerPath],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('gmail').catch(error => console.error('[MCP] GMail failed to connect:', error));
+    }
 
-  if (!mcpClientManager.getServer('gmail')) {
-    const isPackaged = app.isPackaged;
-    const gmailServerPath = isPackaged
-      ? path.join(process.resourcesPath, 'servers', 'gmail-mcp', 'index.js')
-      : path.join(__dirname, '..', '..', 'servers', 'gmail-mcp', 'index.js');
+    if (!mcpClientManager.getServer('supabase')) {
+      const isPackaged = app.isPackaged;
+      const supabaseServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'supabase-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'supabase-mcp', 'index.js');
 
-    mcpClientManager.addServer({
-      id: 'gmail',
-      name: 'GMail',
-      transport: {
-        type: 'stdio',
-        command: process.execPath,
-        args: [gmailServerPath],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('gmail').catch(error => console.error('[MCP] GMail failed to connect:', error));
-  }
+      mcpClientManager.addServer({
+        id: 'supabase',
+        name: 'Supabase',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [supabaseServerPath],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('supabase').catch(error => console.error('[MCP] Supabase failed to connect:', error));
+    }
 
-  if (!mcpClientManager.getServer('supabase')) {
-    const isPackaged = app.isPackaged;
-    const supabaseServerPath = isPackaged
-      ? path.join(process.resourcesPath, 'servers', 'supabase-mcp', 'index.js')
-      : path.join(__dirname, '..', '..', 'servers', 'supabase-mcp', 'index.js');
+    if (!mcpClientManager.getServer('figma')) {
+      const isPackaged = app.isPackaged;
+      const figmaServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'figma-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'figma-mcp', 'index.js');
 
-    mcpClientManager.addServer({
-      id: 'supabase',
-      name: 'Supabase',
-      transport: {
-        type: 'stdio',
-        command: process.execPath,
-        args: [supabaseServerPath],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('supabase').catch(error => console.error('[MCP] Supabase failed to connect:', error));
-  }
-
-  if (!mcpClientManager.getServer('figma')) {
-    const isPackaged = app.isPackaged;
-    const figmaServerPath = isPackaged
-      ? path.join(process.resourcesPath, 'servers', 'figma-mcp', 'index.js')
-      : path.join(__dirname, '..', '..', 'servers', 'figma-mcp', 'index.js');
-
-    mcpClientManager.addServer({
-      id: 'figma',
-      name: 'Figma',
-      transport: {
-        type: 'stdio',
-        command: process.execPath,
-        args: [figmaServerPath],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('figma').catch(error => console.error('[MCP] Figma failed to connect:', error));
-  }
+      mcpClientManager.addServer({
+        id: 'figma',
+        name: 'Figma',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [figmaServerPath],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('figma').catch(error => console.error('[MCP] Figma failed to connect:', error));
+    }
 
 
-  if (!mcpClientManager.getServer('github')) {
-    const isPackaged = app.isPackaged;
-    const githubServerPath = isPackaged
-      ? path.join(process.resourcesPath, 'servers', 'github-mcp', 'index.js')
-      : path.join(__dirname, '..', '..', 'servers', 'github-mcp', 'index.js');
+    if (!mcpClientManager.getServer('github')) {
+      const isPackaged = app.isPackaged;
+      const githubServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'github-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'github-mcp', 'index.js');
 
-    mcpClientManager.addServer({
-      id: 'github',
-      name: 'GitHub',
-      transport: {
-        type: 'stdio',
-        command: process.execPath,
-        args: [githubServerPath],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('github').catch(error => console.error('[MCP] GitHub failed to connect:', error));
-  }
-  if (!mcpClientManager.getServer('vercel')) {
-    const isPackaged = app.isPackaged;
-    const vercelServerPath = isPackaged
-      ? path.join(process.resourcesPath, 'servers', 'vercel-mcp', 'index.js')
-      : path.join(__dirname, '..', '..', 'servers', 'vercel-mcp', 'index.js');
+      mcpClientManager.addServer({
+        id: 'github',
+        name: 'GitHub',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [githubServerPath],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('github').catch(error => console.error('[MCP] GitHub failed to connect:', error));
+    }
+    if (!mcpClientManager.getServer('vercel')) {
+      const isPackaged = app.isPackaged;
+      const vercelServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'vercel-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'vercel-mcp', 'index.js');
 
-    mcpClientManager.addServer({
-      id: 'vercel',
-      name: 'Vercel',
-      transport: {
-        type: 'stdio',
-        command: process.execPath,
-        args: [vercelServerPath],
-        env: mcpNodeEnv as Record<string, string>,
-      },
-      permissions: ['read', 'write', 'execute', 'network'],
-      autoConnect: true,
-    });
-    void mcpClientManager.connectServer('vercel').catch(error => console.error('[MCP] Vercel failed to connect:', error));
-  }
+      mcpClientManager.addServer({
+        id: 'vercel',
+        name: 'Vercel',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [vercelServerPath],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('vercel').catch(error => console.error('[MCP] Vercel failed to connect:', error));
+    }
 
     if (!mcpClientManager.getServer('shadcn')) {
-        mcpClientManager.addServer({
+      mcpClientManager.addServer({
         id: 'shadcn',
         name: 'Shadcn UI',
         transport: {
           type: 'stdio',
           command: process.platform === 'win32' ? 'node.exe' : 'node',
-            args: [
-              app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'servers', 'node_modules', 'shadcn', 'dist', 'index.js')
-                : path.join(__dirname, '..', '..', 'servers', 'node_modules', 'shadcn', 'dist', 'index.js'),
-              'mcp'
-            ],
+          args: [
+            app.isPackaged
+              ? path.join(process.resourcesPath, 'servers', 'node_modules', 'shadcn', 'dist', 'index.js')
+              : path.join(__dirname, '..', '..', 'servers', 'node_modules', 'shadcn', 'dist', 'index.js'),
+            'mcp'
+          ],
           env: mcpNodeEnv as Record<string, string>,
         },
         permissions: ['read', 'write', 'execute', 'network'],
@@ -1635,7 +1635,7 @@ function createWindow() {
     }
   });
 
-  
+
 
   const emailCache = new Map<string, { email: string; timestamp: number }>();
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -1707,7 +1707,7 @@ function createWindow() {
   const isDevtools = true; // Set to false to disable DevTools shortcut
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    const isExitShortcut = 
+    const isExitShortcut =
       ((input.control || input.meta) && input.key.toLowerCase() === 'w') ||
       ((input.control || input.meta) && input.key.toLowerCase() === 'q');
 
@@ -1744,18 +1744,26 @@ function createWindow() {
 }
 
 
+
+ipcMain.handle('read-docx-buffer', async (_event, filePath: string) => {
+  const fs = require('fs');
+  const buffer = await fs.promises.readFile(filePath);
+  // Return the buffer directly; Electron's IPC will serialize it to a Uint8Array
+  return buffer;
+});
+
 ipcMain.handle('print-to-pdf', async (event, suggestedName) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return false;
-  
+
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: 'Export as PDF',
     defaultPath: suggestedName || 'document.pdf',
     filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
   });
-  
+
   if (canceled || !filePath) return false;
-  
+
   try {
     const pdfData = await event.sender.printToPDF({
       printBackground: true,
@@ -1771,29 +1779,29 @@ ipcMain.handle('print-to-pdf', async (event, suggestedName) => {
 
 
 
-  ipcMain.handle('preview-pdf', async (event) => {
-    try {
-      const pdfData = await event.sender.printToPDF({
-        printBackground: true,
-        preferCSSPageSize: true
-      });
-      const os = require('node:os');
-      const tempPath = require('node:path').join(os.tmpdir(), 'preview-' + Date.now() + '.pdf');
-      require('node:fs').writeFileSync(tempPath, pdfData);
-      
-      const previewWin = new BrowserWindow({
-        width: 1024,
-        height: 768,
-        title: 'Print Preview',
-        webPreferences: {
-          plugins: true,
-        }
-      });
-      previewWin.setMenu(null);
-      previewWin.loadURL('file://' + tempPath.replace(/\\/g, '/'));
-      return true;
-    } catch (error) {
-      console.error('Failed to generate print preview:', error);
-      return false;
-    }
+ipcMain.handle('preview-pdf', async (event) => {
+  try {
+    const pdfData = await event.sender.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+    const os = require('node:os');
+    const tempPath = require('node:path').join(os.tmpdir(), 'preview-' + Date.now() + '.pdf');
+    require('node:fs').writeFileSync(tempPath, pdfData);
+
+    const previewWin = new BrowserWindow({
+      width: 1024,
+      height: 768,
+      title: 'Print Preview',
+      webPreferences: {
+        plugins: true,
+      }
+    });
+    previewWin.setMenu(null);
+    previewWin.loadURL('file://' + tempPath.replace(/\\/g, '/'));
+    return true;
+  } catch (error) {
+    console.error('Failed to generate print preview:', error);
+    return false;
+  }
 });

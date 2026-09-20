@@ -53,8 +53,13 @@ export const DocxViewer = ({ filePath }: { filePath: string }) => {
       list: async () => [],
       open: async (id: string) => {
         try {
-          const response = await fetch(`file:///${id.replace(/\\/g, '/').replace(/^\//, '')}`);
-          const bytes = await response.arrayBuffer();
+          let bytes;
+          if (typeof window !== 'undefined' && (window as any).electron?.readDocxBuffer) {
+             bytes = await (window as any).electron.readDocxBuffer(id);
+          } else {
+             const response = await fetch(`file:///${id.replace(/\\/g, '/').replace(/^\//, '')}`);
+             bytes = await response.arrayBuffer();
+          }
           return { bytes, name: id.split('/').pop() || id.split('\\').pop() || 'Document', readOnly: false };
         } catch (e) {
           console.error(e);

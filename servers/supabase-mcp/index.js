@@ -376,7 +376,7 @@ app.post('/auth/disconnect', (req, res) => {
   res.json({ success: true });
 });
 
-app.listen(3003, () => {
+app.listen(3003, '127.0.0.1', () => {
   console.error('Supabase Auth Server running on port 3003');
 });
 

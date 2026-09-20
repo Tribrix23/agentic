@@ -303,7 +303,7 @@ app.post('/auth/disconnect', async (req, res) => {
   }
 });
 
-const httpServer = app.listen(3001, () => {
+const httpServer = app.listen(3001, '127.0.0.1', () => {
   console.error("GMail OAuth Server listening on http://localhost:3001");
 });
 

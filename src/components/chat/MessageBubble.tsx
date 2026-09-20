@@ -286,7 +286,7 @@ export function MessageBubble({
         const functionRegex = /<function=([a-zA-Z0-9_-]+)>/gi;
         let functionMatch;
         let matchCounter = 0;
-        
+
         const allMatches = Array.from(rawContent.matchAll(functionRegex)).filter(match => {
           const before = rawContent.slice(0, match.index);
           const lastParamOpen = Math.max(before.lastIndexOf('<parameter='), before.lastIndexOf('<parameter '));
@@ -351,7 +351,7 @@ export function MessageBubble({
     if (prefixMatch) {
       const fullPrefix = prefixMatch[1];
       const pieces: string[] = fullPrefix.match(/use [\w-]+(?: skill)?/g) || [];
-      
+
       let htmlChips = '';
       pieces.forEach(p => {
         if (p.endsWith(' skill')) {
@@ -362,7 +362,7 @@ export function MessageBubble({
           htmlChips += `<span data-agentic-chip="true" data-name="${name}" data-type="tool"></span>`;
         }
       });
-      
+
       displayContent = htmlChips + displayContent.slice(prefixMatch[0].length);
     }
   }
@@ -498,9 +498,9 @@ export function MessageBubble({
 
           {(displayContent || (isUser && firstMessage.attachments && firstMessage.attachments.length > 0)) ? (
             <div className={cn(
-              "px-4 py-3 rounded-2xl relative group/usercontent",
+              "px-4 py-3 rounded-lg relative group/usercontent",
               isUser
-                ? "bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] text-white rounded-tr-sm w-full pr-10"
+                ? "bg-gradient-to-br from-[#4F46E5] to-[#3a2e52] text-white rounded-tr-sm w-full pr-10"
                 : "text-white/90 mt-1 w-full min-w-0 break-words"
             )}>
               {displayContent ? (
@@ -510,10 +510,10 @@ export function MessageBubble({
               {isUser && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover/usercontent:opacity-100 transition-opacity">
                   <Tooltip content="Undo changes up to this point"><button
-                      onClick={() => setShowUndoModal(true)}
-                      className="hover:text-white/80 transition-colors p-1">
-                      <Undo2 size={16} />
-                    </button></Tooltip>
+                    onClick={() => setShowUndoModal(true)}
+                    className="hover:text-white/80 transition-colors p-1">
+                    <Undo2 size={16} />
+                  </button></Tooltip>
                 </div>
               )}
 
@@ -630,18 +630,18 @@ export function MessageBubble({
             "flex items-center gap-2 text-[10px] text-white/40 opacity-0 group-hover/bubble:opacity-100 transition-opacity absolute -bottom-6 whitespace-nowrap",
             isUser ? "right-1" : "left-1"
           )}>
-            <span>{new Date(firstMessage.timestamp).toLocaleTimeString([], {hour: 'numeric', minute:'2-digit'})}</span>
+            <span>{new Date(firstMessage.timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
             {isUser && (
               <>
                 <Tooltip content={isTextCopied ? "Copied!" : "Copy"}><button
-                    onClick={() => {
-                      navigator.clipboard.writeText(firstMessage.content || '');
-                      setIsTextCopied(true);
-                      setTimeout(() => setIsTextCopied(false), 2000);
-                    }}
-                    className="hover:text-white transition-colors flex items-center justify-center w-4 h-4">
-                    {isTextCopied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
-                  </button></Tooltip>
+                  onClick={() => {
+                    navigator.clipboard.writeText(firstMessage.content || '');
+                    setIsTextCopied(true);
+                    setTimeout(() => setIsTextCopied(false), 2000);
+                  }}
+                  className="hover:text-white transition-colors flex items-center justify-center w-4 h-4">
+                  {isTextCopied ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                </button></Tooltip>
               </>
             )}
           </div>
@@ -705,7 +705,7 @@ export function MessageBubble({
                             img.src = previewImage;
                           });
                         });
-                      
+
                       await navigator.clipboard.write([
                         new ClipboardItem({ 'image/png': blobPromise })
                       ]);

@@ -303,7 +303,7 @@ app.post('/auth/disconnect', async (req, res) => {
   }
 });
 
-const httpServer = app.listen(3002, () => {
+const httpServer = app.listen(3002, '127.0.0.1', () => {
   console.error("Google Drive OAuth Server listening on http://localhost:3002");
 });
 

@@ -6,6 +6,8 @@ import path from 'path';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  worker: { format: 'es' },
+  build: { sourcemap: false, chunkSizeWarningLimit: 2000 },
   resolve: {
     alias: [
       { find: '@casualoffice/docs/styles.css', replacement: path.resolve(__dirname, 'downloads/casual-office/docx-editor/packages/react/src/styles/editor.css') },

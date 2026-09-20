@@ -394,7 +394,7 @@ app.post('/auth/disconnect', (req, res) => {
   res.json({ success: true });
 });
 
-app.listen(3004, () => {
+app.listen(3004, '127.0.0.1', () => {
   console.error('Figma Auth Server running on port 3004');
 });
 

@@ -74,6 +74,14 @@ export function getQuotaTarget(model: string): TokenQuotaTarget {
 
 export function getModelUsageMultiplier(model: string): number {
   const normalized = model.toLowerCase();
+
+  if (normalized.includes('qwen') || normalized.includes('minimax')) {
+    if (normalized.includes('max')) return 3.0;
+    if (normalized.includes('plus')) return 2.0;
+    if (normalized.includes('flash') || normalized.includes('m3')) return 1.5;
+    return 1.75;
+  }
+
   if (normalized.includes('dispatcher v1') && !normalized.includes('v1.2')) return 0.75;
   if (normalized.includes('dispatcher v1.2')) return 0.9;
 

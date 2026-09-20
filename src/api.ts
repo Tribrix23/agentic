@@ -171,14 +171,14 @@ function getModelInfo(model: string): {
 
   // Check for Qwen models
   if (lowerModel.includes('qwen')) {
-    let modelName = 'qwen3.7-flash'; // default
+    let modelName = 'qwen/qwen3.7-flash:free'; // default
     if (lowerModel.includes('plus')) {
-      modelName = 'qwen3.7-plus';
+      modelName = 'qwen/qwen3.7-plus:free';
     } else if (lowerModel.includes('max')) {
-      modelName = 'qwen3.7-max';
+      modelName = 'qwen/qwen3.7-max:free';
     }
     return {
-      endpoint: MODELS_ENDPOINT,
+      endpoint: 'https://api.devctr.com/api/models',
       modelName,
       level: null // Qwen doesn't use level parameter
     };
@@ -506,9 +506,18 @@ export const callDispatcherAPI = async (params: DispatcherAPIParams | LegacyDisp
           const errorData = await response.json().catch(() => ({}));
           const errorMsg = errorData.message || errorData.error || response.statusText;
 
-          if (response.status >= 500 && attempt < config.maxRetries) {
-            lastError = new Error(`Server error (${response.status}): ${errorMsg}`);
-            continue; // Retry on server errors
+          if (response.status >= 500) {
+            if (attempt < config.maxRetries) {
+              lastError = new Error(`Server error (${response.status}): ${errorMsg}`);
+              continue; // Retry on server errors
+            } else {
+              const customMsg = "The model is down please choose another one sorry for inconvenience";
+              window.dispatchEvent(new CustomEvent('server-error', {
+                detail: { message: customMsg }
+              }));
+              onError(new Error(customMsg));
+              return;
+            }
           }
 
           onError(new Error(`API Error (${response.status}): ${errorMsg}`));

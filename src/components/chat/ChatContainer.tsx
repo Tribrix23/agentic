@@ -10,6 +10,7 @@ import { AgentState } from '../../lib/types/AgentTypes';
 import { ToolApprovalCard } from './ToolApprovalCard';
 import { AskUserCard } from './AskUserCard';
 import { QuotaExhaustedNotice } from './QuotaExhaustedNotice';
+import { ServerErrorNotice } from './ServerErrorNotice';
 import { isAgentRunActive } from '../../lib/agentPresentation';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
@@ -39,6 +40,8 @@ interface ChatContainerProps {
   onInputChange?: (val: string) => void;
   userId?: string;
   quotaExhaustedMessage?: string | null;
+  serverErrorMessage?: string | null;
+  onDismissServerError?: () => void;
   onDismissQuota?: () => void;
   onSelectAnotherModel?: () => void;
   onUpgradePlan?: () => void;
@@ -70,6 +73,8 @@ export function ChatContainer({
   onInputChange,
   userId,
   quotaExhaustedMessage,
+  serverErrorMessage,
+  onDismissServerError,
   onDismissQuota,
   onSelectAnotherModel,
   onUpgradePlan

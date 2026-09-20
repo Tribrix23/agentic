@@ -290,7 +290,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 });
                 if (credsRes.ok) {
                   const credentials = await credsRes.json();
-                  await fetch('http://localhost:3001/set-credentials', {
+                  await fetch('http://127.0.0.1:3001/set-credentials', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ clientId: credentials.Public, clientSecret: credentials.Public_key })
@@ -298,7 +298,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 }
               } catch(err) { console.error("Failed to dynamically set Gmail credentials:", err); }
             }
-            const res = await fetch('http://localhost:3001/auth/url');
+            const res = await fetch('http://127.0.0.1:3001/auth/url');
           const data = await res.json();
           if ((window as any).electron?.openExternal) {
             (window as any).electron.openExternal(data.url);
@@ -311,7 +311,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       },
       onDisconnect: async () => {
         try {
-          await fetch('http://localhost:3001/auth/disconnect', { method: 'POST' });
+          await fetch('http://127.0.0.1:3001/auth/disconnect', { method: 'POST' });
           setGmailConnected(false);
         } catch (e) {
           alert('Failed to disconnect GMail.');
@@ -336,7 +336,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 });
                 if (credsRes.ok) {
                   const credentials = await credsRes.json();
-                  await fetch('http://localhost:3002/set-credentials', {
+                  await fetch('http://127.0.0.1:3002/set-credentials', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ clientId: credentials.Public, clientSecret: credentials.Public_key })
@@ -344,7 +344,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                 }
               } catch(err) { console.error("Failed to dynamically set GDrive credentials:", err); }
             }
-            const res = await fetch('http://localhost:3002/auth/url');
+            const res = await fetch('http://127.0.0.1:3002/auth/url');
           const data = await res.json();
           if ((window as any).electron?.openExternal) {
             (window as any).electron.openExternal(data.url);
@@ -357,7 +357,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       },
       onDisconnect: async () => {
         try {
-          await fetch('http://localhost:3002/auth/disconnect', { method: 'POST' });
+          await fetch('http://127.0.0.1:3002/auth/disconnect', { method: 'POST' });
           setGdriveConnected(false);
         } catch (e) {
           alert('Failed to disconnect Google Drive.');
@@ -373,7 +373,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         connected: githubConnected,
         onConnect: async () => {
           try {
-            const res = await fetch('http://localhost:3005/auth/url');
+            const res = await fetch('http://127.0.0.1:3005/auth/url');
             const data = await res.json();
             if (window.electron?.openExternal) {
               window.electron.openExternal(data.url);
@@ -386,7 +386,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         },
         onDisconnect: async () => {
           try {
-            await fetch('http://localhost:3005/auth/disconnect', { method: 'POST' });
+            await fetch('http://127.0.0.1:3005/auth/disconnect', { method: 'POST' });
             setGithubConnected(false);
           } catch (e) {
             alert('Failed to disconnect GitHub.');
@@ -402,7 +402,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       connected: supabaseConnected,
       onConnect: async () => {
         try {
-          const res = await fetch('http://localhost:3003/auth/url');
+          const res = await fetch('http://127.0.0.1:3003/auth/url');
           const data = await res.json();
           if ((window as any).electron?.openExternal) {
             (window as any).electron.openExternal(data.url);
@@ -415,7 +415,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       },
       onDisconnect: async () => {
         try {
-          await fetch('http://localhost:3003/auth/disconnect', { method: 'POST' });
+          await fetch('http://127.0.0.1:3003/auth/disconnect', { method: 'POST' });
           setSupabaseConnected(false);
         } catch (e) {
           alert('Failed to disconnect Supabase.');
@@ -430,7 +430,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       connected: vercelConnected,
       onConnect: async () => {
         try {
-          const res = await fetch('http://localhost:3006/auth/url');
+          const res = await fetch('http://127.0.0.1:3006/auth/url');
           const data = await res.json();
           if ((window as any).electron?.openExternal) {
             (window as any).electron.openExternal(data.url);
@@ -443,7 +443,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       },
       onDisconnect: async () => {
         try {
-          await fetch('http://localhost:3006/auth/disconnect', { method: 'POST' });
+          await fetch('http://127.0.0.1:3006/auth/disconnect', { method: 'POST' });
           setVercelConnected(false); } catch (e) { alert('Failed to disconnect Vercel.'); } } }, { id: 'shadcn', name: 'Shadcn UI', desc: 'Browse, search, and install React components using natural language', icon: './shadcn.png', connected: true },
     {
       id: 'figma',
@@ -453,7 +453,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       connected: figmaConnected,
       onConnect: async () => {
         try {
-          const res = await fetch('http://localhost:3004/auth/url');
+          const res = await fetch('http://127.0.0.1:3004/auth/url');
           const data = await res.json();
           if ((window as any).electron?.openExternal) {
             (window as any).electron.openExternal(data.url);
@@ -466,7 +466,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       },
       onDisconnect: async () => {
         try {
-          await fetch('http://localhost:3004/auth/disconnect', { method: 'POST' });
+          await fetch('http://127.0.0.1:3004/auth/disconnect', { method: 'POST' });
           setFigmaConnected(false);
         } catch (e) {
           alert('Failed to disconnect Figma.');
@@ -520,7 +520,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3002/auth/status');
+        const res = await fetch('http://127.0.0.1:3002/auth/status');
         if (!isMounted) return;
         const data = await res.json();
         setGdriveConnected(data.connected === true);
@@ -552,7 +552,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3003/auth/status');
+        const res = await fetch('http://127.0.0.1:3003/auth/status');
         if (!isMounted) return;
         const data = await res.json();
         setSupabaseConnected(data.connected === true);
@@ -583,7 +583,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3004/auth/status');
+        const res = await fetch('http://127.0.0.1:3004/auth/status');
         if (!isMounted) return;
         const data = await res.json();
         setFigmaConnected(data.connected === true);
@@ -611,7 +611,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3006/auth/status');
+        const res = await fetch('http://127.0.0.1:3006/auth/status');
         if (!isMounted) return;
         const data = await res.json();
         setVercelConnected(data.connected === true);
@@ -639,7 +639,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3005/auth/status');
+        const res = await fetch('http://127.0.0.1:3005/auth/status');
         if (!isMounted) return;
         const data = await res.json();
         setGithubConnected(prev => {
@@ -672,7 +672,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
     const check = async () => {
       try {
-        const res = await fetch('http://localhost:3001/auth/status');
+        const res = await fetch('http://127.0.0.1:3001/auth/status');
         if (!isMounted) return;
         const data = await res.json();
         setGmailConnected(data.connected === true);
@@ -710,7 +710,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     const initVosk = async () => {
       try {
         console.log("Loading Vosk model...");
-        const model = await createModel('/models/vosk-model-v2.tar.gz');
+        const model = await createModel('./models/vosk-model-v2.tar.gz');
         if (!isMounted) return;
         voskModel.current = model;
         
@@ -1810,6 +1810,7 @@ useEffect(() => {
               <div
                 ref={textareaRef}
                 contentEditable={true}
+                  style={{ userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text', caretColor: '#e2e2e3', WebkitAppRegion: 'no-drag' }}
                 onInput={handleTextChange}
                 onKeyDown={handleKeyDown}
                 onPaste={(e) => {
@@ -1829,7 +1830,7 @@ useEffect(() => {
                   }
                 }}
                 data-placeholder={selectedSlashCommands.length > 0 || selectedImages.length > 0 || mentionedFiles.length > 0 || (textareaRef.current && textareaRef.current.querySelector('span[data-mcp]')) ? "" : "Ask anything, / for skills and @ for actions"}
-                className="flex-1 min-w-[50px] bg-transparent outline-none text-[#e2e2e3] text-[14px] custom-scrollbar min-h-[26px] max-h-[120px] leading-relaxed self-end mb-1 break-words overflow-y-auto whitespace-pre-wrap empty:before:content-[attr(data-placeholder)] empty:before:text-[#6b6b73] empty:before:pointer-events-none empty:before:block"
+                className="flex-1 min-w-[50px] select-text cursor-text bg-transparent outline-none text-[#e2e2e3] text-[14px] custom-scrollbar min-h-[26px] max-h-[120px] leading-relaxed self-end mb-1 break-words overflow-y-auto whitespace-pre-wrap empty:before:content-[attr(data-placeholder)] empty:before:text-[#6b6b73] empty:before:pointer-events-none empty:before:block"
               />
             </div>
 
@@ -2021,9 +2022,9 @@ useEffect(() => {
                                       onMouseEnter={() => setHoveredCategory(model.id)}
                                     >
                                       <button
-                                        disabled={model.isPro}
+                                        disabled={model.isPro && model.id !== 'qwen'}
                                         onClick={() => {
-                                          if (!model.isPro && model.submodels.length === 0) {
+                                          if ((!model.isPro || model.id === 'qwen') && model.submodels.length === 0) {
                                             updateConfig({ model: model.name });
                                             setShowModelDropdown(false);
                                           }
@@ -2031,7 +2032,7 @@ useEffect(() => {
                                         className={cn(
                                           "w-full p-3.5 rounded-xl border text-left transition-all flex flex-col relative h-[80px] group",
                                           isSelected ? "bg-white/[0.08] border-purple-500/50" : "bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]",
-                                          model.isPro && !isSelected && "opacity-50"
+                                          model.isPro && model.id !== 'qwen' && !isSelected && "opacity-50"
                                         )}
                                       >
                                         <div className="flex items-start justify-between w-full">
@@ -2043,9 +2044,9 @@ useEffect(() => {
                                                 {model.id === 'minimax' ? (
                                                   <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
                                                 ) : model.isPro && (
-                                                  ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? (
+                                                  ['glm', 'kimi', 'deepseek'].includes(model.id) ? (
                                                     <img src="./PRO.png" alt="PRO" className="h-[28px] object-contain ml-1.5 -my-2" />
-                                                  ) : ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? (
+                                                  ) : ['gpt6astra', 'gpt56', 'qwen38', 'claude', 'qwen'].includes(model.id) ? (
                                                     <img src="./Premium.png" alt="Premium" className="h-[28px] object-contain ml-1.5 -my-2" />
                                                   ) : (
                                                     <span className="text-[8px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1 py-0.5 rounded font-bold ml-1.5">PRO+</span>
@@ -2054,8 +2055,8 @@ useEffect(() => {
                                               </div>
                                               <div className="text-[11px] text-white/40 mt-1">
                                                 {model.id === 'minimax' ? 'Free Limited Time Tier' :
-                                                  ['glm', 'kimi', 'qwen', 'deepseek'].includes(model.id) ? 'Pro Tier' :
-                                                    ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? 'Premium Tier' :
+                                                  ['glm', 'kimi', 'deepseek'].includes(model.id) ? 'Pro Tier' :
+                                                    ['gpt6astra', 'gpt56', 'qwen38', 'claude', 'qwen'].includes(model.id) ? 'Premium Tier' :
                                                       model.isPro ? 'Pro+ Tier' : 'Standard Tier'}
                                               </div>
                                             </div>
@@ -2089,10 +2090,10 @@ useEffect(() => {
                     const model = allModels.find(m => m.id === hoveredCategory);
                     if (!model) return null;
 
-                    if (model.isPro) {
+                    if (model.isPro && model.id !== 'qwen') {
                       const getTooltipText = (modelId: string) => {
-                        if (['glm', 'kimi', 'qwen', 'deepseek'].includes(modelId)) return 'Upgrade your plan to Pro tier or Higher';
-                        if (['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(modelId)) return 'Upgrade your plan to Premium';
+                        if (['glm', 'kimi', 'deepseek'].includes(modelId)) return 'Upgrade your plan to Pro tier or Higher';
+                        if (['gpt6astra', 'gpt56', 'qwen38', 'claude', 'qwen'].includes(modelId)) return 'Upgrade your plan to Premium';
                         return 'Upgrade your plan to Pro+';
                       };
 
@@ -2213,7 +2214,7 @@ useEffect(() => {
                                 if (result.state === 'granted') {
                                   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                                     setMicStream(stream);
-                                    new Audio('/VoiceInput.wav').play().catch(() => {});
+                                    new Audio('./VoiceInput.wav').play().catch(() => {});
                                       textBeforeListening.current = content;
                                       setIsListening(true);
                                   }).catch(() => {
@@ -2387,7 +2388,7 @@ useEffect(() => {
                         try {
                           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                           setMicStream(stream);
-                          new Audio('/VoiceInput.wav').play().catch(() => {});
+                          new Audio('./VoiceInput.wav').play().catch(() => {});
                                       textBeforeListening.current = content;
                                       setIsListening(true);
                         } catch (err) {
