@@ -142,6 +142,8 @@ contextBridge.exposeInMainWorld('electron', {
   startPortForward: (port: number) => ipcRenderer.invoke('start-port-forward', port),
   stopPortForward: (port: number) => ipcRenderer.invoke('stop-port-forward', port),
   
+  printToPdf: (suggestedName: string) => ipcRenderer.invoke('print-to-pdf', suggestedName),
+  previewPdf: () => ipcRenderer.invoke('preview-pdf'),
   readDocxHtml: (path: string) => ipcRenderer.invoke('read-docx-html', path),
   readDocxBuffer: (path: string) => ipcRenderer.invoke('read-docx-buffer', path),
   getDocxPositions: (path: string) => ipcRenderer.invoke('get-docx-positions', path),

@@ -119,8 +119,8 @@ const EditorSkeleton = () => (
 import { OpenFile } from '../IdeContainer';
 
 import { Tooltip } from "../ui/Tooltip";
+import { DocxViewer } from './DocxViewer';
 
-import { DocxEditor } from './DocxEditor';
 
 interface EditorAreaProps {
   projectRoot?: string;
@@ -282,7 +282,7 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
   const isImage = ['ico', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'].includes(ext);
   const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext);
   const isDocx = ext === 'docx';
-  const isBinary = ['exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z'].includes(ext);
+  const isBinary = ['exe', 'dll', 'bin', 'zip', 'tar', 'gz', 'pdf', 'rar', '7z', 'docx', 'doc'].includes(ext);
 
   return (
     <>
@@ -461,29 +461,9 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             <video controls src={`file://${activeFilePath.replace(/\\/g, '/')}`} className="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl" />
           </div>
         ) : isDocx ? (
-          <DocxEditor
-            filePath={activeFilePath}
-            onSave={(newHtml) => {
-              // Since it's handled via IPC inside DocxEditor or EditorArea, 
-              // we can update localContents or let the save IPC handle it
-              (window as any).electron.saveDocxHtml(activeFilePath, newHtml)
-                .then((res: any) => {
-                  if (res.success) {
-                    onFileSaved(activeFilePath, "DOCX_BINARY");
-                  }
-                });
-            }}
-            isDirty={isDirty}
-            setIsDirty={(dirty) => {
-              if (dirty && activeFilePath) {
-                setLocalContents(prev => ({
-                  ...prev,
-                  [activeFilePath]: "DOCX_MODIFIED"
-                }));
-              }
-            }}
-          />
+          <DocxViewer filePath={activeFilePath} />
         ) : isBinary || currentLocalContent.startsWith('data:application/octet-stream') ? (
+
           <div className="w-full h-full flex items-center justify-center bg-[#1e1e1e] p-4 text-center">
             <span className="text-white text-sm font-medium">The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.</span>
           </div>

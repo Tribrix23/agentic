@@ -106,3 +106,5 @@ __tests__/
 *token.json
 
 public/models/
+
+downloads/*

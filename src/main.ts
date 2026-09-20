@@ -10,7 +10,7 @@ import { readFileLineRange } from './lib/fileRangeReader';
 import { assertChildName, assertPathWithinWorkspace } from './lib/workspaceBoundary';
 import { EnvironmentManager } from './lib/environment/manager';
 import { registerEnvironmentIpc } from './lib/environment/ipc';
-import { extractHeaderFooterPositions, cleanDocxBuffer } from './backend/docxParser';
+
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -1635,35 +1635,7 @@ function createWindow() {
     }
   });
 
-  ipcMain.handle('read-docx-buffer', async (_event, filePath: string) => {
-    try {
-      const buffer = await cleanDocxBuffer(filePath);
-      return buffer.toString('base64');
-    } catch (err: any) {
-      console.error('[IPC] Failed to read docx buffer:', err);
-      throw new Error(err.message || 'Failed to read DOCX file');
-    }
-  });
-
-  ipcMain.handle('get-docx-positions', async (_event, filePath: string) => {
-    try {
-      return await extractHeaderFooterPositions(filePath);
-    } catch (err: any) {
-      console.error('[IPC] Failed to get docx positions:', err);
-      return { header: [], footer: [] };
-    }
-  });
-
-  ipcMain.handle('save-docx-html', async (_event, filePath: string, htmlContent: string) => {
-    const fs = require('fs');
-    try {
-      fs.writeFileSync(filePath, htmlContent, 'utf-8');
-      return true;
-    } catch (err: any) {
-      console.error('[IPC] Failed to save docx html:', err);
-      return false;
-    }
-  });
+  
 
   const emailCache = new Map<string, { email: string; timestamp: number }>();
   const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -1771,3 +1743,57 @@ function createWindow() {
   }
 }
 
+
+ipcMain.handle('print-to-pdf', async (event, suggestedName) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return false;
+  
+  const { canceled, filePath } = await dialog.showSaveDialog(win, {
+    title: 'Export as PDF',
+    defaultPath: suggestedName || 'document.pdf',
+    filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+  });
+  
+  if (canceled || !filePath) return false;
+  
+  try {
+    const pdfData = await event.sender.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true
+    });
+    require('fs').writeFileSync(filePath, pdfData);
+    return true;
+  } catch (error) {
+    console.error('Failed to export PDF:', error);
+    return false;
+  }
+});
+
+
+
+  ipcMain.handle('preview-pdf', async (event) => {
+    try {
+      const pdfData = await event.sender.printToPDF({
+        printBackground: true,
+        preferCSSPageSize: true
+      });
+      const os = require('node:os');
+      const tempPath = require('node:path').join(os.tmpdir(), 'preview-' + Date.now() + '.pdf');
+      require('node:fs').writeFileSync(tempPath, pdfData);
+      
+      const previewWin = new BrowserWindow({
+        width: 1024,
+        height: 768,
+        title: 'Print Preview',
+        webPreferences: {
+          plugins: true,
+        }
+      });
+      previewWin.setMenu(null);
+      previewWin.loadURL('file://' + tempPath.replace(/\\/g, '/'));
+      return true;
+    } catch (error) {
+      console.error('Failed to generate print preview:', error);
+      return false;
+    }
+});
