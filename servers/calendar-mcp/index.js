@@ -15,10 +15,21 @@ require("dotenv").config({ path: path.join(__dirname, '..', '..', '.env') });
 // OAuth2 Setup
 let CLIENT_ID = process.env.CALENDAR_CLIENT_ID || process.env.GMAIL_CLIENT_ID || "YOUR_CLIENT_ID";
 let CLIENT_SECRET = process.env.CALENDAR_CLIENT_SECRET || process.env.GMAIL_CLIENT_SECRET || "YOUR_CLIENT_SECRET";
-const REDIRECT_URI = "http://localhost:3002/oauth2callback";
+const REDIRECT_URI = "http://localhost:3007/oauth2callback";
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events'];
 
 const TOKEN_PATH = path.join(os.homedir(), '.agentic_calendar_token.json');
+const CREDS_PATH = path.join(os.homedir(), '.agentic_calendar_creds.json');
+
+if (fs.existsSync(CREDS_PATH)) {
+  try {
+    const creds = JSON.parse(fs.readFileSync(CREDS_PATH, 'utf8'));
+    if (creds.clientId) CLIENT_ID = creds.clientId;
+    if (creds.clientSecret) CLIENT_SECRET = creds.clientSecret;
+  } catch (e) {
+    console.error('Failed to load credentials', e);
+  }
+}
 
 let oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
@@ -30,6 +41,8 @@ app.post('/set-credentials', express.json(), (req, res) => {
     CLIENT_ID = req.body.clientId;
     CLIENT_SECRET = req.body.clientSecret;
     oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+    
+    fs.writeFileSync(CREDS_PATH, JSON.stringify({ clientId: CLIENT_ID, clientSecret: CLIENT_SECRET }));
     
     // Reload token if it exists so we don't lose it on secret change
     if (fs.existsSync(TOKEN_PATH)) {
@@ -79,12 +92,9 @@ app.get('/auth/status', async (req, res) => {
       const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
       oauth2Client.setCredentials(token);
       
-      const oauth2 = google.oauth2({
-        auth: oauth2Client,
-        version: 'v2'
-      });
-      const userInfo = await oauth2.userinfo.get();
-      emailAddress = userInfo.data.email;
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+      const primaryCal = await calendar.calendars.get({ calendarId: 'primary' });
+      emailAddress = primaryCal.data.id;
       isConnected = true;
     } catch (e) {
       console.error("Error fetching profile email:", e.message);
@@ -114,8 +124,8 @@ app.post('/auth/disconnect', async (req, res) => {
   }
 });
 
-const httpServer = app.listen(3002, '127.0.0.1', () => {
-  console.error("Calendar OAuth Server listening on http://localhost:3002");
+const httpServer = app.listen(3007, '127.0.0.1', () => {
+  console.error("Calendar OAuth Server listening on http://localhost:3007");
 });
 
 httpServer.on('error', (err) => {
@@ -162,6 +172,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             description: { type: "string", description: "Description of the event" },
             startTime: { type: "string", description: "Start time formatted as RFC3339 (e.g. 2026-09-21T10:00:00Z)" },
             endTime: { type: "string", description: "End time formatted as RFC3339 (e.g. 2026-09-21T11:00:00Z)" },
+            location: { type: "string", description: "Location of the event" },
             attendees: { type: "array", items: { type: "string" }, description: "Array of email addresses to invite" }
           },
           required: ["summary", "startTime", "endTime"]
@@ -223,6 +234,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         description: description || '',
         start: { dateTime: startTime },
         end: { dateTime: endTime },
+        location,
         attendees: attendees ? attendees.map(email => ({ email })) : [],
       };
       

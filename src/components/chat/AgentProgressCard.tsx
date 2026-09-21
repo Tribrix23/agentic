@@ -8,6 +8,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { FileIcon } from './FileIcon';
 import { getFileActivityPrefix } from '../../lib/fileActivity';
 import { GmailEmailPreview } from './GmailEmailPreview';
+import { CalendarEventsPreview } from './CalendarEventsPreview';
 import { GithubPreview } from './GithubPreview';
 
 const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(' ');
@@ -496,6 +497,18 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__calendar') || step.toolCall.name.startsWith('mcp_calendar'))) {
+    const isError = step.status === 'error' || step.status === 'rejected';
+    const output = step.toolCall.result?.output;
+    const isRunning = step.status === 'running' || step.status === 'pending';
+    
+    return (
+      <div className={cn("w-full my-2 shadow-xl shadow-black/30 bg-[#212124]", isRunning ? "running-border-wrapper" : "rounded-xl overflow-hidden")}>
+         {output ? <CalendarEventsPreview content={typeof output === 'string' ? output : JSON.stringify(output)} /> : (isRunning ? <div className="p-4 text-white/50 animate-pulse">Loading calendar...</div> : <div className="p-4 text-white/50">No calendar data.</div>)}
       </div>
     );
   }

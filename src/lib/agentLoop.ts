@@ -1315,6 +1315,9 @@ export class AgentLoop {
               apiError.name = 'AbortError';
               throw apiError;
             }
+          if (apiError.message.includes('429') || apiError.message.includes('Too Many Requests') || apiError.message.includes('402') || apiError.message.includes('401') || apiError.message.includes('403')) {
+              throw apiError;
+            }
           console.warn('[AgentLoop] API error, retrying iteration:', apiError);
           assistantMsg.isHidden = true;
           const errorMsg = createUserMessage(`[SYSTEM ERROR] The API request failed with error: ${apiError.message}. Retrying...`);

@@ -296,7 +296,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   });
                   if (credsRes.ok) {
                     const credentials = await credsRes.json();
-                    await fetch('http://127.0.0.1:3002/set-credentials', {
+                    await fetch('http://127.0.0.1:3007/set-credentials', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ clientId: credentials.Public, clientSecret: credentials.Public_key })
@@ -304,7 +304,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
                   }
                 } catch(err) { console.error("Failed to dynamically set Calendar credentials:", err); }
               }
-              const res = await fetch('http://127.0.0.1:3002/auth/url');
+              const res = await fetch('http://127.0.0.1:3007/auth/url');
                 const data = await res.json();
                 if ((window as any).electron?.openExternal) {
                   (window as any).electron.openExternal(data.url);
@@ -317,7 +317,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           },
         onDisconnect: async () => {
           try {
-            await fetch('http://127.0.0.1:3002/auth/disconnect', { method: 'POST' });
+            await fetch('http://127.0.0.1:3007/auth/disconnect', { method: 'POST' });
             setCalendarConnected(false);
           } catch (e) {
             alert('Failed to disconnect Calendar.');
@@ -730,7 +730,7 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         setGmailConnected(data.connected === true);
         setGmailEmail(data.email || null);
         try {
-          const res2 = await fetch('http://127.0.0.1:3002/auth/status');
+          const res2 = await fetch('http://127.0.0.1:3007/auth/status');
           if (!isMounted) return;
           const data2 = await res2.json();
           setCalendarConnected(data2.connected === true);
@@ -1698,7 +1698,7 @@ useEffect(() => {
               const connectedServices = [];
                             if (calendarConnected) connectedServices.push(
                 <Tooltip key="calendar" content="Calendar">
-                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[5] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[6] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
                     <img src="./calendar.png" alt="Calendar" className="w-4 h-4 object-contain filter drop-shadow-sm" />
                   </div>
                 </Tooltip>

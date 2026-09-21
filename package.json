@@ -92,6 +92,7 @@
     "ajv": "^8.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "dictionary-en": "^4.0.0",
     "docx-preview": "^0.4.0",
     "docxtemplater": "^3.70.1",

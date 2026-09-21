@@ -11,6 +11,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../App';
 import { CodeBlock } from './CodeBlock';
 import { GmailEmailPreview } from './GmailEmailPreview';
+import { CalendarEventsPreview } from './CalendarEventsPreview';
 import { GithubPreview } from './GithubPreview';
 
 import { Tooltip } from "../ui/Tooltip";
@@ -56,6 +57,14 @@ function preprocessGithubBlocks(text: string): string {
   return result;
 }
 
+function preprocessCalendarBlocks(text: string): string {
+  if (text.includes("Event:") && text.includes("Starts:") && text.includes("Ends:")) {
+    if (text.includes("```calendar-events")) return text;
+    return "\n\n```calendar-events\n" + text + "\n```\n\n";
+  }
+  return text;
+}
+
 function preprocessEmailBlocks(text: string): string {
   // Finds: From: or To: ... Subject: ... followed by body
   const regex = /(?:^|\n)(?:---\n)?(?:\*\*?)?(From|To):(?:\*\*?)?\s+(.+?)\s+(?:\*\*?)?Subject:(?:\*\*?)?\s+(.+?)\n+([\s\S]*?)(?=\n+---|(?:\n\n)?(?:\*\*|⚠️\s*)?Note:|$)/gi;
@@ -71,12 +80,15 @@ function preprocessEmailBlocks(text: string): string {
 
 const MCP_ALIASES = [
   { trigger: '@shadcn', id: 'shadcn', name: 'Shadcn UI', icon: './shadcn.png' },
+  { trigger: '@ui', id: 'shadcn', name: 'Shadcn UI', icon: './shadcn.png' },
   { trigger: '@github', id: 'github', name: 'GitHub', icon: './github.png' },
+  { trigger: '@gh', id: 'github', name: 'GitHub', icon: './github.png' },
   { trigger: '@vercel', id: 'vercel', name: 'Vercel', icon: './vercel.png' },
   { trigger: '@figma', id: 'figma', name: 'Figma', icon: './figma.png' },
   { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
   { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png' },
   { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png' },
+  { trigger: '@calendar', id: 'calendar', name: 'Calendar', icon: './calendar.png' },
   { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
   { trigger: '@mail', id: 'gmail', name: 'Gmail', icon: './gmail.png' },
   { trigger: '@web', id: 'playwright', name: 'Web', icon: './browser.png' },
@@ -163,6 +175,7 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
   // If streaming, append a blinking cursor
   const rawContent = isStreaming ? `${content} ▍` : content;
   let processedEmailContent = preprocessEmailBlocks(rawContent);
+  processedEmailContent = preprocessCalendarBlocks(processedEmailContent);
     processedEmailContent = preprocessGithubBlocks(processedEmailContent);
   const displayContent = preprocessMath(processedEmailContent);
 
@@ -252,8 +265,11 @@ export function MarkdownRenderer({ content, isStreaming, onArtifactClick }: Mark
                 }
 
                 if (language === 'email') {
-                return <GmailEmailPreview content={String(children).replace(/\n$/, '')} />;
-              }
+                  return <GmailEmailPreview content={String(children).replace(/\n$/, '')} />;
+                }
+                if (language === 'calendar-events') {
+                  return <CalendarEventsPreview content={String(children).replace(/\n$/, '')} />;
+                }
               return (
                 <CodeBlock 
                   code={String(children).replace(/\n$/, '')} 
