@@ -1704,7 +1704,7 @@ function createWindow() {
     }
   });
 
-  const isDevtools = true; // Set to false to disable DevTools shortcut
+  const isDevtools = false; // Set to false to disable DevTools shortcut
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isExitShortcut =

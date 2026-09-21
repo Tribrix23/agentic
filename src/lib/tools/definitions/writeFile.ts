@@ -25,7 +25,7 @@ export function normalizeWrittenSource(path: string, value: string): string {
 
 export const definition: ToolDefinition = {
   name: 'writeFile',
-  description: `Create or replace files. For extremely large files (>${MAX_INITIAL_WRITE_CHARS} chars), use editFile for subsequent sections. Supports absolute paths and project-relative paths. Also creates rich Markdown artifacts with optional metadata.`,
+  description: `Create new files. DO NOT use this to edit or replace existing files unless explicitly requested; use editFile or replace_file_content instead. For extremely large files (>${MAX_INITIAL_WRITE_CHARS} chars), use editFile for subsequent sections. Supports absolute paths and project-relative paths. Also creates rich Markdown artifacts with optional metadata.`,
   category: 'filesystem',
   parameters: {
     type: 'object',

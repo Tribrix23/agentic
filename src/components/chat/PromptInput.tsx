@@ -710,7 +710,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
     const initVosk = async () => {
       try {
         console.log("Loading Vosk model...");
-        const model = await createModel('./models/vosk-model-v2.tar.gz');
+        const modelUrl = new URL('models/vosk-model-v2.tar.gz', window.location.href).href;
+        const model = await createModel(modelUrl);
         if (!isMounted) return;
         voskModel.current = model;
         
