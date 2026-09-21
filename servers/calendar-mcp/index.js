@@ -20,10 +20,31 @@ const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://ww
 
 const TOKEN_PATH = path.join(os.homedir(), '.agentic_calendar_token.json');
 
-const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+let oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 
 const app = express();
 app.use(cors());
+
+app.post('/set-credentials', express.json(), (req, res) => {
+  if (req.body.clientId && req.body.clientSecret) {
+    CLIENT_ID = req.body.clientId;
+    CLIENT_SECRET = req.body.clientSecret;
+    oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+    
+    // Reload token if it exists so we don't lose it on secret change
+    if (fs.existsSync(TOKEN_PATH)) {
+      try {
+        const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+        oauth2Client.setCredentials(token);
+      } catch (e) {
+        console.error('Failed to load existing token after updating credentials', e);
+      }
+    }
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: 'Missing clientId or clientSecret' });
+  }
+});
 
 app.get('/auth/url', (req, res) => {
   const url = oauth2Client.generateAuthUrl({

@@ -285,24 +285,36 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         desc: 'View upcoming meetings and schedule new events automatically',
         icon: './calendar.png',
         connected: calendarConnected,
-        onConnect: async () => {
-          try {
-            
-            
-            
-            
-            
-            const res = await fetch('http://127.0.0.1:3002/auth/url');
-              const data = await res.json();
-              if ((window as any).electron?.openExternal) {
-                (window as any).electron.openExternal(data.url);
-              } else {
-                window.open(data.url, '_blank');
+                  onConnect: async () => {
+            try {
+              if (userId) {
+                try {
+                  const credsRes = await fetch('https://api.devctr.com/api/credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: userId })
+                  });
+                  if (credsRes.ok) {
+                    const credentials = await credsRes.json();
+                    await fetch('http://127.0.0.1:3002/set-credentials', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ clientId: credentials.Public, clientSecret: credentials.Public_key })
+                    });
+                  }
+                } catch(err) { console.error("Failed to dynamically set Calendar credentials:", err); }
               }
-          } catch (e) {
-            alert('Calendar MCP Server is not running yet. Please restart Quantix.');
-          }
-        },
+              const res = await fetch('http://127.0.0.1:3002/auth/url');
+                const data = await res.json();
+                if ((window as any).electron?.openExternal) {
+                  (window as any).electron.openExternal(data.url);
+                } else {
+                  window.open(data.url, '_blank');
+                }
+            } catch (e) {
+              alert('Calendar MCP Server is not running yet. Please restart Quantix.');
+            }
+          },
         onDisconnect: async () => {
           try {
             await fetch('http://127.0.0.1:3002/auth/disconnect', { method: 'POST' });
