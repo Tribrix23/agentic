@@ -108,7 +108,11 @@ const TokenCircleIndicator = ({ budget }: { budget: TokenBudget }) => {
   const strokeDashoffset = circumference - (budget.utilizationPercent / 100) * circumference;
 
   // Calculate raw number for tooltip (e.g. 144K)
-  const formatK = (num: number) => (num > 1000 ? (num / 1000).toFixed(0) + 'K' : num.toString());
+  const formatK = (num: number) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(num % 1000000 === 0 ? 0 : 1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+    return num.toString();
+  };
   const usedTokens = budget.total - budget.available;
 
   let colorClass = "text-gray-400";
@@ -1811,7 +1815,7 @@ useEffect(() => {
               <div
                 ref={textareaRef}
                 contentEditable={true}
-                  style={{ userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text', caretColor: '#e2e2e3', WebkitAppRegion: 'no-drag' }}
+                  style={{ userSelect: 'text', WebkitUserSelect: 'text', cursor: 'text', caretColor: '#e2e2e3', WebkitAppRegion: 'no-drag' } as any}
                 onInput={handleTextChange}
                 onKeyDown={handleKeyDown}
                 onPaste={(e) => {
@@ -2055,9 +2059,9 @@ useEffect(() => {
                                                 )}
                                               </div>
                                               <div className="text-[11px] text-white/40 mt-1">
-                                                {model.id === 'minimax' ? 'Free Limited Time Tier' :
+                                                {['minimax', 'qwen'].includes(model.id) ? 'Free Limited Time Tier' :
                                                   ['glm', 'kimi', 'deepseek'].includes(model.id) ? 'Pro Tier' :
-                                                    ['gpt6astra', 'gpt56', 'qwen38', 'claude', 'qwen'].includes(model.id) ? 'Premium Tier' :
+                                                    ['gpt6astra', 'gpt56', 'qwen38', 'claude'].includes(model.id) ? 'Premium Tier' :
                                                       model.isPro ? 'Pro+ Tier' : 'Standard Tier'}
                                               </div>
                                             </div>
@@ -2156,7 +2160,7 @@ useEffect(() => {
 
               <div className="flex items-center gap-2">
                 <TokenCircleIndicator budget={tokenBudget || {
-                  total: 128000, utilizationPercent: 0, available: 128000,
+                  total: 1000000, utilizationPercent: 0, available: 1000000,
                   systemPrompt: 0, tools: 0, projectContext: 0, conversationHistory: 0, responseReserved: 0
                 }} />
                 {isAgentRunning ? (

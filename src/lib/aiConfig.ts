@@ -78,7 +78,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
   systemPrompt: '',
   useDefaultSystemPrompt: true,
 
-  contextWindowSize: 128000,
+  contextWindowSize: 1000000,
   maxConversationTurns: 100,
 
   responseFormat: 'text',
@@ -355,7 +355,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
 
   'GPT-5.6 Luna': {
     name: 'GPT-5.6 Luna',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -366,7 +366,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'GPT-5.6 Terra': {
     name: 'GPT-5.6 Terra',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -377,7 +377,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'GPT-5.6 Sol': {
     name: 'GPT-5.6 Sol',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -388,7 +388,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'Minimax M3': {
     name: 'Minimax M3',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 131072,
     supportsTools: true,
     supportsStreaming: true,
@@ -410,7 +410,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'DeepSeek v4 Flash': {
     name: 'DeepSeek v4 Flash',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -421,7 +421,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'DeepSeek v4 Pro': {
     name: 'DeepSeek v4 Pro',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -432,7 +432,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'Kimi k2.7': {
     name: 'Kimi k2.7',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -443,7 +443,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'GLM 5.2': {
     name: 'GLM 5.2',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -454,7 +454,7 @@ export const MODEL_PRESETS: Record<string, ModelPreset> = {
   },
   'GLM 5.2 Lite': {
     name: 'GLM 5.2 Lite',
-    contextWindow: 128000,
+    contextWindow: 1000000,
     maxTokensDefault: 32768,
     supportsTools: true,
     supportsStreaming: true,
@@ -470,7 +470,7 @@ export const AI_PARAM_RANGES = {
   temperature: { min: 0, max: 1, step: 0.01, label: 'Temperature', description: 'Controls randomness. Lower = more deterministic, higher = more creative.' },
   topP: { min: 0, max: 1, step: 0.01, label: 'Top P', description: 'Nucleus sampling. Considers tokens with top_p cumulative probability.' },
   topK: { min: 1, max: 100, step: 1, label: 'Top K', description: 'Limits sampling to the top K most likely tokens.' },
-  maxTokens: { min: 256, max: 128000, step: 256, label: 'Max Tokens', description: 'Maximum number of tokens in the response.' },
+  maxTokens: { min: 256, max: 1000000, step: 256, label: 'Max Tokens', description: 'Maximum number of tokens in the response.' },
   frequencyPenalty: { min: -2, max: 2, step: 0.01, label: 'Frequency Penalty', description: 'Penalizes tokens based on how often they appear in the text.' },
   presencePenalty: { min: -2, max: 2, step: 0.01, label: 'Presence Penalty', description: 'Penalizes tokens based on whether they appear in the text at all.' },
   maxAgentIterations: { min: 1, max: 100, step: 1, label: 'Max Agent Steps', description: 'Maximum number of tool-call iterations per request.' },
