@@ -287,12 +287,18 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         connected: calendarConnected,
         onConnect: async () => {
           try {
-            const res = await fetch('http://127.0.0.1:3002/auth');
-            // the server redirects to url, let's just open auth url
-            // Wait, the Express server handles redirect if hit from browser, but fetch won't open tab.
-            // Oh right, gmail does fetch('/auth/url'). In calendar we have /auth that redirects, but the user's gmail MCP does something similar. Let's see how gmail was done:
-            // I'll make calendar behave like gmail: we just open http://127.0.0.1:3002/auth directly.
-            window.open('http://127.0.0.1:3002/auth', '_blank');
+            
+            
+            
+            
+            
+            const res = await fetch('http://127.0.0.1:3002/auth/url');
+              const data = await res.json();
+              if ((window as any).electron?.openExternal) {
+                (window as any).electron.openExternal(data.url);
+              } else {
+                window.open(data.url, '_blank');
+              }
           } catch (e) {
             alert('Calendar MCP Server is not running yet. Please restart Quantix.');
           }

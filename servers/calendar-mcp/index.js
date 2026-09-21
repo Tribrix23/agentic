@@ -25,13 +25,13 @@ const oauth2Client = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_U
 const app = express();
 app.use(cors());
 
-app.get('/auth', (req, res) => {
+app.get('/auth/url', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
     prompt: 'consent'
   });
-  res.redirect(url);
+  res.json({ url: url });
 });
 
 app.get('/oauth2callback', async (req, res) => {
