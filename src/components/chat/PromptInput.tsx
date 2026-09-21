@@ -4,7 +4,7 @@ import { createModel, Model, KaldiRecognizer } from 'vosk-browser';
 import { createPortal } from 'react-dom';
 import { AIConfig, setAIConfig } from '../../lib/aiConfig';
 import { FileAttachment } from '../../lib/messageTypes';
-import { Minus, Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2, Folder, FileText, Upload } from 'lucide-react';
+import { Minus, Bot, Paperclip, ArrowUp, Square, ChevronDown, ChevronRight, HardDrive, Cloud, Send, Mic, Network, Zap, Brain, Sparkles, Search, Gauge, Plus, Image as ImageIcon, X, Copy, Download, ClipboardList, Check, Link2, Mail, PenLine, Trash2, Folder, FileText, Upload, Calendar } from 'lucide-react';
 import { SiAnthropic, SiAlibabacloud, SiGmail, SiGoogledrive, SiGithub, SiSupabase } from 'react-icons/si';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileContextBadge } from './FileContextBadge';
@@ -182,6 +182,7 @@ const MCP_ALIASES = [
   { trigger: '@drive', id: 'gdrive', name: 'Drive', icon: './drive.png', desc: 'Search and read Google Drive files' },
   { trigger: '@supabase', id: 'supabase', name: 'Supabase', icon: './supabase.png', desc: 'Query and manage your database' },
   { trigger: '@gmail', id: 'gmail', name: 'Gmail', icon: './gmail.png', desc: 'Search inbox and draft emails' },
+  { trigger: '@calendar', id: 'calendar', name: 'Calendar', icon: './calendar.png', desc: 'Manage Google Calendar events' },
   { trigger: '@web', id: 'playwright', name: 'Web', icon: './browser.png', desc: 'Web browsing and automation' },
   { trigger: '@google drive', id: 'gdrive', name: 'Drive', icon: './drive.png', desc: '', hidden: true },
   { trigger: '@mail', id: 'gmail', name: 'Gmail', icon: './gmail.png', desc: '', hidden: true },
@@ -267,6 +268,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [showMicModal, setShowMicModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarEmail, setCalendarEmail] = useState<string | null>(null);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [gdriveConnected, setGdriveConnected] = useState(false);
   const [gdriveEmail, setGdriveEmail] = useState<string | null>(null);
@@ -276,6 +279,33 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [vercelConnected, setVercelConnected] = useState(false);
 
   const connectors = [
+      {
+        id: 'calendar',
+        name: 'Google Calendar',
+        desc: 'View upcoming meetings and schedule new events automatically',
+        icon: './calendar.png',
+        connected: calendarConnected,
+        onConnect: async () => {
+          try {
+            const res = await fetch('http://127.0.0.1:3002/auth');
+            // the server redirects to url, let's just open auth url
+            // Wait, the Express server handles redirect if hit from browser, but fetch won't open tab.
+            // Oh right, gmail does fetch('/auth/url'). In calendar we have /auth that redirects, but the user's gmail MCP does something similar. Let's see how gmail was done:
+            // I'll make calendar behave like gmail: we just open http://127.0.0.1:3002/auth directly.
+            window.open('http://127.0.0.1:3002/auth', '_blank');
+          } catch (e) {
+            alert('Calendar MCP Server is not running yet. Please restart Quantix.');
+          }
+        },
+        onDisconnect: async () => {
+          try {
+            await fetch('http://127.0.0.1:3002/auth/disconnect', { method: 'POST' });
+            setCalendarConnected(false);
+          } catch (e) {
+            alert('Failed to disconnect Calendar.');
+          }
+        }
+      },
     {
       id: 'gmail',
       name: 'Gmail',
@@ -531,13 +561,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         setGdriveEmail(data.email || null);
 
         // If modal is open, poll fast. Otherwise, poll slow.
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
       } catch {
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
         attempts++;
-        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
       }
     };
 
@@ -562,13 +592,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         setSupabaseConnected(data.connected === true);
 
         // If modal is open, poll fast. Otherwise, poll slow.
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
       } catch {
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
         attempts++;
-        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
       }
     };
 
@@ -592,11 +622,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const data = await res.json();
         setFigmaConnected(data.connected === true);
 
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
       } catch {
         if (!isMounted) return;
         attempts++;
-        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
       }
     };
 
@@ -620,11 +650,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const data = await res.json();
         setVercelConnected(data.connected === true);
 
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
       } catch {
         if (!isMounted) return;
         attempts++;
-        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
       }
     };
 
@@ -653,11 +683,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           return data.connected === true;
         });
 
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
       } catch {
         if (!isMounted) return;
         attempts++;
-        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
       }
     };
 
@@ -681,15 +711,22 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const data = await res.json();
         setGmailConnected(data.connected === true);
         setGmailEmail(data.email || null);
+        try {
+          const res2 = await fetch('http://127.0.0.1:3002/auth/status');
+          if (!isMounted) return;
+          const data2 = await res2.json();
+          setCalendarConnected(data2.connected === true);
+          setCalendarEmail(data2.email || null);
+        } catch(e) {}
 
         // If modal is open, poll fast. Otherwise, poll slow.
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
       } catch {
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
         attempts++;
-        timeoutId = setTimeout(check, attempts < 10 ? 1000 : 10000);
+        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
       }
     };
 
@@ -878,6 +915,7 @@ useEffect(() => {
       if (a.id === 'figma') return figmaConnected;
       if (a.id === 'gdrive') return gdriveConnected;
       if (a.id === 'gmail') return gmailConnected;
+      if (a.id === 'calendar') return calendarConnected;
       if (a.id === 'supabase') return supabaseConnected;
       if (a.id === 'github') return githubConnected;
         if (a.id === 'vercel') return vercelConnected;
@@ -1486,6 +1524,12 @@ useEffect(() => {
           { icon: <img src="./github.png" className="w-3.5 h-3.5 filter invert opacity-90" />, label: "Check actions", prompt: "@GitHub Check the status of recent actions" }
         );
       }
+        if (calendarConnected) {
+      pool.push(
+        { icon: <Calendar size={14} />, label: "List events", prompt: "@Calendar What events do I have coming up today?" },
+        { icon: <Calendar size={14} />, label: "Create event", prompt: "@Calendar Schedule a meeting for tomorrow at 2pm" }
+      );
+    }
     if (gmailConnected) {
       pool.push(
         { icon: <Mail size={14} />, label: "Read unread emails", prompt: "@Gmail Read my latest unread emails" },
@@ -1539,7 +1583,7 @@ useEffect(() => {
     }
 
     return shuffled.slice(0, 4);
-  }, [gmailConnected, gdriveConnected, supabaseConnected, figmaConnected, vercelConnected]);
+  }, [calendarConnected, gmailConnected, gdriveConnected, supabaseConnected, figmaConnected, vercelConnected]);
 
   return (
     <div className="flex flex-col gap-2 relative w-full mx-auto max-w-[750px]">
@@ -1631,9 +1675,16 @@ useEffect(() => {
           onClick={() => setShowConnectModal(!showConnectModal)}
           className="text-[12px] text-[#a8a8b1] hover:text-white transition-colors flex items-center"
         >
-          {gmailConnected || gdriveConnected || supabaseConnected || figmaConnected || vercelConnected || githubConnected ? (
+          {calendarConnected || gmailConnected || gdriveConnected || supabaseConnected || figmaConnected || vercelConnected || githubConnected ? (
             (() => {
               const connectedServices = [];
+                            if (calendarConnected) connectedServices.push(
+                <Tooltip key="calendar" content="Calendar">
+                  <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[5] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
+                    <img src="./calendar.png" alt="Calendar" className="w-4 h-4 object-contain filter drop-shadow-sm" />
+                  </div>
+                </Tooltip>
+              );
               if (gmailConnected) connectedServices.push(
                 <Tooltip key="gmail" content="Gmail">
                   <div className="w-7 h-7 bg-[#1c1c21] border-2 border-[#0c0c0e] rounded-full flex items-center justify-center shrink-0 relative z-[5] hover:z-[10] hover:-translate-y-1 hover:scale-[1.15] transition-all cursor-pointer">
@@ -2496,6 +2547,7 @@ useEffect(() => {
     </div>
   );
 }
+
 
 
 

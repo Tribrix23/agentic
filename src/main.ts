@@ -368,6 +368,27 @@ function createWindow() {
       void mcpClientManager.connectServer('gdrive').catch(error => console.error('[MCP] GDrive failed to connect:', error));
     }
 
+    if (!mcpClientManager.getServer('calendar')) {
+      const isPackaged = app.isPackaged;
+      const calendarServerPath = isPackaged
+        ? path.join(process.resourcesPath, 'servers', 'calendar-mcp', 'index.js')
+        : path.join(__dirname, '..', '..', 'servers', 'calendar-mcp', 'index.js');
+
+      mcpClientManager.addServer({
+        id: 'calendar',
+        name: 'Google Calendar',
+        transport: {
+          type: 'stdio',
+          command: process.execPath,
+          args: [calendarServerPath],
+          env: mcpNodeEnv as Record<string, string>,
+        },
+        permissions: ['read', 'write', 'execute', 'network'],
+        autoConnect: true,
+      });
+      void mcpClientManager.connectServer('calendar').catch(error => console.error('[MCP] Calendar failed to connect:', error));
+    }
+
     if (!mcpClientManager.getServer('gmail')) {
       const isPackaged = app.isPackaged;
       const gmailServerPath = isPackaged
