@@ -5,7 +5,7 @@ import path from 'path';
 // https://vitejs.dev/config
 export default defineConfig({
   base: './',
-  plugins: [react()],
+  plugins: [react({ babel: { compact: false } })],
   worker: { format: 'es' },
   build: { sourcemap: false, chunkSizeWarningLimit: 2000 },
   resolve: {

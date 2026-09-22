@@ -45,12 +45,14 @@ const customFonts: FontOption[] = [
   { name: 'Papyrus', fontFamily: 'Papyrus, fantasy', category: 'other' }
 ];
 
+const EMPTY_DOCX_B64 = "UEsDBBQAAAAAAEWxNl0xFPcvrwEAAK8BAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbDw/eG1sIHZlcnNpb249IjEuMCIgZW5jb2Rpbmc9IlVURi04IiBzdGFuZGFsb25lPSJ5ZXMiPz4NCjxUeXBlcyB4bWxucz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL3BhY2thZ2UvMjAwNi9jb250ZW50LXR5cGVzIj48RGVmYXVsdCBFeHRlbnNpb249InJlbHMiIENvbnRlbnRUeXBlPSJhcHBsaWNhdGlvbi92bmQub3BlbnhtbGZvcm1hdHMtcGFja2FnZS5yZWxhdGlvbnNoaXBzK3htbCIvPjxEZWZhdWx0IEV4dGVuc2lvbj0ieG1sIiBDb250ZW50VHlwZT0iYXBwbGljYXRpb24veG1sIi8+PE92ZXJyaWRlIFBhcnROYW1lPSIvd29yZC9kb2N1bWVudC54bWwiIENvbnRlbnRUeXBlPSJhcHBsaWNhdGlvbi92bmQub3BlbnhtbGZvcm1hdHMtb2ZmaWNlZG9jdW1lbnQud29yZHByb2Nlc3NpbmdtbC5kb2N1bWVudC5tYWluK3htbCIvPjwvVHlwZXM+UEsDBBQAAAAAAEWxNl2Vb45TKwEAACsBAAALAAAAX3JlbHMvLnJlbHM8P3htbCB2ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJVVEYtOCIgc3RhbmRhbG9uZT0ieWVzIj8+DQo8UmVsYXRpb25zaGlwcyB4bWxucz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL3BhY2thZ2UvMjAwNi9yZWxhdGlvbnNoaXBzIj48UmVsYXRpb25zaGlwIElkPSJySWQxIiBUeXBlPSJodHRwOi8vc2NoZW1hcy5vcGVueG1sZm9ybWF0cy5vcmcvb2ZmaWNlRG9jdW1lbnQvMjAwNi9yZWxhdGlvbnNoaXBzL29mZmljZURvY3VtZW50IiBUYXJnZXQ9IndvcmQvZG9jdW1lbnQueG1sIi8+PC9SZWxhdGlvbnNoaXBzPlBLAwQUAAAAAABFsTZdAArOpMsAAADLAAAAEQAAAHdvcmQvZG9jdW1lbnQueG1sPD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9InllcyI/Pg0KPHc6ZG9jdW1lbnQgeG1sbnM6dz0iaHR0cDovL3NjaGVtYXMub3BlbnhtbGZvcm1hdHMub3JnL3dvcmRwcm9jZXNzaW5nbWwvMjAwNi9tYWluIj48dzpib2R5Pjx3OnA+PHc6cj48dzp0Pjwvdzp0PjwvdzpyPjwvdzpwPjwvdzpib2R5Pjwvdzpkb2N1bWVudD5QSwECFAAUAAAAAABFsTZdMRT3L68BAACvAQAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUABQAAAAAAEWxNl2Vb45TKwEAACsBAAALAAAAAAAAAAAAAACAAeABAABfcmVscy8ucmVsc1BLAQIUABQAAAAAAEWxNl0ACs6kywAAAMsAAAARAAAAAAAAAAAAAACAATQDAAB3b3JkL2RvY3VtZW50LnhtbFBLBQYAAAAAAwADALkAAAAuBAAAAAA=";
+
 export const DocxViewer = ({ filePath }: { filePath: string }) => {
   const fileSource = useMemo<FileSource>(() => {
     return {
       kind: 'browser',
       label: 'Local File',
-      list: async () => [],
+      list: async (): Promise<FileEntry[]> => [],
       open: async (id: string) => {
         try {
           let bytes;
@@ -60,6 +62,15 @@ export const DocxViewer = ({ filePath }: { filePath: string }) => {
              const response = await fetch(`file:///${id.replace(/\\/g, '/').replace(/^\//, '')}`);
              bytes = await response.arrayBuffer();
           }
+          if (bytes.byteLength === 0) {
+            const binaryString = atob(EMPTY_DOCX_B64);
+            const len = binaryString.length;
+            const bytesArr = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytesArr[i] = binaryString.charCodeAt(i);
+            }
+            bytes = bytesArr.buffer;
+          }
           return { bytes, name: id.split('/').pop() || id.split('\\').pop() || 'Document', readOnly: false };
         } catch (e) {
           console.error(e);
@@ -67,8 +78,10 @@ export const DocxViewer = ({ filePath }: { filePath: string }) => {
         }
       },
       save: async (id: string | null, bytes: ArrayBuffer, opts?: any) => {
-        console.log("Saving disabled for now", id, bytes.byteLength);
-        return { id: id || 'doc', etag: '1' };
+        if (id && typeof window !== 'undefined' && (window as any).electron?.writeDocxBuffer) {
+           await (window as any).electron.writeDocxBuffer(id, new Uint8Array(bytes));
+        }
+        return { id: id || 'doc', etag: Date.now().toString() };
       },
       rename: async (id: string, newName: string) => {},
       delete: async (id: string) => {},
@@ -76,7 +89,7 @@ export const DocxViewer = ({ filePath }: { filePath: string }) => {
         return () => {};
       },
       rememberLastOpened: async (id: string) => {},
-      lastOpened: async () => null
+      lastOpened: async (): Promise<string | null> => null
     };
   }, []);
 

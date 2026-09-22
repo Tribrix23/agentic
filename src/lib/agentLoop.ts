@@ -1674,6 +1674,9 @@ export class AgentLoop {
               const toolMsg = createToolMessage(toolCall.id, toolCall.name, result);
               updatedMessages.push(toolMsg);
               this.emit({ type: 'agent:message-added', data: toolMsg });
+              
+              // Force update the original message so its toolCalls array status is synced for background conversations
+              this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
 
             } catch (error: any) {
               const errorMessage = error.message || String(error);
@@ -1723,6 +1726,9 @@ export class AgentLoop {
             await executeToolInternal(toolCall);
             return toolCall.result || { success: false, output: 'Tool execution did not produce an observation.' };
           });
+
+          // Sync the updated toolCalls array (with success/error statuses) for background conversations
+          this.emit({ type: 'agent:message-updated', data: { ...assistantMsg } });
 
           this.state.currentToolCall = undefined;
 

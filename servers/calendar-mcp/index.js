@@ -18,8 +18,21 @@ let CLIENT_SECRET = process.env.CALENDAR_CLIENT_SECRET || process.env.GMAIL_CLIE
 const REDIRECT_URI = "http://localhost:3007/oauth2callback";
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events'];
 
-const TOKEN_PATH = path.join(os.homedir(), '.agentic_calendar_token.json');
-const CREDS_PATH = path.join(os.homedir(), '.agentic_calendar_creds.json');
+const getAppDataPath = () => {
+  const appName = 'Quantix Code';
+  let baseDir;
+  if (process.platform === 'win32') {
+    baseDir = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+  } else if (process.platform === 'darwin') {
+    baseDir = path.join(os.homedir(), 'Library', 'Application Support');
+  } else {
+    baseDir = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  }
+  return path.join(baseDir, appName);
+};
+
+const TOKEN_PATH = path.join(getAppDataPath(), '.agentic_calendar_token.json');
+const CREDS_PATH = path.join(getAppDataPath(), '.agentic_calendar_creds.json');
 
 if (fs.existsSync(CREDS_PATH)) {
   try {
@@ -84,20 +97,30 @@ app.get('/oauth2callback', async (req, res) => {
 });
 
 app.get('/auth/status', async (req, res) => {
-  let isConnected = false;
+  const isConnected = fs.existsSync(TOKEN_PATH);
   let emailAddress = null;
 
-  if (fs.existsSync(TOKEN_PATH)) {
+  if (isConnected) {
     try {
       const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
-      oauth2Client.setCredentials(token);
-      
-      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-      const primaryCal = await calendar.calendars.get({ calendarId: 'primary' });
-      emailAddress = primaryCal.data.id;
-      isConnected = true;
+      if (token.emailAddress) {
+        emailAddress = token.emailAddress;
+      } else {
+        if (CLIENT_ID && CLIENT_SECRET) {
+          oauth2Client.setCredentials(token);
+          
+          const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+          const primaryCal = await calendar.calendars.get({ calendarId: 'primary' });
+          emailAddress = primaryCal.data.id;
+          
+          token.emailAddress = emailAddress;
+          fs.writeFileSync(TOKEN_PATH, JSON.stringify(token));
+        }
+      }
     } catch (e) {
-      console.error("Error fetching profile email:", e.message);
+      if (e.message !== 'invalid_client') {
+        console.error("Error fetching profile email:", e.message);
+      }
     }
   }
 

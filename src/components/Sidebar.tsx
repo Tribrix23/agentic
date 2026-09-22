@@ -58,8 +58,35 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
   });
 
   const [runningConversations, setRunningConversations] = useState<Set<string>>(new Set());
+  const [unreadConversations, setUnreadConversations] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('quantix_unread_conversations') || '[]')); }
+    catch { return new Set(); }
+  });
 
   useEffect(() => {
+    if (activeChatId) {
+      setUnreadConversations(prev => {
+        if (!prev.has(activeChatId)) return prev;
+        const next = new Set(prev);
+        next.delete(activeChatId);
+        localStorage.setItem('quantix_unread_conversations', JSON.stringify(Array.from(next)));
+        return next;
+      });
+    }
+  }, [activeChatId]);
+
+  useEffect(() => {
+    const handleUnread = (e: any) => {
+      const { conversationId } = e.detail;
+      if (conversationId === activeChatId) return;
+      setUnreadConversations(prev => {
+        const next = new Set(prev);
+        next.add(conversationId);
+        localStorage.setItem('quantix_unread_conversations', JSON.stringify(Array.from(next)));
+        return next;
+      });
+    };
+    
     const handleRunningState = (e: any) => {
       const { isRunning, activeConversationId } = e.detail;
       setRunningConversations(prev => {
@@ -78,9 +105,11 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
     
     window.addEventListener('agent-running-state', handleRunningState);
     window.addEventListener('open-history', handleOpenHistory);
+    window.addEventListener('background-message-received', handleUnread);
     return () => {
       window.removeEventListener('agent-running-state', handleRunningState);
       window.removeEventListener('open-history', handleOpenHistory);
+      window.removeEventListener('background-message-received', handleUnread);
     };
   }, []);
 
@@ -309,9 +338,14 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                                             isRunning ? "pr-8" : ""
                                           )}
                                         >
-                                          <span className="truncate flex-1">{conv.title}</span>
-                                          {conv.updatedAt && !isRunning && (
-                                            <span className="text-[10px] text-white/30 whitespace-nowrap ml-2 group-hover/conv:hidden">
+                                          <span className="truncate flex-1 flex items-center justify-between">
+                                            <span className="truncate">{conv.title}</span>
+                                            {unreadConversations.has(conv.id) && activeChatId !== conv.id && !isRunning && (
+                                              <div className="w-1.5 h-1.5 rounded-full bg-[#007acc] ml-2 shrink-0 shadow-[0_0_4px_#007acc]" />
+                                            )}
+                                          </span>
+                                          {conv.updatedAt && !isRunning && !unreadConversations.has(conv.id) && (
+                                            <span className="text-[10px] text-white/30 whitespace-nowrap ml-2 group-hover/conv:hidden shrink-0">
                                               {formatRelativeTime(conv.updatedAt)}
                                             </span>
                                           )}

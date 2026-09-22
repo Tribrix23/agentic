@@ -14,7 +14,9 @@ export const AskUserCard: React.FC<AskUserCardProps> = ({
   options,
   onSubmit
 }) => {
-  const validOptions = Array.isArray(options) ? options.map(opt => opt.replace(/<\/?item>/gi, '').trim()) : [];
+  const validOptions = React.useMemo(() => 
+    Array.isArray(options) ? options.map(opt => opt.replace(/<\/?item>/gi, '').trim()) : [],
+  [options]);
   const hasOptions = validOptions.length > 0;
 
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -36,6 +38,48 @@ export const AskUserCard: React.FC<AskUserCardProps> = ({
       onSubmit(customResponse.trim());
     }
   };
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Number shortcuts 1-9
+      if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        const index = parseInt(e.key, 10) - 1;
+        if (index < validOptions.length) {
+          e.preventDefault();
+          setSelectedOption(validOptions[index]);
+        } else if (index === validOptions.length) {
+          e.preventDefault();
+          setSelectedOption('custom');
+        }
+        return;
+      }
+
+      if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+          return; // Let the inputs handle their own enter
+        }
+        e.preventDefault();
+        
+        let optionToSubmit = selectedOption;
+        if (e.target instanceof HTMLButtonElement) {
+          const dataOption = e.target.getAttribute('data-option');
+          if (dataOption) {
+            optionToSubmit = dataOption;
+            setSelectedOption(dataOption);
+          }
+        }
+
+        if (optionToSubmit === 'custom') {
+          if (customResponse.trim()) onSubmit(customResponse.trim());
+        } else if (optionToSubmit) {
+          onSubmit(optionToSubmit);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [validOptions, selectedOption, customResponse, onSubmit]);
 
   return (
     <div className="w-full max-w-[750px] mx-auto bg-[#1c1c21] border border-[#007acc]/40 rounded-2xl shadow-[0_0_20px_rgba(0,122,204,0.1)] overflow-hidden animate-fade-in pointer-events-auto relative">
@@ -61,6 +105,7 @@ export const AskUserCard: React.FC<AskUserCardProps> = ({
           {hasOptions && validOptions.map((opt, idx) => (
             <button
               key={idx}
+              data-option={opt}
               onClick={() => setSelectedOption(opt)}
               className={cn(
                 "flex items-center gap-3 w-full p-3 rounded-lg text-left text-[13px] transition-colors border",
@@ -78,6 +123,7 @@ export const AskUserCard: React.FC<AskUserCardProps> = ({
 
           {hasOptions && (
             <button
+              data-option="custom"
               onClick={() => setSelectedOption('custom')}
               className={cn(
                 "flex items-center gap-3 w-full p-3 rounded-lg text-left text-[13px] transition-colors border",

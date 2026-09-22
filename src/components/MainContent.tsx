@@ -705,6 +705,18 @@ IMPORTANT RULES:
         if (index >= 0) backgroundMessages[index] = { ...backgroundMessages[index], ...message };
         else backgroundMessages.push(message);
         saveMessages(event.conversationId, backgroundMessages);
+        
+        // Notify Sidebar that this conversation has an unread message
+        window.dispatchEvent(new CustomEvent('background-message-received', { detail: { conversationId: event.conversationId } }));
+      } else if (event.type === 'agent:done' || event.type === 'agent:error') {
+        // Fix background state stuck in "isStreaming: true" and tell Sidebar it's done
+        const backgroundMessages = loadMessages(event.conversationId);
+        const updatedMessages = backgroundMessages.map(m => m.isStreaming ? { ...m, isStreaming: false } : m);
+        saveMessages(event.conversationId, updatedMessages);
+
+        window.dispatchEvent(new CustomEvent('agent-running-state', {
+          detail: { isRunning: false, activeConversationId: event.conversationId }
+        }));
       }
       return;
     }
