@@ -29,6 +29,7 @@ import {
 } from './messageTypes';
 import { isFileTool, getFileOperation } from './fileActivity';
 import { buildContext, buildGpt56ToolPrompt, buildXmlToolPrompt, ProjectContext } from './contextBuilder';
+import { searchEmbeddings } from './semanticSearch';
 import { buildPlanModeContract } from './tools/planModePolicy';
 import {
   needsSummarization,
@@ -793,6 +794,24 @@ export class AgentLoop {
               projectLines.push(`\`\`\`${this.projectContext.activeFileLanguage || ''}\n${truncated}\n\`\`\``);
             }
           }
+
+          // Inject Semantic Search results to build implicit context
+          try {
+            const lastUserMessage = [...updatedMessages].reverse().find(m => m.role === 'user');
+            if (lastUserMessage && typeof lastUserMessage.content === 'string') {
+              const semanticResults = await searchEmbeddings(this.projectContext.rootPath, lastUserMessage.content);
+              if (semanticResults.length > 0) {
+                projectLines.push('\nSemantic Search Context (Relevant code snippets based on user prompt):');
+                semanticResults.forEach((res, i) => {
+                  const truncated = truncateToTokens(res.content, 400); // 400 tokens per snippet to save context budget
+                  projectLines.push(`\n--- Snippet from ${res.filePath} ---\n\`\`\`\n${truncated}\n\`\`\``);
+                });
+              }
+            }
+          } catch (e) {
+            console.error('[AgentLoop] Semantic search injection failed:', e);
+          }
+
           projectLines.push('</project_context>');
           fullSystemPrompt += '\n' + projectLines.join('\n');
         }

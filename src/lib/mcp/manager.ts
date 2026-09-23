@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ToolListChangedNotificationSchema, CreateMessageRequestSchema, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   McpEvent, McpPermission, McpServerConfig, McpServerSnapshot, McpServerStatus, McpToolInfo,
 } from './types';
@@ -44,6 +44,7 @@ function boundedOutput(output: string): string {
 export class McpClientManager {
   private servers = new Map<string, ServerRecord>();
   private listeners = new Set<(event: McpEvent) => void>();
+  public samplingHandler?: (request: any) => Promise<CreateMessageResult>;
 
   onEvent(listener: (event: McpEvent) => void): () => void {
     this.listeners.add(listener);
@@ -90,7 +91,18 @@ export class McpClientManager {
         ? new StdioClientTransport({ command: record.config.transport.command, args: record.config.transport.args, cwd: record.config.transport.cwd, env: record.config.transport.env, stderr: 'pipe' })
         : new StreamableHTTPClientTransport(new URL(record.config.transport.url), { requestInit: { headers: record.config.transport.headers } });
 
-      const client = new Client({ name: 'quantix-mcp-client', version: '1.0.0' });
+      const client = new Client(
+        { name: 'quantix-mcp-client', version: '1.0.0' },
+        { capabilities: { sampling: {} } }
+      );
+
+      client.setRequestHandler(CreateMessageRequestSchema, async (request) => {
+        if (!this.samplingHandler) {
+          throw new Error("Sampling capability is not configured on this host.");
+        }
+        return await this.samplingHandler(request);
+      });
+
       record.client = client;
       record.transport = transport;
       if (transport instanceof StdioClientTransport && transport.stderr) {

@@ -147,5 +147,14 @@ contextBridge.exposeInMainWorld('electron', {
   readDocxHtml: (path: string) => ipcRenderer.invoke('read-docx-html', path),
   readDocxBuffer: (path: string) => ipcRenderer.invoke('read-docx-buffer', path),
   getDocxPositions: (path: string) => ipcRenderer.invoke('get-docx-positions', path),
-  saveDocxHtml: (path: string, htmlContent: string) => ipcRenderer.invoke('save-docx-html', path, htmlContent)
+  saveDocxHtml: (path: string, htmlContent: string) => ipcRenderer.invoke('save-docx-html', path, htmlContent),
+  
+  onMcpSamplingRequest: (callback: (data: { reqId: string, request: any }) => void) => {
+    const listener = (_event: any, data: any) => callback(data);
+    ipcRenderer.on('mcp-sampling-request', listener);
+    return () => ipcRenderer.removeListener('mcp-sampling-request', listener);
+  },
+  sendMcpSamplingResponse: (reqId: string, result: any, error?: string) => {
+    ipcRenderer.send('mcp-sampling-response', reqId, result, error);
+  }
 });

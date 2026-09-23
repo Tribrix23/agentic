@@ -17,7 +17,18 @@ export function buildMcpCatalog(servers: McpServerSnapshot[]): McpCatalogEntry[]
   const ready = [...servers].filter(server => server.status === 'ready').sort((a, b) => a.id.localeCompare(b.id));
   for (const server of ready) {
     for (const tool of [...server.tools].sort((a, b) => a.name.localeCompare(b.name))) {
-      if (server.id === 'agentic-mcp-server' && ['runCommand', 'commandStatus', 'manageTask'].includes(tool.name)) continue; const identity = { serverId: server.id, toolName: tool.name };
+      if (server.id === 'agentic-mcp-server' && ['runCommand', 'commandStatus', 'manageTask'].includes(tool.name)) continue;
+      
+      // Decrease playwright tool list to only the necessary ones
+      if (server.id === 'playwright') {
+        const necessaryTools = ['playwright_navigate', 'playwright_click', 'playwright_fill', 'playwright_evaluate', 'playwright_screenshot'];
+        // Also check if they are prefixed with 'browser_' or 'playwright_'
+        const isNecessary = necessaryTools.includes(tool.name) || 
+                            ['browser_navigate', 'browser_click', 'browser_fill', 'browser_evaluate', 'browser_snapshot', 'browser_screenshot', 'playwright_navigate', 'playwright_screenshot'].includes(tool.name);
+        if (!isNecessary) continue;
+      }
+      
+      const identity = { serverId: server.id, toolName: tool.name };
       const externalName = stableMcpAlias(identity, occupied);
       occupied.add(externalName);
       const mutating = tool.permissions.some(permission => permission === 'write' || permission === 'execute');

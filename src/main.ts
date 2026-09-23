@@ -53,6 +53,26 @@ mcpClientManager.onEvent(event => {
   }
 });
 
+mcpClientManager.samplingHandler = async (request) => {
+  const win = getLiveMainWindow();
+  if (!win) throw new Error("No active window to handle sampling request");
+  
+  return await new Promise((resolve, reject) => {
+    const reqId = `sampling-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    
+    const handler = (event: any, responseId: string, result: any, error?: string) => {
+      if (responseId === reqId) {
+        ipcMain.removeListener('mcp-sampling-response', handler);
+        if (error) reject(new Error(error));
+        else resolve(result);
+      }
+    };
+    
+    ipcMain.on('mcp-sampling-response', handler);
+    win.webContents.send('mcp-sampling-request', { reqId, request });
+  });
+};
+
 function getPlaywrightBrowserExecutable(browserPath: string): string {
   const chromiumDirectory = fs.readdirSync(browserPath, { withFileTypes: true })
     .find(entry => entry.isDirectory() && entry.name.startsWith('chromium-'))?.name;
@@ -513,6 +533,93 @@ function createWindow() {
         autoConnect: true,
       });
       void mcpClientManager.connectServer('shadcn').catch(error => console.error('[MCP] Shadcn failed to connect:', error));
+    }
+
+    // Dynamic MCP configuration loading
+    let currentDynamicServers = new Set<string>();
+    let lastConfigHash = '';
+    const userDataPath = app.getPath('userData');
+    const mcpConfigPath = path.join(userDataPath, 'mcp.json');
+
+    function reloadMcpConfig() {
+      try {
+        if (!fs.existsSync(mcpConfigPath)) return;
+        const rawContent = fs.readFileSync(mcpConfigPath, 'utf8');
+        
+        // Basic hashing to avoid unnecessary reconnects
+        const crypto = require('crypto');
+        const currentHash = crypto.createHash('md5').update(rawContent).digest('hex');
+        if (currentHash === lastConfigHash) return;
+        lastConfigHash = currentHash;
+
+        const config = JSON.parse(rawContent);
+        const servers = config.mcpServers || {};
+        const newDynamicServers = new Set<string>();
+
+        for (const [serverId, serverConfig] of Object.entries(servers)) {
+          newDynamicServers.add(serverId);
+          const anyConfig = serverConfig as any;
+          
+          // If server already exists and is a dynamic one, remove it so we can re-add with new config
+          if (mcpClientManager.getServer(serverId) && currentDynamicServers.has(serverId)) {
+            void mcpClientManager.removeServer(serverId).then(() => {
+              addDynamicServer(serverId, anyConfig);
+            });
+          } else if (!mcpClientManager.getServer(serverId)) {
+            currentDynamicServers.add(serverId);
+            addDynamicServer(serverId, anyConfig);
+          }
+        }
+        
+        // Remove servers that are no longer in the config
+        for (const serverId of currentDynamicServers) {
+          if (!newDynamicServers.has(serverId)) {
+            void mcpClientManager.removeServer(serverId).catch(e => console.error(`[MCP] Failed to remove ${serverId}:`, e));
+            currentDynamicServers.delete(serverId);
+          }
+        }
+
+      } catch (e) {
+        console.error('[MCP] Failed to load mcp.json:', e);
+      }
+    }
+
+    function addDynamicServer(serverId: string, config: any) {
+      try {
+        mcpClientManager.addServer({
+          id: serverId,
+          name: serverId,
+          transport: {
+            type: 'stdio',
+            command: config.command,
+            args: config.args || [],
+            env: { ...(mcpNodeEnv as Record<string, string>), ...(config.env || {}) }
+          },
+          permissions: ['read', 'write', 'execute', 'network'],
+          autoConnect: true,
+        });
+        void mcpClientManager.connectServer(serverId).catch(e => console.error(`[MCP] Failed to connect ${serverId}:`, e));
+      } catch (err) {
+        console.error(`[MCP] Error adding dynamic server ${serverId}:`, err);
+      }
+    }
+    
+    // Create the file with an empty object if it doesn't exist
+    if (!fs.existsSync(mcpConfigPath)) {
+      try { fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: {} }, null, 2)); } catch(e) {}
+    }
+
+    reloadMcpConfig();
+    try {
+      let debounceTimer: NodeJS.Timeout | null = null;
+      fs.watch(userDataPath, (eventType, filename) => {
+        if (filename === 'mcp.json') {
+          if (debounceTimer) clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => reloadMcpConfig(), 500);
+        }
+      });
+    } catch (e) {
+      console.error('[MCP] Failed to setup watcher:', e);
     }
 
   }, 3000);

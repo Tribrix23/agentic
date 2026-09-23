@@ -125,8 +125,8 @@ export const MainContent = ({
         break;
       }
     }
-    if (!anyRunning && (window as any).mcp) {
-      (window as any).mcp.disconnectServer('playwright').catch(() => {});
+    if (!anyRunning && (window as any).electron?.mcp) {
+      (window as any).electron.mcp.disconnectServer('playwright').catch(() => {});
     }
   };
   const getAgentLoop = () => activeConversationIdRef.current ? agentLoopsMapRef.current.get(activeConversationIdRef.current) || null : null;
@@ -148,7 +148,14 @@ export const MainContent = ({
   useEffect(() => {
     if (selectedProject?.path) {
       (window as any).electron?.readProjectFiles?.(selectedProject.path)
-        .then((files: any[]) => setProjectFiles(files || []))
+        .then((files: any[]) => {
+          setProjectFiles(files || []);
+          
+          // Trigger semantic background indexing asynchronously
+          import('../lib/semanticSearch').then(module => {
+            module.indexWorkspace(selectedProject.path);
+          }).catch(console.error);
+        })
         .catch(() => setProjectFiles([]));
 
       // Reload AI config for this project
@@ -174,6 +181,51 @@ export const MainContent = ({
     window.addEventListener('ai-config-changed', handler);
     return () => window.removeEventListener('ai-config-changed', handler);
   }, []);
+
+  // ── Listen for MCP Sampling Requests ───────────────────────────────
+  useEffect(() => {
+    if (!(window as any).electron?.onMcpSamplingRequest) return;
+    
+    return (window as any).electron.onMcpSamplingRequest((data: { reqId: string, request: any }) => {
+      const { reqId, request } = data;
+      
+      const config = getAIConfig(selectedProject?.path);
+      
+      const mcpMessages = request.params.messages.map((m: any) => {
+         let content = '';
+         if (typeof m.content === 'string') content = m.content;
+         else if (m.content?.type === 'text') content = m.content.text;
+         else content = JSON.stringify(m.content);
+         return { role: m.role, content };
+      });
+      
+      if (request.params.systemPrompt) {
+         mcpMessages.unshift({ role: 'system', content: request.params.systemPrompt });
+      }
+
+      let fullText = '';
+      callDispatcherAPI({
+        config,
+        messages: mcpMessages,
+        onChunk: (chunk) => { fullText += chunk; },
+        onError: (err: any) => {
+          (window as any).electron.sendMcpSamplingResponse(reqId, null, err.message);
+        },
+        onSuccess: (text: string, finishReason: string) => {
+          const result = {
+            role: 'assistant',
+            content: { type: 'text', text: fullText },
+            model: config.model,
+            stopReason: finishReason === 'stop' ? 'endTurn' : finishReason || 'endTurn'
+          };
+          (window as any).electron.sendMcpSamplingResponse(reqId, result);
+        },
+        checkIsStreaming: () => true
+      }).catch((err: any) => {
+         (window as any).electron.sendMcpSamplingResponse(reqId, null, err.message || String(err));
+      });
+    });
+  }, [selectedProject?.path]);
 
   // ── Listen for project changes from settings ───────────────────────────
   useEffect(() => {
@@ -1280,6 +1332,8 @@ IMPORTANT RULES:
          const aliases: string[] = [];
          if (server.id.includes('gdrive') || server.name.toLowerCase().includes('drive')) aliases.push('@drive');
          if (server.id.includes('playwright') || server.name.toLowerCase().includes('playwright')) aliases.push('@browser', '@web');
+         // Make Playwright MCP active by default so it has access to the internet
+         if (server.id.includes('playwright') || server.name.toLowerCase().includes('playwright')) return true;
          
          return allUserText.includes(mentionId) || 
                 allUserText.includes(mentionName) || 
