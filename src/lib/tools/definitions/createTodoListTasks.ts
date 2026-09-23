@@ -60,12 +60,23 @@ export const handler: ToolHandler = async (args, context) => {
     }
 
     const localIds = new Map<string, number>();
+    
+    // Pass 1: Explicit IDs
     for (let index = 0; index < tasks.length; index++) {
-      const aliases = new Set<string>([`task_${index + 1}`]);
-      if (typeof tasks[index].id === 'string' && tasks[index].id.trim()) aliases.add(tasks[index].id.trim());
-      for (const alias of aliases) {
-        if (localIds.has(alias)) return { success: false, output: `Duplicate local task ID: ${alias}.` };
-        localIds.set(alias, index);
+      if (typeof tasks[index].id === 'string' && tasks[index].id.trim()) {
+        const explicitId = tasks[index].id.trim();
+        if (localIds.has(explicitId)) {
+          return { success: false, output: `Duplicate local task ID: ${explicitId}.` };
+        }
+        localIds.set(explicitId, index);
+      }
+    }
+
+    // Pass 2: Automatic aliases (only if they don't conflict)
+    for (let index = 0; index < tasks.length; index++) {
+      const autoAlias = `task_${index + 1}`;
+      if (!localIds.has(autoAlias)) {
+        localIds.set(autoAlias, index);
       }
     }
     const normalizedDependencies: number[][] = [];

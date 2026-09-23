@@ -1,3 +1,4 @@
+import { getGitCheckpointManifest } from './lib/gitCheckpoint';
 import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from 'electron';
 import path from 'node:path';
 import fs from 'fs';
@@ -1139,31 +1140,7 @@ function createWindow() {
   }
 
   ipcMain.handle('get-git-checkpoint-manifest', async (_event, projectRoot: string, commit: string) => {
-    try {
-      const root = (await runGit(['rev-parse', '--show-toplevel'], projectRoot)).trim();
-      const files: Array<{ path: string; status: 'added' | 'modified' | 'deleted' | 'untracked' }> = [];
-
-      const diffOutput = await runGit(['diff', '--name-status', '-z', commit], root);
-      const diffParts = diffOutput.split('\0').filter(Boolean);
-      for (let i = 0; i < diffParts.length; i += 2) {
-        const statusChar = diffParts[i][0];
-        const filePath = diffParts[i + 1];
-        let status: 'added' | 'modified' | 'deleted' | 'untracked' = 'modified';
-        if (statusChar === 'A') status = 'added';
-        else if (statusChar === 'D') status = 'deleted';
-        files.push({ path: filePath, status });
-      }
-
-      const untrackedOutput = await runGit(['ls-files', '--others', '--exclude-standard', '-z'], root);
-      const untrackedParts = untrackedOutput.split('\0').filter(Boolean);
-      for (const filePath of untrackedParts) {
-        files.push({ path: filePath, status: 'untracked' });
-      }
-
-      return { success: true, files };
-    } catch (e: any) {
-      return { success: false, error: e.message };
-    }
+    return await getGitCheckpointManifest(projectRoot, commit);
   });
 
   ipcMain.handle('restore-git-checkpoint', async (_event, projectRoot: string, commit: string) => {

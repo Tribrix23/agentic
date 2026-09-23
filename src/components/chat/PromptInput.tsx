@@ -193,6 +193,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
   const [localContent, setLocalContent] = useState('');
   const content = value !== undefined ? value : localContent;
   const setContent = onChange || setLocalContent;
+  const [availableSkills, setAvailableSkills] = useState<AgentSkill[]>([]);
+  const [availableTools, setAvailableTools] = useState<any[]>([]);
 
   useEffect(() => {
     if (textareaRef.current && content !== undefined) {
@@ -212,46 +214,90 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
       
       if (currentDomText !== content) {
           textareaRef.current.innerHTML = '';
-          const aliases = [...getActiveAliases()].sort((a, b) => b.trigger.length - a.trigger.length);
-          // Simplified regex for manual replace
-          const triggerRegex = new RegExp(`(^|\\s)(${aliases.map(a => a.trigger).join('|').replace(/ /g, '\\s')})(?=\\s|$)`, 'gi');
+          const aliases = [...getActiveAliases()];
+          
+          const slashItemsLocal = [
+            ...(availableTools.some(t => t.definition.category === 'mcp' && t.definition.name.startsWith('mcp__playwright'))
+              ? [{ id: 'browser', type: 'tool', name: 'playwright', displayName: 'Browser', description: 'Web browsing and automation via Playwright', icon: renderToString(<Globe size={14} className="text-blue-400" />) }]
+              : []),
+            ...availableTools
+              .filter(t => t.definition.category === 'mcp' && !t.definition.name.startsWith('mcp__playwright'))
+              .map(t => ({
+                id: t.definition.name,
+                type: 'tool',
+                name: t.definition.name.replace('mcp__', '').replace(/__/g, ' '),
+                displayName: t.definition.name.replace('mcp__', '').replace(/__/g, ' '),
+                description: t.definition.description || '',
+                icon: renderToString(<Puzzle size={14} className="text-purple-400" />)
+              })),
+            ...availableSkills
+              .map(s => ({
+                id: `skill-${s.name}`,
+                type: 'skill',
+                name: s.name,
+                displayName: s.name,
+                description: s.description || '',
+                icon: renderToString(<Puzzle size={14} className="text-[#e29343]" />)
+              }))
+          ];
+
+          const aliasTriggers = aliases.map(a => a.trigger);
+          const slashTriggers = slashItemsLocal.map(s => s.type === 'skill' ? `use ${s.name} skill` : `use ${s.name}`);
+          
+          const allTriggers = [...aliasTriggers, ...slashTriggers].sort((a, b) => b.length - a.length);
+          
+          const escapedTriggers = allTriggers.map(t => t.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&').replace(/ /g, '\\s'));
+          const triggerRegex = escapedTriggers.length > 0 ? new RegExp(`(^|\\s)(${escapedTriggers.join('|')})(?=\\s|$)`, 'gi') : null;
           
           let lastIndex = 0;
           let match;
           
-          while ((match = triggerRegex.exec(content)) !== null) {
-              if (match.index > lastIndex) {
-                  const pre = content.substring(lastIndex, match.index);
-                  // add the space from the match group if it exists
-                  textareaRef.current.appendChild(document.createTextNode(pre + match[1])); 
-              } else if (match[1]) {
-                  textareaRef.current.appendChild(document.createTextNode(match[1])); 
-              }
-              
-              const trigger = match[2];
-              const alias = aliases.find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
-              
-              if (alias) {
-                  const chip = document.createElement('span');
-                  chip.contentEditable = 'false';
-                  chip.className = 'inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent';
-                  chip.dataset.mcp = alias.id;
-                  chip.dataset.mcpName = alias.name;
-                  chip.dataset.trigger = alias.trigger;
-                  chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block ${(alias.id === 'github' || alias.id === 'vercel') ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
-                  textareaRef.current.appendChild(chip);
-                  textareaRef.current.appendChild(document.createTextNode('\u00A0'));
-              } else {
-                  textareaRef.current.appendChild(document.createTextNode(trigger));
-              }
-              lastIndex = match.index + match[0].length;
+          if (triggerRegex) {
+            while ((match = triggerRegex.exec(content)) !== null) {
+                if (match.index > lastIndex) {
+                    const pre = content.substring(lastIndex, match.index);
+                    textareaRef.current.appendChild(document.createTextNode(pre + match[1])); 
+                } else if (match[1]) {
+                    textareaRef.current.appendChild(document.createTextNode(match[1])); 
+                }
+                
+                const trigger = match[2];
+                const alias = aliases.find(a => a.trigger.toLowerCase() === trigger.toLowerCase());
+                
+                if (alias) {
+                    const chip = document.createElement('span');
+                    chip.contentEditable = 'false';
+                    chip.className = 'inline-flex items-center gap-1.5 px-1 py-0.5 mx-1 text-[14px] align-middle select-none bg-transparent';
+                    chip.dataset.mcp = alias.id;
+                    chip.dataset.mcpName = alias.name;
+                    chip.dataset.trigger = alias.trigger;
+                    chip.innerHTML = `<img src="${alias.icon}" alt="${alias.name}" class="w-4 h-4 object-contain inline-block ${(alias.id === 'github' || alias.id === 'vercel') ? 'filter invert opacity-90' : ''}" /><span class="text-[#4b93ff] font-medium">${alias.name}</span>`;
+                    textareaRef.current.appendChild(chip);
+                    textareaRef.current.appendChild(document.createTextNode('\u00A0'));
+                } else {
+                    const slashItem = slashItemsLocal.find(s => (s.type === 'skill' ? `use ${s.name} skill` : `use ${s.name}`).toLowerCase() === trigger.toLowerCase());
+                    if (slashItem) {
+                        const chip = document.createElement('span');
+                        chip.contentEditable = 'false';
+                        chip.className = 'inline-flex items-center gap-1.5 px-1.5 py-0.5 mx-1 text-[13px] align-middle select-none bg-[#2b2b30] border border-white/10 rounded font-medium text-white shadow-sm';
+                        chip.setAttribute('data-slash', slashItem.id);
+                        chip.setAttribute('data-trigger', slashItem.type === 'skill' ? `use ${slashItem.name} skill` : `use ${slashItem.name}`);
+                        chip.innerHTML = `<span class="opacity-70 flex items-center justify-center w-3.5 h-3.5">${slashItem.icon}</span><span class="leading-none text-white">${slashItem.displayName}</span>`;
+                        textareaRef.current.appendChild(chip);
+                        textareaRef.current.appendChild(document.createTextNode('\u00A0'));
+                    } else {
+                        textareaRef.current.appendChild(document.createTextNode(trigger));
+                    }
+                }
+                lastIndex = match.index + match[0].length;
+            }
           }
           if (lastIndex < content.length) {
               textareaRef.current.appendChild(document.createTextNode(content.substring(lastIndex)));
           }
       }
     }
-  }, [content]);
+  }, [content, availableTools, availableSkills]);
   const [mentionedFiles, setMentionedFiles] = useState<string[]>([]);
   const textareaRef = useRef<HTMLDivElement>(null);
   const textBeforeListening = useRef<string>('');
@@ -539,8 +585,8 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
 
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashSearchQuery, setSlashSearchQuery] = useState('');
-  const [availableSkills, setAvailableSkills] = useState<AgentSkill[]>([]);
-  const [availableTools, setAvailableTools] = useState<any[]>([]);
+  
+  
   const [slashMenuPos, setSlashMenuPos] = useState(0);
   const [showAtMenu, setShowAtMenu] = useState(false);
   const [atSearchQuery, setAtSearchQuery] = useState('');
@@ -579,13 +625,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         setGdriveEmail(data.email || null);
 
         // If modal is open, poll fast. Otherwise, poll slow.
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, 2000);
       } catch {
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
         attempts++;
-        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, attempts < 10 ? 1000 : 3000);
       }
     };
 
@@ -610,13 +656,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         setSupabaseConnected(data.connected === true);
 
         // If modal is open, poll fast. Otherwise, poll slow.
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, 2000);
       } catch {
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
         attempts++;
-        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, attempts < 10 ? 1000 : 3000);
       }
     };
 
@@ -640,11 +686,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const data = await res.json();
         setFigmaConnected(data.connected === true);
 
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, 2000);
       } catch {
         if (!isMounted) return;
         attempts++;
-        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, attempts < 10 ? 1000 : 3000);
       }
     };
 
@@ -668,11 +714,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         const data = await res.json();
         setVercelConnected(data.connected === true);
 
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, 2000);
       } catch {
         if (!isMounted) return;
         attempts++;
-        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, attempts < 10 ? 1000 : 3000);
       }
     };
 
@@ -701,11 +747,11 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
           return data.connected === true;
         });
 
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, 2000);
       } catch {
         if (!isMounted) return;
         attempts++;
-        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, attempts < 10 ? 1000 : 3000);
       }
     };
 
@@ -738,13 +784,13 @@ export function PromptInput({ onSend, onStop, isAgentRunning, config, projectFil
         } catch(e) {}
 
         // If modal is open, poll fast. Otherwise, poll slow.
-        timeoutId = setTimeout(check, showConnectModal ? 2000 : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, 2000);
       } catch {
         if (!isMounted) return;
         // Server not running yet. 
         // If we are in the first 10 seconds (attempts < 10), retry quickly.
         attempts++;
-        timeoutId = setTimeout(check, showConnectModal ? (attempts < 10 ? 1000 : 3000) : 60000);
+        if (showConnectModal) timeoutId = setTimeout(check, attempts < 10 ? 1000 : 3000);
       }
     };
 

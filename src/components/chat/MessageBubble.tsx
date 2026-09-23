@@ -365,6 +365,15 @@ export function MessageBubble({
 
       displayContent = htmlChips + displayContent.slice(prefixMatch[0].length);
     }
+
+    // Also globally replace any remaining 'use XXX skill' and 'use playwright' in the text
+    displayContent = displayContent.replace(/\buse ([\w-]+) skill\b/gi, (match, name) => {
+      return `<span data-agentic-chip="true" data-name="${name}" data-type="skill"></span>`;
+    });
+    
+    displayContent = displayContent.replace(/\buse (playwright)\b/gi, (match, name) => {
+      return `<span data-agentic-chip="true" data-name="${name}" data-type="tool"></span>`;
+    });
   }
   const stepsToRender = [...steps];
   if (isWorking && steps.length === 0) {

@@ -141,6 +141,26 @@ const ParticleText = ({
       smoothY: 0
     };
 
+    let glowCanvas: HTMLCanvasElement | null = null;
+    if (glow && !reducedMotion) {
+      glowCanvas = document.createElement('canvas');
+      const gSize = Math.ceil(particleSize * 10);
+      glowCanvas.width = gSize;
+      glowCanvas.height = gSize;
+      const gCtx = glowCanvas.getContext('2d');
+      if (gCtx) {
+        gCtx.shadowBlur = particleSize * 3;
+        gCtx.shadowColor = highlightColor;
+        gCtx.shadowOffsetX = gSize;
+        gCtx.shadowOffsetY = 0;
+        gCtx.fillStyle = '#fff';
+        gCtx.beginPath();
+        // Draw offscreen, shadow will land in the center
+        gCtx.arc(-gSize / 2, gSize / 2, particleSize / 2, 0, Math.PI * 2);
+        gCtx.fill();
+      }
+    }
+
     const startGather = (fromScatter = true): void => {
       if (!particles.length) return;
 
@@ -177,6 +197,11 @@ const ParticleText = ({
 
     const drawParticle = (particle: Particle): void => {
       const size = particle.size;
+
+      if (glowCanvas) {
+        ctx.drawImage(glowCanvas, particle.x - glowCanvas.width / 2, particle.y - glowCanvas.height / 2);
+      }
+
       ctx.fillStyle = particle.color;
 
       if (size <= 2.1) {
@@ -192,12 +217,9 @@ const ParticleText = ({
     const render = (now: number): void => {
       ctx.clearRect(0, 0, width, height);
 
-      if (glow && !reducedMotion) {
-        ctx.shadowBlur = particleSize * 3;
-        ctx.shadowColor = highlightColor;
-      } else {
-        ctx.shadowBlur = 0;
-      }
+      // We removed shadowBlur here because it forces the browser to run Gaussian blur 
+      // on EVERY drawn particle independently per frame, causing massive UI freezing on many GPUs.
+      ctx.shadowBlur = 0;
 
       pointer.smoothX += (pointer.x - pointer.smoothX) * 0.18;
       pointer.smoothY += (pointer.y - pointer.smoothY) * 0.18;
@@ -242,7 +264,6 @@ const ParticleText = ({
       });
 
       ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
 
       if (gathering && complete) {
         gathering = false;
@@ -265,9 +286,9 @@ const ParticleText = ({
 
       if (newWidth <= 0 || newHeight <= 0) return;
       
-      // CACHE: If dimensions haven't changed and we already have particles, skip recalculation
-      // This prevents massive CPU spikes when ResizeObserver fires during chat streaming/layout reflows
-      if (width === newWidth && height === newHeight && particles.length > 0) {
+      // CACHE: If dimensions haven't changed significantly, skip recalculation.
+      // We allow a 2px margin to prevent endless loops if ResizeObserver causes subpixel bouncing.
+      if (Math.abs(width - newWidth) <= 2 && Math.abs(height - newHeight) <= 2 && particles.length > 0) {
         return;
       }
       
@@ -341,7 +362,7 @@ const ParticleText = ({
         }
       }
 
-      const maxParticles = Math.max(900, Math.min(5200, Math.floor((width * height) / 90)));
+      const maxParticles = Math.max(900, Math.min(2500, Math.floor((width * height) / 120)));
       const stride = Math.max(1, Math.ceil(targets.length / maxParticles));
       const baseRgb = hexToRgb(color);
       const highlightRgb = hexToRgb(highlightColor);

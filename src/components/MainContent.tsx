@@ -387,7 +387,7 @@ export const MainContent = ({
       // Use agentLoopRef directly to check if it's running, to avoid stale React state closures
       const isLoopRunning = getAgentLoop() ? getAgentLoop().getState().isRunning : isAgentRunning;
 
-      if (!isLoopRunning && aiConfig.agentMode && activeConversationId) {
+      if (!isLoopRunning && aiConfig.agentMode && activeConversationId && getAgentLoop()?.getState().status !== 'stopped') {
         // Build the system message
         const taskMsg = createUserMessage(`[SYSTEM]: Background task ${taskId} completed with status ${status.status}.\nWait to see if there is any output from manageTask or commandStatus.`);
 
@@ -640,7 +640,7 @@ export const MainContent = ({
                   setAgentStatus('');
                   setAgentState('idle');
                 }
-              } else if (!isAgentRunning && aiConfig.agentMode && activeConversationId && event.data?.reason !== 'user_cancelled') {
+              } else if (!isAgentRunning && aiConfig.agentMode && activeConversationId && event.data?.reason !== 'user_cancelled' && getAgentLoop()?.getState().status !== 'stopped') {
                 // If loop is fully done, start a fresh one with the result injected (but not if cancelled)
                 setIsAgentRunning(true);
                 isStreamingRef.current = true;
@@ -712,7 +712,7 @@ IMPORTANT RULES:
         const taskMsg = createUserMessage(`[Subagent (${conversationId})]: Received your message: "${message}". I am processing it.`);
         setMessages(prev => {
           const newMsgs = [...prev, taskMsg];
-          if (!isAgentRunning && aiConfig.agentMode && activeConversationId && getAgentLoop()) {
+          if (!isAgentRunning && aiConfig.agentMode && activeConversationId && getAgentLoop() && getAgentLoop()?.getState().status !== 'stopped') {
             setIsAgentRunning(true);
             isStreamingRef.current = true;
             getAgentLoop().run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);

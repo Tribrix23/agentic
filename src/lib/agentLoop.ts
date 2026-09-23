@@ -403,8 +403,11 @@ function deduplicateToolCalls(toolCalls: ParsedToolCall[]): ParsedToolCall[] {
  */
 function stripToolCallBlocks(text: string, parsedToolCalls?: ParsedToolCall[]): string {
   let cleaned = text;
-  // Format 1: XML tool_call tags
-  cleaned = cleaned.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '');
+  // Format 1: XML tool_call tags (handle optional attributes)
+  cleaned = cleaned.replace(/<tool_call\b[^>]*>[\s\S]*?<\/tool_call>/gi, '');
+  // Format 1.5: XML tool_result and invoke tags (hallucinated by some models)
+  cleaned = cleaned.replace(/<tool_result\b[^>]*>[\s\S]*?(?:<\/tool_result>|$)/gi, '');
+  cleaned = cleaned.replace(/<invoke\b[^>]*>[\s\S]*?(?:<\/invoke>|$)/gi, '');
   // Format 2: Backtick-wrapped JSON blocks containing tool_call
   cleaned = cleaned.replace(/```(?:json)?\s*\n?\s*\{[\s\S]*?"tool_call"[\s\S]*?\}\s*\n?\s*```/gi, '');
   // Format 3: [TOOL:name] style
@@ -465,7 +468,7 @@ function stripToolCallBlocks(text: string, parsedToolCalls?: ParsedToolCall[]): 
   // Format 6: Self-closing XML tool calls (e.g. <listDirectory path="..." />)
   cleaned = cleaned.replace(/<[a-zA-Z][a-zA-Z0-9_]+\s+[^>]*?\/>/gi, '');
   // Format 7: Native <function=name> format
-  cleaned = cleaned.replace(/<function=[^>]+>[\s\S]*?<\/function>/gi, '');
+  cleaned = cleaned.replace(/<function\b[^>]*>[\s\S]*?(?:<\/function>|$)/gi, '');
   // Do NOT strip <think> blocks here. Let MessageBubble.tsx handle extracting and stripping them
   // so that the UI can actually render the thinking steps.
   return cleaned.trim();
@@ -2009,25 +2012,31 @@ export class AgentLoop {
       }
 
       // ── Finalize ─────────────────────────────────────────────────────
-      this.state.isRunning = false;
-      this.state.status = 'done';
-      this.state.phase = 'done';
-      this.state.elapsedMs = Date.now() - (this.state.startTime || Date.now());
-      this.emit({
-        type: 'agent:done',
-        data: {
-          reason: 'completed',
-          iterations: this.state.currentIteration,
-          elapsedMs: this.state.elapsedMs,
-        },
-      });
+              this.state.isRunning = false;
+        this.state.phase = 'done';
+        this.state.elapsedMs = Date.now() - (this.state.startTime || Date.now());
+
+        if (this.abortController?.signal.aborted) {
+          this.state.status = 'stopped';
+          this.emit({ type: 'agent:done', data: { reason: 'user_cancelled' } });
+        } else {
+          this.state.status = 'done';
+          this.emit({
+            type: 'agent:done',
+            data: {
+              reason: 'completed',
+              iterations: this.state.currentIteration,
+              elapsedMs: this.state.elapsedMs,
+            },
+          });
+        }
     } catch (error: any) {
       this.state.isRunning = false;
-      this.state.status = 'error';
-
       if (error.name === 'AbortError') {
+        this.state.status = 'stopped';
         this.emit({ type: 'agent:done', data: { reason: 'user_cancelled' } });
       } else {
+        this.state.status = 'error';
         this.emit({ type: 'agent:error', data: { message: error.message } });
       }
     }

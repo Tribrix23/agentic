@@ -1161,12 +1161,12 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
       >
         <div
           className={cn(
-            "font-mono text-[13px] min-h-[90px] flex flex-col w-full h-full",
+            "font-mono text-[13px] flex flex-col w-full h-full",
             isRunning || step.status === 'pending' ? "running-border-inner" : ""
           )}
           style={!(isRunning || step.status === 'pending') ? { background: '#212124' } : undefined}
         >
-          {/* Header */}
+                    {/* Header */}
           <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 font-sans text-white/55 text-[11px]">
             <SquareTerminal size={14} className="text-white/50" />
             <span className="tracking-widest uppercase text-[10px] font-semibold">Terminal</span>
