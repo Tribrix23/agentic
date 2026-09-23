@@ -2291,7 +2291,7 @@ useEffect(() => {
                   ) : (
                     <Tooltip content="Stop Generation">
                       <button
-                        onClick={onStop}
+                        onClick={() => onStop()}
                         className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors shadow-lg"
                       >
                         <Square size={14} fill="currentColor" />

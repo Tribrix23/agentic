@@ -356,7 +356,7 @@ export const Sidebar = ({ isOpen, onOpenSettings }: { isOpen: boolean, onOpenSet
                                             <Tooltip content="Stop Agent"><button
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  window.dispatchEvent(new CustomEvent('request-stop-agent'));
+                                                  window.dispatchEvent(new CustomEvent('request-stop-agent', { detail: { conversationId: conv.id } }));
                                                 }}
                                                 className="group/spinner text-white/50 hover:text-red-400 p-1">
                                                 <div className="w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin group-hover/spinner:hidden" />

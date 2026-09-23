@@ -138,6 +138,7 @@ export const MainContent = ({
   const finalizedSubagentsRef = useRef<Set<string>>(new Set());
   const subagentManagerRef = useRef<SubagentManager | null>(null);
   const billingSessionRef = useRef<TokenBillingSession | null>(null);
+  const cancelledCheckpointsRef = useRef<Set<string>>(new Set());
   const isStreamingRef = useRef(false);
   const isSubmittingRef = useRef(false);
   const quotaExhaustedRef = useRef(false);
@@ -533,7 +534,7 @@ export const MainContent = ({
           sendNotification('Requesting permission', event.data.name);
         } else if (event.type === 'agent:tool-executing' || event.type === 'agent:tool-result') {
           // Forward UI state updates for tool execution inside subagent messages
-          setMessages(prev => prev.map(m => {
+          setMessages(prev => prev.filter(m => !(m.id === 'placeholder_assistant_msg' && !m.content.trim())).map(m => {
             const subagentId = `subagent_${conversationId}_${event.data.messageId || (event.data.toolCall && event.data.toolCall.messageId) || ''}`;
             if (m.id === subagentId || m.toolCalls?.some(t => t.id === (event.type === 'agent:tool-result' ? event.data.toolCall.id : event.data.id))) {
               return {
@@ -724,7 +725,7 @@ IMPORTANT RULES:
 
     const handleSubagentFileActivity = (e: any) => {
       const { taskId, fileName, added, removed } = e.detail;
-      setMessages(prev => prev.map(m => {
+      setMessages(prev => prev.filter(m => !(m.id === 'placeholder_assistant_msg' && !m.content.trim())).map(m => {
         if (m.role === 'assistant' && m.toolCalls) {
           const updatedToolCalls = m.toolCalls.map(t => {
             if (t.name === 'invokeSubagent' && (t.arguments?.taskId === taskId || t.arguments?.targetFile === fileName)) {
@@ -888,7 +889,7 @@ IMPORTANT RULES:
       case 'agent:tool-executing':
         setAgentStatus(`Executing ${event.data.name}...`);
         // Mark this specific tool call as actively running in the UI
-        setMessages(prev => prev.map(m => {
+        setMessages(prev => prev.filter(m => !(m.id === 'placeholder_assistant_msg' && !m.content.trim())).map(m => {
           if (m.role === 'assistant' && m.toolCalls) {
             const hasThis = m.toolCalls.some(t => t.id === event.data.id);
             if (hasThis) {
@@ -905,7 +906,7 @@ IMPORTANT RULES:
         break;
       case 'agent:tool-result':
         setAgentStatus('Processing result...');
-        setMessages(prev => prev.map(m => {
+        setMessages(prev => prev.filter(m => !(m.id === 'placeholder_assistant_msg' && !m.content.trim())).map(m => {
           if (m.role === 'assistant' && m.toolCalls) {
             const hasThis = m.toolCalls.some(t => t.id === event.data.toolCall.id);
             if (hasThis) {
@@ -1363,7 +1364,18 @@ IMPORTANT RULES:
           ? getPlanToolDefinitions(getAllTools())
           : readOnly ? getReadOnlyToolDefinitions(getAllTools()).filter((t: any) => t.function.name === 'runCommand') : getToolsForLLM();
       const runId = `run:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-      activeRunIdRef.current = runId;
+      if (convId && cancelledCheckpointsRef.current.has(convId)) {
+        cancelledCheckpointsRef.current.delete(convId);
+        isSubmittingRef.current = false;
+        if (convId === activeConversationIdRef.current) {
+          setIsAgentRunning(false);
+          isStreamingRef.current = false;
+        }
+        return;
+      }
+      if (convId === activeConversationIdRef.current) {
+        activeRunIdRef.current = runId;
+      }
       const newLoop = createAgentLoop(handleAgentEvent, {
         projectId: selectedProject?.path,
         projectContext,
@@ -1468,40 +1480,51 @@ IMPORTANT RULES:
 
 
   // ── Stop Agent ───────────────────────────────────────────────────────
-  const handleStopAgent = useCallback(() => {
-    activeRunIdRef.current = null;
-    billingSessionRef.current?.stop();
-    billingSessionRef.current = null;
-    isSubmittingRef.current = false;
-    if (getAgentLoop()) {
-      getAgentLoop().stop();
+  const handleStopAgent = useCallback((targetConversationId?: string) => {
+    console.log('handleStopAgent triggered! targetConversationId:', targetConversationId, 'active:', activeConversationIdRef.current);
+    const targetId = (typeof targetConversationId === 'string' ? targetConversationId : null) || activeConversationIdRef.current;
+    if (targetId) cancelledCheckpointsRef.current.add(targetId);
+    
+    // Stop the specific loop
+    const targetLoop = targetId ? agentLoopsMapRef.current.get(targetId) : null;
+    if (targetLoop) {
+      targetLoop.stop();
     }
-    if (activeConversationIdRef.current) {
-        subagentManagerRef.current?.cancelForConversation(activeConversationIdRef.current);
-      }
+    
+    if (targetId) {
+      subagentManagerRef.current?.cancelForConversation(targetId);
+    }
+    
+    // Only update UI state if we are stopping the ACTIVE conversation
+    if (targetId === activeConversationIdRef.current) {
+      activeRunIdRef.current = null;
+      isSubmittingRef.current = false;
 
-    isStreamingRef.current = false;
-    setIsAgentRunning(false);
-    setAgentStatus('');
-    setAgentState('idle');
-    closePlaywrightIfIdle();
-    setMessages(prev => prev.map(m => {
-      let updated = m;
-      if (updated.isStreaming) {
-        updated = { ...updated, isStreaming: false };
-      }
-      if (updated.toolCalls && updated.toolCalls.some(tc => tc.status === 'running' || tc.status === 'pending')) {
-        updated = {
-          ...updated,
-          toolCalls: updated.toolCalls.map(tc =>
-            (tc.status === 'running' || tc.status === 'pending')
-              ? { ...tc, status: 'error' as const, result: { success: false, output: 'Cancelled by user.', artifacts: [] } }
-              : tc
-          )
-        };
-      }
-      return updated;
-    }));
+      isStreamingRef.current = false;
+      setIsAgentRunning(false);
+      setAgentStatus('');
+      setAgentState('idle');
+      closePlaywrightIfIdle();
+      setMessages(prev => prev.filter(m => !(m.id === 'placeholder_assistant_msg' && !m.content)).map(m => {
+        let updated = m;
+        if (updated.isStreaming) {
+          updated = { ...updated, isStreaming: false };
+        }
+        if (updated.toolCalls && updated.toolCalls.some(tc => tc.status === 'running' || tc.status === 'pending')) {
+          updated = {
+            ...updated,
+            toolCalls: updated.toolCalls.map(tc =>
+              (tc.status === 'running' || tc.status === 'pending')
+                ? { ...tc, status: 'error' as const, result: { success: false, output: 'Cancelled by user.', artifacts: [] } }
+                : tc
+            )
+          };
+        }
+        return updated;
+      }));
+    } else {
+      closePlaywrightIfIdle();
+    }
   }, [setAgentState]);
 
   useEffect(() => {
@@ -1554,7 +1577,7 @@ IMPORTANT RULES:
   }, []);
 
   useEffect(() => {
-    const handleStopRequest = () => handleStopAgent();
+    const handleStopRequest = (e: any) => handleStopAgent(e.detail?.conversationId);
     window.addEventListener('request-stop-agent', handleStopRequest);
     return () => window.removeEventListener('request-stop-agent', handleStopRequest);
   }, [handleStopAgent]);
