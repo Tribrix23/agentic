@@ -144,7 +144,7 @@ export const MainContent = ({
   const quotaExhaustedRef = useRef(false);
   const [inputValue, setInputValue] = useState('');
 
-  const { agentState, setAgentState, pendingToolCall, pendingAskUser, submitPrompt, handleToolIntercepted, handleToolDecision, handleUserResponse } = useAgentLoop();
+  const { agentState, setAgentState, pendingToolCall, pendingAskUser, submitPrompt, handleToolIntercepted, handleToolDecision, handleUserResponse } = useAgentLoop(activeConversationId);
 
   // ── Load project files when project changes ──────────────────────────
   useEffect(() => {
@@ -530,7 +530,7 @@ export const MainContent = ({
           const msg = { ...event.data, id: `subagent_${conversationId}_${event.data.id}`, name: `Subagent (${role})` };
           setMessages(prev => prev.map(m => m.id === msg.id ? { ...msg } : m));
         } else if (event.type === 'agent:tool-approval-needed') {
-          handleToolIntercepted(event.data);
+          handleToolIntercepted(event.data, conversationId);
           sendNotification('Requesting permission', event.data.name);
         } else if (event.type === 'agent:tool-executing' || event.type === 'agent:tool-result') {
           // Forward UI state updates for tool execution inside subagent messages
@@ -781,6 +781,8 @@ IMPORTANT RULES:
         window.dispatchEvent(new CustomEvent('agent-running-state', {
           detail: { isRunning: false, activeConversationId: event.conversationId }
         }));
+      } else if (event.type === 'agent:tool-approval-needed') {
+        handleToolIntercepted(event.data, event.conversationId);
       }
       return;
     }
@@ -883,7 +885,7 @@ IMPORTANT RULES:
         break;
       case 'agent:tool-approval-needed':
         setAgentStatus(`Awaiting approval for ${event.data.name}...`);
-        handleToolIntercepted(event.data);
+        handleToolIntercepted(event.data, event.conversationId);
         sendNotification('Requesting permission', event.data.name);
         break;
       case 'agent:tool-executing':

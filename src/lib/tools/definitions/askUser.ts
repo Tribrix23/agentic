@@ -43,7 +43,7 @@ export const handler: ToolHandler = async (args, context) => {
       window.addEventListener('agent-user-response', handleResult);
       
       window.dispatchEvent(new CustomEvent('agent-ask-user', { 
-        detail: { id: eventId, question, options } 
+        detail: { id: eventId, question, options, conversationId: context.conversationId } 
       }));
       
       context.signal.addEventListener('abort', () => {

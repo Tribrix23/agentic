@@ -1,11 +1,29 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { AgentState } from '../lib/types/AgentTypes';
 import { sendNotification } from '../lib/notification';
 
-export function useAgentLoop() {
+export function useAgentLoop(activeConversationId: string | null) {
   const [agentState, setAgentState] = useState<AgentState>('idle');
-  const [pendingToolCall, setPendingToolCall] = useState<any>(null);
-  const [pendingAskUser, setPendingAskUser] = useState<{ id: string; question: string; options?: string[] } | null>(null);
+  
+  const [pendingToolCalls, setPendingToolCalls] = useState<Record<string, any>>({});
+  const [pendingAskUsers, setPendingAskUsers] = useState<Record<string, any>>({});
+
+  const activeConversationIdRef = useRef(activeConversationId);
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  const pendingToolCall = activeConversationId ? (pendingToolCalls[activeConversationId] || null) : null;
+  const pendingAskUser = activeConversationId ? (pendingAskUsers[activeConversationId] || null) : null;
+
+  // When switching conversations, update agentState if we have a pending interaction
+  useEffect(() => {
+    if (pendingAskUser) {
+      setAgentState('awaiting_user_response');
+    } else if (pendingToolCall) {
+      setAgentState('awaiting_tool_approval');
+    }
+  }, [activeConversationId, pendingAskUser, pendingToolCall]);
 
   const submitPrompt = useCallback(async (prompt: string, isAgentMode: boolean = true) => {
     if (isAgentMode) {
@@ -15,50 +33,92 @@ export function useAgentLoop() {
 
   useEffect(() => {
     const handleAskUser = (e: any) => {
-      setPendingAskUser(e.detail);
-      setAgentState('awaiting_user_response');
+      const convId = e.detail.conversationId;
+      if (!convId) return;
+      
+      setPendingAskUsers(prev => ({ ...prev, [convId]: e.detail }));
+      
+      if (convId === activeConversationIdRef.current) {
+        setAgentState('awaiting_user_response');
+      }
       sendNotification('Asking user', e.detail.question || 'User input needed');
     };
     window.addEventListener('agent-ask-user', handleAskUser);
     return () => window.removeEventListener('agent-ask-user', handleAskUser);
   }, []);
 
-  const handleToolIntercepted = useCallback((toolCall: any) => {
-    setAgentState('awaiting_tool_approval');
-    setPendingToolCall(toolCall);
+  const handleToolIntercepted = useCallback((toolCall: any, convId?: string) => {
+    const targetId = convId || activeConversationIdRef.current;
+    if (!targetId) return;
+    setPendingToolCalls(prev => ({ ...prev, [targetId]: toolCall }));
+    if (targetId === activeConversationIdRef.current) {
+      setAgentState('awaiting_tool_approval');
+    }
   }, []);
 
   const handleToolDecision = useCallback((isApproved: boolean, feedback?: string) => {
-    if (pendingToolCall) {
+    const currentConvId = activeConversationIdRef.current;
+    if (!currentConvId) return;
+    
+    const currentPendingCall = pendingToolCalls[currentConvId];
+
+    if (currentPendingCall) {
       window.dispatchEvent(
         new CustomEvent('tool-approval-response', {
-          detail: { toolCallId: pendingToolCall.id, approved: isApproved }
+          detail: { toolCallId: currentPendingCall.id, approved: isApproved }
         })
       );
       
-      // If rejected with feedback, we could automatically submit that feedback to the agent
-      // We will handle this by returning the feedback to the caller
       if (!isApproved && feedback) {
-        // Send a message as if the user typed it
         submitPrompt(`I rejected the previous tool call. Please do this instead: ${feedback}`);
       }
     }
 
-    setAgentState('executing_parallel');
-    setPendingToolCall(null);
-  }, [pendingToolCall, submitPrompt]);
+    if (currentConvId === activeConversationIdRef.current) {
+      setAgentState('executing_parallel');
+    }
+    setPendingToolCalls(prev => {
+      const next = { ...prev };
+      delete next[currentConvId];
+      return next;
+    });
+  }, [pendingToolCalls, submitPrompt]);
 
   const handleUserResponse = useCallback((response: string) => {
-    if (pendingAskUser) {
+    const currentConvId = activeConversationIdRef.current;
+    if (!currentConvId) return;
+    
+    const currentAskUser = pendingAskUsers[currentConvId];
+
+    if (currentAskUser) {
       window.dispatchEvent(
         new CustomEvent('agent-user-response', {
-          detail: { id: pendingAskUser.id, response }
+          detail: { id: currentAskUser.id, response }
         })
       );
     }
-    setAgentState('executing_parallel');
-    setPendingAskUser(null);
-  }, [pendingAskUser]);
+    if (currentConvId === activeConversationIdRef.current) {
+      setAgentState('executing_parallel');
+    }
+    setPendingAskUsers(prev => {
+      const next = { ...prev };
+      delete next[currentConvId];
+      return next;
+    });
+  }, [pendingAskUsers]);
+
+  // Compatibility wrappers for setting state directly (used rarely if at all, but keeping interface)
+  const setPendingToolCall = useCallback((val: any) => {
+    const convId = activeConversationIdRef.current;
+    if (!convId) return;
+    setPendingToolCalls(prev => val ? { ...prev, [convId]: val } : (delete prev[convId], prev));
+  }, []);
+  
+  const setPendingAskUser = useCallback((val: any) => {
+    const convId = activeConversationIdRef.current;
+    if (!convId) return;
+    setPendingAskUsers(prev => val ? { ...prev, [convId]: val } : (delete prev[convId], prev));
+  }, []);
 
   return { 
     agentState, 
