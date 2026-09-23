@@ -40,7 +40,7 @@ export const handler: ToolHandler = async (args, context) => {
       // Execute literal command directly via runCommandCapture
       if (context.signal?.aborted) return { success: false, output: 'Command aborted.' };
       
-      const taskId = `cmd_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+      const taskId = `${context.conversationId || 'global'}/task-${Date.now()}_${Math.random().toString(36).substring(2)}`;
       let abortListener: () => void;
       if (context.signal) {
         abortListener = () => {

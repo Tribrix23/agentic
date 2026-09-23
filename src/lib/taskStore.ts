@@ -45,18 +45,21 @@ const MAX_TASKS = 1000;
 
 function loadAll(): Task[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
-    const tasks = JSON.parse(stored);
-    // Filter out placeholder tasks created by planning phase
-    return tasks.filter((t: Task) => !t.tags?.includes('planning'));
-  } catch {
+    const tasks = (window as any).electron.dbGetAllTasks();
+    if (!tasks) return [];
+    return tasks;
+  } catch (e) {
+    console.error('Failed to load tasks from DB:', e);
     return [];
   }
 }
 
 function saveAll(tasks: Task[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  try {
+    (window as any).electron.dbSaveAllTasks(tasks);
+  } catch (e) {
+    console.error('Failed to save tasks to DB:', e);
+  }
 }
 
 /** Create a new task */

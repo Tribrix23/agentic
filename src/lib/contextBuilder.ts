@@ -321,6 +321,17 @@ export function buildContext(
       }
 
       projectLines.push('</project_context>');
+      
+      try {
+        const { getProjectRules } = require('./memory/projectContext');
+        const rules = getProjectRules(projectContext.rootPath);
+        if (rules) {
+          projectLines.push(rules);
+        }
+      } catch (e) {
+        console.error("Failed to inject project rules:", e);
+      }
+
       systemPromptParts.push(projectLines.join('\n'));
     }
   }

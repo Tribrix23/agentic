@@ -33,6 +33,7 @@ import { AgentState } from '../lib/types/AgentTypes';
 import { saveSnapshot, getSnapshotForMessage, getSnapshotsFrom, deleteSnapshotsFrom, updateSnapshot } from '../lib/snapshotStore';
 import { isQuotaError, TokenBillingSession } from '../lib/tokenQuota';
 import { SubagentManager } from '../lib/agent/subagentManager';
+import { initDagExecutor } from '../lib/agent/dagExecutor';
 import { resultFromChildMessages } from '../lib/agent/subagentResult';
 import type { SubagentRequest, SubagentRunContext } from '../lib/agent/subagentTypes';
 
@@ -365,8 +366,18 @@ export const MainContent = ({
     let removeBackgroundTaskListener: any = null;
     if ((window as any).electron?.onBackgroundTaskComplete) {
       removeBackgroundTaskListener = (window as any).electron.onBackgroundTaskComplete((data: { taskId: string; status: any }) => {
-        // Emit an event to wake up the agent loop
-        window.dispatchEvent(new CustomEvent('background-task-complete', { detail: data }));
+        const eventDetail = { detail: data };
+        
+        // Let the loops update their states if they're sleeping
+        for (const loop of agentLoopsMapRef.current.values()) {
+          loop.notifyBackgroundTaskComplete(eventDetail);
+        }
+        for (const loop of subagentLoopsRef.current.values()) {
+          loop.notifyBackgroundTaskComplete(eventDetail);
+        }
+        
+        // Also dispatch to window so MainContent can auto-start dead loops
+        window.dispatchEvent(new CustomEvent('background-task-complete', eventDetail));
       });
     }
 
@@ -1088,8 +1099,15 @@ IMPORTANT RULES:
     return resultFromChildMessages(finalMessages);
   }, [aiConfig, selectedProject?.path]);
 
-  if (!subagentManagerRef.current) subagentManagerRef.current = new SubagentManager(runSubagent);
-  else subagentManagerRef.current.setRunner(runSubagent);
+  if (!subagentManagerRef.current) {
+    subagentManagerRef.current = new SubagentManager(runSubagent);
+  } else {
+    subagentManagerRef.current.setRunner(runSubagent);
+  }
+  
+  if (selectedProject?.path && subagentManagerRef.current) {
+    initDagExecutor(subagentManagerRef.current, selectedProject.path);
+  }
 
   // ── Send Message Handler ─────────────────────────────────────────────
   const handleSendMessage = useCallback(async (
@@ -1364,6 +1382,7 @@ IMPORTANT RULES:
         interactionMode,
         executionPlanPath: executionPlan?.executionPlanPath,
         executionPlanInstruction,
+          subagentManager: subagentManagerRef.current || undefined,
       });
 
       agentLoopsMapRef.current.set(convId, newLoop);

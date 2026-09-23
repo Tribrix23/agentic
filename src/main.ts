@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import started from 'electron-squirrel-startup';
+import { getAllTasks, saveAllTasks, getProjectMemory, saveProjectMemory } from './backend/database';
 import { ProcessManager } from './lib/processManager';
 import { McpClientManager } from './lib/mcp/manager';
 import type { McpServerConfig } from './lib/mcp/types';
@@ -734,6 +735,26 @@ function createWindow() {
       return { success: false, error: 'windowTitle and savePath are required.' };
     }
     return captureNativeWindow({ ...options, windowTitle: options.windowTitle.trim() });
+  });
+
+  
+  
+  ipcMain.on('db-get-all-tasks', (event) => {
+    event.returnValue = getAllTasks();
+  });
+  
+  ipcMain.on('db-save-all-tasks', (event, tasks) => {
+    saveAllTasks(tasks);
+    event.returnValue = true;
+  });
+
+  ipcMain.on('db-get-project-memory', (event, projectId) => {
+    event.returnValue = getProjectMemory(projectId);
+  });
+
+  ipcMain.on('db-save-project-memory', (event, projectId, memoryKey, memoryValue) => {
+    saveProjectMemory(projectId, memoryKey, memoryValue);
+    event.returnValue = true;
   });
 
   ipcMain.handle('select-folder', async () => {

@@ -118,3 +118,5 @@ export function initializeTools() {
 
 // Automatically register all tools when the module loads to survive HMR
 initializeTools();
+import { definition as semanticSearchDef, handler as semanticSearchHandler } from './definitions/semanticSearch';
+registerTool(semanticSearchDef, semanticSearchHandler);

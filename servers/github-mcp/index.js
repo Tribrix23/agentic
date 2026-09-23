@@ -227,6 +227,8 @@ app.post('/auth/disconnect', (req, res) => {
 
 app.listen(3005, '127.0.0.1', () => {
   console.error('GitHub MCP Auth server listening on port 3005');
+}).on('error', (e) => {
+  console.error('GitHub Auth Server port already in use, ignoring.');
 });
 
 process.stdin.on('close', () => {

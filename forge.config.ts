@@ -25,6 +25,8 @@ const config: ForgeConfig = {
       if (f === '/node_modules') return false;
       if (f.startsWith('/node_modules/node-pty')) return false;
       if (f.startsWith('/node_modules/nan')) return false;
+      if (f.startsWith('/node_modules/better-sqlite3')) return false;
+      if (f.startsWith('/node_modules/node-addon-api')) return false;
       if (f.startsWith('/node_modules/')) return true;
       return true;
     },

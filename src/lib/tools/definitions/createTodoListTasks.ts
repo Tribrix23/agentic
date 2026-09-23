@@ -61,8 +61,8 @@ export const handler: ToolHandler = async (args, context) => {
 
     const localIds = new Map<string, number>();
     for (let index = 0; index < tasks.length; index++) {
-      const aliases = [`task_${index + 1}`];
-      if (typeof tasks[index].id === 'string' && tasks[index].id.trim()) aliases.push(tasks[index].id.trim());
+      const aliases = new Set<string>([`task_${index + 1}`]);
+      if (typeof tasks[index].id === 'string' && tasks[index].id.trim()) aliases.add(tasks[index].id.trim());
       for (const alias of aliases) {
         if (localIds.has(alias)) return { success: false, output: `Duplicate local task ID: ${alias}.` };
         localIds.set(alias, index);

@@ -64,36 +64,18 @@ export const handler: ToolHandler = async (args, context) => {
     
     if (!context.subagentManager) return { success: false, output: 'Subagent runtime is unavailable.' };
 
-    // Mark the task as delegated immediately. The manager owns child lifecycle from here.
+    // Queue the task into the DAG Executor instead of waiting.
     updateTask(taskId, { 
-      status: 'in_progress', 
-      delegatedTo: 'pending-child-run',
-      metadata: { ...(taskObj.metadata || {}), targetFile: claimedTarget }
+      status: 'pending', 
+      delegatedTo: 'dag-queue', // The DAG Executor picks this up
+      metadata: { ...(taskObj.metadata || {}), targetFile: claimedTarget, readOnly }
     });
-    const child = context.subagentManager.start({
-      parentRunId: context.runId,
-      parentConversationId: context.conversationId || taskObj.conversationId || '',
-      taskId, task, role, projectRoot: context.projectRoot, targetFile: claimedTarget, readOnly,
-    }, context.signal);
-    updateTask(taskId, { delegatedTo: child.handle.childId });
-    const outcome = await child.outcome;
-    const expectedTarget = claimedTarget && normalizeTarget(claimedTarget);
-    const reportedTarget = outcome.changedFiles.map(normalizeTarget);
-    const evidenceValid = outcome.status === 'completed' && outcome.unresolvedItems.length === 0 && (!expectedTarget || reportedTarget.includes(expectedTarget));
-    const finalStatus = outcome.status === 'cancelled' ? 'cancelled' : evidenceValid ? 'completed' : 'failed';
-    updateTask(taskId, {
-      status: finalStatus,
-      metadata: { ...(getTask(taskId)?.metadata || {}), subagentOutcome: outcome, error: outcome.status === 'completed' ? undefined : outcome.summary },
-    });
+    
     return {
-      success: finalStatus === 'completed',
-      output: JSON.stringify(outcome, null, 2),
-      summary: outcome.summary,
-      data: outcome,
-      artifacts: outcome.artifacts,
-      diagnostics: outcome.diagnostics,
+      success: true,
+      output: `Task ${taskId} queued for execution in the DAG Swarm. Subagent will be spawned automatically when dependencies are met.`
     };
   } catch (error: any) {
-    return { success: false, output: `Failed to invoke sub-agent: ${error.message || String(error)}` };
+    return { success: false, output: `Failed to queue sub-agent: ${error.message || String(error)}` };
   }
 };

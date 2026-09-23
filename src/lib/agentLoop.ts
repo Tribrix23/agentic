@@ -18,6 +18,7 @@
 //  └───────────────────────────────────────────────┘
 
 import { AIConfig, getAIConfig, buildSystemPrompt } from './aiConfig';
+import { SelfHealingLoop } from './agent/selfHealingLoop';
 import {
   AgenticMessage,
   ToolCall,
@@ -565,6 +566,28 @@ export class AgentLoop {
   }
 
   /** Stop the agent loop */
+  notifyBackgroundTaskComplete(e: any): void {
+    if (this.isSleeping && this.resolveWakeup) {
+      const taskId = e.detail?.taskId;
+      if (!taskId) return;
+      
+      // Verify this task belongs to this conversation
+      if (this.conversationId && !taskId.includes(this.conversationId)) {
+        return;
+      }
+      
+      console.log('[AgentLoop] Waking up due to background-task-complete event for task:', taskId);
+      if (e.detail?.result) {
+        // Append result to pending messages
+        const toolMsg = createToolMessage(taskId, 'manageTask', { success: true, output: e.detail.result });
+        this.pendingMessages.push(toolMsg);
+      }
+      this.isSleeping = false;
+      this.resolveWakeup();
+      this.resolveWakeup = null;
+    }
+  }
+
   stop(): void {
     console.log('[AgentLoop] stop() called');
     if (this.abortController) {
@@ -1929,26 +1952,11 @@ export class AgentLoop {
               this.abortController.signal.addEventListener('abort', abortListener);
             }
 
-            // Event listener for background task completion
-            const taskCompleteListener = (e: any) => {
-              if (this.isSleeping && this.resolveWakeup) {
-                console.log('[AgentLoop] Waking up due to background-task-complete event.');
-                if (e.detail?.result) {
-                  // Append result to pending messages
-                  const toolMsg = createToolMessage(e.detail.taskId, 'manageTask', { success: true, output: e.detail.result });
-                  this.pendingMessages.push(toolMsg);
-                }
-                this.isSleeping = false;
-                this.resolveWakeup();
-                this.resolveWakeup = null;
-                if (timeoutId) clearTimeout(timeoutId);
-              }
-            };
-            window.addEventListener('background-task-complete', taskCompleteListener);
+            // We no longer rely on window.addEventListener here.
+            // MainContent will call loop.notifyBackgroundTaskComplete() directly.
 
             // Timeout safety net (5 minutes), only wakes if no subagents are active
             timeoutId = setTimeout(() => {
-              window.removeEventListener('background-task-complete', taskCompleteListener);
               if (this.abortController) {
                 this.abortController.signal.removeEventListener('abort', abortListener);
               }
@@ -2177,7 +2185,7 @@ export class AgentLoop {
     const completedTasks = durableTasks.filter(task => task.status === 'completed');
     const executionEvidence = this.executedToolNames.size > 0 || this.successfulFileWrites > 0;
     const allTasksComplete = durableTasks.length > 0 && completedTasks.length === durableTasks.length;
-    const satisfied = allTasksComplete && failedTasks.length === 0 && structuredPlanningComplete && executionEvidence;
+    let satisfied = allTasksComplete && failedTasks.length === 0 && structuredPlanningComplete && executionEvidence;
 
     let reason = 'Goal evidence is complete.';
     if (!durableTasks.length) reason = 'No durable goal tasks were created.';
@@ -2185,6 +2193,24 @@ export class AgentLoop {
     else if (!allTasksComplete) reason = `${durableTasks.length - completedTasks.length} durable task(s) remain incomplete.`;
     else if (!structuredPlanningComplete) reason = 'Structured planning is incomplete.';
     else if (!executionEvidence) reason = 'No successful tool execution evidence was recorded.';
+
+    // Creative Feature: Self-Healing & Verification
+    if (satisfied && this.options?.subagentManager && this.projectContext?.rootPath) {
+      console.log('[AgentLoop] Goal seemingly satisfied. Triggering autonomous verification...');
+      const healer = new SelfHealingLoop(this.options.subagentManager);
+      const verification = await healer.verifyProjectState(this.projectContext.rootPath);
+      
+      if (!verification.success) {
+        console.log('[AgentLoop] Verification failed! Linters or type-checkers found errors. Healing...');
+        const healed = await healer.heal(this.projectContext.rootPath, verification, convId);
+        if (!healed) {
+          satisfied = false;
+          reason = 'Autonomous verification failed and Debugger Subagent could not fix the errors.';
+        } else {
+          console.log('[AgentLoop] Debugger Subagent successfully healed the codebase.');
+        }
+      }
+    }
 
     return {
       satisfied,
@@ -2218,6 +2244,7 @@ export interface AgentLoopOptions {
   executionPlanPath?: string;
   executionPlanInstruction?: string;
   toolProtocol?: 'native' | 'xml';
+  subagentManager?: any; // SubagentManager for self-healing
 }
 
 /** Create a new AgentLoop with current configuration */

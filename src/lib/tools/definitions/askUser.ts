@@ -9,9 +9,7 @@ export const definition: ToolDefinition = {
     properties: {
       question: { type: 'string', description: 'The question to ask the user' },
       options: { 
-        type: 'array', 
-        items: { type: 'string' },
-        description: 'Optional list of predefined choices'
+        description: 'Optional list of predefined choices (array of strings)'
       }
     },
     required: ['question']
@@ -24,7 +22,13 @@ export const definition: ToolDefinition = {
 
 export const handler: ToolHandler = async (args, context) => {
   try {
-    const { question, options } = args;
+    let { question, options } = args;
+    
+    if (Array.isArray(options)) {
+      options = options.map(opt => typeof opt === 'object' && opt !== null ? (opt.label || opt.value || JSON.stringify(opt)) : String(opt));
+    } else if (typeof options === 'string') {
+      options = [options];
+    }
     
     return await new Promise<ToolResult>((resolve) => {
       const eventId = Math.random().toString(36).substring(7);

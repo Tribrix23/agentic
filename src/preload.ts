@@ -132,6 +132,10 @@ contextBridge.exposeInMainWorld('electron', {
   taskKill: (taskId: string) => ipcRenderer.invoke('task-kill', taskId),
   taskSendInput: (taskId: string, input: string) => ipcRenderer.invoke('task-send-input', taskId, input),
   taskList: () => ipcRenderer.invoke('task-list'),
+  dbGetAllTasks: () => ipcRenderer.sendSync('db-get-all-tasks'),
+  dbSaveAllTasks: (tasks: any[]) => ipcRenderer.sendSync('db-save-all-tasks', tasks),
+  dbGetProjectMemory: (projectId: string) => ipcRenderer.sendSync('db-get-project-memory', projectId),
+  dbSaveProjectMemory: (projectId: string, key: string, value: string) => ipcRenderer.sendSync('db-save-project-memory', projectId, key, value),
   onBackgroundTaskComplete: (callback: (data: { taskId: string; status: any }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: { taskId: string; status: any }) => callback(data);
     ipcRenderer.on('background-task-complete', listener);
