@@ -24,7 +24,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path: relativePath = '.', minLines = 5, fileFilter } = args;
     const targetPath = relativePath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativePath) 
       ? relativePath 
-      : `${context.projectRoot}/${relativePath}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${relativePath}` : relativePath).replace(/\/+/g, '/');
 
     const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     
@@ -84,3 +84,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to find duplicates: ${error.message || String(error)}` };
   }
 };
+
+
+

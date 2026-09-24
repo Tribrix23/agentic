@@ -27,7 +27,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, type } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path)
       ? path
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
     const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const lines = content.split('\n');
     let results: string[] = [];
@@ -72,3 +72,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to analyze code: ${error.message || String(error)}` };
   }
 };
+
+
+

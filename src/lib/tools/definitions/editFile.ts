@@ -55,7 +55,7 @@ export const handler: ToolHandler = async (args, context) => {
       ? getImplementationPlanPath(context)
       : relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath)
         ? relativeOrAbsPath
-        : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+        : (context.projectRoot ? `${context.projectRoot}/${relativeOrAbsPath}` : relativeOrAbsPath).replace(/\/+/g, '/');
     const boundaryRoot = isPlanArtifact
       ? ((window as any).electron.appDataDir || context.projectRoot)
       : context.projectRoot;
@@ -224,3 +224,6 @@ function fuzzyMatchAndReplace(fileContent: string, search: string, replace: stri
 
     return { success: true, newContent: newContentLines.join('\n') };
 }
+
+
+

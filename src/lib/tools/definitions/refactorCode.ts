@@ -23,7 +23,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, focus = 'all' } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const suggestions: string[] = [];
@@ -105,3 +105,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to analyze code: ${error.message || String(error)}` };
   }
 };
+
+
+

@@ -35,7 +35,7 @@ export const handler: ToolHandler = async (args, context) => {
     
     const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
       ? relativeOrAbsPath 
-      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${relativeOrAbsPath}` : relativeOrAbsPath).replace(/\/+/g, '/');
 
     const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     const searchRegex = new RegExp(
@@ -107,3 +107,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to find text: ${error.message || String(error)}` };
   }
 };
+
+
+

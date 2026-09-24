@@ -14,7 +14,7 @@ export const definition: ToolDefinition = {
       targetFile: { type: 'string', description: 'For implementation tasks, the exact file path this sub-agent owns. Omit for read-only analysis.' }
       ,readOnly: { type: 'boolean', description: 'Required true for read-only analysis. False requires the planned targetFile.' }
     },
-    required: ['task', 'role', 'taskId']
+    required: ['task', 'role', 'taskId', 'readOnly']
   },
   requiresApproval: false,
   dangerLevel: 'safe',
@@ -50,7 +50,17 @@ export const handler: ToolHandler = async (args, context) => {
     if (typeof readOnly !== 'boolean') return { success: false, output: 'Delegation must declare readOnly true or false.' };
     if (readOnly && (targetFile || plannedTarget)) return { success: false, output: 'Read-only delegation cannot claim a target file.' };
     if (!readOnly && !plannedTarget) return { success: false, output: 'Implementation delegation requires the task planned targetFile.' };
-    const normalizeTarget = (value: string) => String(value).replace(/\\/g, '/').replace(/\/\.\//g, '/').toLowerCase();
+    
+    const normalizeTarget = (value: string) => {
+      let normalized = String(value).replace(/\\/g, '/').replace(/\/\.\//g, '/').toLowerCase();
+      const root = context.projectRoot ? context.projectRoot.replace(/\\/g, '/').toLowerCase() : '';
+      if (root && normalized.startsWith(root)) {
+        normalized = normalized.substring(root.length);
+        if (normalized.startsWith('/')) normalized = normalized.substring(1);
+      }
+      return normalized;
+    };
+    
     if (targetFile && plannedTarget && normalizeTarget(targetFile) !== normalizeTarget(plannedTarget)) return { success: false, output: `Cannot delegate task ${taskId}: targetFile differs from the planned target.` };
     const claimedTarget = readOnly ? undefined : (targetFile || plannedTarget);
     const siblingTasks = context.conversationId ? getTasksForConversation(context.conversationId) : [];

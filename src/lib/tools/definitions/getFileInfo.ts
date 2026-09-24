@@ -22,7 +22,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     const command = `ls -la "${targetPath}"`;
     const result = await (window as any).electron.runCommand(command, context.projectRoot);
@@ -45,3 +45,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to get file info: ${error.message || String(error)}` };
   }
 };
+
+
+

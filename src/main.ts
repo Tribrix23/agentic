@@ -58,10 +58,10 @@ mcpClientManager.onEvent(event => {
 mcpClientManager.samplingHandler = async (request) => {
   const win = getLiveMainWindow();
   if (!win) throw new Error("No active window to handle sampling request");
-  
+
   return await new Promise((resolve, reject) => {
     const reqId = `sampling-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    
+
     const handler = (event: any, responseId: string, result: any, error?: string) => {
       if (responseId === reqId) {
         ipcMain.removeListener('mcp-sampling-response', handler);
@@ -69,7 +69,7 @@ mcpClientManager.samplingHandler = async (request) => {
         else resolve(result);
       }
     };
-    
+
     ipcMain.on('mcp-sampling-response', handler);
     win.webContents.send('mcp-sampling-request', { reqId, request });
   });
@@ -547,7 +547,7 @@ function createWindow() {
       try {
         if (!fs.existsSync(mcpConfigPath)) return;
         const rawContent = fs.readFileSync(mcpConfigPath, 'utf8');
-        
+
         // Basic hashing to avoid unnecessary reconnects
         const crypto = require('crypto');
         const currentHash = crypto.createHash('md5').update(rawContent).digest('hex');
@@ -561,7 +561,7 @@ function createWindow() {
         for (const [serverId, serverConfig] of Object.entries(servers)) {
           newDynamicServers.add(serverId);
           const anyConfig = serverConfig as any;
-          
+
           // If server already exists and is a dynamic one, remove it so we can re-add with new config
           if (mcpClientManager.getServer(serverId) && currentDynamicServers.has(serverId)) {
             void mcpClientManager.removeServer(serverId).then(() => {
@@ -572,7 +572,7 @@ function createWindow() {
             addDynamicServer(serverId, anyConfig);
           }
         }
-        
+
         // Remove servers that are no longer in the config
         for (const serverId of currentDynamicServers) {
           if (!newDynamicServers.has(serverId)) {
@@ -605,10 +605,10 @@ function createWindow() {
         console.error(`[MCP] Error adding dynamic server ${serverId}:`, err);
       }
     }
-    
+
     // Create the file with an empty object if it doesn't exist
     if (!fs.existsSync(mcpConfigPath)) {
-      try { fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: {} }, null, 2)); } catch(e) {}
+      try { fs.writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: {} }, null, 2)); } catch (e) { }
     }
 
     reloadMcpConfig();
@@ -738,12 +738,12 @@ function createWindow() {
     return captureNativeWindow({ ...options, windowTitle: options.windowTitle.trim() });
   });
 
-  
-  
+
+
   ipcMain.on('db-get-all-tasks', (event) => {
     event.returnValue = getAllTasks();
   });
-  
+
   ipcMain.on('db-save-all-tasks', (event, tasks) => {
     saveAllTasks(tasks);
     event.returnValue = true;

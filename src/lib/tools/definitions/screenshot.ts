@@ -24,7 +24,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { windowTitle, savePath } = args;
     const format = String(args.format || 'png').toLowerCase() === 'jpg' ? 'jpg' : 'png';
     const timestamp = Date.now();
-    const defaultPath = `${context.projectRoot}/screenshot_${timestamp}.${format}`;
+    const defaultPath = context.projectRoot ? `${context.projectRoot}/screenshot_${timestamp}.${format}` : `screenshot_${timestamp}.${format}`;
 
     // Resolve relative savePath against context.projectRoot
     const root = (context.projectRoot || '').replace(/[\\/]+$/, '');
@@ -96,3 +96,5 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to take screenshot: ${error.message || String(error)}` };
   }
 };
+
+

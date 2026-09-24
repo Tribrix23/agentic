@@ -30,7 +30,7 @@ export const handler: ToolHandler = async (args, context) => {
     if (cwd && cwd !== '.') {
       targetCwd = cwd.startsWith('/') || /^[a-zA-Z]:\\/.test(cwd) 
         ? cwd 
-        : `${context.projectRoot}/${cwd}`.replace(/\/+/g, '/');
+        : (context.projectRoot ? `${context.projectRoot}/${cwd}` : cwd).replace(/\/+/g, '/');
     }
 
     // Optional: still support waitMsBeforeAsync if we want to allow long tasks, but the user explicitly requested blocking terminal style.
@@ -68,3 +68,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Error dispatching command: ${error.message || String(error)}` };
   }
 };
+
+
+

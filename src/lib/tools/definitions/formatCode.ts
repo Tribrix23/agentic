@@ -24,7 +24,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, formatter = 'auto', checkOnly = false } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     // Check if it's a file or directory
     const tree = await (window as any).electron.readProjectFiles(context.projectRoot);
@@ -58,3 +58,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to format code: ${error.message || String(error)}` };
   }
 };
+
+
+

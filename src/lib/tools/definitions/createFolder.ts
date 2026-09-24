@@ -25,7 +25,7 @@ export const handler: ToolHandler = async (args, context) => {
     const normalizedPath = path.replace(/\\/g, '/');
     const fullPath = normalizedPath.startsWith('/') 
       ? normalizedPath 
-      : `${context.projectRoot}/${normalizedPath}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${normalizedPath}` : normalizedPath).replace(/\/+/g, '/');
     
     // Extract parent directory and folder name
     const parts = fullPath.split('/');
@@ -46,3 +46,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to create folder: ${error.message || String(error)}` };
   }
 };
+
+
+

@@ -38,7 +38,7 @@ export const handler: ToolHandler = async (args, context) => {
     // Normalize target path
     const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
       ? relativeOrAbsPath 
-      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${relativeOrAbsPath}` : relativeOrAbsPath).replace(/\/+/g, '/');
 
     // Build search regex
     let searchRegex: RegExp;
@@ -178,3 +178,6 @@ ${result.context}`;
     return { success: false, output: `Search failed: ${error.message || String(error)}` };
   }
 };
+
+
+

@@ -23,10 +23,10 @@ export const handler: ToolHandler = async (args, context) => {
     const { source, output = '.' } = args;
     const sourcePath = source.startsWith('/') || /^[a-zA-Z]:\\/.test(source) 
       ? source 
-      : `${context.projectRoot}/${source}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${source}` : source).replace(/\/+/g, '/');
     const outputPath = output.startsWith('/') || /^[a-zA-Z]:\\/.test(output) 
       ? output 
-      : `${context.projectRoot}/${output}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${output}` : output).replace(/\/+/g, '/');
 
     let command: string;
     if (source.endsWith('.zip')) {
@@ -50,3 +50,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to extract: ${error.message || String(error)}` };
   }
 };
+
+
+

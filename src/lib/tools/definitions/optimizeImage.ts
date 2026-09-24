@@ -25,7 +25,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, quality = 80, maxWidth, maxHeight } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     // Check if sharp or imagemagick is available
     const sharpCheck = await (window as any).electron.runCommand('which sharp', context.projectRoot);
@@ -62,3 +62,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to optimize image: ${error.message || String(error)}` };
   }
 };
+
+
+

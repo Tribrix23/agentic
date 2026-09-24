@@ -23,7 +23,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, language = 'auto' } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     let command: string;
     
@@ -67,3 +67,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to check syntax: ${error.message || String(error)}` };
   }
 };
+
+
+

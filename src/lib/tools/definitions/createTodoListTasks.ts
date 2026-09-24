@@ -122,10 +122,11 @@ export const handler: ToolHandler = async (args, context) => {
 
     return { 
       success: true, 
-      output: `Successfully created ${finalTasks.length} tasks. Task IDs: \n${finalTasks.map((task, index) => `- task_${index + 1} -> ${task.id}`).join('\n')}\n\nOnly currently ready tasks may be delegated. Use invokeSubagent with the taskId; after a wave completes, recompute the graph for the next wave.`,
+      output: `Successfully created ${finalTasks.length} tasks. Task IDs: \n${finalTasks.map((task, index) => `- task_${index + 1} (${task.title} - ${task.metadata?.targetFile}) -> ${task.id}`).join('\n')}\n\nOnly currently ready tasks may be delegated. Use invokeSubagent with the taskId; after a wave completes, recompute the graph for the next wave.`,
       data: { tasks: finalTasks, idMapping, readyTaskIds: new TaskGraph(finalTasks).getExecutableTasks().map(task => task.id) },
     };
   } catch (error: any) {
     return { success: false, output: `Failed to create tasks: ${error.message || String(error)}` };
   }
 };
+

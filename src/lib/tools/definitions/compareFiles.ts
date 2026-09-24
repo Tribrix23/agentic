@@ -25,10 +25,10 @@ export const handler: ToolHandler = async (args, context) => {
     
     const targetPath1 = path1.startsWith('/') || /^[a-zA-Z]:\\/.test(path1) 
       ? path1 
-      : `${context.projectRoot}/${path1}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path1}` : path1).replace(/\/+/g, '/');
     const targetPath2 = path2.startsWith('/') || /^[a-zA-Z]:\\/.test(path2) 
       ? path2 
-      : `${context.projectRoot}/${path2}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path2}` : path2).replace(/\/+/g, '/');
 
     const flag = unified ? '-u' : '';
     const command = `diff ${flag} "${targetPath1}" "${targetPath2}"`;
@@ -48,3 +48,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to compare files: ${error.message || String(error)}` };
   }
 };
+
+
+

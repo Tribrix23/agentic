@@ -23,7 +23,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { url, path } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     // Use curl to download the file
     const command = `curl -L -o "${targetPath}" "${url}"`;
@@ -38,3 +38,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to download file: ${error.message || String(error)}` };
   }
 };
+
+
+

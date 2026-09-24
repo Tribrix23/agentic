@@ -23,7 +23,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, schemaPath } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const ext = path.split('.').pop()?.toLowerCase();
@@ -34,7 +34,7 @@ export const handler: ToolHandler = async (args, context) => {
         if (schemaPath) {
           const schemaTarget = schemaPath.startsWith('/') || /^[a-zA-Z]:\\/.test(schemaPath) 
             ? schemaPath 
-            : `${context.projectRoot}/${schemaPath}`.replace(/\/+/g, '/');
+            : (context.projectRoot ? `${context.projectRoot}/${schemaPath}` : schemaPath).replace(/\/+/g, '/');
           const schemaContent = await (window as any).electron.readFileContent(schemaTarget, context.projectRoot);
           JSON.parse(schemaContent);
           return { success: true, output: 'JSON is valid. Schema is valid.' };
@@ -72,3 +72,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Validation failed: ${error.message || String(error)}` };
   }
 };
+
+
+

@@ -47,7 +47,7 @@ export const handler: ToolHandler = async (args, context) => {
     
     const targetPath = depFile.startsWith('/') || /^[a-zA-Z]:\\/.test(depFile)
       ? depFile
-      : `${context.projectRoot}/${depFile}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${depFile}` : depFile).replace(/\/+/g, '/');
     const content = await (window as any).electron.readFileContent(targetPath, context.projectRoot);
     const fileName = depFile.split('/').pop();
     
@@ -89,3 +89,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to analyze dependencies: ${error.message || String(error)}` };
   }
 };
+
+
+

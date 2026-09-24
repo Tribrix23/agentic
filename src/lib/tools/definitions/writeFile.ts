@@ -71,7 +71,7 @@ export const handler: ToolHandler = async (args, context) => {
     } else {
       targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
         ? relativeOrAbsPath 
-        : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+        : (context.projectRoot ? `${context.projectRoot}/${relativeOrAbsPath}` : relativeOrAbsPath).replace(/\/+/g, '/');
     }
       
     console.log('[writeFile] Target path:', targetPath);
@@ -165,3 +165,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to write file: ${error.message || String(error)}` };
   }
 };
+
+
+

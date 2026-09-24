@@ -25,7 +25,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { query, path: relativeOrAbsPath = '.', regex = false, fileFilter } = args;
     const targetPath = relativeOrAbsPath.startsWith('/') || /^[a-zA-Z]:\\/.test(relativeOrAbsPath) 
       ? relativeOrAbsPath 
-      : `${context.projectRoot}/${relativeOrAbsPath}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${relativeOrAbsPath}` : relativeOrAbsPath).replace(/\/+/g, '/');
 
     const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     const searchRegex = regex ? new RegExp(query, 'g') : new RegExp(query.replace(/[.*+?^$\{()|[\]\\]/g, '\\$&'), 'g');
@@ -85,3 +85,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to search files: ${error.message || String(error)}` };
   }
 };
+
+
+

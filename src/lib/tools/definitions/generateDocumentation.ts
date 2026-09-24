@@ -23,7 +23,7 @@ export const handler: ToolHandler = async (args, context) => {
     const { path, format = 'markdown' } = args;
     const targetPath = path.startsWith('/') || /^[a-zA-Z]:\\/.test(path) 
       ? path 
-      : `${context.projectRoot}/${path}`.replace(/\/+/g, '/');
+      : (context.projectRoot ? `${context.projectRoot}/${path}` : path).replace(/\/+/g, '/');
 
     const tree = await (window as any).electron.readProjectFiles(targetPath, context.projectRoot);
     
@@ -91,3 +91,6 @@ export const handler: ToolHandler = async (args, context) => {
     return { success: false, output: `Failed to generate documentation: ${error.message || String(error)}` };
   }
 };
+
+
+
