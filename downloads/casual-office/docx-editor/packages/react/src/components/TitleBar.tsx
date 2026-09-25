@@ -1,0 +1,1323 @@
+/*
+ * Copyright (c) 2026 Casual Office. All rights reserved.
+ */
+
+/**
+ * TitleBar and sub-components for the Google Docs-style 2-level toolbar.
+ *
+ * - TitleBar: two-row layout (row 1: logo + doc name + right actions, row 2: menu bar)
+ * - Logo: renders custom logo content left-aligned
+ * - DocumentName: editable document name input
+ * - MenuBar: File/Format/Insert menus (auto-wired from EditorToolbarContext)
+ * - TitleBarRight: right-aligned actions slot
+ */
+
+import React, { useCallback, useEffect, useState, Children, isValidElement } from 'react';
+import type { ReactNode } from 'react';
+import { MenuDropdown, MenuEntries, SubMenuItem } from './ui/MenuDropdown';
+import type { MenuEntry } from './ui/MenuDropdown';
+import { MenuBarProvider } from './ui/MenuBarContext';
+import { MaterialSymbol } from './ui/Icons';
+import { Tooltip } from './ui/Tooltip';
+import { TableGridInline } from './ui/TableGridInline';
+import { WriterStatusPill } from './WriterStatusPill';
+import { useEditorToolbar } from './EditorToolbarContext';
+import { useDialogActions } from './DialogActionsContext';
+import { useViewState } from './ViewStateContext';
+import type { FormattingAction } from './Toolbar';
+import { useTranslation } from '../i18n';
+import { openReportIssue } from './reportIssue';
+
+// ============================================================================
+// Default Doc Icon (shown when no Logo is provided)
+// ============================================================================
+
+// Casual Editor brand mark — same shape and palette as the About dialog
+// logo so the title-bar icon and the About icon are visually identical.
+function DefaultDocIcon() {
+  return (
+    <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M2 0C0.9 0 0 0.9 0 2V38C0 39.1 0.9 40 2 40H30C31.1 40 32 39.1 32 38V10L22 0H2Z"
+        fill="#1a73e8"
+      />
+      <path d="M22 0L32 10H24C22.9 10 22 9.1 22 8V0Z" fill="#1557b0" />
+      <rect x="7" y="18" width="18" height="2" rx="1" fill="#fff" />
+      <rect x="7" y="23" width="18" height="2" rx="1" fill="#fff" />
+      <rect x="7" y="28" width="12" height="2" rx="1" fill="#fff" />
+    </svg>
+  );
+}
+
+// ============================================================================
+// Logo
+// ============================================================================
+
+export interface LogoProps {
+  children: ReactNode;
+}
+
+export function Logo({ children }: LogoProps) {
+  return <div className="flex items-center flex-shrink-0">{children}</div>;
+}
+
+// ============================================================================
+// DocumentName
+// ============================================================================
+
+export interface DocumentNameProps {
+  value: string;
+  onChange?: (value: string) => void;
+  placeholder?: string;
+  editable?: boolean;
+}
+
+function stripExtension(name: string): string {
+  return name.replace(/\.docx$/i, '');
+}
+
+export function DocumentName({ value, onChange, placeholder, editable = true }: DocumentNameProps) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t('titleBar.untitled');
+  const displayName = stripExtension(value) ?? '';
+  const [focused, setFocused] = useState(false);
+
+  if (!editable) {
+    return (
+      <span className="text-base font-normal text-[color:var(--doc-text-on-surface,#1f2937)] px-2 py-0 min-w-[100px] max-w-[360px] truncate leading-tight">
+        {displayName || resolvedPlaceholder}
+      </span>
+    );
+  }
+  // Google Docs-style auto-sizing title field. An invisible sizer mirrors the
+  // text so the field hugs short names and grows up to the max width for long
+  // ones; past the cap the input scrolls horizontally. The ellipsis ("…") is a
+  // CSS affordance only when the field is *not* focused — while editing or
+  // renaming, the full name is always shown (and remains the real value), so a
+  // truncated display never gets mistaken for a truncated name.
+  const sizerText = displayName || resolvedPlaceholder;
+  return (
+    <span className="relative inline-flex items-center min-w-[100px] max-w-[360px] leading-tight">
+      <span aria-hidden className="invisible whitespace-pre px-2 text-base font-normal">
+        {sizerText || ' '}
+      </span>
+      <input
+        type="text"
+        value={displayName}
+        onChange={(e) => {
+          const raw = e.target.value;
+          onChange?.(raw.endsWith('.docx') ? raw : raw + '.docx');
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder={resolvedPlaceholder}
+        className={`absolute inset-0 w-full text-base font-normal text-[color:var(--doc-text-on-surface,#1f2937)] bg-transparent border-0 outline-none px-2 py-0 rounded hover:bg-[color:var(--doc-bg-hover,#f1f3f4)] focus:bg-white focus:ring-2 focus:ring-[color:var(--doc-primary,#1a73e8)] leading-tight ${focused ? '' : 'truncate'}`}
+        aria-label={t('titleBar.documentNameAriaLabel')}
+      />
+    </span>
+  );
+}
+
+// ============================================================================
+// TitleBarRight
+// ============================================================================
+
+export interface TitleBarRightProps {
+  children: ReactNode;
+}
+
+export function TitleBarRight({ children }: TitleBarRightProps) {
+  return (
+    <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+      <WriterStatusPillSlot />
+      <SaveStatusIndicator />
+      <ThemeToggleButton />
+      {children}
+    </div>
+  );
+}
+
+// ============================================================================
+// WriterStatusPillSlot — bridges the Writing Assistant controller into
+// the title bar. Renders nothing when the assistant has no enabled
+// features (avoids visual clutter for users who haven't opted in);
+// otherwise shows a click-to-open pill that surfaces the current
+// load / busy / ready state across every screen, not just inside the
+// Writing Assistant sheet.
+// ============================================================================
+function WriterStatusPillSlot() {
+  const ctx = useEditorToolbar();
+  const { onOpenWritingAssistant } = ctx;
+  if (!onOpenWritingAssistant) return null;
+  return <WriterStatusPill onClick={onOpenWritingAssistant} />;
+}
+
+// ============================================================================
+// SaveStatusIndicator — shows "Saving…" while a save is in flight, then
+// a "•" dot when there are unsaved edits, then nothing when clean.
+// Wired from the host through ToolbarProps.isDirty / isSaving via the
+// EditorToolbar context.
+// ============================================================================
+
+function SaveStatusIndicator() {
+  const ctx = useEditorToolbar();
+  const { t } = useTranslation();
+  const { isDirty, isSaving } = ctx;
+  if (isSaving) {
+    return (
+      <span
+        className="text-xs text-[color:var(--doc-text-on-surface-muted,#5f6368)] flex items-center gap-1"
+        aria-live="polite"
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            border: '1.5px solid currentColor',
+            borderTopColor: 'transparent',
+            animation: 'docx-spin 0.7s linear infinite',
+            display: 'inline-block',
+          }}
+        />
+        {t('titleBar.saving')}
+      </span>
+    );
+  }
+  if (isDirty) {
+    return (
+      <span
+        className="text-xs text-[color:var(--doc-text-on-surface-muted,#5f6368)]"
+        title={t('titleBar.unsavedChanges')}
+        aria-label={t('titleBar.unsavedChanges')}
+      >
+        {t('titleBar.unsavedChanges')}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-xs text-[color:var(--doc-text-on-surface-muted,#5f6368)]"
+      aria-live="polite"
+    >
+      {t('titleBar.allChangesSaved')}
+    </span>
+  );
+}
+
+// ============================================================================
+// ThemeToggleButton — sun/moon/auto icon in the top-right that cycles
+// through auto → light → dark. Hidden when the host doesn't wire
+// onSetColorTheme. Renders inside TitleBarRight so it's always visible
+// in the same spot as Share / status indicators.
+// ============================================================================
+
+function ThemeToggleButton() {
+  const ctx = useEditorToolbar();
+  const { onSetColorTheme, colorTheme } = ctx;
+  if (!onSetColorTheme) return null;
+  const current = colorTheme ?? 'auto';
+  const next: 'light' | 'dark' | 'auto' =
+    current === 'auto' ? 'light' : current === 'light' ? 'dark' : 'auto';
+  const icon = current === 'dark' ? 'dark_mode' : current === 'light' ? 'light_mode' : 'contrast';
+  const title =
+    current === 'auto'
+      ? 'Theme: match system (click for light)'
+      : current === 'light'
+        ? 'Theme: light (click for dark)'
+        : 'Theme: dark (click for auto)';
+  return (
+    <Tooltip content={title}>
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => onSetColorTheme(next)}
+        aria-label={title}
+        className="flex items-center justify-center w-8 h-8 rounded hover:bg-[color:var(--doc-bg-hover,#f1f3f4)] text-[color:var(--doc-text-on-surface,#1f2937)]"
+      >
+        <MaterialSymbol name={icon} size={18} />
+      </button>
+    </Tooltip>
+  );
+}
+
+// ============================================================================
+// MenuBar
+// ============================================================================
+
+/**
+ * True on phone-width viewports (<=720px), where the seven inline menus don't
+ * fit and get collapsed behind a single hamburger overflow menu. SSR-safe:
+ * defaults to false when `window` is unavailable, then syncs on mount. Same
+ * breakpoint as MobileFormatBar's `useIsTouchPhone`.
+ */
+function useIsNarrow(): boolean {
+  const [match, setMatch] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 720px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 720px)');
+    const handler = (e: MediaQueryListEvent) => setMatch(e.matches);
+    setMatch(mql.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+  return match;
+}
+
+export function MenuBar() {
+  const { t } = useTranslation();
+  const ctx = useEditorToolbar();
+  const {
+    disabled = false,
+    onFormat,
+    onPrint,
+    showPrintButton = true,
+    onNew,
+    onOpen,
+    onSave,
+    onMakeCopy,
+    onEmailAsAttachment,
+    onOpenVersionHistory,
+    onExportPdf,
+    onExportOdt,
+    onExportMd,
+    onExportTxt,
+    onReportBug,
+    onConvertSelectionToTable,
+    onConvertTableToText,
+    onOpenTranslate,
+    onTranslateDocument,
+    onToggleSpellcheck: onToggleSpellcheckProp,
+    spellcheckEnabled: spellcheckEnabledProp,
+    onToggleGrammar: onToggleGrammarProp,
+    grammarEnabled: grammarEnabledProp,
+    onOpenWritingAssistant,
+    onOpenExplore,
+    onInsertShape,
+    onInsertTextBox,
+    onSetColorTheme,
+    colorTheme,
+    zoom,
+    onZoomChange,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
+    onOpenFind,
+    onOpenFindReplace,
+    onToggleVoiceTyping,
+    voiceTypingActive,
+    onToggleSpellCheck,
+    spellCheckEnabled,
+    currentFormatting,
+    onInsertImage,
+    onInsertTable,
+    showTableInsert = true,
+    onInsertPageBreak,
+    onInsertSectionBreak,
+    onInsertField,
+    onInsertTOC,
+    onInsertHorizontalRule,
+    onInsertFootnote,
+    onToggleShowRuler: onToggleShowRulerProp,
+    rulerVisible: rulerVisibleProp,
+    onToggleShowVerticalRuler: onToggleShowVerticalRulerProp,
+    verticalRulerVisible: verticalRulerVisibleProp,
+    onToggleShowFormattingMarks: onToggleShowFormattingMarksProp,
+    showFormattingMarks: showFormattingMarksProp,
+    onToggleOutline: onToggleOutlineProp,
+    outlineVisible: outlineVisibleProp,
+    onRefocusEditor,
+    onMenuOpenChange,
+  } = ctx;
+
+  // View-toggle handlers + state now arrive via ViewStateContext instead of
+  // 14 individual props on the <EditorToolbar> call site (see
+  // ViewStateContext.tsx) — same pattern as DialogActionsContext just above.
+  // An explicitly-passed prop still wins (public ToolbarProps contract is
+  // unchanged); the context is only the fallback DocxEditor's own toolbar
+  // tree relies on internally.
+  const vs = useViewState();
+  const onToggleSpellcheck = onToggleSpellcheckProp ?? vs.onToggleSpellcheck;
+  const spellcheckEnabled = spellcheckEnabledProp ?? vs.spellcheckEnabled;
+  const onToggleGrammar = onToggleGrammarProp ?? vs.onToggleGrammar;
+  const grammarEnabled = grammarEnabledProp ?? vs.grammarEnabled;
+  const onToggleShowRuler = onToggleShowRulerProp ?? vs.onToggleShowRuler;
+  const rulerVisible = rulerVisibleProp ?? vs.rulerVisible;
+  const onToggleShowVerticalRuler = onToggleShowVerticalRulerProp ?? vs.onToggleShowVerticalRuler;
+  const verticalRulerVisible = verticalRulerVisibleProp ?? vs.verticalRulerVisible;
+  const onToggleShowFormattingMarks =
+    onToggleShowFormattingMarksProp ?? vs.onToggleShowFormattingMarks;
+  const showFormattingMarks = showFormattingMarksProp ?? vs.showFormattingMarks;
+  const onToggleOutline = onToggleOutlineProp ?? vs.onToggleOutline;
+  const outlineVisible = outlineVisibleProp ?? vs.outlineVisible;
+
+  // Dialog-open handlers now arrive via DialogActionsContext instead of ~16
+  // individual props on the <EditorToolbar> call site (see
+  // DialogActionsContext.tsx). Re-bound to their historical `onOpen*` names
+  // so the menu-building bodies below are unchanged.
+  const {
+    openPageSetup: onPageSetup,
+    openFileProperties: onFileProperties,
+    showAbout: onShowAbout,
+    openCommandPalette: onOpenCommandPalette,
+    openKeyboardShortcuts: onOpenKeyboardShortcuts,
+    openPreferences: onOpenPreferences,
+    openWatermark: onOpenWatermark,
+    openAccessibility: onOpenAccessibility,
+    openBuildingBlocks: onOpenBuildingBlocks,
+    openDictionary: onOpenDictionary,
+    openCitations: onOpenCitations,
+    openWordCount: onOpenWordCount,
+    openBookmarks: onOpenBookmarks,
+    openParagraphDialog: onOpenParagraphDialog,
+    openBordersShading: onOpenBordersShading,
+    openInsertSymbol: onOpenInsertSymbol,
+  } = useDialogActions();
+
+  const handleFormat = useCallback(
+    (action: FormattingAction) => {
+      if (!disabled && onFormat) {
+        onFormat(action);
+      }
+    },
+    [disabled, onFormat]
+  );
+
+  const handleTableInsert = useCallback(
+    (rows: number, columns: number) => {
+      if (!disabled && onInsertTable) {
+        onInsertTable(rows, columns);
+        requestAnimationFrame(() => onRefocusEditor?.());
+      }
+    },
+    [disabled, onInsertTable, onRefocusEditor]
+  );
+
+  const hasPrintOrPageSetup = (showPrintButton && onPrint) || onPageSetup;
+  const hasExport = onExportPdf || onExportOdt || onExportMd || onExportTxt;
+  const hasFileMenu =
+    hasPrintOrPageSetup ||
+    onNew ||
+    onOpen ||
+    onSave ||
+    onMakeCopy ||
+    onEmailAsAttachment ||
+    onFileProperties ||
+    hasExport;
+
+  // Collapse the seven inline menus behind a single hamburger on phone widths,
+  // where they otherwise truncate ("Fo…") and hide Insert/Tools/Help.
+  const isNarrow = useIsNarrow();
+
+  const fileItems: MenuEntry[] = [
+    ...(onNew
+      ? [
+        {
+          icon: 'note_add',
+          label: t('toolbar.new'),
+          shortcut: 'Ctrl+N',
+          onClick: onNew,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpen
+      ? [
+        {
+          icon: 'file_upload',
+          label: t('toolbar.open'),
+          shortcut: t('toolbar.openShortcut'),
+          onClick: onOpen,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onSave
+      ? [
+        {
+          icon: 'file_download',
+          label: t('toolbar.save'),
+          shortcut: t('toolbar.saveShortcut'),
+          onClick: onSave,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onMakeCopy
+      ? [
+        {
+          icon: 'content_copy',
+          label: t('toolbar.makeCopy'),
+          onClick: onMakeCopy,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onEmailAsAttachment
+      ? [
+        {
+          label: t('toolbar.emailAsAttachment'),
+          onClick: onEmailAsAttachment,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenVersionHistory
+      ? [
+        {
+          icon: 'history',
+          label: t('toolbar.versionHistory'),
+          onClick: onOpenVersionHistory,
+        } as MenuEntry,
+      ]
+      : []),
+    ...((onOpen || onSave || onMakeCopy || onEmailAsAttachment || onOpenVersionHistory) &&
+      (hasPrintOrPageSetup || onFileProperties || hasExport)
+      ? [{ type: 'separator' as const } as MenuEntry]
+      : []),
+    ...(showPrintButton && onPrint
+      ? [
+        {
+          icon: 'print',
+          label: t('toolbar.print'),
+          shortcut: t('toolbar.printShortcut'),
+          onClick: onPrint,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onExportPdf
+      ? [
+        {
+          icon: 'file_download',
+          label: t('toolbar.exportPdf'),
+          onClick: onExportPdf,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onExportOdt
+      ? [
+        {
+          icon: 'file_download',
+          label: t('toolbar.exportOdt'),
+          onClick: onExportOdt,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onExportMd
+      ? [
+        {
+          icon: 'file_download',
+          label: t('toolbar.exportMarkdown'),
+          onClick: onExportMd,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onExportTxt
+      ? [
+        {
+          icon: 'file_download',
+          label: t('toolbar.exportPlainText'),
+          onClick: onExportTxt,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onPageSetup
+      ? [
+        {
+          icon: 'settings',
+          label: t('toolbar.pageSetup'),
+          onClick: onPageSetup,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onFileProperties
+      ? [
+        {
+          icon: 'tune',
+          label: t('toolbar.properties'),
+          onClick: onFileProperties,
+        } as MenuEntry,
+      ]
+      : []),
+  ];
+
+  const editItems: MenuEntry[] = [
+    {
+      icon: 'undo',
+      label: t('toolbar.undo'),
+      shortcut: 'Ctrl+Z',
+      onClick: onUndo ?? (() => { }),
+      disabled: !canUndo,
+    } as MenuEntry,
+    {
+      icon: 'redo',
+      label: t('toolbar.redo'),
+      shortcut: 'Ctrl+Y',
+      onClick: onRedo ?? (() => { }),
+      disabled: !canRedo,
+    } as MenuEntry,
+    { type: 'separator' as const } as MenuEntry,
+    // Clipboard ops — execCommand only works while the editor has focus,
+    // so refocus first. Modern browsers block JS-initiated paste; the
+    // shortcut label educates users to fall back to ⌘V.
+    {
+      icon: 'content_cut',
+      label: t('toolbar.cut'),
+      shortcut: 'Ctrl+X',
+      onClick: () => {
+        onRefocusEditor?.();
+        document.execCommand('cut');
+      },
+    } as MenuEntry,
+    {
+      icon: 'content_copy',
+      label: t('toolbar.copy'),
+      shortcut: 'Ctrl+C',
+      onClick: () => {
+        onRefocusEditor?.();
+        document.execCommand('copy');
+      },
+    } as MenuEntry,
+    {
+      icon: 'content_paste',
+      label: t('toolbar.paste'),
+      shortcut: 'Ctrl+V',
+      onClick: () => {
+        onRefocusEditor?.();
+        document.execCommand('paste');
+      },
+    } as MenuEntry,
+    {
+      icon: 'content_paste_go',
+      label: t('toolbar.pasteWithoutFormatting'),
+      shortcut: 'Ctrl+Shift+V',
+      onClick: async () => {
+        onRefocusEditor?.();
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) document.execCommand('insertText', false, text);
+        } catch {
+          // Browser blocked the read; user can fall back to ⌘⇧V.
+        }
+      },
+    } as MenuEntry,
+    { type: 'separator' as const } as MenuEntry,
+    ...(onOpenFind
+      ? [
+        {
+          icon: 'search',
+          label: t('toolbar.find'),
+          shortcut: 'Ctrl+F',
+          onClick: onOpenFind,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenFindReplace
+      ? [
+        {
+          icon: 'find_replace',
+          label: t('toolbar.findAndReplace'),
+          shortcut: 'Ctrl+H',
+          onClick: onOpenFindReplace,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenFind || onOpenFindReplace ? [{ type: 'separator' as const } as MenuEntry] : []),
+    {
+      icon: 'select_all',
+      label: t('toolbar.selectAll'),
+      shortcut: 'Ctrl+A',
+      onClick: () => handleFormat('selectAll'),
+    } as MenuEntry,
+    // Word count lives in Tools → Word count (Google Docs
+    // convention). Removed from Edit on the Phase-4 menu pass
+    // — duplication confused users about which entry the
+    // Ctrl+Shift+C shortcut targeted.
+    ...(onToggleVoiceTyping
+      ? [
+        {
+          icon: 'mic',
+          label: voiceTypingActive ? '✓ Voice typing' : 'Voice typing',
+          onClick: onToggleVoiceTyping,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onToggleSpellCheck
+      ? [
+        { type: 'separator' as const } as MenuEntry,
+        {
+          icon: 'spellcheck',
+          label: spellCheckEnabled ? '✓ Spelling' : 'Spelling',
+          onClick: onToggleSpellCheck,
+        } as MenuEntry,
+      ]
+      : []),
+  ];
+
+  const formatItems: MenuEntry[] = [
+    {
+      label: `${currentFormatting?.bold ? '✓ ' : ''}Bold`,
+      shortcut: 'Ctrl+B',
+      onClick: () => handleFormat('bold'),
+    } as MenuEntry,
+    {
+      label: `${currentFormatting?.italic ? '✓ ' : ''}Italic`,
+      shortcut: 'Ctrl+I',
+      onClick: () => handleFormat('italic'),
+    } as MenuEntry,
+    {
+      label: `${currentFormatting?.underline ? '✓ ' : ''}Underline`,
+      shortcut: 'Ctrl+U',
+      onClick: () => handleFormat('underline'),
+    } as MenuEntry,
+    {
+      label: `${currentFormatting?.strike ? '✓ ' : ''}Strikethrough`,
+      onClick: () => handleFormat('strikethrough'),
+    } as MenuEntry,
+    { type: 'separator' as const } as MenuEntry,
+    {
+      label: `${currentFormatting?.smallCaps ? '✓ ' : ''}Small Caps`,
+      onClick: () => handleFormat('toggleSmallCaps'),
+    } as MenuEntry,
+    {
+      label: `${currentFormatting?.allCaps ? '✓ ' : ''}All Caps`,
+      onClick: () => handleFormat('toggleAllCaps'),
+    } as MenuEntry,
+    { type: 'separator' as const } as MenuEntry,
+    {
+      icon: 'format_line_spacing',
+      label: t('toolbar.customSpacing'),
+      onClick: onOpenParagraphDialog,
+      disabled: !onOpenParagraphDialog,
+    } as MenuEntry,
+    {
+      icon: 'border_outer',
+      label: t('toolbar.bordersAndShading'),
+      onClick: onOpenBordersShading,
+      disabled: !onOpenBordersShading,
+    } as MenuEntry,
+    { type: 'separator' as const } as MenuEntry,
+    {
+      icon: 'format_clear',
+      label: t('toolbar.clearFormatting'),
+      shortcut: 'Ctrl+\\',
+      onClick: () => handleFormat('clearFormatting'),
+    } as MenuEntry,
+    { type: 'separator' as const } as MenuEntry,
+    {
+      icon: 'format_textdirection_l_to_r',
+      label: t('toolbar.leftToRight'),
+      onClick: () => handleFormat('setLtr'),
+    } as MenuEntry,
+    {
+      icon: 'format_textdirection_r_to_l',
+      label: t('toolbar.rightToLeft'),
+      onClick: () => handleFormat('setRtl'),
+    } as MenuEntry,
+  ];
+
+  const viewItems: MenuEntry[] = [
+    ...(onZoomChange
+      ? [
+        {
+          icon: 'add',
+          label: t('toolbar.zoomIn'),
+          shortcut: 'Ctrl+=',
+          onClick: () => onZoomChange(Math.min((zoom ?? 1) * 1.1, 4)),
+        } as MenuEntry,
+        {
+          icon: 'remove',
+          label: t('toolbar.zoomOut'),
+          shortcut: 'Ctrl+-',
+          onClick: () => onZoomChange(Math.max((zoom ?? 1) / 1.1, 0.25)),
+        } as MenuEntry,
+        {
+          icon: 'restart_alt',
+          label: t('toolbar.resetZoom'),
+          shortcut: 'Ctrl+0',
+          onClick: () => onZoomChange(1),
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onZoomChange && onToggleShowRuler ? [{ type: 'separator' as const } as MenuEntry] : []),
+    ...(onToggleShowRuler
+      ? [
+        {
+          icon: 'straighten',
+          label: `${rulerVisible ? '✓ ' : ''}Show ruler`,
+          onClick: onToggleShowRuler,
+        } as MenuEntry,
+      ]
+      : []),
+    // Vertical ruler is a separate opt-in; only meaningful while the ruler
+    // is shown, so gate the entry on rulerVisible.
+    ...(onToggleShowVerticalRuler && rulerVisible
+      ? [
+        {
+          icon: 'straighten',
+          label: `${verticalRulerVisible ? '✓ ' : ''}Vertical ruler`,
+          onClick: onToggleShowVerticalRuler,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onToggleShowFormattingMarks
+      ? [
+        {
+          label: `${showFormattingMarks ? '✓ ' : ''}${t('toolbar.showFormattingMarks')}`,
+          onClick: onToggleShowFormattingMarks,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onToggleOutline
+      ? [
+        {
+          label: `${outlineVisible ? '✓ ' : ''}${t('toolbar.showOutline')}`,
+          shortcut: 'Ctrl+Shift+H',
+          onClick: onToggleOutline,
+        } as MenuEntry,
+      ]
+      : []),
+    ...((onZoomChange || onToggleShowRuler) && onSetColorTheme
+      ? [{ type: 'separator' as const } as MenuEntry]
+      : []),
+    ...(onSetColorTheme
+      ? [
+        {
+          icon: 'contrast',
+          label: `${colorTheme === 'auto' || !colorTheme ? '✓ ' : ''}Theme: match system`,
+          onClick: () => onSetColorTheme('auto'),
+        } as MenuEntry,
+        {
+          icon: 'light_mode',
+          label: `${colorTheme === 'light' ? '✓ ' : ''}Theme: light`,
+          onClick: () => onSetColorTheme('light'),
+        } as MenuEntry,
+        {
+          icon: 'dark_mode',
+          label: `${colorTheme === 'dark' ? '✓ ' : ''}Theme: dark`,
+          onClick: () => onSetColorTheme('dark'),
+        } as MenuEntry,
+      ]
+      : []),
+  ];
+
+  const insertItems: MenuEntry[] = [
+    ...(onInsertImage
+      ? [{ icon: 'image', label: t('toolbar.image'), onClick: onInsertImage } as MenuEntry]
+      : []),
+    ...(showTableInsert && onInsertTable
+      ? [
+        {
+          icon: 'grid_on',
+          label: t('toolbar.table'),
+          submenuContent: (closeMenu: () => void) => (
+            <TableGridInline
+              onInsert={(rows: number, cols: number) => {
+                handleTableInsert(rows, cols);
+                closeMenu();
+              }}
+            />
+          ),
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onInsertImage || (showTableInsert && onInsertTable)
+      ? [{ type: 'separator' as const } as MenuEntry]
+      : []),
+    {
+      icon: 'page_break',
+      label: t('toolbar.pageBreak'),
+      shortcut: 'Ctrl+Enter',
+      onClick: onInsertPageBreak,
+      disabled: !onInsertPageBreak,
+    },
+    {
+      icon: 'horizontal_rule',
+      label: t('toolbar.horizontalLine'),
+      onClick: onInsertHorizontalRule,
+      disabled: !onInsertHorizontalRule,
+    },
+    {
+      icon: 'horizontal_rule',
+      label: t('toolbar.sectionBreak'),
+      disabled: !onInsertSectionBreak,
+      submenuContent: (closeMenu: () => void) => (
+        <>
+          {(
+            [
+              { label: t('toolbar.sectionBreakNextPage'), type: 'nextPage' },
+              { label: t('toolbar.sectionBreakContinuous'), type: 'continuous' },
+              { label: t('toolbar.sectionBreakEvenPage'), type: 'evenPage' },
+              { label: t('toolbar.sectionBreakOddPage'), type: 'oddPage' },
+            ] as const
+          ).map((item) => (
+            <SubMenuItem
+              key={item.type}
+              label={item.label}
+              onClick={() => onInsertSectionBreak?.(item.type)}
+              closeMenu={closeMenu}
+            />
+          ))}
+        </>
+      ),
+    },
+    ...(onInsertShape
+      ? [
+        {
+          icon: 'shapes',
+          label: t('toolbar.shape'),
+          submenuContent: (closeMenu: () => void) => (
+            <>
+              {(
+                [
+                  { label: t('toolbar.shapeRectangle'), type: 'rectangle' },
+                  { label: t('toolbar.shapeEllipse'), type: 'ellipse' },
+                  { label: t('toolbar.shapeLine'), type: 'line' },
+                  { label: t('toolbar.shapeArrow'), type: 'arrow' },
+                ] as const
+              ).map((item) => (
+                <SubMenuItem
+                  key={item.type}
+                  label={item.label}
+                  onClick={() => onInsertShape(item.type)}
+                  closeMenu={closeMenu}
+                />
+              ))}
+            </>
+          ),
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onInsertTextBox
+      ? [
+        {
+          icon: 'edit_note',
+          label: t('toolbar.textBox'),
+          onClick: () => onInsertTextBox('plain'),
+        } as MenuEntry,
+        {
+          icon: 'chat_bubble_outline',
+          label: t('toolbar.callout'),
+          onClick: () => onInsertTextBox('callout'),
+        } as MenuEntry,
+      ]
+      : []),
+    {
+      icon: 'tag',
+      label: t('toolbar.insertField'),
+      disabled: !onInsertField,
+      submenuContent: (closeMenu: () => void) => (
+        <>
+          {(
+            [
+              { label: t('toolbar.fieldPage'), type: 'PAGE' },
+              { label: t('toolbar.fieldNumPages'), type: 'NUMPAGES' },
+              { label: t('toolbar.fieldDate'), type: 'DATE' },
+              { label: t('toolbar.fieldTime'), type: 'TIME' },
+              { label: t('toolbar.fieldCreateDate'), type: 'CREATEDATE' },
+              { label: t('toolbar.fieldSaveDate'), type: 'SAVEDATE' },
+              { label: t('toolbar.fieldAuthor'), type: 'AUTHOR' },
+              { label: t('toolbar.fieldFileName'), type: 'FILENAME' },
+            ] as const
+          ).map((item) => (
+            <SubMenuItem
+              key={item.type}
+              label={item.label}
+              onClick={() => onInsertField?.(item.type)}
+              closeMenu={closeMenu}
+            />
+          ))}
+        </>
+      ),
+    },
+    {
+      icon: 'format_list_numbered',
+      label: t('toolbar.tableOfContents'),
+      onClick: onInsertTOC,
+      disabled: !onInsertTOC,
+    },
+    {
+      icon: 'bookmark',
+      label: t('toolbar.bookmarks'),
+      onClick: onOpenBookmarks,
+      disabled: !onOpenBookmarks,
+    },
+    {
+      icon: 'note_add',
+      label: t('toolbar.footnote'),
+      onClick: onInsertFootnote,
+      disabled: !onInsertFootnote,
+    },
+    { type: 'separator' as const } as MenuEntry,
+    {
+      icon: 'emoji_symbols',
+      label: t('toolbar.specialCharacters'),
+      onClick: onOpenInsertSymbol,
+      disabled: !onOpenInsertSymbol,
+    },
+    ...(onOpenBuildingBlocks
+      ? [
+        {
+          label: t('toolbar.buildingBlocks'),
+          onClick: onOpenBuildingBlocks,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onConvertSelectionToTable
+      ? [
+        {
+          label: t('toolbar.convertToTable'),
+          onClick: onConvertSelectionToTable,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onConvertTableToText
+      ? [
+        {
+          label: t('toolbar.convertToText'),
+          onClick: onConvertTableToText,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenWatermark
+      ? [
+        { type: 'separator' as const } as MenuEntry,
+        {
+          label: t('toolbar.watermark'),
+          onClick: onOpenWatermark,
+        } as MenuEntry,
+      ]
+      : []),
+  ];
+
+  const toolsItems: MenuEntry[] = [
+    // Word count first — matches Google Docs' Tools → Word count
+    // placement. (Edit menu still has it too for users who learned
+    // the older location.)
+    ...(onOpenWordCount
+      ? [
+        {
+          icon: 'format_list_numbered',
+          label: t('toolbar.wordCount'),
+          shortcut: 'Ctrl+Shift+C',
+          onClick: onOpenWordCount,
+        } as MenuEntry,
+        { type: 'separator' as const } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenDictionary
+      ? [
+        {
+          label: t('toolbar.dictionary'),
+          shortcut: 'Ctrl+Shift+Y',
+          onClick: onOpenDictionary,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenTranslate
+      ? [
+        {
+          icon: 'translate',
+          label: t('toolbar.translate'),
+          onClick: onOpenTranslate,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onTranslateDocument
+      ? [
+        {
+          icon: 'description',
+          label: t('toolbar.translateDocument'),
+          onClick: onTranslateDocument,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onToggleSpellcheck
+      ? [
+        {
+          icon: 'spellcheck',
+          label: spellcheckEnabled ? '✓ Spell check' : 'Spell check',
+          onClick: onToggleSpellcheck,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onToggleGrammar
+      ? [
+        {
+          icon: 'edit_note',
+          label: grammarEnabled ? '✓ Grammar check' : 'Grammar check',
+          onClick: onToggleGrammar,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenWritingAssistant
+      ? [
+        {
+          icon: 'auto_awesome',
+          label: t('toolbar.writingAssistant'),
+          onClick: onOpenWritingAssistant,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenExplore
+      ? [
+        {
+          icon: 'explore',
+          label: t('toolbar.explore'),
+          onClick: onOpenExplore,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenCitations
+      ? [
+        {
+          icon: 'format_quote',
+          label: t('toolbar.citations'),
+          onClick: onOpenCitations,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenPreferences
+      ? [
+        {
+          icon: 'tune',
+          label: t('toolbar.preferences'),
+          onClick: onOpenPreferences,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenAccessibility
+      ? [
+        {
+          icon: 'accessibility',
+          label: t('toolbar.accessibility'),
+          onClick: onOpenAccessibility,
+        } as MenuEntry,
+      ]
+      : []),
+  ];
+
+  const helpItems: MenuEntry[] = [
+    ...(onOpenCommandPalette
+      ? [
+        {
+          label: t('toolbar.searchMenus'),
+          onClick: onOpenCommandPalette,
+        } as MenuEntry,
+        { type: 'separator' as const } as MenuEntry,
+      ]
+      : []),
+    {
+      icon: 'bug_report',
+      label: t('toolbar.reportIssue'),
+      onClick: () => (onReportBug ? onReportBug() : openReportIssue()),
+    } as MenuEntry,
+    ...(onShowAbout
+      ? [
+        { type: 'separator' as const } as MenuEntry,
+        {
+          icon: 'info',
+          label: t('toolbar.aboutCasualEditor'),
+          onClick: onShowAbout,
+        } as MenuEntry,
+      ]
+      : []),
+    ...(onOpenKeyboardShortcuts
+      ? [
+        { type: 'separator' as const } as MenuEntry,
+        {
+          label: t('toolbar.keyboardShortcuts'),
+          onClick: onOpenKeyboardShortcuts,
+        } as MenuEntry,
+      ]
+      : []),
+  ];
+
+  // View and Tools keep their original multi-condition visibility guards;
+  // File keeps hasFileMenu. Edit/Format/Insert/Help are always shown. Order
+  // matches the previous inline order so desktop rendering is unchanged.
+  const menus = [
+    { id: 'file', label: t('toolbar.file'), items: fileItems, show: hasFileMenu },
+    { id: 'edit', label: t('toolbar.edit'), items: editItems, show: true },
+    { id: 'format', label: t('toolbar.format'), items: formatItems, show: true },
+    {
+      id: 'view',
+      label: t('toolbar.view'),
+      items: viewItems,
+      show:
+        onZoomChange ||
+        onSetColorTheme ||
+        onToggleShowRuler ||
+        onToggleShowFormattingMarks ||
+        onToggleOutline,
+    },
+    { id: 'insert', label: t('toolbar.insert'), items: insertItems, show: true },
+    {
+      id: 'tools',
+      label: t('toolbar.tools'),
+      items: toolsItems,
+      show:
+        onOpenPreferences ||
+        onOpenAccessibility ||
+        onOpenWordCount ||
+        onOpenDictionary ||
+        onOpenTranslate ||
+        onTranslateDocument ||
+        onToggleSpellcheck ||
+        onToggleGrammar ||
+        onOpenWritingAssistant ||
+        onOpenExplore ||
+        onOpenCitations,
+    },
+    { id: 'help', label: t('toolbar.help'), items: helpItems, show: true },
+  ];
+
+  const visibleMenus = menus.filter((m) => m.show);
+
+  return (
+    <MenuBarProvider onOpenChange={onMenuOpenChange}>
+      <div
+        className="flex items-center overflow-x-auto whitespace-nowrap min-w-0"
+        style={{ scrollbarWidth: 'none' }}
+        // role="toolbar" (not "menubar"): a menubar's required children are
+        // menuitems, but these triggers are native <button>s (kept so they
+        // expose role="button" to AT + tests). A toolbar permits button
+        // children and carries no required-children rule, clearing the
+        // aria-required-children violation while staying a labeled group.
+        role="toolbar"
+        aria-label={t('titleBar.menuBarAriaLabel')}
+      >
+        {/* Custom Quantix Logo injected right before the File Menu */}
+        <div className="flex items-center justify-center mr-1 ml-1 cursor-default pointer-events-none" style={{ height: '36px', marginRight: '6px' }}>
+          <img src="./QuantixDocx.png" alt="Quantix Logo" style={{ height: '45px', width: 'auto', objectFit: 'contain' }} />
+        </div>
+        {isNarrow ? (
+          // Phone widths: collapse all seven menus behind one hamburger, each
+          // menu re-exposed as a hover-opened submenu of the overflow panel.
+          <MenuDropdown
+            id="menu-overflow"
+            ariaLabel="Menus"
+            disabled={disabled}
+            label={
+              <span
+                data-testid="menu-overflow"
+                aria-hidden="true"
+                style={{ fontSize: 18, lineHeight: 1, display: 'inline-flex' }}
+              >
+                ☰
+              </span>
+            }
+            items={visibleMenus.map((m) => ({
+              label: m.label,
+              submenuContent: (close: () => void) => (
+                <MenuEntries items={m.items} onClose={close} />
+              ),
+            }))}
+          />
+        ) : (
+          // Desktop: the seven menus render inline exactly as before.
+          visibleMenus.map((m) => (
+            <MenuDropdown
+              key={m.id}
+              id={m.id}
+              label={m.label}
+              disabled={disabled}
+              items={m.items}
+            />
+          ))
+        )}
+      </div>
+    </MenuBarProvider>
+  );
+}
+
+// ============================================================================
+// TitleBar
+// ============================================================================
+
+export interface TitleBarProps {
+  children: ReactNode;
+}
+
+/**
+ * TitleBar layout (Google Docs style):
+ *
+ *   ┌──────────┬────────────────────────────┬──────────────────┐
+ *   │          │ Document Name              │                  │
+ *   │  Logo    │                            │  Right Actions   │
+ *   │          │ File  Format  Insert       │                  │
+ *   └──────────┴────────────────────────────┴──────────────────┘
+ *
+ * Logo and TitleBarRight span full height. DocumentName + MenuBar
+ * stack vertically in the center column.
+ */
+export function TitleBar({ children }: TitleBarProps) {
+  let logoItem: ReactNode = null;
+  let rightItem: ReactNode = null;
+  const middleTopItems: ReactNode[] = [];
+  const menuBarItems: ReactNode[] = [];
+
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return;
+    if (child.type === Logo) {
+      logoItem = child;
+    } else if (child.type === TitleBarRight) {
+      rightItem = child;
+    } else if (child.type === MenuBar) {
+      menuBarItems.push(child);
+    } else {
+      middleTopItems.push(child);
+    }
+  });
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const isInteractive =
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.tagName === 'OPTION';
+
+    if (!isInteractive) {
+      e.preventDefault();
+    }
+  }, []);
+
+  return (
+    <div
+      className="flex items-stretch bg-[color:var(--doc-chrome,#eef1f5)] text-[color:var(--doc-text-on-surface,#1f2937)] pt-2 pb-1"
+      onMouseDown={handleMouseDown}
+      data-testid="title-bar"
+    >
+      {/* Left: Logo spanning full height (default doc icon if none provided).
+        In embedded mode the host hides the app shell — no Logo and no
+        DocumentName are passed, leaving only the menu bar — so the default
+        doc icon must NOT leak in as branding. Show it only when the title row
+        carries app-shell content (a document name); otherwise the menus stand
+        alone (doc 39). */}
+      {logoItem && (
+        <div className="flex items-center flex-shrink-0 pl-3 pr-1">
+          {logoItem}
+        </div>
+      )}
+
+      {/* Center: doc name on top, menus below */}
+      <div className="flex flex-col justify-center flex-1 min-w-0 py-1 overflow-hidden">
+        {middleTopItems.length > 0 && (
+          <div className="flex items-center gap-2 px-1 min-w-0">{middleTopItems}</div>
+        )}
+        {menuBarItems.length > 0 && (
+          <div
+            className="flex items-center px-1 min-w-0 overflow-x-auto"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {menuBarItems}
+          </div>
+        )}
+      </div>
+
+      {/* Right: actions spanning full height */}
+      {rightItem && <div className="flex items-center flex-shrink-0 px-3">{rightItem}</div>}
+    </div>
+  );
+}

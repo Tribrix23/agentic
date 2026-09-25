@@ -1,0 +1,46 @@
+/* ───────────────────────────────────────────────────────────────────────
+ *  Casual Editor (docs) — accent override
+ *
+ *  The docs editor uses cyan (#0891b2) instead of teal (#0e7490) as its
+ *  identity colour. Import this file AFTER tokens.css inside any surface
+ *  that paints the docs editor (apps/web for docs, the embed runtime
+ *  under `?app=docs`, the Drive `/file/<id>` route when the file is a
+ *  .docx). Every other token (typography, spacing, motion, neutrals)
+ *  stays identical — only --color-accent and its derivatives change.
+ *
+ *  Scope: ONLY `[data-app='docs']`. This file is imported by the main
+ *  tokens.css barrel, so it must NOT touch the bare `:root` — doing so
+ *  forced the docs cyan onto every consuming app (sheets, slides) and
+ *  clobbered their own accent. Sheets stays teal because it sets no
+ *  data-app; docs opts in with `<html data-app="docs">`.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+[data-app='docs'],
+[data-app='docs']:root {
+  --color-accent: #0891b2;
+  --color-accent-hover: #0779a0;
+  --color-accent-active: #056384;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #e6f6fa;
+  --color-accent-bright: #22b8d8;
+  --accent-gradient: linear-gradient(135deg, #22b8d8 0%, #0891b2 100%);
+
+  --color-focus-ring: #0891b2;
+  --color-selected: rgba(8, 145, 178, 0.11);
+  --color-selected-strong: rgba(8, 145, 178, 0.20);
+}
+
+[data-theme='dark'][data-app='docs'],
+[data-app='docs'][data-theme='dark'] {
+  --color-accent: #67e8f9;
+  --color-accent-hover: #84efff;
+  --color-accent-active: #54ccdd;
+  --color-accent-fg: #052a32;
+  --color-accent-soft: rgba(103, 232, 249, 0.16);
+  --color-accent-bright: #84efff;
+  --accent-gradient: linear-gradient(135deg, #84efff 0%, #67e8f9 100%);
+
+  --color-focus-ring: #67e8f9;
+  --color-selected: rgba(103, 232, 249, 0.20);
+  --color-selected-strong: rgba(103, 232, 249, 0.34);
+}

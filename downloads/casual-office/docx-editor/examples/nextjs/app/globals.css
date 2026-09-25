@@ -1,0 +1,11 @@
+/*
+ * Copyright (c) 2026 Casual Office. All rights reserved.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import editor styles (CSS variables, custom properties, etc.)
+   In standalone usage: @import '@casualoffice/docs/styles.css'; */
+@import '../../../packages/react/src/styles/editor.css';

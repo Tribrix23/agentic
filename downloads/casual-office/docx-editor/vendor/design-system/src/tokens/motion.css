@@ -1,0 +1,54 @@
+/* ───────────────────────────────────────────────────────────────────────
+ *  Casual Sheets — Motion primitives
+ *
+ *  Reusable keyframes + utility classes so EVERY overlay in the system
+ *  enters the same way: menus pop, panels glide in from their edge,
+ *  dialogs rise and scale, toasts slide up. One vocabulary → the whole
+ *  product feels designed to move this way, not animated ad-hoc.
+ *
+ *  Respects prefers-reduced-motion (entrances collapse to a fast fade).
+ * ─────────────────────────────────────────────────────────────────────── */
+
+@keyframes cs-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes cs-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes cs-rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes cs-slide-in-right {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes cs-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes cs-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Utility classes — attach to the element that enters. */
+.cs-anim-fade   { animation: cs-fade-in var(--motion-base) var(--ease-out) both; }
+.cs-anim-pop    { animation: cs-pop-in var(--motion-base) var(--ease-spring) both; transform-origin: top; }
+.cs-anim-rise   { animation: cs-rise-in var(--motion-slow) var(--ease-spring) both; }
+.cs-anim-panel  { animation: cs-slide-in-right var(--motion-slow) var(--ease-out) both; }
+.cs-anim-up     { animation: cs-slide-up var(--motion-base) var(--ease-out) both; }
+.cs-anim-scrim  { animation: cs-scrim-in var(--motion-fast) var(--ease-out) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-anim-fade,
+  .cs-anim-pop,
+  .cs-anim-rise,
+  .cs-anim-panel,
+  .cs-anim-up,
+  .cs-anim-scrim {
+    animation: cs-fade-in 1ms linear both;
+  }
+}

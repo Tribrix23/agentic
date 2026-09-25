@@ -1,0 +1,138 @@
+/* ───────────────────────────────────────────────────────────────────────
+ *  Casual Sheets — Color tokens
+ *
+ *  Lifted verbatim from the product shell (apps/web/src/styles.css). The
+ *  Casual Sheets identity colour is deep teal-cyan (#0e7490) — the fill
+ *  of the document logo and every focus ring, selection, and primary
+ *  action in the app. Surfaces are a three-zone neutral layering scale
+ *  built for a dense, Excel-flavoured grid product: pure-white canvas,
+ *  cool-grey chrome strips, hairline borders instead of heavy shadows.
+ *
+ *  Two themes ship: the default light theme on :root, and a near-black
+ *  dark theme under [data-theme='dark'] (bridged to the Univer canvas in
+ *  the real app via a body class). Both expose the SAME token names.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+:root {
+  color-scheme: light;
+
+  /* ── Brand — deep teal-cyan. Primary actions, focus, selection. ──── */
+  --color-accent: #0e7490;        /* teal-cyan 700 — brand identity */
+  --color-accent-hover: #0c627a;
+  --color-accent-active: #0a5266;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #e6f3f7;   /* tinted fill behind accent text */
+  --color-accent-bright: #1597ba; /* brighter cyan — highlights, gradient stop */
+  /* Premium gradient — used sparingly on the primary CTA + hero marks. */
+  --accent-gradient: linear-gradient(135deg, #1597ba 0%, #0e7490 100%); /* @kind color */
+
+  /* ── Neutrals — cool slate-tinted layering scale. Premium hairlines:
+        borders stay whisper-light so surface-zone contrast (not heavy
+        lines) does the separating, Linear / Notion style. */
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;        /* zone 0 */
+  --color-surface-alt: #f4f6f9;    /* zone 1 — raised panels, wells */
+  --color-surface-strip: #eef1f5;  /* zone 2 — chrome strips */
+  --color-surface-raised: #ffffff; /* menus, popovers, dialogs */
+
+  --color-border: #e6e9ee;         /* whisper hairline — controls + grid */
+  --color-border-strong: #cdd3db;  /* visible dividers, input outlines */
+  --color-divider: #edeff3;        /* chrome strip separators */
+
+  /* Glass + scrim — frosted chrome and premium modal backdrops. */
+  --color-glass: rgba(255, 255, 255, 0.72);
+  --color-glass-strong: rgba(255, 255, 255, 0.86);
+  --color-glass-border: rgba(255, 255, 255, 0.6);
+  --color-scrim: rgba(15, 23, 42, 0.38);
+
+  /* ── Text — four-step legibility ramp on white. ──────────────────── */
+  --color-text: #201f1e;           /* near-black, faint warm */
+  --color-text-secondary: #605e5c; /* body copy, labels */
+  --color-text-disabled: #8a8886;  /* dimmed controls (3.55:1) */
+  --color-text-muted: #8a8886;     /* quiet metadata */
+  --color-text-on-accent: #ffffff;
+
+  /* ── Interaction states — translucent overlays so they compose on
+        ANY surface zone, plus accent-tinted selection wells. ───────── */
+  --color-hover: rgba(15, 23, 42, 0.045);
+  --color-pressed: rgba(15, 23, 42, 0.09);
+  --color-focus-ring: #0e7490;
+  --color-selected: rgba(14, 116, 144, 0.11);
+  --color-selected-strong: rgba(14, 116, 144, 0.20);
+
+  /* Toolbar pill — neutral cool well behind the active formula range. */
+  --color-toolbar-pill: #eef1f5;
+
+  /* ── Status / semantic — spreadsheet status language. Sourced from
+        the home template badge palette (Tailwind 700-line) so cell
+        badges, validation, and banners share one set. ─────────────── */
+  --color-success: #15803d;        /* "On Track", "Done" */
+  --color-success-soft: #dcfce7;
+  --color-warning: #b45309;        /* "At Risk", "In Progress" */
+  --color-warning-soft: #fef3c7;
+  --color-danger: #b91c1c;         /* errors, over-budget, #REF! */
+  --color-danger-soft: #fee2e2;
+  --color-info: #1d4ed8;           /* links, info banners */
+  --color-info-soft: #dbeafe;
+
+  /* ── Casual Office suite — sibling-product accents. Used only when a
+        surface references the whole suite (umbrella nav, cross-links).
+        Casual Sheets itself always leads with --color-accent (teal). */
+  --suite-sheets: #0e7490;         /* this product */
+  --suite-editor: #0891b2;         /* Casual Editor (.docx) — cyan */
+  --suite-slides: #b91c1c;         /* Casual Slides (.pptx) — red */
+  --suite-desktop: #ea580c;        /* Casual Desktop — orange */
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────
+ *  Manual-only (no prefers-color-scheme). Accent brightens to cyan-400
+ *  so it glows on near-black without buzzing; surfaces climb a tight
+ *  charcoal ramp; shadows deepen. Same token names throughout. */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-accent: #22d3ee;
+  --color-accent-hover: #3ddff5;
+  --color-accent-active: #1cb8d4;
+  --color-accent-fg: #07181c;
+  --color-accent-soft: rgba(34, 211, 238, 0.16);
+  --color-accent-bright: #38e0f5;
+  --accent-gradient: linear-gradient(135deg, #38e0f5 0%, #22d3ee 100%); /* @kind color */
+
+  /* Cool deep-slate surfaces \u2014 premium near-black, not flat grey. */
+  --color-bg: #14161a;
+  --color-surface: #1b1e23;
+  --color-surface-alt: #23262c;
+  --color-surface-strip: #2a2e35;
+  --color-surface-raised: #24282e;
+  --color-border: #32363d;
+  --color-border-strong: #424751;
+  --color-divider: #24272d;
+
+  --color-glass: rgba(28, 32, 38, 0.66);
+  --color-glass-strong: rgba(28, 32, 38, 0.85);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-scrim: rgba(5, 8, 12, 0.58);
+
+  --color-text: #e6e6e6;
+  --color-text-secondary: #b0b3ba;
+  --color-text-disabled: #6b6e75;
+  --color-text-muted: #8d9098;
+  --color-text-on-accent: #0e0f12;
+
+  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-pressed: rgba(255, 255, 255, 0.12);
+  --color-focus-ring: #22d3ee;
+  --color-selected: rgba(34, 211, 238, 0.20);
+  --color-selected-strong: rgba(34, 211, 238, 0.34);
+  --color-toolbar-pill: #2a2c31;
+
+  --color-success: #4ade80;
+  --color-success-soft: rgba(74, 222, 128, 0.16);
+  --color-warning: #fbbf24;
+  --color-warning-soft: rgba(251, 191, 36, 0.16);
+  --color-danger: #f87171;
+  --color-danger-soft: rgba(248, 113, 113, 0.16);
+  --color-info: #60a5fa;
+  --color-info-soft: rgba(96, 165, 250, 0.16);
+}

@@ -1,0 +1,31 @@
+/*
+ * Copyright (c) 2026 Casual Office. All rights reserved.
+ */
+
+/**
+ * ProseMirror Plugins
+ *
+ * Selection tracker plugin for the DOCX editor.
+ * Keymap plugins are now provided by the extension system.
+ */
+
+export {
+  createSelectionTrackerPlugin,
+  extractSelectionContext,
+  getSelectionContext,
+  selectionTrackerKey,
+} from './selectionTracker';
+
+export type { SelectionContext, SelectionChangeCallback } from './selectionTracker';
+
+export {
+  suggestionModeKey,
+  createSuggestionModePlugin,
+  toggleSuggestionMode,
+  setSuggestionMode,
+  isSuggestionModeActive,
+} from './suggestionMode';
+
+export { createMentionPlugin, MENTION_PLUGIN_KEY } from './mentionPlugin';
+
+export type { MentionPluginState } from './mentionPlugin';

@@ -1,0 +1,69 @@
+/* ───────────────────────────────────────────────────────────────────────
+ *  Casual Sheets — Spacing, shape, elevation, motion & layout tokens
+ *
+ *  A strict 4px base grid keeps the dense chrome aligned. Two corner
+ *  radii do almost all the work: 4px for every interactive control,
+ *  8px for containers (dialogs, popovers, cards). Shadows stay small and
+ *  soft — this UI leans on hairline borders and surface-zone contrast,
+ *  not floating drop shadows. Motion is quick and snappy (80–140ms) on a
+ *  decelerating ease, because spreadsheet work demands responsiveness.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Spacing scale (4px base) ─────────────────────────────────────── */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-9: 32px;
+  --space-10: 48px;
+
+  /* ── Shape — a tight, consistent radius ladder. Controls get a soft
+        6px; containers 10px; large surfaces (command palette, dialogs)
+        14px. Square cells never take radius. ──────────────────────── */
+  --radius-sm: 4px;   /* tiny chips, focus inset */
+  --radius-md: 6px;   /* all interactive controls (buttons, inputs) */
+  --radius-lg: 10px;  /* cards, menus, popovers */
+  --radius-xl: 14px;  /* dialogs, command palette, large panels */
+  --radius-pill: 999px; /* toolbar pill, chips, avatars */
+
+  /* ── Elevation — layered, slate-tinted, premium. Borders still carry
+        most separation; these float menus/dialogs with intent. ─────── */
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 1px rgba(16, 24, 40, 0.04);
+  --shadow-2: 0 2px 4px rgba(16, 24, 40, 0.06), 0 6px 16px -4px rgba(16, 24, 40, 0.10);
+  --shadow-3: 0 4px 8px rgba(16, 24, 40, 0.06), 0 16px 32px -8px rgba(16, 24, 40, 0.14);
+  --shadow-4: 0 8px 16px rgba(16, 24, 40, 0.08), 0 28px 56px -12px rgba(16, 24, 40, 0.22);
+  /* Soft accent glow — focus halos, active primary CTA. */
+  --glow-accent: 0 0 0 3px var(--color-accent-soft);
+
+  /* ── Motion — one cohesive system so every surface eases the same way.
+        Quick for direct manipulation; a gentle overshoot spring for
+        panels/menus/dialogs so they feel placed, not popped. ───────── */
+  --motion-fast: 90ms;    /* @kind other */ /* hovers, wells, toggles */
+  --motion-base: 160ms;   /* @kind other */ /* control state, selects */
+  --motion-slow: 240ms;   /* @kind other */ /* panel + overlay entrances */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);          /* @kind other */ /* decelerate */
+  --ease-in-out: cubic-bezier(0.45, 0, 0.2, 1);       /* @kind other */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);     /* @kind other */ /* gentle overshoot */
+
+  /* ── Chrome layout heights — the fixed strips of the app shell.
+        These stack: title bar → toolbar → formula bar → grid →
+        sheet tabs → status bar. Reuse them to rebuild the shell. ───── */
+  --titlebar-h: 64px;     /* Google-Docs two-row chrome (filename + menus) */
+  --toolbar-h: 66px;      /* single-row, two-button-row ribbon */
+  --formula-bar-h: 26px;  /* name box + formula input */
+  --sheet-tabs-h: 28px;   /* bottom tab strip */
+  --statusbar-h: 24px;    /* selection stats */
+}
+
+[data-theme='dark'] {
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.44), 0 1px 1px rgba(0, 0, 0, 0.30);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.50), 0 6px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-3: 0 4px 8px rgba(0, 0, 0, 0.50), 0 16px 32px -8px rgba(0, 0, 0, 0.62);
+  --shadow-4: 0 8px 16px rgba(0, 0, 0, 0.55), 0 28px 56px -12px rgba(0, 0, 0, 0.70);
+}

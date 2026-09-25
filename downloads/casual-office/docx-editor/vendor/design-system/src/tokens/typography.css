@@ -1,0 +1,48 @@
+/* ───────────────────────────────────────────────────────────────────────
+ *  Casual Sheets — Typography tokens
+ *
+ *  Inter does all the UI heavy lifting at a deliberately SMALL scale —
+ *  this is a dense spreadsheet shell, not a marketing page, so 13px is
+ *  the base body size and 11px the smallest label. JetBrains Mono carries
+ *  anything tabular or code-like: the Name Box, formula bar, cell
+ *  addresses, keyboard chips, version tags. Manrope is reserved for the
+ *  large display headlines on the home / hero takeover surfaces.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Families ─────────────────────────────────────────────────────── */
+  --font-sans:
+    'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-display:
+    'Manrope', 'Inter', 'Segoe UI', -apple-system, sans-serif;
+
+  /* ── UI type scale (px) — tuned for a compact chrome. ─────────────── */
+  --text-xs: 11px;    /* eyebrows, status-bar stats, badges */
+  --text-sm: 12px;    /* secondary labels, sheet tabs */
+  --text-base: 13px;  /* body — menus, cells, toolbar */
+  --text-md: 14px;    /* dialog body, primary buttons */
+  --text-lg: 16px;    /* dialog titles, section heads */
+
+  /* ── Display scale — home / hero surfaces only (Manrope). ─────────── */
+  --display-sm: 28px;
+  --display-md: 36px;
+  --display-lg: 44px;
+
+  /* ── Line height ──────────────────────────────────────────────────── */
+  --leading-tight: 1.2;
+  --leading-normal: 1.4;
+  --leading-relaxed: 1.6;
+
+  /* ── Weight ───────────────────────────────────────────────────────── */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ── Tracking — display sizes get tightened. ──────────────────────── */
+  --tracking-tight: -0.022em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;   /* uppercase eyebrows */
+}

@@ -1,0 +1,15 @@
+/* ═══════════════════════════════════════════════════════════════════════
+ *  @schnsrw/design-system — token entry point
+ *
+ *  Import this file once at your app entry to install every token, fonts,
+ *  motion utilities, and the Material Symbols Outlined icon font. Light is
+ *  the default; switch to dark by setting `data-theme="dark"` on <html>.
+ *  The docs editor uses `data-app="docs"` to swap the accent ramp to cyan.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+@import url('./tokens/fonts.css');
+@import url('./tokens/colors.css');
+@import url('./tokens/typography.css');
+@import url('./tokens/spacing.css');
+@import url('./tokens/motion.css');
+@import url('./tokens/editor-theme.css');

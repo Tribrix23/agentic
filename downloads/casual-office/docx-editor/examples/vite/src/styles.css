@@ -1,0 +1,42 @@
+/*
+ * Copyright (c) 2026 Casual Office. All rights reserved.
+ */
+
+/* Import editor styles
+   In standalone usage: @import '@casualoffice/docs/styles.css'; */
+@import '../../../packages/react/src/styles/editor.css';
+
+/* editor.css sets color-scheme (light/dark) scoped to .ep-root, so the
+ * DocxEditor + dialogs are covered. Home and the markdown/text editor render
+ * directly under <html data-theme="...">, outside .ep-root, so they need the
+ * same pairing here — otherwise an unstyled native input/select on those
+ * pages falls back to the page's <meta name="color-scheme" content="light
+ * dark">, i.e. the OS's raw preference instead of the app's chosen theme. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mobile responsive overrides */
+@media (max-width: 768px) {
+  /* Compact toolbar on mobile - horizontal scroll instead of wrapping */
+  .ep-root [role='toolbar'] {
+    padding: 4px 4px;
+    gap: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    min-height: 36px;
+  }
+  .ep-root [role='toolbar']::-webkit-scrollbar {
+    display: none;
+  }
+}

@@ -1,0 +1,9 @@
+src/
+scripts/
+node_modules/
+.pnpm-store/
+tsconfig.json
+tsup.config.ts
+.gitignore
+*.log
+.DS_Store

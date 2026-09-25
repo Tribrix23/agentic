@@ -1,0 +1,22 @@
+<svg width="268" height="56" viewBox="0 0 268 56" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Casual Editor">
+  <title>Casual Editor</title>
+  <defs>
+    <linearGradient id="ce-logo-tile" x1="9" y1="7" x2="45" y2="47" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22d3ee"></stop>
+      <stop offset="1" stop-color="#0e7490"></stop>
+    </linearGradient>
+  </defs>
+
+  
+  <g>
+    <rect x="6" y="6" width="42" height="42" rx="12" fill="url(#ce-logo-tile)"></rect>
+    <path d="M6 18C6 11.373 11.373 6 18 6H36C42.627 6 48 11.373 48 18V21H6V18Z" fill="#ffffff" fill-opacity="0.12"></path>
+    <rect x="17" y="17" width="20" height="3.2" rx="1.6" fill="#ffffff" fill-opacity="0.9"></rect>
+    <rect x="17" y="24.4" width="20" height="3.2" rx="1.6" fill="#ffffff" fill-opacity="0.62"></rect>
+    <rect x="17" y="31.8" width="13" height="3.2" rx="1.6" fill="#ffffff" fill-opacity="0.62"></rect>
+  </g>
+
+  
+  <text x="62" y="29" font-family="Manrope, &#39;Segoe UI&#39;, -apple-system, sans-serif" font-weight="800" font-size="22" letter-spacing="-0.5" fill="#1a1830">Casual Editor</text>
+  <text x="63" y="44" font-family="&#39;JetBrains Mono&#39;, ui-monospace, Menlo, monospace" font-weight="500" font-size="9.5" letter-spacing="1.6" fill="#8a8886">CASUAL OFFICE</text>
+</svg>

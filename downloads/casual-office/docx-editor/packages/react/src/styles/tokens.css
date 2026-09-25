@@ -1,0 +1,116 @@
+/*
+ * Casual Editor design tokens — self-contained, in-repo source of truth.
+ *
+ * Replaces the former vendored @schnsrw/design-system stub (an empty
+ * placeholder that left every color, shadow and motion primitive undefined,
+ * so the chrome rendered from hundreds of inline var() fallbacks scattered
+ * across three grey palettes and several blues). The editor now owns its
+ * own token spine.
+ *
+ * These are the PRIMITIVE tokens the semantic --doc-* / --ce-* layer in
+ * editor.css maps onto. Palette: a confident azure accent (#2f56ff) on a
+ * cool, slightly blue-biased neutral ramp with a white canvas — one point
+ * of view instead of the accreted Google-grey / Tailwind-slate mix.
+ */
+
+:root {
+  /* ---- Neutrals / surfaces (light) ---- */
+  --color-surface: #ffffff; /* panels, dialogs, dropdowns */
+  --color-surface-raised: #ffffff; /* card elevated on a surface */
+  --color-surface-alt: #f4f6fb; /* inputs, sunken / muted panes */
+  --color-surface-strip: #eef1f7; /* app chrome / toolbar strip */
+  --color-hover: #eaeef6; /* hover wash */
+
+  /* ---- Text (light) ---- */
+  --color-text: #0b0e15; /* primary — cool near-black */
+  --color-text-secondary: #3b4354; /* secondary */
+  --color-text-muted: #667085; /* tertiary */
+  --color-text-disabled: #9aa1b0; /* disabled / placeholder */
+
+  /* ---- Borders (light) ---- */
+  --color-border-strong: #d3d9e4; /* standard / input / table borders */
+  --color-divider: #e3e8f1; /* soft separators */
+
+  /* ---- Accent (light) ---- */
+  --color-accent: #2f56ff; /* confident azure */
+  --color-accent-hover: #2647d6; /* hovered accent */
+  --color-accent-soft: #e9edff; /* selected / active tint */
+
+  /* ---- Status (light) ---- */
+  --color-danger: #d92d3e;
+  --color-danger-soft: #fdeaec;
+  --color-success: #12855f;
+  --color-success-soft: #e4f4ec;
+  --color-warning: #8f5109; /* also used as readable text on warning-soft */
+  --color-warning-soft: #fdf3e2;
+  --color-info: #2f56ff; /* info / link accent */
+  --color-info-soft: #e9edff;
+
+  /* ---- Elevation ---- */
+  --shadow-1: 0 1px 2px rgba(11, 14, 21, 0.06);
+  --shadow-2: 0 2px 10px rgba(11, 14, 21, 0.14); /* dropdowns / dialogs / panels */
+  --shadow-3: 0 8px 28px -6px rgba(11, 14, 21, 0.2);
+
+  /* ---- Motion ---- */
+  --motion-fast: 90ms;
+  --motion-base: 160ms;
+  --motion-slow: 240ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1); /* decelerating */
+
+  /* ---- Type ---- */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* ---- Spacing (2px grid) ---- */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+
+  /* ---- Radius ---- */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+}
+
+/*
+ * Dark theme primitives. Matches editor.css's dark selector so the --doc-*
+ * layer (evaluated on .ep-root and descendants) picks these up. editor.css
+ * additionally patches --color-text-muted / -disabled / -border-strong for
+ * WCAG AA in its own dark block; those are kept in sync there.
+ */
+.ep-root[data-theme='dark'],
+[data-theme='dark'] .ep-root,
+[data-theme='dark'] {
+  --color-surface: #171b24;
+  --color-surface-raised: #1e2330;
+  --color-surface-alt: #1e2330;
+  --color-surface-strip: #12151d;
+  --color-hover: rgba(255, 255, 255, 0.06);
+
+  --color-text: #e7ebf3;
+  --color-text-secondary: #aab2c2;
+  --color-text-muted: #8b93a3; /* AA — mirrored in editor.css */
+  --color-text-disabled: #7c8497; /* AA — mirrored in editor.css */
+
+  --color-border-strong: #3a4150; /* AA — mirrored in editor.css */
+  --color-divider: #262c38;
+
+  --color-accent: #6e8bff;
+  --color-accent-hover: #8499ff;
+  --color-accent-soft: #1b2547;
+
+  --color-danger: #f0788a;
+  --color-danger-soft: #341a1f;
+  --color-success: #4bc491;
+  --color-success-soft: #12281f;
+  --color-warning: #e0a44f;
+  --color-warning-soft: #2a2011;
+  --color-info: #6e8bff;
+  --color-info-soft: #1b2547;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 2px 12px rgba(0, 0, 0, 0.5);
+  --shadow-3: 0 8px 30px -6px rgba(0, 0, 0, 0.7);
+}

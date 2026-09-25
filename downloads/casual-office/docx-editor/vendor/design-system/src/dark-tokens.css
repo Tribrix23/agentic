@@ -1,0 +1,10 @@
+/* ═══════════════════════════════════════════════════════════════════════
+ *  @schnsrw/design-system — dark theme manifest
+ *
+ *  Convenience entry — the light theme + dark theme overrides both live in
+ *  `tokens.css`. This file re-exports the same manifest so consumers can
+ *  import it explicitly when their bundler does not de-dupe CSS imports.
+ *  Apply `data-theme="dark"` to any ancestor element to switch themes.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+@import url('./tokens.css');

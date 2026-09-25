@@ -1,0 +1,62 @@
+{
+  "name": "@schnsrw/design-system",
+  "version": "0.1.0",
+  "description": "Casual Office design system — tokens, primitives, and the Material Symbols icon convention shared by Casual Sheets, Casual Editor, and Casual Drive.",
+  "license": "MIT",
+  "author": "sachin sarwa <schnsrw@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/schnsrw/design-system.git"
+  },
+  "type": "module",
+  "sideEffects": [
+    "*.css",
+    "./dist/tokens.css",
+    "./dist/dark-tokens.css"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tokens.css": "./dist/tokens.css",
+    "./dark-tokens.css": "./dist/dark-tokens.css",
+    "./assets/*": "./dist/assets/*"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && node scripts/copy-assets.mjs",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0 <20.0.0",
+    "react-dom": ">=18.0.0 <20.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3"
+  },
+  "keywords": [
+    "casual-office",
+    "design-system",
+    "tokens",
+    "react"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
+  }
+}
