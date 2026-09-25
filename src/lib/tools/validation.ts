@@ -36,8 +36,8 @@ export function normalizeToolArguments(schema: Record<string, unknown>, args: un
     if (propertySchema && typeof propertySchema === 'object') {
       const type = (propertySchema as any).type;
       
-      // If empty string for optional non-string, just delete it
-      if (val === '' && !required.has(name) && type !== 'string') {
+      // If empty string or null/undefined for optional non-string, just delete it
+      if ((val === '' || val === 'null' || val === 'undefined' || val === null || val === undefined) && !required.has(name) && type !== 'string') {
         delete normalized[name];
         continue;
       }
@@ -84,3 +84,4 @@ export function validateToolArguments(schema: Record<string, unknown>, args: unk
 export function formatValidationErrors(errors: ErrorObject[]): string {
   return errors.map(error => `${error.instancePath || '/'} ${error.message || 'is invalid'}`).join('; ');
 }
+

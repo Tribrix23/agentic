@@ -206,7 +206,7 @@ You are pair programming with a USER to solve their coding task. The task may re
 
 13. **Concurrent / Bulk Tool Calls**: You are encouraged to emit multiple tool calls in a single response to perform tasks concurrently. For example, if you need to read 5 different files, you should emit 5 separate 'runCommand' tool calls in the same turn instead of waiting for each one sequentially. You can use tools concurrently in bulk (not just 'runCommand') whenever you have all the necessary parameters to do so.
 14. **Deleting Files**: You do NOT have a dedicated file deletion tool. If you need to delete a file or folder, you MUST use the terminal ('runCommand') to execute the appropriate OS command (e.g. 'rm -rf' on Unix or 'Remove-Item' on Windows).
-15. **Reading Large Files**: Your context window is massive (50,000+ characters per output). You can safely use 'cat' via 'runCommand' to read almost any file entirely in one go. Do NOT read files line-by-line or chunk them with 'sed' unless the file is truly massive and 'cat' explicitly fails.
+15. **Context Compression (Headroom)**: To save tokens, NEVER use 'cat' to read source files. You MUST use the 'readFile' tool. By default, 'readFile' uses Tree-sitter to return a "Skeleton" of the file (imports, signatures, and class definitions) with all function bodies hidden. If you need to see or edit a specific function's implementation, you MUST use the 'expandSymbol' tool to reveal it.
 16. **Next.js Project Initialization**: If the user wants a new Next.js project and the project folder is empty, you MUST use the terminal to run exactly: \`npx create-next-app@latest ./ --ts --tailwind --eslint --app --src-dir\` to initialize it. Do not attempt to use writeFile to manually scaffold the project.
 17. **Verification and Testing**: Before ending the entire agentic loop and completing your task, you MUST verify your work. Run the appropriate linters, type checkers, or test suites (via 'runCommand') to ensure the codebase is completely functional and free of errors. Even for simple, one-off scripts (like Python or Node.js), you MUST execute them once via 'runCommand' to prove they run without crashing. Do not declare the task finished until you have proven the code works.
 18. **Sequential Thinking (CRITICAL)**: When using the sequential thinking tool, you MUST pass your thought process in the \`thought\` property (NOT \`content\`). 
@@ -495,10 +495,20 @@ function getConfigKey(projectId?: string): string {
 export function getAIConfig(projectId?: string): AIConfig {
   let config = { ...DEFAULT_AI_CONFIG };
   try {
-    const raw = localStorage.getItem(getConfigKey(projectId));
-    if (raw) {
-      const saved = JSON.parse(raw) as Partial<AIConfig>;
-      config = { ...config, ...saved };
+    // 1. Always load global config first so we inherit the user's base preferences
+    const globalRaw = localStorage.getItem(getConfigKey(undefined));
+    if (globalRaw) {
+      const globalSaved = JSON.parse(globalRaw) as Partial<AIConfig>;
+      config = { ...config, ...globalSaved };
+    }
+    
+    // 2. Override with project-specific settings if they exist
+    if (projectId) {
+      const projectRaw = localStorage.getItem(getConfigKey(projectId));
+      if (projectRaw) {
+        const projectSaved = JSON.parse(projectRaw) as Partial<AIConfig>;
+        config = { ...config, ...projectSaved };
+      }
     }
   } catch (e) {
     console.warn('[AIConfig] Failed to load config, using defaults:', e);
@@ -648,3 +658,4 @@ export function applySecurityPreset(
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+

@@ -1,5 +1,7 @@
 import { registerTool } from './registry';
 
+import { definition as readFileDef, handler as readFileHandler } from './definitions/readFile';
+import { definition as expandSymbolDef, handler as expandSymbolHandler } from './definitions/expandSymbol';
 import { definition as writeFileDef, handler as writeFileHandler } from './definitions/writeFile';
 import { definition as editFileDef, handler as editFileHandler } from './definitions/editFile';
 import { definition as createFileDef, handler as createFileHandler } from './definitions/createFile';
@@ -28,6 +30,8 @@ import { definition as executeCodeDef, handler as executeCodeHandler } from './d
 import { definition as analyzeDependenciesDef, handler as analyzeDependenciesHandler } from './definitions/analyzeDependencies';
 import { definition as formatCodeDef, handler as formatCodeHandler } from './definitions/formatCode';
 import { definition as runTestsDef, handler as runTestsHandler } from './definitions/runTests';
+import { definition as indexCodebaseDef, handler as indexCodebaseHandler } from './definitions/indexCodebase';
+import { definition as queryCodeGraphDef, handler as queryCodeGraphHandler } from './definitions/queryCodeGraph';
 import { definition as readSkillDef, handler as readSkillHandler } from './definitions/readSkill';
 import { definition as getGitBranchDef, handler as getGitBranchHandler } from './definitions/getGitBranch';
 import { definition as createBranchDef, handler as createBranchHandler } from './definitions/createBranch';
@@ -62,6 +66,8 @@ export * from './planModePolicy';
 
 export function initializeTools() {
 
+  registerTool(readFileDef, readFileHandler);
+  registerTool(expandSymbolDef, expandSymbolHandler);
   registerTool(writeFileDef, writeFileHandler);
   registerTool(editFileDef, editFileHandler);
   registerTool(createFileDef, createFileHandler);
@@ -114,9 +120,14 @@ export function initializeTools() {
   // registerTool(killProcessDef, killProcessHandler);
   
   registerTool(readSkillDef, readSkillHandler);
+  registerTool(queryCodeGraphDef, queryCodeGraphHandler);
+  registerTool(indexCodebaseDef, indexCodebaseHandler);
 }
 
 // Automatically register all tools when the module loads to survive HMR
 initializeTools();
 import { definition as semanticSearchDef, handler as semanticSearchHandler } from './definitions/semanticSearch';
 registerTool(semanticSearchDef, semanticSearchHandler);
+
+
+

@@ -136,6 +136,12 @@ contextBridge.exposeInMainWorld('electron', {
   dbSaveAllTasks: (tasks: any[]) => ipcRenderer.sendSync('db-save-all-tasks', tasks),
   dbGetProjectMemory: (projectId: string) => ipcRenderer.sendSync('db-get-project-memory', projectId),
   dbSaveProjectMemory: (projectId: string, key: string, value: string) => ipcRenderer.sendSync('db-save-project-memory', projectId, key, value),
+  dbSaveCodeNodes: (nodes: any[]) => ipcRenderer.invoke('db-save-code-nodes', nodes),
+  dbSaveCodeEdges: (edges: any[]) => ipcRenderer.invoke('db-save-code-edges', edges),
+  dbGetCodeNodes: (projectId: string) => ipcRenderer.invoke('db-get-code-nodes', projectId),
+  dbGetCodeGraphDeps: (symbolId: string) => ipcRenderer.invoke('db-get-code-graph-deps', symbolId),
+  dbGetCodeGraphCallers: (symbolId: string) => ipcRenderer.invoke('db-get-code-graph-callers', symbolId),
+  dbClearCodeGraph: (projectId: string, filePath: string) => ipcRenderer.invoke('db-clear-code-graph', projectId, filePath),
   onBackgroundTaskComplete: (callback: (data: { taskId: string; status: any }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, data: { taskId: string; status: any }) => callback(data);
     ipcRenderer.on('background-task-complete', listener);
@@ -150,6 +156,7 @@ contextBridge.exposeInMainWorld('electron', {
   previewPdf: () => ipcRenderer.invoke('preview-pdf'),
   readDocxHtml: (path: string) => ipcRenderer.invoke('read-docx-html', path),
   readDocxBuffer: (path: string) => ipcRenderer.invoke('read-docx-buffer', path),
+  writeDocxBuffer: (path: string, buffer: Uint8Array) => ipcRenderer.invoke('write-docx-buffer', path, buffer),
   getDocxPositions: (path: string) => ipcRenderer.invoke('get-docx-positions', path),
   saveDocxHtml: (path: string, htmlContent: string) => ipcRenderer.invoke('save-docx-html', path, htmlContent),
   
@@ -162,3 +169,5 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.send('mcp-sampling-response', reqId, result, error);
   }
 });
+
+

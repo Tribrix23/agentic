@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
+import { stripAnsi } from '../../lib/ansi';
 import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Brain, Globe, FileCode, Wrench, SquareTerminal, FilePlus, Loader2, Mail, Star, Square, ArrowLeft, ArrowRight, RotateCcw, Lock, Code, Folder, FileText, File, Image as ImageIcon, MoreVertical, Activity } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
@@ -351,7 +352,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     }
 
     // Fallback: try parsing the output text for diff info
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const addMatch = String(output).match(/(\d+) insertion/);
     const delMatch = String(output).match(/(\d+) deletion/);
     if (addMatch || delMatch) {
@@ -388,7 +389,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__gdrive__')) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
 
     const isList = step.toolCall.name === 'mcp__gdrive__list_files' || step.toolCall.name === 'mcp__gdrive__search_files';
@@ -515,7 +516,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__gmail__')) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
 
     // Parse emails if it's a list operation and output is a string
@@ -629,7 +630,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__supabase__') || step.toolCall.name.startsWith('mcp_supabase_'))) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
 
     let parsedData = null;
@@ -743,7 +744,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__github__') || step.toolCall.name.startsWith('mcp_github_'))) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
     return (
       <div className="w-full my-3">
@@ -760,7 +761,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__figma__') || step.toolCall.name.startsWith('mcp_figma_'))) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
 
     let files = [];
@@ -844,7 +845,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && (step.toolCall.name.startsWith('mcp__vercel__') || step.toolCall.name.startsWith('mcp_vercel_'))) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
 
     let projects = [];
@@ -991,7 +992,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
 
   if (step.type === 'tool' && step.toolCall && step.toolCall.name.startsWith('mcp__playwright__')) {
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
     const args = step.toolCall.arguments || {};
 
     // Determine action type
@@ -1146,7 +1147,7 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
   if (step.type === 'tool' && step.toolCall && !['writeFile', 'createFile', 'write_to_file', 'createTodoListTasks', 'updateTaskStatus', 'invokeSubagent'].includes(step.toolCall.name)) {
     const cmdObj = getBashLikeCommand(step.toolCall.name, step.toolCall.arguments || {});
     const isError = step.status === 'error' || step.status === 'rejected';
-    const output = step.toolCall.result?.output || '';
+    const output = stripAnsi(step.toolCall.result?.output || '');
 
     const session = (() => { try { return JSON.parse(localStorage.getItem('quantix_session') || '{}'); } catch { return {}; } })();
     const rawName: string = session?.name || 'user';
@@ -1314,3 +1315,4 @@ export function AgentProgressCard({ step, onApprove, onReject, onArtifactClick }
     </div>
   );
 }
+

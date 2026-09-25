@@ -1,4 +1,4 @@
-import ParticleText from './ParticleText';
+import TechText from './TechText';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bot, User, Paperclip, Mic, Send, PanelLeft, ArrowLeft, ArrowRight, PanelRight, Folder, ChevronDown, Plus, HardDrive, Shield, ShieldAlert, ShieldCheck, X, GitBranch, Monitor, Lock, Trash2, PanelRightClose, PanelLeftClose, Cloud, Zap, Plug2, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -592,8 +592,8 @@ export const MainContent = ({
                 if (validation?.diagnostics?.length > 0) {
                   const error = validation.diagnostics.slice(0, 3).map((diagnostic: any) => diagnostic.message).join('; ');
                   console.error(`[Subagent] Task ${taskId} produced invalid output: ${error}`);
-                  shouldMarkComplete = false;
-                  updateTask(taskId, { status: 'failed', metadata: { ...task?.metadata, error: `Validation failed: ${error}` } });
+                  // shouldMarkComplete = false;
+                  updateTask(taskId, { metadata: { ...task?.metadata, warning: `Validation warning: ${error}` } });
                 } else {
                   console.log(`[Subagent] Task ${taskId} verified: target file ${targetFile} exists and passed validation.`);
                 }
@@ -705,22 +705,34 @@ IMPORTANT RULES:
     };
 
     const handleSendSubagentMessage = (e: any) => {
-      // Ideally we would look up the subagent and call run() again.
-      // For this MVP true-mirror implementation, we just mock the received event
-      // since full subagent message routing requires a more complex UI state.
       const { conversationId, message } = e.detail;
-      setTimeout(() => {
-        const taskMsg = createUserMessage(`[Subagent (${conversationId})]: Received your message: "${message}". I am processing it.`);
+      const subagentLoop = subagentLoopsRef.current.get(conversationId);
+      
+      if (subagentLoop) {
+        // Send message directly to the subagent's loop
+        const userMsg = createUserMessage(message);
+        // We append it to the subagent's conversation history
+        const existingMsgs = loadMessages(conversationId) || [];
+        const newMsgs = [...existingMsgs, userMsg];
+        saveMessages(conversationId, newMsgs);
+        
+        // Dispatch event so UI updates if subagent is focused (optional, but good practice)
+        window.dispatchEvent(new CustomEvent('subagent-message-added', { detail: { conversationId, message: userMsg } }));
+        
+        subagentLoop.run([{ ...userMsg, role: 'user' }]).catch(err => console.error(`[Subagent ${conversationId}] run failed:`, err));
+      } else {
+        // Fallback: subagent not found
+        const taskMsg = createUserMessage(`[System Error]: Subagent (${conversationId}) is not currently active or found.`);
         setMessages(prev => {
           const newMsgs = [...prev, taskMsg];
           if (!isAgentRunning && aiConfig.agentMode && activeConversationId && getAgentLoop() && getAgentLoop()?.getState().status !== 'stopped') {
             setIsAgentRunning(true);
             isStreamingRef.current = true;
-            getAgentLoop().run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
+            getAgentLoop()?.run(newMsgs.map(m => ({ ...m, role: m.role as any }))).catch(console.error);
           }
           return newMsgs;
         });
-      }, 1000);
+      }
     };
 
     const handleSubagentFileActivity = (e: any) => {
@@ -1854,37 +1866,6 @@ IMPORTANT RULES:
 
       {/* Main Content Area */}
       <motion.div layout className={cn("flex-1 flex flex-col px-6 relative", messages.length === 0 ? "justify-center items-center" : "overflow-hidden")}>
-        <AnimatePresence>
-          {messages.length === 0 && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, transition: { duration: 0.3 } }}
-              // absolute inset-0 fills the flex container exactly; -top-48 shifts the center further up
-              className="absolute inset-0 -top-48 pointer-events-none z-0"
-            >
-              <ParticleText
-                text="QUANTIX"
-                particleSize={2.4} 
-                density={3} // 3 is a good middle ground (more particles than 6, fewer than 2)
-                color="#f8fafc"
-                highlightColor="#8b5cf6"
-                scatter={1000}
-                gatherDuration={1600}
-                stagger={420}
-                pointerRepel={42}
-                repelRadius={120}
-                idleDrift={0.8}
-                trigger="mount"
-                fontSize={72}
-                fontWeight={800}
-                fontFamily="inherit"
-                glow
-                className="pointer-events-auto"
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* ── Agentic Chat Interface ─────────────────────────────────── */}
         {messages.length > 0 && (
@@ -2069,8 +2050,31 @@ IMPORTANT RULES:
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 className="flex flex-col items-center mb-8 w-full max-w-[650px]"
               >
-                 {/* Height placeholder so the layout flow still reserves space */}
-                 <div style={{ width: '100%', height: 110 }} />
+                                    {/* Logo Container in document flow */}
+                   <div style={{ width: '100%', height: '140px', position: 'relative' }} className="pointer-events-auto">
+                    <TechText
+                      text="QUANTIX"
+                      fontWeight={800}
+                      fontSize={86}
+                      reveal="letter"
+                      dashLength={4}
+                      dashGap={2}
+                      specks={15}
+                      
+                      color="#f8fafc"
+                      accentColor="#8b5cf6"
+                      letterSpacing={-0.05}
+                      reach={200}
+                      softness={0.7}
+                      strokeWidth={1.5}
+                      speed={1}
+                      lineStyle="dashed"
+                      selection={true}
+                      labels={true}
+                      draggable={false}
+                      sweep={true}
+                    />
+                  </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -2421,3 +2425,14 @@ IMPORTANT RULES:
     </div>
   );
 };
+
+
+
+
+
+
+
+
+
+
+

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from 'react';
+import React, { useEffect, useRef, type CSSProperties } from 'react';
 export interface ParticleTextProps {
   text?: string;
   particleSize?: number;
@@ -269,6 +269,22 @@ const ParticleText = ({
         gathering = false;
       }
 
+      // Automatically pause the animation loop if nothing is moving
+      if (!gathering && idleDrift === 0 && (!pointer.active || pointerRepel === 0) && !glow) {
+        let isIdle = true;
+        // Verify particles are exactly at their targets
+        for (let i = 0; i < particles.length; i++) {
+          if (Math.abs(particles[i].x - particles[i].targetX) > 0.1 || Math.abs(particles[i].y - particles[i].targetY) > 0.1) {
+            isIdle = false;
+            break;
+          }
+        }
+        if (isIdle) {
+          animationFrame = null;
+          return;
+        }
+      }
+
       animationFrame = window.requestAnimationFrame(render);
     };
 
@@ -494,4 +510,5 @@ const ParticleText = ({
   );
 };
 
-export default ParticleText;
+export default React.memo(ParticleText);
+

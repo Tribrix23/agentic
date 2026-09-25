@@ -1,4 +1,5 @@
 import { getAIConfig } from '../aiConfig';
+import { searchEmbeddings } from '../semanticSearch';
 import { ASTIndexer, CodeChunk } from './astIndexer';
 
 export interface SearchResult {
@@ -68,13 +69,23 @@ export class HybridSearch {
    * embed them, and query a local vector DB (e.g. SQLite VSS or LanceDB).
    */
   private async performVectorSearch(query: string, projectRoot: string): Promise<SearchResult[]> {
-    const config = getAIConfig();
-    
     console.log(`[HybridSearch] Querying vector space for: ${query}`);
-    
-    // MOCK: This represents a fully embedded RAG search over AST chunks
-    // To implement fully: embed `query`, cosine similarity against pre-computed DB.
-    return [];
+    try {
+      const vectorHits = await searchEmbeddings(projectRoot, query, 5);
+      return vectorHits.map((hit, index) => ({
+        id: `${hit.filePath}#vector`,
+        filePath: hit.filePath,
+        startLine: 1,
+        endLine: hit.content.split('\n').length,
+        content: hit.content,
+        score: hit.score,
+        rank: index + 1,
+        source: 'vector' as const
+      }));
+    } catch (e) {
+      console.error('[HybridSearch] Vector search failed:', e);
+      return [];
+    }
   }
 
   /**
@@ -130,3 +141,4 @@ export class HybridSearch {
     return hybridResults;
   }
 }
+

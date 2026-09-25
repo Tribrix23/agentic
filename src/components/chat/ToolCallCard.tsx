@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ToolCall } from '../../lib/messageTypes';
+import { stripAnsi } from '../../lib/ansi';
 import { Terminal, FileEdit, Search, ChevronDown, ChevronRight, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
@@ -93,7 +94,7 @@ export function ToolCallCard({ toolCall, onApprove, onReject }: ToolCallCardProp
                 <div>
                   <div className="text-xs text-white/40 mb-2">Result</div>
                   <CodeBlock 
-                    code={toolCall.result.output} 
+                    code={stripAnsi(toolCall.result.output)} 
                   />
                 </div>
               )}
@@ -104,3 +105,4 @@ export function ToolCallCard({ toolCall, onApprove, onReject }: ToolCallCardProp
     </div>
   );
 }
+

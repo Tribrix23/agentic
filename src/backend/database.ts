@@ -44,6 +44,23 @@ export function initDatabase() {
       updatedAt INTEGER NOT NULL,
       UNIQUE(projectId, memoryKey)
     );
+
+    CREATE TABLE IF NOT EXISTS code_nodes (
+      id TEXT PRIMARY KEY,
+      projectId TEXT NOT NULL,
+      filePath TEXT NOT NULL,
+      symbolName TEXT NOT NULL,
+      symbolType TEXT NOT NULL,
+      startLine INTEGER,
+      endLine INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS code_edges (
+      sourceId TEXT NOT NULL,
+      targetId TEXT NOT NULL,
+      relationType TEXT NOT NULL,
+      PRIMARY KEY (sourceId, targetId, relationType)
+    );
   `);
 
   return db;
@@ -127,3 +144,48 @@ export function saveProjectMemory(projectId: string, memoryKey: string, memoryVa
   `);
   query.run({ id, projectId, memoryKey, memoryValue, updatedAt: Date.now() });
 }
+
+// --- Knowledge Graph Helpers ---
+
+export function saveCodeNodes(nodes: any[]) {
+  const db = getDb();
+  const stmt = db.prepare('INSERT OR REPLACE INTO code_nodes (id, projectId, filePath, symbolName, symbolType, startLine, endLine) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  const insertMany = db.transaction((items: any[]) => {
+    for (const item of items) {
+      stmt.run(item.id, item.projectId, item.filePath, item.symbolName, item.symbolType, item.startLine, item.endLine);
+    }
+  });
+  insertMany(nodes);
+}
+
+export function saveCodeEdges(edges: any[]) {
+  const db = getDb();
+  const stmt = db.prepare('INSERT OR IGNORE INTO code_edges (sourceId, targetId, relationType) VALUES (?, ?, ?)');
+  const insertMany = db.transaction((items: any[]) => {
+    for (const item of items) {
+      stmt.run(item.sourceId, item.targetId, item.relationType);
+    }
+  });
+  insertMany(edges);
+}
+
+export function getCodeNodes(projectId: string) {
+  return getDb().prepare('SELECT * FROM code_nodes WHERE projectId = ?').all(projectId);
+}
+
+export function getCodeGraphDependencies(symbolId: string) {
+  // Finds what this symbol depends on (calls, imports)
+  return getDb().prepare('SELECT * FROM code_edges JOIN code_nodes ON code_edges.targetId = code_nodes.id WHERE sourceId = ?').all(symbolId);
+}
+
+export function getCodeGraphCallers(symbolId: string) {
+  // Finds who depends on this symbol
+  return getDb().prepare('SELECT * FROM code_edges JOIN code_nodes ON code_edges.sourceId = code_nodes.id WHERE targetId = ?').all(symbolId);
+}
+
+export function clearCodeGraphForFile(projectId: string, filePath: string) {
+  const db = getDb();
+  db.prepare('DELETE FROM code_edges WHERE sourceId IN (SELECT id FROM code_nodes WHERE projectId = ? AND filePath = ?) OR targetId IN (SELECT id FROM code_nodes WHERE projectId = ? AND filePath = ?)').run(projectId, filePath, projectId, filePath);
+  db.prepare('DELETE FROM code_nodes WHERE projectId = ? AND filePath = ?').run(projectId, filePath);
+}
+

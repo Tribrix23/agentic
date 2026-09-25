@@ -4,7 +4,7 @@ import path from 'node:path';
 import fs from 'fs';
 import { spawn, ChildProcess } from 'child_process';
 import started from 'electron-squirrel-startup';
-import { getAllTasks, saveAllTasks, getProjectMemory, saveProjectMemory } from './backend/database';
+import { getAllTasks, saveAllTasks, getProjectMemory, saveProjectMemory, saveCodeNodes, saveCodeEdges, getCodeNodes, getCodeGraphDependencies, getCodeGraphCallers, clearCodeGraphForFile } from './backend/database';
 import { ProcessManager } from './lib/processManager';
 import { McpClientManager } from './lib/mcp/manager';
 import type { McpServerConfig } from './lib/mcp/types';
@@ -757,6 +757,13 @@ function createWindow() {
     saveProjectMemory(projectId, memoryKey, memoryValue);
     event.returnValue = true;
   });
+
+  ipcMain.handle('db-save-code-nodes', (_event, nodes) => saveCodeNodes(nodes));
+  ipcMain.handle('db-save-code-edges', (_event, edges) => saveCodeEdges(edges));
+  ipcMain.handle('db-get-code-nodes', (_event, projectId) => getCodeNodes(projectId));
+  ipcMain.handle('db-get-code-graph-deps', (_event, symbolId) => getCodeGraphDependencies(symbolId));
+  ipcMain.handle('db-get-code-graph-callers', (_event, symbolId) => getCodeGraphCallers(symbolId));
+  ipcMain.handle('db-clear-code-graph', (_event, projectId, filePath) => clearCodeGraphForFile(projectId, filePath));
 
   ipcMain.handle('select-folder', async () => {
     if (!mainWindow) return null;
@@ -1879,6 +1886,27 @@ ipcMain.handle('read-docx-buffer', async (_event, filePath: string) => {
 });
 
 ipcMain.handle('print-to-pdf', async (event, suggestedName) => {
+
+  ipcMain.handle('read-docx-buffer', (_event, path) => {
+    try {
+      if (!fs.existsSync(path)) return new Uint8Array(0);
+      const buffer = fs.readFileSync(path);
+      return new Uint8Array(buffer);
+    } catch (e) {
+      console.error(e);
+      return new Uint8Array(0);
+    }
+  });
+
+  ipcMain.handle('write-docx-buffer', (_event, path, array) => {
+    try {
+      fs.writeFileSync(path, Buffer.from(array));
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  });
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return false;
 
@@ -1931,3 +1959,6 @@ ipcMain.handle('preview-pdf', async (event) => {
     return false;
   }
 });
+
+
+
